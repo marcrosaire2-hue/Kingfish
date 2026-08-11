@@ -67,6 +67,21 @@ function isValidDate(date: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(date);
 }
 
+/**
+ * Stock encore vendable mais entamé au point d’alerter. On exclut la rupture
+ * (0) : elle a déjà son propre traitement visuel, et mélanger les deux
+ * empêcherait de distinguer « il faut recommander » de « il est trop tard ».
+ */
+function isLowStock(
+  stockLeft: number | null | undefined,
+  threshold: number | undefined,
+): boolean {
+  if (stockLeft === null || stockLeft === undefined) return false;
+  const seuil = Math.max(0, Number(threshold) || 0);
+  if (seuil <= 0) return false;
+  return stockLeft > 0 && stockLeft <= seuil;
+}
+
 function findComboBaseDish(
   combo: ComboDish,
   parametres: Parametres,
@@ -158,6 +173,7 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: soldById.get(dish.id) ?? 0,
         stockLeft,
+        lowStock: isLowStock(stockLeft, dish.alertThreshold),
         hint: `Reste ${stockLeft}`,
       });
     }
@@ -178,6 +194,7 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
+        lowStock: isLowStock(stockLeft, dish.alertThreshold),
         hint: `Reçu ${sent} · reste ${stockLeft}`,
       });
     }
@@ -193,6 +210,7 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
+        lowStock: isLowStock(stockLeft, dish.alertThreshold),
         hint: `Sur place · reste ${stockLeft}`,
       });
     }
@@ -218,6 +236,7 @@ export async function getVenteBoard(
       unitPrice: combo.unitPrice,
       soldToday: comboSold.get(combo.id) ?? 0,
       stockLeft,
+      lowStock: isLowStock(stockLeft, combo.alertThreshold),
       hint:
         site === "zogbo"
           ? `Préparé Zogbo · reste ${stockLeft}`
@@ -252,6 +271,9 @@ export async function getVenteBoard(
       unitPrice: drink.salePrice ?? 0,
       soldToday: drinkSold.get(drink.id) ?? 0,
       stockLeft: drink.salePrice === null ? null : stockLeft,
+      lowStock:
+        drink.salePrice !== null &&
+        isLowStock(stockLeft, drink.alertThreshold),
       hint:
         drink.salePrice === null
           ? "PV manquant"

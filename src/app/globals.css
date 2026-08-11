@@ -5065,3 +5065,33 @@ html.nav-open body {
     font-size: max(16px, 1rem);
   }
 }
+
+/* --- Alerte de réapprovisionnement sur les tuiles produit ---------------
+   Distincte de la rupture : ici le produit est encore vendable, il s'agit
+   de prévenir avant qu'il ne manque. */
+.vente-card.is-low {
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--line));
+  box-shadow:
+    var(--shadow-sm),
+    0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.vente-card-media {
+  position: relative;
+}
+
+.vente-low-badge {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #3a2c00;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  white-space: nowrap;
+}

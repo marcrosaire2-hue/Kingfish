@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { PriceInput } from "@/components/parametres/price-input";
+import { QtyInput } from "@/components/qty-input";
 import { formatFcfa, formatUpdatedAt, newId } from "@/lib/format";
 import { exportParametresExcel } from "@/lib/page-exports";
 import { cloneSeed } from "@/lib/storage";
@@ -758,6 +759,9 @@ function DrinksTable({
             <th scope="col" className="col-margin">
               Marge / bt
             </th>
+            <th scope="col" className="col-qty">
+              Seuil alerte
+            </th>
             <th scope="col" className="col-actions">
               <span className="sr-only">Actions</span>
             </th>
@@ -838,6 +842,23 @@ function DrinksTable({
                   ) : (
                     formatFcfa(margin)
                   )}
+                </td>
+                <td className="col-qty">
+                  <QtyInput
+                    value={row.alertThreshold ?? null}
+                    allowEmpty
+                    placeholder="—"
+                    ariaLabel={`Seuil d'alerte ${row.name} (bouteilles)`}
+                    onChange={(alertThreshold) =>
+                      onChange(
+                        rows.map((r) =>
+                          r.id === row.id
+                            ? { ...r, alertThreshold: alertThreshold ?? 0 }
+                            : r,
+                        ),
+                      )
+                    }
+                  />
                 </td>
                 <td className="col-actions">
                   <button

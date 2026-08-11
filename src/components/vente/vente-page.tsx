@@ -633,10 +633,15 @@ export function VentePage() {
                     return (
                       <article
                         key={`${p.kind}-${p.productId}`}
-                        className={`vente-card${disabledPv || outOfStock ? " is-disabled" : ""}`}
+                        className={`vente-card${disabledPv || outOfStock ? " is-disabled" : ""}${
+                          p.lowStock && !outOfStock ? " is-low" : ""
+                        }`}
                       >
                         <div className="vente-card-media" aria-hidden>
                           <ProductIcon kind={p.kind} name={p.name} size="lg" />
+                          {p.lowStock && !outOfStock ? (
+                            <span className="vente-low-badge">Bientôt épuisé</span>
+                          ) : null}
                         </div>
                         <div className="vente-card-body">
                           <h3>{p.name}</h3>

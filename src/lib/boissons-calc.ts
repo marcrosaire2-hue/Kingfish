@@ -43,6 +43,9 @@ export function normalizeDrink(drink: Drink): Drink {
         ? null
         : Math.max(0, Number(drink.salePrice) || 0),
     unitsPerCasier: unitsPerCasierOf(drink),
+    // Reconstruction champ par champ : sans cette ligne, le seuil saisi dans
+    // Paramètres serait perdu au premier enregistrement.
+    alertThreshold: Math.max(0, Number(drink.alertThreshold) || 0),
   };
 }
 

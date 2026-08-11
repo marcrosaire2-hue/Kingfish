@@ -6,6 +6,11 @@ export type BaseDish = {
   unitPrice: number;
   /** Prix de revient (optionnel) */
   costPrice?: number;
+  /**
+   * Seuil d’alerte : au-dessous, le produit est signalé à réapprovisionner
+   * avant d’être en rupture. 0 ou absent = pas d’alerte.
+   */
+  alertThreshold?: number;
 };
 
 export type ComboDish = {
@@ -15,6 +20,11 @@ export type ComboDish = {
   /** Nom du plat de base à déduire du stock, ou null si aucun */
   baseDishName: string | null;
   costPrice?: number;
+  /**
+   * Seuil d’alerte : au-dessous, le produit est signalé à réapprovisionner
+   * avant d’être en rupture. 0 ou absent = pas d’alerte.
+   */
+  alertThreshold?: number;
 };
 
 export type Drink = {
@@ -29,6 +39,11 @@ export type Drink = {
    * PB/PM ≈ 24, GB ≈ 12.
    */
   unitsPerCasier: number;
+  /**
+   * Seuil d’alerte en bouteilles : en dessous, la boisson est signalée comme
+   * à réapprovisionner, avant d’être en rupture. 0 ou absent = pas d’alerte.
+   */
+  alertThreshold?: number;
 };
 
 export type LocalDish = {
@@ -36,6 +51,11 @@ export type LocalDish = {
   name: string;
   unitPrice: number;
   costPrice?: number;
+  /**
+   * Seuil d’alerte : au-dessous, le produit est signalé à réapprovisionner
+   * avant d’être en rupture. 0 ou absent = pas d’alerte.
+   */
+  alertThreshold?: number;
 };
 
 /** Matière première (aliment source) */
@@ -407,6 +427,11 @@ export type VenteProduct = {
   hint?: string | null;
   /** Stock restant vendable (plat / local / combo lié à une base) ; null = non plafonné */
   stockLeft?: number | null;
+  /**
+   * Stock encore vendable mais sous le seuil d’alerte : à réapprovisionner
+   * avant la rupture, plutôt qu’une fois le stock à zéro.
+   */
+  lowStock?: boolean;
 };
 
 export type VenteLogEntry = {
