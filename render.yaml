@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: kingfish
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: main
+    buildCommand: npm ci && npm run build
+    # Next doit écouter sur le port fourni par Render, sur toutes les interfaces.
+    startCommand: npx next start -H 0.0.0.0 -p $PORT
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: MONGODB_DB
+        value: gestion_restaurant
+      # Renseignés dans le tableau de bord Render — jamais dans le dépôt.
+      - key: MONGODB_URI
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
