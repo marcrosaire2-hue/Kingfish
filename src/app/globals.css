@@ -1669,47 +1669,157 @@ select {
   background-image:
     linear-gradient(
       160deg,
-      color-mix(in srgb, #005098 48%, transparent) 0%,
-      color-mix(in srgb, #0b1a2e 38%, transparent) 45%,
-      color-mix(in srgb, #0b1a2e 58%, transparent) 100%
+      color-mix(in srgb, #005098 52%, transparent) 0%,
+      color-mix(in srgb, #0b1a2e 46%, transparent) 45%,
+      color-mix(in srgb, #0b1a2e 68%, transparent) 100%
     ),
     url("/bg-login.jpg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  /* Clavier ouvert : la carte défile au lieu d’être rognée en haut. */
+  align-content: center;
+  overflow-y: auto;
 }
 
 .login-card {
   width: min(100%, 420px);
-  background: color-mix(in srgb, var(--surface) 94%, transparent);
-  border: 1px solid color-mix(in srgb, #ffffff 35%, var(--line));
-  border-radius: 20px;
-  padding: 2rem 1.85rem 1.85rem;
+  background: color-mix(in srgb, var(--surface) 96%, transparent);
+  border: 1px solid color-mix(in srgb, #ffffff 45%, var(--line));
+  border-radius: 24px;
+  padding: 2.15rem 1.85rem 1.6rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  box-shadow: 0 18px 48px color-mix(in srgb, #000 35%, transparent);
-  backdrop-filter: blur(10px);
+  gap: 0.95rem;
+  box-shadow:
+    0 1px 0 color-mix(in srgb, #ffffff 60%, transparent) inset,
+    0 24px 60px color-mix(in srgb, #000 42%, transparent);
+  backdrop-filter: blur(12px);
 }
 
+/* Marque centrée : sur un téléphone tenu à une main, le regard tombe au milieu. */
 .login-brand {
   display: flex;
-  gap: 0.85rem;
+  flex-direction: column;
   align-items: center;
-  margin-bottom: 0.35rem;
+  text-align: center;
+  gap: 0.1rem;
+  margin-bottom: 0.5rem;
+}
+
+.login-logo {
+  width: 5.5rem;
+  height: 5.5rem;
+  object-fit: contain;
+  border-radius: 50%;
+  background: #ffffff;
+  padding: 0.55rem;
+  margin-bottom: 0.6rem;
+  /* Anneau doré repris de la couronne du logo */
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 8px 22px color-mix(in srgb, var(--ink) 22%, transparent);
 }
 
 .login-brand h1 {
   margin: 0;
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 800;
   letter-spacing: -0.02em;
+  color: var(--ink);
 }
 
-.login-brand p {
+.login-tagline {
   margin: 0.15rem 0 0;
   color: var(--ink-soft);
   font-size: 0.9rem;
+}
+
+.login-sites {
+  margin: 0.45rem 0 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-deep);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+}
+
+.login-error {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 10%, #ffffff);
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  color: color-mix(in srgb, var(--danger) 85%, #000);
+  font-size: 0.87rem;
+  font-weight: 600;
+}
+
+.login-error-mark {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--danger);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+/* Champ mot de passe : l’œil se superpose, sans réduire la zone de frappe. */
+.login-password {
+  position: relative;
+  display: block;
+}
+
+.login-password input {
+  width: 100%;
+  padding-right: 3.1rem;
+}
+
+.login-reveal {
+  position: absolute;
+  top: 50%;
+  right: 0.3rem;
+  transform: translateY(-50%);
+  width: 2.85rem;
+  height: 2.85rem;
+  min-width: 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.login-reveal svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.login-reveal:hover,
+.login-reveal[aria-pressed="true"] {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.login-foot {
+  margin: 0.15rem 0 0;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
 }
 
 .login-hint {
@@ -1725,9 +1835,11 @@ select {
 .login-field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
-  font-size: 0.85rem;
-  font-weight: 600;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--ink-soft);
 }
 
@@ -1735,22 +1847,38 @@ select {
 .admin-form .select-input {
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  padding: 0.65rem 0.75rem;
-  background: var(--surface);
+  padding: 0.65rem 0.85rem;
+  background: color-mix(in srgb, var(--ink) 3%, #ffffff);
   color: var(--ink);
-  font-weight: 500;
+  font-weight: 600;
+  /* 16px minimum : en dessous, iOS zoome la page au focus. */
+  font-size: max(16px, 1rem);
+  letter-spacing: normal;
+  text-transform: none;
+  min-height: 3rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .login-field input:focus,
 .admin-form .select-input:focus {
-  outline: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  outline: none;
+  background: #ffffff;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .login-submit {
   width: 100%;
-  margin-top: 0.35rem;
-  padding: 0.75rem;
+  margin-top: 0.55rem;
+  min-height: 3.25rem;
+  padding: 0.8rem;
+  font-size: max(16px, 1.02rem);
+  font-weight: 700;
+  border-radius: var(--radius);
+}
+
+.login-submit:disabled {
+  opacity: 0.65;
 }
 
 .admin-grid {
@@ -4320,19 +4448,20 @@ html.nav-open body {
 
   .login-card {
     width: min(100%, 420px);
-    padding: 1.45rem 1.2rem 1.35rem;
-    border-radius: 18px;
+    padding: 1.75rem 1.35rem 1.4rem;
+    border-radius: 22px;
   }
 
   .login-field input {
-    min-height: 2.85rem;
-    font-size: 1rem;
+    min-height: 3.1rem;
+    /* Ne jamais repasser sous 16px : iOS zoomerait au focus. */
+    font-size: max(16px, 1rem);
   }
 
   .login-submit {
-    min-height: 3rem;
+    min-height: 3.35rem;
     width: 100%;
-    font-size: 1.05rem;
+    font-size: max(16px, 1.05rem);
   }
 
   .caisse-form-grid {
@@ -4542,14 +4671,13 @@ html.nav-open body {
     display: none;
   }
 
-  .login-brand {
-    flex-direction: column;
-    align-items: flex-start;
-    text-align: left;
+  .login-brand h1 {
+    font-size: 1.35rem;
   }
 
-  .login-brand h1 {
-    font-size: 1.25rem;
+  .login-logo {
+    width: 4.75rem;
+    height: 4.75rem;
   }
 
   .caisse-hero-metrics {
