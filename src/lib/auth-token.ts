@@ -2,7 +2,18 @@ import { SignJWT, jwtVerify } from "jose";
 import type { SessionUser } from "@/lib/auth-types";
 
 export const SESSION_COOKIE = "zg_session";
-export const SESSION_DAYS = 14;
+
+/**
+ * Durée de session. 14 jours était long pour un téléphone partagé en salle :
+ * un appareil égaré reste connecté deux semaines. Deux jours couvrent un
+ * service sans reconnexion permanente ; ajustable par SESSION_DAYS sans
+ * redéploiement.
+ */
+export const SESSION_DAYS = (() => {
+  const raw = Number(process.env.SESSION_DAYS);
+  if (!Number.isFinite(raw) || raw <= 0 || raw > 30) return 2;
+  return raw;
+})();
 
 function getSecret() {
   const secret = process.env.AUTH_SECRET;

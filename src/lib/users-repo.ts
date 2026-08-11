@@ -231,6 +231,46 @@ export async function updateUser(
   return toAppUser(doc);
 }
 
+/**
+ * Changement de mot de passe par l’utilisateur lui-même : l’ancien mot de
+ * passe est exigé, pour qu’une session laissée ouverte sur un téléphone posé
+ * en salle ne suffise pas à confisquer un compte.
+ */
+export async function changeOwnPassword(input: {
+  id: string;
+  currentPassword: string;
+  newPassword: string;
+}): Promise<void> {
+  if (!ObjectId.isValid(input.id)) {
+    throw new Error("Utilisateur introuvable.");
+  }
+  if (input.newPassword.length < 8) {
+    throw new Error("Le nouveau mot de passe doit faire au moins 8 caractères.");
+  }
+  if (input.newPassword === input.currentPassword) {
+    throw new Error("Le nouveau mot de passe doit être différent de l’ancien.");
+  }
+
+  const db = await getDb();
+  const col = db.collection<UserDoc>("users");
+  const _id = new ObjectId(input.id);
+  const doc = await col.findOne({ _id });
+  if (!doc || !doc.active) throw new Error("Utilisateur introuvable.");
+
+  const ok = await bcrypt.compare(input.currentPassword, doc.passwordHash);
+  if (!ok) throw new Error("Mot de passe actuel incorrect.");
+
+  await col.updateOne(
+    { _id },
+    {
+      $set: {
+        passwordHash: await bcrypt.hash(input.newPassword, 10),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+  );
+}
+
 export async function deleteUser(id: string): Promise<void> {
   const db = await getDb();
   const col = db.collection<UserDoc>("users");

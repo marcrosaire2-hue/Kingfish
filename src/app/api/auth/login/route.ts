@@ -9,6 +9,18 @@ import {
   ensureDefaultAdmin,
 } from "@/lib/users-repo";
 import { homeForRole } from "@/lib/auth-types";
+import {
+  checkLoginAllowed,
+  clearLoginAttempts,
+  clientIpFrom,
+  registerFailedLogin,
+} from "@/lib/login-throttle";
+
+function formatDelay(seconds: number): string {
+  if (seconds < 60) return `${seconds} seconde${seconds > 1 ? "s" : ""}`;
+  const minutes = Math.ceil(seconds / 60);
+  return `${minutes} minute${minutes > 1 ? "s" : ""}`;
+}
 
 export const runtime = "nodejs";
 
@@ -26,13 +38,38 @@ export async function POST(request: Request) {
       );
     }
 
-    const user = await authenticateUser(body.username, body.password);
-    if (!user) {
+    const ip = clientIpFrom(request);
+    const throttle = await checkLoginAllowed(body.username, ip);
+    if (throttle.blocked) {
       return NextResponse.json(
-        { error: "Identifiant ou mot de passe incorrect." },
-        { status: 401 },
+        {
+          error: `Trop de tentatives. Réessayez dans ${formatDelay(throttle.retryAfter)}.`,
+        },
+        { status: 429, headers: { "Retry-After": String(throttle.retryAfter) } },
       );
     }
+
+    const user = await authenticateUser(body.username, body.password);
+    if (!user) {
+      const failed = await registerFailedLogin(body.username, ip);
+      // Message identique quel que soit le cas : ne pas révéler quels
+      // identifiants existent.
+      return NextResponse.json(
+        {
+          error: failed.blocked
+            ? `Trop de tentatives. Réessayez dans ${formatDelay(failed.retryAfter)}.`
+            : "Identifiant ou mot de passe incorrect.",
+        },
+        {
+          status: failed.blocked ? 429 : 401,
+          headers: failed.blocked
+            ? { "Retry-After": String(failed.retryAfter) }
+            : undefined,
+        },
+      );
+    }
+
+    await clearLoginAttempts(body.username, ip);
 
     const sessionUser = {
       id: user.id,

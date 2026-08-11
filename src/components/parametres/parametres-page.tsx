@@ -166,8 +166,13 @@ export function ParametresPage() {
     };
   }, []);
 
-  const missingSalePrices = useMemo(
-    () => data.drinks.filter((d) => d.salePrice === null).length,
+  /**
+   * Une boisson sans prix de vente est refusée à la caisse : sa carte reste
+   * grisée et la vente est rejetée côté serveur. On nomme les produits
+   * concernés — un simple compteur passait inaperçu.
+   */
+  const drinksWithoutPrice = useMemo(
+    () => data.drinks.filter((d) => d.salePrice === null).map((d) => d.name),
     [data],
   );
 
@@ -265,13 +270,25 @@ export function ParametresPage() {
           Dernière sauvegarde :{" "}
           <strong>{ready ? formatUpdatedAt(data.updatedAt) : "…"}</strong>
         </p>
-        {missingSalePrices > 0 ? (
-          <p className="warn-inline">
-            {missingSalePrices} boisson
-            {missingSalePrices > 1 ? "s" : ""} sans prix de vente
-          </p>
-        ) : null}
       </div>
+
+      {drinksWithoutPrice.length > 0 ? (
+        <p className="error-banner" role="alert">
+          <strong>
+            {drinksWithoutPrice.length} boisson
+            {drinksWithoutPrice.length > 1 ? "s" : ""} invendable
+            {drinksWithoutPrice.length > 1 ? "s" : ""} en caisse
+          </strong>{" "}
+          — {drinksWithoutPrice.slice(0, 6).join(", ")}
+          {drinksWithoutPrice.length > 6
+            ? ` et ${drinksWithoutPrice.length - 6} autre${
+                drinksWithoutPrice.length - 6 > 1 ? "s" : ""
+              }`
+            : ""}
+          . Sans prix de vente, leur carte reste grisée sur la page Vente, même
+          si le stock est là. Renseignez le prix dans l’onglet Boissons.
+        </p>
+      ) : null}
 
       {error ? (
         <p className="error-banner" role="alert">

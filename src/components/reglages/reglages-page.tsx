@@ -13,14 +13,103 @@ import type {
   PosTable,
 } from "@/lib/types";
 
-type Tab = "tables" | "paiements" | "serveurs" | "entreprise";
+type Tab = "tables" | "paiements" | "serveurs" | "entreprise" | "compte";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "tables", label: "Tables" },
   { key: "paiements", label: "Paiements" },
   { key: "serveurs", label: "Serveurs" },
   { key: "entreprise", label: "Entreprise" },
+  { key: "compte", label: "Mon compte" },
 ];
+
+/** Changement de mot de passe : chacun gère le sien, sans passer par l’admin. */
+function PasswordEditor() {
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setDone(false);
+    if (next !== confirm) {
+      setError("Les deux nouveaux mots de passe ne correspondent pas.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await fetch("/api/auth/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: current, newPassword: next }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(body.error || "Changement impossible.");
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setDone(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Changement impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form className="panel stack-form" onSubmit={submit}>
+      <p className="muted">
+        Choisissez un mot de passe d’au moins 8 caractères, différent de
+        l’actuel. Il vous sera demandé à la prochaine connexion.
+      </p>
+      {error ? <p className="error-banner">{error}</p> : null}
+      {done ? <p className="login-hint">Mot de passe modifié.</p> : null}
+      <label>
+        Mot de passe actuel
+        <input
+          type="password"
+          autoComplete="current-password"
+          value={current}
+          onChange={(e) => setCurrent(e.target.value)}
+          required
+        />
+      </label>
+      <label>
+        Nouveau mot de passe
+        <input
+          type="password"
+          autoComplete="new-password"
+          value={next}
+          onChange={(e) => setNext(e.target.value)}
+          required
+          minLength={8}
+        />
+      </label>
+      <label>
+        Confirmer le nouveau mot de passe
+        <input
+          type="password"
+          autoComplete="new-password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          required
+          minLength={8}
+        />
+      </label>
+      <button
+        type="submit"
+        className="btn btn-primary"
+        disabled={busy || !current || !next || !confirm}
+      >
+        {busy ? "Enregistrement…" : "Changer le mot de passe"}
+      </button>
+    </form>
+  );
+}
 
 export function ReglagesPage() {
   const [tab, setTab] = useState<Tab>("tables");
@@ -160,7 +249,9 @@ export function ReglagesPage() {
         ))}
       </div>
 
-      {loading || !data ? (
+      {tab === "compte" ? (
+        <PasswordEditor />
+      ) : loading || !data ? (
         <p className="muted">Chargement…</p>
       ) : tab === "tables" ? (
         <TablesEditor
