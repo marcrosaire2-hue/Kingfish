@@ -29,6 +29,7 @@ type Payload = {
   baseDishes: BaseDish[];
   localDishes: LocalDish[];
   sentByProductId: Record<string, number>;
+  openingEditable: boolean;
 };
 
 type SectionKey = "transfer" | "local" | "combos" | "boissons";
@@ -51,6 +52,8 @@ export function GbegameyPage() {
   const [sentByProductId, setSentByProductId] = useState<
     Record<string, number>
   >({});
+  /** Première mise en service : le stock de départ se saisit à la main. */
+  const [openingEditable, setOpeningEditable] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -96,6 +99,7 @@ export function GbegameyPage() {
           setBaseDishes(body.baseDishes);
           setLocalDishes(body.localDishes);
           setSentByProductId(body.sentByProductId);
+          setOpeningEditable(!!body.openingEditable);
           setDirty(false);
         }
       } catch (e) {
@@ -105,6 +109,7 @@ export function GbegameyPage() {
           setBaseDishes([]);
           setLocalDishes([]);
           setSentByProductId({});
+          setOpeningEditable(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -171,6 +176,7 @@ export function GbegameyPage() {
       setBaseDishes(body.baseDishes);
       setLocalDishes(body.localDishes);
       setSentByProductId(body.sentByProductId);
+      setOpeningEditable(!!body.openingEditable);
       setDirty(false);
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 1800);
@@ -329,6 +335,20 @@ export function GbegameyPage() {
         </div>
       ) : null}
 
+      {openingEditable && platsSection ? (
+        <div className="ui-info" role="note">
+          <span className="ui-info-mark" aria-hidden>
+            i
+          </span>
+          <p>
+            Première mise en service : saisissez vous-même le stock initial de
+            chaque plat, puis enregistrez. Dès le lendemain, ce stock est
+            reporté automatiquement du reste de la veille et la colonne
+            disparaît — vous ne saisirez plus que le reçu de Zogbo.
+          </p>
+        </div>
+      ) : null}
+
       <div className="ui-info" role="note">
         <span className="ui-info-mark" aria-hidden>
           i
@@ -346,6 +366,12 @@ export function GbegameyPage() {
             <thead>
               <tr>
                 <th scope="col">Plat</th>
+                {openingEditable ? (
+                  <th scope="col" className="col-qty">
+                    Stock initial
+                    <span className="col-auto-tag">1ʳᵉ saisie</span>
+                  </th>
+                ) : null}
                 <th scope="col" className="col-qty">
                   Solde
                   <span className="col-auto-tag">init.+reçu</span>
@@ -370,13 +396,13 @@ export function GbegameyPage() {
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={6} className="muted">
+                  <td colSpan={openingEditable ? 7 : 6} className="muted">
                     Chargement…
                   </td>
                 </tr>
               ) : computed.transfers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="muted">
+                  <td colSpan={openingEditable ? 7 : 6} className="muted">
                     Aucun plat de base. Configurez Paramètres puis saisissez
                     les envois dans Zogbo.
                   </td>
@@ -416,6 +442,19 @@ export function GbegameyPage() {
                           </span>
                         </span>
                       </td>
+                      {openingEditable ? (
+                        <td className="col-qty">
+                          <QtyInput
+                            value={line.initialStock}
+                            ariaLabel={`Stock initial ${line.name}`}
+                            onChange={(initialStock) =>
+                              patchTransfer(line.productId, {
+                                initialStock: initialStock ?? 0,
+                              })
+                            }
+                          />
+                        </td>
+                      ) : null}
                       <td className="col-qty mono cell-readonly cell-auto">
                         {line.available}
                       </td>
@@ -456,6 +495,9 @@ export function GbegameyPage() {
               <tfoot>
                 <tr>
                   <th scope="row">TOTAL</th>
+                  {openingEditable ? (
+                    <td className="mono">{computed.totals.initialStock}</td>
+                  ) : null}
                   <td className="mono">
                     {computed.totals.initialStock + computed.totals.received}
                   </td>
@@ -474,6 +516,12 @@ export function GbegameyPage() {
             <thead>
               <tr>
                 <th scope="col">Plat</th>
+                {openingEditable ? (
+                  <th scope="col" className="col-qty">
+                    Stock initial
+                    <span className="col-auto-tag">1ʳᵉ saisie</span>
+                  </th>
+                ) : null}
                 <th scope="col" className="col-qty">
                   Dispo
                   <span className="col-auto-tag">init.+préparé</span>
@@ -497,13 +545,13 @@ export function GbegameyPage() {
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={6} className="muted">
+                  <td colSpan={openingEditable ? 7 : 6} className="muted">
                     Chargement…
                   </td>
                 </tr>
               ) : computed.locals.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="muted">
+                  <td colSpan={openingEditable ? 7 : 6} className="muted">
                     Aucun plat local dans Paramètres.
                   </td>
                 </tr>
@@ -530,6 +578,19 @@ export function GbegameyPage() {
                           </span>
                         </span>
                       </td>
+                      {openingEditable ? (
+                        <td className="col-qty">
+                          <QtyInput
+                            value={line.initialStock}
+                            ariaLabel={`Stock initial ${line.name}`}
+                            onChange={(initialStock) =>
+                              patchLocal(line.productId, {
+                                initialStock: initialStock ?? 0,
+                              })
+                            }
+                          />
+                        </td>
+                      ) : null}
                       <td className="col-qty mono cell-readonly">
                         {line.available}
                       </td>
@@ -570,6 +631,7 @@ export function GbegameyPage() {
               <tfoot>
                 <tr>
                   <th scope="row">TOTAL</th>
+                  {openingEditable ? <td /> : null}
                   <td />
                   <td className="mono">{computed.totals.localPrepared}</td>
                   <td className="mono">{computed.totals.localSold}</td>

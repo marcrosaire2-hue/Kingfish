@@ -52,7 +52,22 @@ export type GbegameyDayPayload = {
   localDishes: LocalDish[];
   /** Qté envoyée par Zogbo le même jour, par productId */
   sentByProductId: Record<string, number>;
+  /**
+   * Première mise en service : aucune journée antérieure en base, il n’y a donc
+   * rien à reporter. Gbégamey saisit lui-même son stock de départ. Dès qu’une
+   * journée précède celle-ci, le report reprend la main et le champ se verrouille.
+   */
+  openingEditable: boolean;
 };
+
+/** Vrai tant qu’aucune journée Gbégamey n’a été enregistrée avant cette date. */
+async function isOpeningDay(date: string): Promise<boolean> {
+  const db = await getDb();
+  const previous = await db
+    .collection<GbegameyDoc>("gbegamey_jours")
+    .findOne({ _id: { $lt: date } }, { projection: { _id: 1 } });
+  return !previous;
+}
 
 async function loadSentMap(date: string): Promise<Record<string, number>> {
   const { day: zogbo } = await getZogboDayPayload(date);
@@ -119,6 +134,7 @@ export async function getGbegameyDayPayload(
 
   const { baseDishes, localDishes } = await getParametres();
   const sentByProductId = await loadSentMap(date);
+  const openingEditable = await isOpeningDay(date);
   const db = await getDb();
   const col = db.collection<GbegameyDoc>("gbegamey_jours");
   const existing = await col.findOne({ _id: date });
@@ -160,6 +176,7 @@ export async function getGbegameyDayPayload(
         baseDishes,
         localDishes,
         sentByProductId,
+        openingEditable,
       };
     }
     return {
@@ -167,6 +184,7 @@ export async function getGbegameyDayPayload(
       baseDishes,
       localDishes,
       sentByProductId,
+      openingEditable,
     };
   }
 
@@ -180,6 +198,7 @@ export async function getGbegameyDayPayload(
     baseDishes,
     localDishes,
     sentByProductId,
+    openingEditable,
   };
 }
 
@@ -198,6 +217,7 @@ export async function saveGbegameyDay(
 
   const lockSold = options?.lockSold !== false;
   const { baseDishes, localDishes } = await getParametres();
+  const openingEditable = await isOpeningDay(input.date);
 
   return updateDayDocument<GbegameyDoc, GbegameyDayPayload>(
     "gbegamey_jours",
@@ -226,11 +246,14 @@ export async function saveGbegameyDay(
       ).map((l) => {
         const normalized = normalizeTransferLine(l);
         const held = heldTransfer.get(l.productId);
-        const initialStock = existing
-          ? (held?.initialStock ??
-            leftovers.transfer.get(l.productId) ??
-            0)
-          : (leftovers.transfer.get(l.productId) ?? 0);
+        // Première mise en service : la grille pilote le stock de départ.
+        const initialStock = openingEditable
+          ? normalized.initialStock
+          : existing
+            ? (held?.initialStock ??
+              leftovers.transfer.get(l.productId) ??
+              0)
+            : (leftovers.transfer.get(l.productId) ?? 0);
         const sold = lockSold ? (held?.sold ?? 0) : normalized.sold;
         return { ...normalized, initialStock, sold };
       });
@@ -239,9 +262,11 @@ export async function saveGbegameyDay(
         (l) => {
           const normalized = normalizeLocalLine(l);
           const held = heldLocal.get(l.productId);
-          const initialStock = existing
-            ? (held?.initialStock ?? leftovers.local.get(l.productId) ?? 0)
-            : (leftovers.local.get(l.productId) ?? 0);
+          const initialStock = openingEditable
+            ? normalized.initialStock
+            : existing
+              ? (held?.initialStock ?? leftovers.local.get(l.productId) ?? 0)
+              : (leftovers.local.get(l.productId) ?? 0);
           const sold = lockSold ? (held?.sold ?? 0) : normalized.sold;
           return { ...normalized, initialStock, sold };
         },
@@ -264,6 +289,7 @@ export async function saveGbegameyDay(
           baseDishes,
           localDishes,
           sentByProductId,
+          openingEditable,
         },
       };
     },
