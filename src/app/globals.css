@@ -3629,9 +3629,11 @@ body {
     margin: 0 -0.15rem;
   }
 
+  /* Remplissage automatique plutôt que 2 colonnes figées : 2 tuiles sur un
+     téléphone, 4 sur un grand format, sans nouveau point de rupture. */
   .vente-page .vente-layout.is-caisse .vente-grid,
   .vente-page .vente-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 0.65rem;
   }
 
@@ -4763,8 +4765,11 @@ html.nav-open body {
     width: 100%;
   }
 
+  /* Remplissage automatique : 2 tuiles sur un téléphone, 3 ou 4 sur un grand
+     format. Le !important reste nécessaire pour l'emporter sur les règles
+     concurrentes déclarées plus haut. Sous 420px, 2 colonnes sont imposées. */
   .vente-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
   }
 
   .vente-card {
@@ -4900,5 +4905,163 @@ html.nav-open body {
 
   .mobile-bar-title {
     font-size: 0.82rem;
+  }
+}
+
+/* ==========================================================================
+   Page Vente — compactage mobile
+   Sur un écran de 812px, la barre de contexte (273px), le bandeau CA (334px)
+   et les onglets repoussaient le premier produit à 698px : 86% de l'écran
+   passait avant le premier article vendable. Ce bloc ramène cet en-tête à
+   une bande utile et rend les tuiles produit assez denses pour en voir
+   plusieurs rangées sans défiler.
+
+   Seuil aligné sur 720px, là où la page passe déjà en colonne unique : le
+   même tassement sert aux téléphones et aux petites tablettes en portrait.
+   ========================================================================== */
+@media (max-width: 720px) {
+  /* --- Barre de contexte : une seule ligne, défilement latéral --- */
+  .vente-page .context-bar {
+    gap: 0.55rem;
+    padding: 0.6rem 0.7rem;
+    border-radius: 14px;
+  }
+
+  .vente-page .context-bar-main,
+  .vente-page .context-bar-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.4rem;
+  }
+
+  .vente-page .context-bar-main::-webkit-scrollbar,
+  .vente-page .context-bar-actions::-webkit-scrollbar,
+  .vente-page .vente-cats::-webkit-scrollbar {
+    display: none;
+  }
+
+  .vente-page .context-bar-actions > * {
+    flex: 0 0 auto;
+  }
+
+  .vente-page .context-bar .btn,
+  .vente-page .context-bar .btn-ghost,
+  .vente-page .context-bar .site-btn {
+    min-height: 2.6rem;
+    padding-inline: 0.7rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+  }
+
+  /* --- Bandeau CA : le montant reste lisible, les actions passent en ligne --- */
+  .vente-hero {
+    padding: 0.8rem 0.85rem;
+    gap: 0.6rem;
+    border-radius: 16px;
+  }
+
+  .vente-hero-main {
+    gap: 0.1rem;
+  }
+
+  .vente-hero-meta {
+    display: none; /* consigne redondante avec le panier juste en dessous */
+  }
+
+  .vente-hero-value {
+    font-size: 1.6rem;
+    line-height: 1.1;
+  }
+
+  .vente-hero-side {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0;
+    background: none;
+    border: 0;
+  }
+
+  .vente-hero-side .site-btn {
+    min-height: 2.6rem;
+    padding-inline: 0.5rem;
+    font-size: 0.85rem;
+  }
+
+  .vente-hero-cta {
+    grid-column: auto;
+    width: auto;
+    min-height: 2.6rem;
+    padding-inline: 0.7rem;
+    font-size: 0.8rem;
+    white-space: nowrap;
+  }
+
+  /* --- Onglets catégories : défilement horizontal net, sans barre --- */
+  .vente-cats {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    padding: 0.3rem;
+    gap: 0.3rem;
+  }
+
+  .vente-cats .section-tab {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    min-height: 2.5rem;
+    padding-inline: 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  /* --- Tuiles produit : plus denses, la vignette cesse d'occuper 42% --- */
+  /* Les colonnes sont pilotées plus haut (remplissage automatique) : ne pas
+     redéclarer ici, sous peine de rouvrir le conflit de règles. */
+  .vente-grid {
+    gap: 0.6rem;
+  }
+
+  .vente-card {
+    padding: 0.6rem;
+    gap: 0.5rem;
+    border-radius: 16px;
+  }
+
+  .vente-card-media {
+    aspect-ratio: auto;
+    height: 3.4rem;
+    border-radius: 12px;
+  }
+
+  .vente-card-body {
+    min-height: 0;
+    gap: 0.1rem;
+  }
+
+  .vente-card h3 {
+    font-size: 0.88rem;
+    line-height: 1.2;
+  }
+
+  .vente-price {
+    font-size: 0.88rem;
+  }
+
+  /* Le bouton + garde ses 52px définis plus haut : c'est la cible tactile
+     la plus sollicitée de l'application, on ne la réduit pas. */
+
+  /* --- Panier : jamais sous 16px, sinon iOS zoome en pleine vente --- */
+  .pos-cart .vente-field select,
+  .pos-cart .vente-field input,
+  .pos-meta select,
+  .pos-meta input {
+    min-height: 2.9rem;
+    font-size: max(16px, 1rem);
   }
 }
