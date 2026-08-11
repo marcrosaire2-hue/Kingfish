@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reportError } from "@/lib/report-error";
 import type { GbegameyLocalLine, GbegameyTransferLine } from "@/lib/types";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite } from "@/lib/auth-types";
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
     return NextResponse.json(payload);
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    console.error("GET /api/gbegamey", error);
+    reportError("GET /api/gbegamey", error);
     return NextResponse.json(
       {
         error:
@@ -87,7 +88,7 @@ export async function PUT(request: Request) {
     return NextResponse.json(saved);
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    console.error("PUT /api/gbegamey", error);
+    reportError("PUT /api/gbegamey", error);
     return NextResponse.json(
       {
         error:

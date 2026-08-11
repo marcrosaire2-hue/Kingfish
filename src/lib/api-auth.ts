@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { SessionUser } from "@/lib/auth-types";
 import { effectiveSite } from "@/lib/auth-types";
+import { reportError } from "@/lib/report-error";
 import { getSessionUser } from "@/lib/session";
 
 export async function requireUser(): Promise<SessionUser> {
@@ -37,6 +38,6 @@ export function authErrorResponse(error: unknown) {
       { status: error.status },
     );
   }
-  console.error(error);
+  reportError("api", error);
   return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
 }

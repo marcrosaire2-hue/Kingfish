@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reportError } from "@/lib/report-error";
 import type { ZogboLine, ZogboMovementType } from "@/lib/types";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite } from "@/lib/auth-types";
@@ -47,7 +48,7 @@ export async function GET(request: Request) {
     return NextResponse.json(payload);
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    console.error("GET /api/zogbo", error);
+    reportError("GET /api/zogbo", error);
     return NextResponse.json(
       {
         error:
@@ -92,7 +93,7 @@ export async function PUT(request: Request) {
     return NextResponse.json(saved);
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    console.error("PUT /api/zogbo", error);
+    reportError("PUT /api/zogbo", error);
     return NextResponse.json(
       {
         error:
@@ -183,7 +184,7 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    console.error("POST /api/zogbo", error);
+    reportError("POST /api/zogbo", error);
     const message =
       error instanceof Error ? error.message : "Impossible d’enregistrer.";
     const status =

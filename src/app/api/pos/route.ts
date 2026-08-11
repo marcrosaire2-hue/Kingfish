@@ -8,6 +8,7 @@ import {
   validatePosTicket,
 } from "@/lib/pos-repo";
 import type { SaleType, VenteKind, VenteSite } from "@/lib/types";
+import { reportError } from "@/lib/report-error";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
@@ -125,6 +126,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ error: "action inconnue" }, { status: 400 });
   } catch (error) {
+    // Un ticket qui échoue, c'est une commande perdue en salle : on trace
+    // systématiquement, y compris les refus métier.
+    reportError("POST /api/pos", error);
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }

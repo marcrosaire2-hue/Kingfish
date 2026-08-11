@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite } from "@/lib/auth-types";
+import { reportError } from "@/lib/report-error";
 import {
   getVenteBoard,
   recordExtraVente,
@@ -134,9 +135,12 @@ export async function POST(request: Request) {
         m.includes("Description") ||
         m.includes("Prix invalide")
       ) {
+        // Refus métier attendu (stock, prix, saisie) : pas un incident.
         return NextResponse.json({ error: m }, { status: 400 });
       }
     }
+    // Tout le reste est un échec de vente : il doit laisser une trace.
+    reportError("POST /api/vente", error);
     return authErrorResponse(error);
   }
 }

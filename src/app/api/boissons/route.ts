@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reportError } from "@/lib/report-error";
 import type { BoissonsLine } from "@/lib/types";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { logActivity } from "@/lib/log-activity";
@@ -138,7 +139,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ...result, exits });
   } catch (error) {
-    console.error("POST /api/boissons", error);
+    reportError("POST /api/boissons", error);
     const message =
       error instanceof Error ? error.message : "Impossible d’enregistrer.";
     const status =

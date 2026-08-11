@@ -1,0 +1,41 @@
+name: Sauvegarde quotidienne
+
+# Render ne propose les tâches planifiées qu'en offre payante : la sauvegarde
+# tourne donc ici, gratuitement. Elle produit une archive téléchargeable depuis
+# l'onglet Actions du dépôt.
+#
+# Prérequis : ajouter le secret MONGODB_URI dans
+# Settings > Secrets and variables > Actions.
+
+on:
+  schedule:
+    # 03h00 UTC, soit 04h00 à Cotonou — hors service.
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  sauvegarder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Exporter la base
+        run: node scripts/sauvegarde.mjs
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: gestion_restaurant
+          BACKUP_DIR: sauvegardes
+
+      - name: Archiver
+        uses: actions/upload-artifact@v4
+        with:
+          name: sauvegarde-${{ github.run_id }}
+          path: sauvegardes/
+          retention-days: 30

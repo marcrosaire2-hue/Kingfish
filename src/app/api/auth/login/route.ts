@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reportError } from "@/lib/report-error";
 import {
   createSessionToken,
   sessionCookieOptions,
@@ -87,7 +88,7 @@ export async function POST(request: Request) {
     response.cookies.set(sessionCookieOptions(token));
     return response;
   } catch (error) {
-    console.error("POST /api/auth/login", error);
+    reportError("POST /api/auth/login", error);
     return NextResponse.json(
       { error: "Connexion impossible." },
       { status: 500 },
@@ -101,7 +102,7 @@ export async function GET() {
     await ensureDefaultAdmin();
     return NextResponse.json({ ready: true });
   } catch (error) {
-    console.error("GET /api/auth/login", error);
+    reportError("GET /api/auth/login", error);
     return NextResponse.json({ ready: false }, { status: 500 });
   }
 }

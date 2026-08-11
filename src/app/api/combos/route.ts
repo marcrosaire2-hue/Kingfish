@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { reportError } from "@/lib/report-error";
 import type { CombosLine, CombosMovementType } from "@/lib/types";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { logActivity } from "@/lib/log-activity";
@@ -151,7 +152,7 @@ export async function POST(request: Request) {
     });
     return NextResponse.json({ ...result, exits });
   } catch (error) {
-    console.error("POST /api/combos", error);
+    reportError("POST /api/combos", error);
     const message =
       error instanceof Error ? error.message : "Impossible d’enregistrer.";
     const status =

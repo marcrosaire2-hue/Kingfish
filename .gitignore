@@ -36,6 +36,9 @@ yarn-error.log*
 # exports AquaPro : données personnelles (noms, e-mails) et historique de ventes
 /data/
 
+# sauvegardes de la base : données d'exploitation, jamais dans le dépôt
+/sauvegardes/
+
 # vercel
 .vercel
 
