@@ -466,6 +466,13 @@ export type PosServeur = {
   nom: string;
 };
 
+/** Fournisseur d'approvisionnement (matières, boissons) */
+export type Fournisseur = {
+  id: string;
+  nom: string;
+  contact?: string;
+};
+
 export type PosCompany = {
   nom: string | null;
   contacts: string | null;
@@ -477,6 +484,8 @@ export type PosConfig = {
   paymentMethods: PosPaymentMethod[];
   tables: PosTable[];
   serveurs: PosServeur[];
+  /** Fournisseurs proposés à la saisie d'un achat */
+  fournisseurs: Fournisseur[];
   company: PosCompany | null;
   updatedAt: string | null;
 };
@@ -573,6 +582,9 @@ export type MatieresMovement = {
   unitPrice: number;
   stockAfter: number;
   cancelledAt: string | null;
+  /** Fournisseur de cet achat — permet de comparer les prix dans le temps */
+  fournisseurId?: string | null;
+  fournisseurNom?: string | null;
 };
 
 export type MatieresDay = {

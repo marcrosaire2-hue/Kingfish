@@ -190,6 +190,8 @@ export async function applyMatieresPurchase(input: {
   productId: string;
   qty: number;
   unitPrice?: number;
+  fournisseurId?: string | null;
+  fournisseurNom?: string | null;
 }): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getMatieresDayPayload(input.date);
@@ -201,6 +203,8 @@ export async function applyMatieresPurchase(input: {
       productId: input.productId,
       qty: input.qty,
       unitPrice: input.unitPrice ?? mat?.purchasePrice ?? 0,
+      fournisseurId: input.fournisseurId,
+      fournisseurNom: input.fournisseurNom,
     },
   );
 

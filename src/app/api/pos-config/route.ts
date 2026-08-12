@@ -3,6 +3,7 @@ import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { logActivity } from "@/lib/log-activity";
 import { getPosConfig, savePosConfig } from "@/lib/pos-config-repo";
 import type {
+  Fournisseur,
   PosCompany,
   PosPaymentMethod,
   PosServeur,
@@ -31,6 +32,7 @@ export async function PUT(request: Request) {
       paymentMethods?: PosPaymentMethod[];
       tables?: PosTable[];
       serveurs?: PosServeur[];
+      fournisseurs?: Fournisseur[];
       company?: PosCompany | null;
     };
     const saved = await savePosConfig(body);
@@ -38,7 +40,7 @@ export async function PUT(request: Request) {
       user,
       kind: "pos",
       title: "Configuration POS enregistrée",
-      detail: `paiements ${saved.paymentMethods.length} · tables ${saved.tables.length} · serveurs ${saved.serveurs.length}`,
+      detail: `paiements ${saved.paymentMethods.length} · tables ${saved.tables.length} · serveurs ${saved.serveurs.length} · fournisseurs ${saved.fournisseurs.length}`,
       site: "tous",
     });
     return NextResponse.json(saved);

@@ -11,6 +11,7 @@ import {
 import { formatFcfa } from "@/lib/format";
 import { computeMatieresDay } from "@/lib/matieres-calc";
 import type {
+  Fournisseur,
   MatieresDay,
   MatieresMovement,
   RawMaterial,
@@ -42,6 +43,9 @@ export function ApproPage() {
   const [error, setError] = useState<string | null>(null);
   const [draftBuy, setDraftBuy] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
+  /** Fournisseur retenu pour les achats saisis dans la foulée. */
+  const [fournisseurId, setFournisseurId] = useState("");
 
   async function load(nextDate = date) {
     setLoading(true);
@@ -69,6 +73,24 @@ export function ApproPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
+  // Fournisseurs proposés à la saisie : gérés dans Réglages.
+  useEffect(() => {
+    let annule = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/pos-config", { cache: "no-store" });
+        if (!res.ok) return;
+        const config = (await res.json()) as { fournisseurs?: Fournisseur[] };
+        if (!annule) setFournisseurs(config.fournisseurs ?? []);
+      } catch {
+        /* la saisie d'achat reste possible sans fournisseur */
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, []);
+
   const computed = useMemo(() => {
     if (!day) return null;
     return computeMatieresDay(day, materials);
@@ -83,7 +105,12 @@ export function ApproPage() {
       const res = await fetch("/api/matieres", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, productId, qty }),
+        body: JSON.stringify({
+          date,
+          productId,
+          qty,
+          fournisseurId: fournisseurId || undefined,
+        }),
       });
       const body = (await res.json()) as Payload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur");
@@ -159,6 +186,28 @@ export function ApproPage() {
         </p>
       ) : (
         <>
+          {fournisseurs.length > 0 ? (
+            <div className="ui-info" role="note">
+              <span className="ui-info-mark" aria-hidden>
+                i
+              </span>
+              <label className="vente-field">
+                <span>Fournisseur des achats saisis</span>
+                <select
+                  value={fournisseurId}
+                  onChange={(e) => setFournisseurId(e.target.value)}
+                >
+                  <option value="">— non précisé</option>
+                  {fournisseurs.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nom}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          ) : null}
+
           <section className="panel">
             <table className="data-table">
               <thead>
@@ -240,6 +289,7 @@ export function ApproPage() {
                       ) : null}
                       <div className="vente-log-time muted">
                         {formatTime(m.at)}
+                        {m.fournisseurNom ? ` · ${m.fournisseurNom}` : ""}
                         {m.cancelledAt ? " · annulé" : ""}
                       </div>
                     </div>

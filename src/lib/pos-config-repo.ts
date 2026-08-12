@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/mongodb";
 import type {
+  Fournisseur,
   PosCompany,
   PosConfig,
   PosPaymentMethod,
@@ -15,6 +16,7 @@ const DEFAULT_CONFIG: PosConfig = {
   paymentMethods: [{ id: "pay-cash", libelle: "Cash" }],
   tables: [],
   serveurs: [],
+  fournisseurs: [],
   company: null,
   updatedAt: null,
 };
@@ -34,6 +36,11 @@ function normalize(doc: Partial<PosConfigDoc> | null): PosConfig {
     serveurs: (doc?.serveurs ?? []).map((s) => ({
       id: String(s.id),
       nom: String(s.nom || "").trim(),
+    })),
+    fournisseurs: (doc?.fournisseurs ?? []).map((f) => ({
+      id: String(f.id),
+      nom: String(f.nom || "").trim(),
+      contact: String(f.contact || "").trim() || undefined,
     })),
     company: doc?.company
       ? {
@@ -67,6 +74,7 @@ export async function savePosConfig(data: {
   paymentMethods?: PosPaymentMethod[];
   tables?: PosTable[];
   serveurs?: PosServeur[];
+  fournisseurs?: Fournisseur[];
   company?: PosCompany | null;
 }): Promise<PosConfig> {
   const current = await getPosConfig();
@@ -75,6 +83,7 @@ export async function savePosConfig(data: {
     paymentMethods: data.paymentMethods ?? current.paymentMethods,
     tables: data.tables ?? current.tables,
     serveurs: data.serveurs ?? current.serveurs,
+    fournisseurs: data.fournisseurs ?? current.fournisseurs,
     company: data.company !== undefined ? data.company : current.company,
     updatedAt,
   };

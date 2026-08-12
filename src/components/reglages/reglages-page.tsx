@@ -6,6 +6,7 @@ import { ExportExcelButton } from "@/components/export-excel-button";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatUpdatedAt, newId } from "@/lib/format";
 import type {
+  Fournisseur,
   PosCompany,
   PosConfig,
   PosPaymentMethod,
@@ -13,12 +14,19 @@ import type {
   PosTable,
 } from "@/lib/types";
 
-type Tab = "tables" | "paiements" | "serveurs" | "entreprise" | "compte";
+type Tab =
+  | "tables"
+  | "paiements"
+  | "serveurs"
+  | "fournisseurs"
+  | "entreprise"
+  | "compte";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "tables", label: "Tables" },
   { key: "paiements", label: "Paiements" },
   { key: "serveurs", label: "Serveurs" },
+  { key: "fournisseurs", label: "Fournisseurs" },
   { key: "entreprise", label: "Entreprise" },
   { key: "compte", label: "Mon compte" },
 ];
@@ -157,6 +165,7 @@ export function ReglagesPage() {
           paymentMethods: data.paymentMethods,
           tables: data.tables,
           serveurs: data.serveurs,
+          fournisseurs: data.fournisseurs ?? [],
           company: data.company,
         }),
       });
@@ -267,6 +276,11 @@ export function ReglagesPage() {
         <ServeursEditor
           rows={data.serveurs}
           onChange={(serveurs) => update({ ...data, serveurs })}
+        />
+      ) : tab === "fournisseurs" ? (
+        <FournisseursEditor
+          rows={data.fournisseurs ?? []}
+          onChange={(fournisseurs) => update({ ...data, fournisseurs })}
         />
       ) : (
         <section className="panel stack-form">
@@ -540,6 +554,90 @@ function ServeursEditor({
         }
       >
         + Ajouter un serveur
+      </button>
+    </section>
+  );
+}
+
+/** Fournisseurs proposés à la saisie d'un approvisionnement. */
+function FournisseursEditor({
+  rows,
+  onChange,
+}: {
+  rows: Fournisseur[];
+  onChange: (rows: Fournisseur[]) => void;
+}) {
+  return (
+    <section className="panel">
+      <p className="admin-legend">
+        Les fournisseurs sont proposés à la saisie d’un achat, sur la page
+        Appro. Le nom est figé sur l’achat au moment de la saisie : renommer un
+        fournisseur ne réécrit pas l’historique.
+      </p>
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Contact</th>
+            <th className="col-actions">
+              <span className="sr-only">Actions</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.id}>
+              <td>
+                <input
+                  className="name-input"
+                  value={row.nom}
+                  onChange={(e) =>
+                    onChange(
+                      rows.map((r) =>
+                        r.id === row.id ? { ...r, nom: e.target.value } : r,
+                      ),
+                    )
+                  }
+                />
+              </td>
+              <td>
+                <input
+                  className="name-input"
+                  placeholder="téléphone, adresse…"
+                  value={row.contact ?? ""}
+                  onChange={(e) =>
+                    onChange(
+                      rows.map((r) =>
+                        r.id === row.id
+                          ? { ...r, contact: e.target.value || undefined }
+                          : r,
+                      ),
+                    )
+                  }
+                />
+              </td>
+              <td className="col-actions">
+                <button
+                  type="button"
+                  className="btn-icon"
+                  aria-label={`Supprimer ${row.nom}`}
+                  onClick={() => onChange(rows.filter((r) => r.id !== row.id))}
+                >
+                  ×
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <button
+        type="button"
+        className="btn btn-add"
+        onClick={() =>
+          onChange([...rows, { id: newId("frn"), nom: "Nouveau fournisseur" }])
+        }
+      >
+        + Ajouter un fournisseur
       </button>
     </section>
   );

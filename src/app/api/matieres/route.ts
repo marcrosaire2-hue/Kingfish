@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { logActivity } from "@/lib/log-activity";
+import { getPosConfig } from "@/lib/pos-config-repo";
 import {
   applyMatieresPurchase,
   cancelMatieresMovement,
@@ -69,6 +70,7 @@ export async function POST(request: Request) {
       qty?: number;
       unitPrice?: number;
       movementId?: string;
+      fournisseurId?: string;
     };
 
     if (!body.date) {
@@ -103,11 +105,20 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    // Le nom est résolu ici et figé sur le mouvement : renommer un
+    // fournisseur plus tard ne doit pas réécrire l'historique d'achat.
+    const fournisseur = body.fournisseurId
+      ? (await getPosConfig()).fournisseurs.find(
+          (f) => f.id === body.fournisseurId,
+        )
+      : null;
     const payload = await applyMatieresPurchase({
       date: body.date,
       productId: body.productId,
       qty: Number(body.qty),
       unitPrice: body.unitPrice,
+      fournisseurId: fournisseur?.id ?? null,
+      fournisseurNom: fournisseur?.nom ?? null,
     });
     await logActivity({
       user,

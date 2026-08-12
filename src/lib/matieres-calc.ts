@@ -107,7 +107,13 @@ export function createEmptyMatieresDay(
 export function applyMatieresPurchaseToState(
   lines: MatieresLine[],
   movements: MatieresMovement[],
-  input: { productId: string; qty: number; unitPrice?: number },
+  input: {
+    productId: string;
+    qty: number;
+    unitPrice?: number;
+    fournisseurId?: string | null;
+    fournisseurNom?: string | null;
+  },
 ): {
   lines: MatieresLine[];
   movements: MatieresMovement[];
@@ -134,6 +140,8 @@ export function applyMatieresPurchaseToState(
     unitPrice: Math.max(0, Number(input.unitPrice) || 0),
     stockAfter,
     cancelledAt: null,
+    fournisseurId: input.fournisseurId ?? null,
+    fournisseurNom: input.fournisseurNom ?? null,
   };
 
   return {
