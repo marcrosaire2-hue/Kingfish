@@ -1430,10 +1430,35 @@ select {
   margin-top: 0.75rem;
 }
 
+.vente-meal-plat-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.9rem;
+  align-items: end;
+}
+
+.vente-meal-plat-row .vente-field {
+  margin-bottom: 0;
+}
+
 .vente-meal-qty {
   display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.vente-meal-qty-stepper {
+  display: flex;
   align-items: center;
-  gap: 0.45rem;
+  gap: 0.4rem;
+}
+
+.vente-meal-qty-stepper .vente-plus,
+.vente-meal-qty-stepper .vente-minus {
+  height: 2.7rem;
+  width: 2.75rem;
+  border-radius: 12px;
+  font-size: 1.3rem;
 }
 
 .vente-meal-qty .vente-qty-label {

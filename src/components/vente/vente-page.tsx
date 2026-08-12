@@ -266,6 +266,7 @@ export function VentePage() {
   }
 
   useEffect(() => {
+    setComposerQty(1);
     if (!composerPlatId) {
       setComposerAccIds([]);
       return;
@@ -837,31 +838,69 @@ export function VentePage() {
                   <p className="muted vente-empty">Aucun plat au catalogue.</p>
                 ) : (
                   <>
-                    <label className="vente-field">
-                      <span>Plat</span>
-                      <select
-                        value={composerPlatId}
-                        onChange={(e) => setComposerPlatId(e.target.value)}
-                      >
-                        <option value="">— Choisir —</option>
-                        {plats.map((p) => (
-                          <option
-                            key={p.productId}
-                            value={p.productId}
+                    <div className="vente-meal-plat-row">
+                      <label className="vente-field vente-field-plat">
+                        <span>Plat</span>
+                        <select
+                          value={composerPlatId}
+                          onChange={(e) => setComposerPlatId(e.target.value)}
+                        >
+                          <option value="">— Choisir —</option>
+                          {plats.map((p) => (
+                            <option
+                              key={p.productId}
+                              value={p.productId}
+                              disabled={
+                                p.stockLeft !== null &&
+                                p.stockLeft !== undefined &&
+                                p.stockLeft <= 0
+                              }
+                            >
+                              {p.name}
+                              {p.unitPrice > 0
+                                ? ` · ${formatFcfa(p.unitPrice)}`
+                                : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div className="vente-meal-qty">
+                        <span className="vente-qty-label">Qté</span>
+                        <div className="vente-meal-qty-stepper">
+                          <button
+                            type="button"
+                            className="vente-minus"
+                            aria-label="Moins de plats"
                             disabled={
-                              p.stockLeft !== null &&
-                              p.stockLeft !== undefined &&
-                              p.stockLeft <= 0
+                              !composerPlat ||
+                              composerQty <= 1 ||
+                              !!busyKey
+                            }
+                            onClick={() =>
+                              setComposerQty((q) => Math.max(1, q - 1))
                             }
                           >
-                            {p.name}
-                            {p.unitPrice > 0
-                              ? ` · ${formatFcfa(p.unitPrice)}`
-                              : ""}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                            −
+                          </button>
+                          <span className="vente-qty mono">{composerQty}</span>
+                          <button
+                            type="button"
+                            className="vente-plus"
+                            aria-label="Plus de plats"
+                            disabled={
+                              !composerPlat ||
+                              !!busyKey ||
+                              (composerPlat.stockLeft !== null &&
+                                composerPlat.stockLeft !== undefined &&
+                                composerQty >= composerPlat.stockLeft)
+                            }
+                            onClick={() => setComposerQty((q) => q + 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                     {composerPlat?.hint ? (
                       <p className="vente-hint">{composerPlat.hint}</p>
                     ) : null}
@@ -913,40 +952,6 @@ export function VentePage() {
                       </p>
                     )}
                     <div className="vente-meal-actions">
-                      <div className="vente-meal-qty">
-                        <span className="vente-qty-label">Qté</span>
-                        <button
-                          type="button"
-                          className="vente-minus"
-                          aria-label="Moins de plats"
-                          disabled={
-                            !composerPlat ||
-                            composerQty <= 1 ||
-                            !!busyKey
-                          }
-                          onClick={() =>
-                            setComposerQty((q) => Math.max(1, q - 1))
-                          }
-                        >
-                          −
-                        </button>
-                        <span className="vente-qty mono">{composerQty}</span>
-                        <button
-                          type="button"
-                          className="vente-plus"
-                          aria-label="Plus de plats"
-                          disabled={
-                            !composerPlat ||
-                            !!busyKey ||
-                            (composerPlat.stockLeft !== null &&
-                              composerPlat.stockLeft !== undefined &&
-                              composerQty >= composerPlat.stockLeft)
-                          }
-                          onClick={() => setComposerQty((q) => q + 1)}
-                        >
-                          +
-                        </button>
-                      </div>
                       <span className="vente-meal-total mono">
                         {composerPlat ? formatFcfa(composerTotal) : "—"}
                       </span>
