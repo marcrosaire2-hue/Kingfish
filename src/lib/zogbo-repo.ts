@@ -198,13 +198,21 @@ function zogboDocNeedsStockHeal(doc: ZogboDoc): boolean {
   );
   const empty =
     !zogboDayHasCarryStock(lines) && !accompanimentHasCarryStock(acc);
-  if (!empty) return false;
   // Journée déjà travaillée (ventes / envois) : ne pas écraser.
   const worked = lines.some(
     (l) => l.sold > 0 || l.sentToGbegamey > 0 || l.prepared > 0,
   );
   const accWorked = acc.some((l) => l.sold > 0 || l.prepared > 0);
-  return !(worked || accWorked);
+  if (worked || accWorked || doc.status === "cloturee") return false;
+  if (empty) return true;
+  // Journée « ouverture AquaPro » non travaillée : le seed ne remplit que les
+  // désignations qui matchent ; les autres produits resteraient « épuisés » à
+  // tort — le report du dernier stock réel reprend la main.
+  if (doc.source !== "aquapro-opening") return false;
+  const observations = [...lines, ...acc].map((l) => l.observations ?? "");
+  return observations.every(
+    (o) => o === "" || o.startsWith("Ouverture AquaPro"),
+  );
 }
 
 export async function getZogboDayPayload(

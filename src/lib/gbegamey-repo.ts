@@ -135,6 +135,24 @@ async function leftoversForDate(
   }
 }
 
+/**
+ * Journée issue d'une projection AquaPro pure : le seed
+ * (seed-opening-stock-from-aquapro) ne marque que les lignes qu'il remplit
+ * (désignations qui matchent), les autres restent vides à tort — les produits
+ * existants (brochette, chawarma…) apparaîtraient « épuisés » malgré le stock
+ * réel de la veille. Une telle journée ne doit pas bloquer le report.
+ */
+function isPureAquaproProjection(doc: GbegameyDoc): boolean {
+  if (doc.source !== "aquapro-opening") return false;
+  const observations = [
+    ...(doc.transferLines ?? []),
+    ...(doc.localLines ?? []),
+  ].map((l) => l.observations ?? "");
+  return observations.every(
+    (o) => o === "" || o.startsWith("Ouverture AquaPro"),
+  );
+}
+
 function gbegameyDocNeedsStockHeal(doc: GbegameyDoc): boolean {
   // Sans received map on approxime via initialStock / counted / sold.
   const transferEmpty = !(doc.transferLines ?? []).some((l) => {
@@ -150,15 +168,22 @@ function gbegameyDocNeedsStockHeal(doc: GbegameyDoc): boolean {
       (doc.localLines ?? []).map((l) => normalizeLocalLine(l)),
     ),
   );
-  if (!transferEmpty || !localEmpty) return false;
-  const worked = (doc.transferLines ?? []).some(
-    (l) => normalizeTransferLine(l).sold > 0,
-  );
+  // Journée déjà travaillée (ventes / réceptions vérifiées) : ne pas écraser.
+  const worked = (doc.transferLines ?? []).some((l) => {
+    const n = normalizeTransferLine(l);
+    return n.sold > 0 || (n.received ?? 0) > 0;
+  });
   const localWorked = (doc.localLines ?? []).some((l) => {
     const n = normalizeLocalLine(l);
     return n.sold > 0 || n.prepared > 0;
   });
-  return !(worked || localWorked);
+  if (worked || localWorked || doc.status === "cloturee") return false;
+  // Journée entièrement vide (auto-créée) : laisser la main au report du
+  // dernier stock réel.
+  if (transferEmpty && localEmpty) return true;
+  // Projection AquaPro non travaillée : le report de la veille reprend la main
+  // pour les produits que le seed n'a pas remplies.
+  return isPureAquaproProjection(doc);
 }
 
 export async function getGbegameyDayPayload(

@@ -43,6 +43,46 @@ async function main() {
   await client.connect();
   const db = client.db(dbName);
   const now = new Date().toISOString();
+
+  // —— Garde-fou : projection one-shot, ne jamais écraser une journée réelle ——
+  // Le seed ne s'applique qu'à des journées vierges ou issues d'une projection
+  // AquaPro antérieure. Une journée réelle (inventaire, report, ventes ou
+  // signature) ne doit pas être réécrite : le stock serait perdu.
+  const realWork = {
+    "zogbo_jours": (d) => (d.lines ?? []).some(
+      (l) => (l.sold ?? 0) > 0 || (l.sentToGbegamey ?? 0) > 0 || (l.prepared ?? 0) > 0,
+    ),
+    "gbegamey_jours": (d) =>
+      (d.transferLines ?? []).some(
+        (l) => (l.sold ?? 0) > 0 || (l.received ?? 0) > 0,
+      ) ||
+      (d.localLines ?? []).some(
+        (l) => (l.sold ?? 0) > 0 || (l.prepared ?? 0) > 0,
+      ),
+    "boissons_jours": (d) => (d.lines ?? []).some(
+      (l) =>
+        (l.soldZogbo ?? 0) > 0 ||
+        (l.soldGbegamey ?? 0) > 0 ||
+        (l.purchases ?? 0) > 0,
+    ),
+    "matieres_jours": (d) => (d.lines ?? []).some(
+      (l) => (l.purchases ?? 0) > 0 || (l.consumed ?? 0) > 0,
+    ),
+  };
+  for (const [col, worked] of Object.entries(realWork)) {
+    const existing = await db.collection(col).findOne({ _id: date });
+    if (!existing) continue;
+    if (existing.source !== "aquapro-opening" || worked(existing)) {
+      console.error(
+        `Refus : ${col} ${date} est déjà une journée réelle ` +
+          `(source=${existing.source}, statut=${existing.status ?? "?"}). ` +
+          `Le seed ne s'applique qu'à une projection vierge — le stock ` +
+          `(plats, accompagnements, boissons, matières) serait écrasé.`,
+      );
+      await client.close();
+      process.exit(1);
+    }
+  }
   const summary = {
     date,
     matieres: 0,
