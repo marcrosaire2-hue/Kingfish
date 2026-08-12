@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
+import { resolveUserSiteScopeFromUser } from "@/lib/auth-types";
 import {
   getCompteResultatDay,
   getCompteResultatMonth,
@@ -12,13 +13,16 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
+    // Étanchéité des zones : un compte rattaché à un point ne voit que le
+    // résultat de ce point, jamais celui de l'autre.
+    const scopeSite = resolveUserSiteScopeFromUser(user);
     const { searchParams } = new URL(request.url);
     const view = searchParams.get("view") || "day";
 
     if (view === "day") {
       const date = searchParams.get("date") || todayIsoDate();
-      const payload = await getCompteResultatDay(date);
+      const payload = await getCompteResultatDay(date, scopeSite);
       return NextResponse.json(payload);
     }
 
@@ -28,7 +32,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "month requis (YYYY-MM)." }, { status: 400 });
       }
       const { year, month: m } = parseYearMonth(month);
-      const payload = await getCompteResultatMonth(year, m);
+      const payload = await getCompteResultatMonth(year, m, scopeSite);
       return NextResponse.json(payload);
     }
 
@@ -38,7 +42,7 @@ export async function GET(request: Request) {
       if (!Number.isFinite(year) || year < 2000) {
         return NextResponse.json({ error: "year invalide." }, { status: 400 });
       }
-      const payload = await getCompteResultatYear(year);
+      const payload = await getCompteResultatYear(year, scopeSite);
       return NextResponse.json(payload);
     }
 

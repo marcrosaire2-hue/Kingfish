@@ -20,7 +20,13 @@ import {
 
 export const runtime = "nodejs";
 
-const ROLES: UserRole[] = ["vendeur", "cuisine", "gerant", "admin"];
+const ROLES: UserRole[] = [
+  "equipier",
+  "vendeur",
+  "cuisine",
+  "gerant",
+  "admin",
+];
 const SITES: UserSite[] = ["zogbo", "gbegamey", "tous"];
 
 function isRole(v: unknown): v is UserRole {

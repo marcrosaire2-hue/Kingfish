@@ -1,4 +1,14 @@
-export type UserRole = "vendeur" | "cuisine" | "gerant" | "admin";
+export type UserRole =
+  | "vendeur"
+  | "cuisine"
+  /**
+   * Rôle polyvalent : réunit vendeur et cuisine sur un même poste. Dans un
+   * restaurant où la même personne encaisse et suit la production, séparer les
+   * deux obligeait à jongler entre deux comptes.
+   */
+  | "equipier"
+  | "gerant"
+  | "admin";
 export type UserSite = "zogbo" | "gbegamey" | "tous";
 
 export type AppUser = {
@@ -23,6 +33,7 @@ export type SessionUser = {
 export const ROLE_LABELS: Record<UserRole, string> = {
   vendeur: "Vendeur",
   cuisine: "Cuisine / Production",
+  equipier: "Vente & Cuisine",
   gerant: "Gérant",
   admin: "Administrateur",
 };
@@ -69,10 +80,10 @@ export function rolesCreatableBy(actor: {
 }): UserRole[] {
   if (!actor.role || actor.role !== "admin") return [];
   if (isGlobalAdmin(actor)) {
-    return ["vendeur", "cuisine", "gerant", "admin"];
+    return ["equipier", "vendeur", "cuisine", "gerant", "admin"];
   }
   // Admin de zone : pas de gérant multi-sites, mais peut créer un autre admin de sa zone
-  return ["vendeur", "cuisine", "gerant", "admin"];
+  return ["equipier", "vendeur", "cuisine", "gerant", "admin"];
 }
 
 /** Sites autorisés pour un rôle donné, selon l’admin connecté. */
@@ -164,6 +175,18 @@ export type NavKey =
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
   vendeur: ["synthese", "vente", "caisse", "historique-ventes", "guide"],
   cuisine: ["synthese", "zogbo", "appro", "matieres", "pertes", "guide"],
+  // Union des deux rôles précédents, sans rien y ajouter.
+  equipier: [
+    "synthese",
+    "vente",
+    "caisse",
+    "zogbo",
+    "appro",
+    "matieres",
+    "pertes",
+    "historique-ventes",
+    "guide",
+  ],
   gerant: [
     "synthese",
     "compte-resultat",
@@ -200,7 +223,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
 
 /** Sites proposés à la création / édition selon le rôle. */
 export function sitesForRole(role: UserRole): UserSite[] {
-  if (role === "vendeur" || role === "cuisine") {
+  if (role === "vendeur" || role === "cuisine" || role === "equipier") {
     return ["zogbo", "gbegamey"];
   }
   return ["zogbo", "gbegamey", "tous"];
@@ -221,7 +244,10 @@ export function assertValidRoleSite(role: UserRole, site: UserSite): void {
 
 /** Corrige les anciens comptes vendeur/cuisine encore en « tous ». */
 export function effectiveSite(role: UserRole, site: UserSite): UserSite {
-  if ((role === "vendeur" || role === "cuisine") && site === "tous") {
+  if (
+    (role === "vendeur" || role === "cuisine" || role === "equipier") &&
+    site === "tous"
+  ) {
     return "gbegamey";
   }
   return site;
@@ -235,10 +261,10 @@ export function navForUser(role: UserRole, site: UserSite): NavKey[] {
   const scoped = effectiveSite(role, site);
   let keys = [...ROLE_NAV[role]];
 
-  if (role === "cuisine") {
+  if (role === "cuisine" || role === "equipier") {
+    const position = keys.indexOf("zogbo");
     keys = keys.filter((k) => k !== "zogbo" && k !== "gbegamey");
-    if (scoped === "gbegamey") keys.splice(1, 0, "gbegamey");
-    else keys.splice(1, 0, "zogbo");
+    keys.splice(position, 0, scoped === "gbegamey" ? "gbegamey" : "zogbo");
   }
 
   if (scoped === "zogbo") {

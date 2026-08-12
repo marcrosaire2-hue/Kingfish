@@ -95,14 +95,20 @@ export async function listCaisses(input: {
 export async function sumCaisseDepensesRecettes(input: {
   dateFrom: string;
   dateTo: string;
+  /** Zone de l'utilisateur : null = les deux. */
+  scopeSite?: VenteSite | null;
 }): Promise<{ totalDepense: number; totalRecette: number; sessions: number }> {
   if (!isValidDate(input.dateFrom) || !isValidDate(input.dateTo)) {
     throw new Error("Date invalide");
   }
   const db = await getDb();
+  const filtre: Record<string, unknown> = {
+    date: { $gte: input.dateFrom, $lte: input.dateTo },
+  };
+  if (input.scopeSite) filtre.site = input.scopeSite;
   const docs = await db
     .collection<CaisseDoc>("caisses_sessions")
-    .find({ date: { $gte: input.dateFrom, $lte: input.dateTo } })
+    .find(filtre)
     .toArray();
   let totalDepense = 0;
   let totalRecette = 0;

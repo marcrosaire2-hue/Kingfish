@@ -19,7 +19,13 @@ import {
 } from "@/lib/auth-types";
 import { exportAdminUsersExcel } from "@/lib/page-exports";
 
-const ALL_ROLES: UserRole[] = ["vendeur", "cuisine", "gerant", "admin"];
+const ALL_ROLES: UserRole[] = [
+  "equipier",
+  "vendeur",
+  "cuisine",
+  "gerant",
+  "admin",
+];
 
 type ActorInfo = Pick<SessionUser, "id" | "username" | "role" | "site"> & {
   isGlobal: boolean;
@@ -101,7 +107,7 @@ export function AdminPage() {
     username: "",
     name: "",
     password: "",
-    role: "vendeur" as UserRole,
+    role: "equipier" as UserRole,
     site: "gbegamey" as UserSite,
   });
 
@@ -128,7 +134,7 @@ export function AdminPage() {
         setActor(nextActor);
         setForm((f) => {
           const roles = rolesCreatableBy(nextActor);
-          const role = roles.includes(f.role) ? f.role : (roles[0] ?? "vendeur");
+          const role = roles.includes(f.role) ? f.role : (roles[0] ?? "equipier");
           const sites = sitesCreatableBy(nextActor, role);
           const site = sites.includes(f.site)
             ? f.site

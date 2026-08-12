@@ -4,7 +4,12 @@ import {
   getMonthPoint,
   getYearPoint,
 } from "@/lib/synthese-repo";
-import type { DayPoint, MonthPoint, YearPoint } from "@/lib/types";
+import type {
+  DayPoint,
+  MonthPoint,
+  VenteSite,
+  YearPoint,
+} from "@/lib/types";
 
 export type CompteResultatDay = {
   view: "day";
@@ -62,10 +67,11 @@ function daysInMonth(year: number, month: number): number {
 
 export async function getCompteResultatDay(
   date: string,
+  scopeSite?: VenteSite | null,
 ): Promise<CompteResultatDay> {
   const [day, caisse] = await Promise.all([
-    getDayPoint(date),
-    sumCaisseDepensesRecettes({ dateFrom: date, dateTo: date }),
+    getDayPoint(date, scopeSite),
+    sumCaisseDepensesRecettes({ dateFrom: date, dateTo: date, scopeSite }),
   ]);
   return {
     view: "day",
@@ -81,14 +87,15 @@ export async function getCompteResultatDay(
 export async function getCompteResultatMonth(
   year: number,
   month: number,
+  scopeSite?: VenteSite | null,
 ): Promise<CompteResultatMonth> {
   const mm = String(month).padStart(2, "0");
   const monthKey = `${year}-${mm}`;
   const dateFrom = `${monthKey}-01`;
   const dateTo = `${monthKey}-${String(daysInMonth(year, month)).padStart(2, "0")}`;
   const [data, caisse] = await Promise.all([
-    getMonthPoint(year, month),
-    sumCaisseDepensesRecettes({ dateFrom, dateTo }),
+    getMonthPoint(year, month, scopeSite),
+    sumCaisseDepensesRecettes({ dateFrom, dateTo, scopeSite }),
   ]);
   return {
     view: "month",
@@ -103,12 +110,14 @@ export async function getCompteResultatMonth(
 
 export async function getCompteResultatYear(
   year: number,
+  scopeSite?: VenteSite | null,
 ): Promise<CompteResultatYear> {
   const [data, caisse] = await Promise.all([
-    getYearPoint(year),
+    getYearPoint(year, scopeSite),
     sumCaisseDepensesRecettes({
       dateFrom: `${year}-01-01`,
       dateTo: `${year}-12-31`,
+      scopeSite,
     }),
   ]);
   return {

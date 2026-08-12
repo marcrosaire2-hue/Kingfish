@@ -15,6 +15,38 @@ const PUBLIC = ["/login"];
  */
 const PWA_PUBLIC = ["/manifest.webmanifest", "/sw.js"];
 
+/**
+ * Écran auquel une route d'API correspond, pour lui appliquer exactement les
+ * mêmes droits. Sans cela, le contrôle des rôles ne portait que sur les pages :
+ * un compte pouvait appeler directement une API que son menu ne montrait pas.
+ *
+ * La plupart des routes portent le nom de leur écran ; seules celles-ci en
+ * diffèrent.
+ */
+const API_VERS_ECRAN: Record<string, string> = {
+  "/api/pos": "/vente",
+  "/api/pos-config": "/reglages",
+};
+
+/**
+ * Données de référence lisibles par tout compte connecté : la page Appro a
+ * besoin de la liste des fournisseurs, et la caisse des moyens de paiement,
+ * sans pour autant donner accès aux Réglages. Aucun montant n'y figure.
+ * L'écriture, elle, reste soumise aux droits de l'écran Réglages.
+ */
+function estLectureDeReference(pathname: string, method: string): boolean {
+  return method === "GET" && pathname === "/api/pos-config";
+}
+
+function pageEquivalent(pathname: string): string {
+  for (const [prefixe, ecran] of Object.entries(API_VERS_ECRAN)) {
+    if (pathname === prefixe || pathname.startsWith(`${prefixe}/`)) {
+      return ecran;
+    }
+  }
+  return pathname.replace(/^\/api/, "");
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -34,9 +66,20 @@ export async function middleware(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
     }
-    if (pathname.startsWith("/api/admin") && user.role !== "admin") {
+
+    // Routes disponibles à tout compte connecté : sa propre session et son
+    // propre mot de passe.
+    if (
+      pathname.startsWith("/api/auth/") ||
+      estLectureDeReference(pathname, request.method)
+    ) {
+      return NextResponse.next();
+    }
+
+    const site = effectiveSite(user.role, user.site);
+    if (!canAccessPath(user.role, pageEquivalent(pathname), site)) {
       return NextResponse.json(
-        { error: "Accès administrateur requis" },
+        { error: "Accès non autorisé pour ce rôle." },
         { status: 403 },
       );
     }
