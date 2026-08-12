@@ -72,6 +72,13 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
+    href: "/pertes",
+    label: "Pertes",
+    key: "pertes",
+    mark: "P",
+    group: "ops",
+  },
+  {
     href: "/historique-ventes",
     label: "Historique ventes",
     key: "historique-ventes",

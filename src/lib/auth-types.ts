@@ -149,6 +149,7 @@ export type NavKey =
   | "caisse"
   | "appro"
   | "matieres"
+  | "pertes"
   | "reglages"
   | "parametres"
   | "zogbo"
@@ -162,7 +163,7 @@ export type NavKey =
 
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
   vendeur: ["synthese", "vente", "caisse", "historique-ventes", "guide"],
-  cuisine: ["synthese", "zogbo", "appro", "matieres", "guide"],
+  cuisine: ["synthese", "zogbo", "appro", "matieres", "pertes", "guide"],
   gerant: [
     "synthese",
     "compte-resultat",
@@ -172,6 +173,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "gbegamey",
     "appro",
     "matieres",
+    "pertes",
     "historique-ventes",
     "historique",
     "reglages",
@@ -187,6 +189,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "gbegamey",
     "appro",
     "matieres",
+    "pertes",
     "reglages",
     "historique-ventes",
     "historique",
@@ -262,6 +265,7 @@ export function canAccessPath(
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");
   if (pathname.startsWith("/appro")) return allowed.includes("appro");
   if (pathname.startsWith("/matieres")) return allowed.includes("matieres");
+  if (pathname.startsWith("/pertes")) return allowed.includes("pertes");
   if (pathname.startsWith("/reglages")) return allowed.includes("reglages");
   if (pathname.startsWith("/parametres")) return allowed.includes("parametres");
   if (pathname.startsWith("/zogbo")) return allowed.includes("zogbo");
