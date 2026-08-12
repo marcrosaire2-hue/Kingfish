@@ -370,20 +370,30 @@ export async function getVenteBoard(
     const stockLeft = drinkStock.get(drink.id) ?? 0;
     const upc = Math.max(1, drink.unitsPerCasier || 12);
     const casiersLeft = Math.round((stockLeft / upc) * 100) / 100;
+    const line = boissons.day.lines.find((l) => l.productId === drink.id);
+    // Boisson jamais inventoriée (aucun comptage, stock 0) : vendable sans
+    // stock, comme un accompagnement non suivi — sinon elle resterait grisée.
+    const untracked =
+      line?.counted === null &&
+      stockLeft <= 0 &&
+      (drink.salePrice ?? 0) > 0;
     products.push({
       kind: "boisson",
       productId: drink.id,
       name: drink.name,
       unitPrice: drink.salePrice ?? 0,
       soldToday: drinkSold.get(drink.id) ?? 0,
-      stockLeft: drink.salePrice === null ? null : stockLeft,
+      stockLeft: drink.salePrice === null || untracked ? null : stockLeft,
       lowStock:
         drink.salePrice !== null &&
+        !untracked &&
         isLowStock(stockLeft, drink.alertThreshold),
       hint:
         drink.salePrice === null
           ? "PV manquant"
-          : `Reste ${stockLeft} bt (${casiersLeft} cas.) · ${upc} bt/cas.`,
+          : untracked
+            ? "Stock non inventorié"
+            : `Reste ${stockLeft} bt (${casiersLeft} cas.) · ${upc} bt/cas.`,
     });
   }
 
@@ -970,8 +980,13 @@ export async function recordVente(input: {
       const line = day.lines.find((l) => l.productId === input.productId);
       const drink = drinks.find((d) => d.id === input.productId);
       const upc = drink?.unitsPerCasier;
-      const left = line ? physicalBoissonsStock(line, upc) : 0;
-      if (line) {
+      // Boisson jamais inventoriée (pas de comptage) : vente libre, comme un
+      // accompagnement non suivi — sinon elle resterait « épuisée » à tort.
+      const untracked = !line || line.counted === null;
+      if (untracked) {
+        maxSold = null;
+      } else {
+        const left = physicalBoissonsStock(line, upc);
         const upcResolved = Math.max(
           1,
           Math.round(Number(upc) || DEFAULT_UNITS_PER_CASIER),
@@ -984,11 +999,9 @@ export async function recordVente(input: {
           (input.site === "zogbo"
             ? line.soldGbegamey
             : line.soldZogbo);
-      } else {
-        maxSold = 0;
-      }
-      if (left < qty) {
-        throw new Error(`Stock insuffisant (reste ${left} bt)`);
+        if (left < qty) {
+          throw new Error(`Stock insuffisant (reste ${left} bt)`);
+        }
       }
     }
   }
