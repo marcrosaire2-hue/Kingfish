@@ -108,7 +108,7 @@ export function HistoriqueVentesPage() {
   return (
     <AppShell
       title="Historique des ventes"
-      subtitle="Tous les tickets (King Fish + AquaPro) avec filtres — CA = tickets Validé uniquement."
+      subtitle="Tickets POS, journal (carnets / devis / caisse) et AquaPro — CA = Validé uniquement."
       actions={
         <>
           <ExportExcelButton

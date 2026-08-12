@@ -73,6 +73,126 @@ function matchesText(hay: string, needle: string): boolean {
   return hay.toLowerCase().includes(needle.toLowerCase());
 }
 
+type VentesLogRow = {
+  _id: ObjectId;
+  date: string;
+  site: VenteSite;
+  name?: string;
+  qty?: number;
+  unitPrice?: number;
+  amount?: number;
+  at?: string;
+  cancelledAt?: string | null;
+  caExcluded?: boolean;
+  source?: string | null;
+  actorName?: string | null;
+  ticketId?: string | null;
+  posTicketId?: string | null;
+};
+
+function journalSourceLabel(source: string | null | undefined): string {
+  const s = String(source || "journal").trim();
+  if (!s || s === "journal") return "Journal";
+  return s
+    .replace(/^carnet-/i, "Carnet ")
+    .replace(/^devis-/i, "Devis ")
+    .replace(/-/g, " ");
+}
+
+/**
+ * Tickets synthétiques depuis `ventes_log` (ventes caisse, carnets, devis…).
+ * Exclut les lignes AquaPro déjà couvertes par `aquapro_tickets`.
+ */
+function ticketsFromVentesLog(
+  docs: VentesLogRow[],
+  filters: {
+    statut: VenteHistoryStatut;
+    q: string;
+    serveurF: string;
+    paiementF: string;
+  },
+): VenteHistoryTicket[] {
+  const { statut, q, serveurF, paiementF } = filters;
+  const groups = new Map<string, VentesLogRow[]>();
+
+  for (const d of docs) {
+    if (d.caExcluded === true) continue;
+    const cancelled = !!d.cancelledAt;
+    if (statut === "valide" && cancelled) continue;
+    if (statut === "annule" && !cancelled) continue;
+    if (statut === "encours") continue;
+
+    const src = String(d.source || "journal");
+    if (/^aquapro/i.test(src)) continue;
+
+    const key = d.ticketId
+      ? `ticket:${d.ticketId}:${cancelled ? "x" : "ok"}`
+      : d.posTicketId
+        ? `pos:${d.posTicketId}:${cancelled ? "x" : "ok"}`
+        : `src:${d.date}|${d.site}|${src}|${cancelled ? "x" : "ok"}`;
+
+    const list = groups.get(key);
+    if (list) list.push(d);
+    else groups.set(key, [d]);
+  }
+
+  const out: VenteHistoryTicket[] = [];
+  for (const [key, rows] of groups) {
+    rows.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    const first = rows[0]!;
+    const cancelled = !!first.cancelledAt;
+    const st: VenteHistoryTicket["statut"] = cancelled ? "annule" : "valide";
+    const lines: VenteHistoryLine[] = rows.map((r) => ({
+      name: String(r.name || ""),
+      qty: Number(r.qty) || 0,
+      unitPrice: Number(r.unitPrice) || 0,
+      amount: Number(r.amount) || 0,
+    }));
+    const montant = lines.reduce((s, l) => s + l.amount, 0);
+    const serveur = first.actorName || null;
+    const srcLabel = journalSourceLabel(first.source);
+    const ticket: VenteHistoryTicket = {
+      id: `vl-${key.replace(/[^a-zA-Z0-9._|-]+/g, "_").slice(0, 96)}`,
+      source: "kingfish",
+      numero: first.ticketId
+        ? String(first.ticketId)
+        : `${srcLabel} · ${first.date}`,
+      date: String(first.date),
+      at: String(first.at || first.cancelledAt || first.date),
+      site: first.site,
+      statut: st,
+      statutLabel: cancelled ? "Annulé" : "Validé",
+      typeVente: srcLabel,
+      montant,
+      reduction: 0,
+      paiement: null,
+      serveur,
+      caissier: serveur,
+      client: null,
+      table: null,
+      lines,
+    };
+
+    if (serveurF && (!serveur || !matchesText(serveur, serveurF))) continue;
+    if (paiementF) continue;
+
+    if (q) {
+      const blob = [
+        ticket.numero,
+        ticket.typeVente,
+        ticket.serveur,
+        ...lines.map((l) => l.name),
+      ]
+        .filter(Boolean)
+        .join(" ");
+      if (!matchesText(blob, q)) continue;
+    }
+
+    out.push(ticket);
+  }
+  return out;
+}
+
 export async function listVentesHistory(
   filters: VenteHistoryFilters,
 ): Promise<VenteHistoryResult> {
@@ -166,6 +286,30 @@ export async function listVentesHistory(
       }
 
       tickets.push(ticket);
+    }
+
+    // Journal King Fish (ventes_log) : carnets, devis, ventes caisse…
+    const vlFilter: Record<string, unknown> = {
+      ...dateMatch,
+      caExcluded: { $ne: true },
+    };
+    if (site !== "all") vlFilter.site = site;
+
+    const vlDocs = (await db
+      .collection("ventes_log")
+      .find(vlFilter)
+      .sort({ at: -1 })
+      .limit(Math.min(5000, limit * 40))
+      .toArray()) as VentesLogRow[];
+
+    for (const t of ticketsFromVentesLog(vlDocs, {
+      statut,
+      q,
+      serveurF,
+      paiementF,
+    })) {
+      if (t.serveur) serveurs.add(t.serveur);
+      tickets.push(t);
     }
   }
 
