@@ -37,6 +37,28 @@ async function fetchJson<T>(url: string): Promise<T> {
   return body as T;
 }
 
+/** Familles de produits : l'export doit être lisible, pas refléter les clés. */
+const KIND_LABELS: Record<string, string> = {
+  plat: "Plat",
+  local: "Sur place",
+  combo: "Combo",
+  boisson: "Boisson",
+  extra: "Vente libre",
+  matiere: "Matière",
+};
+
+function kindLabel(kind: string | null | undefined): string {
+  return KIND_LABELS[String(kind ?? "")] ?? String(kind ?? "—");
+}
+
+/** Horodatage ISO → heure lisible (14:35). */
+function heureLisible(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso);
+  return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
 function siteLabel(site: string | null | undefined): string {
   if (site === "zogbo") return "Zogbo";
   if (site === "gbegamey") return "Gbégamey";
@@ -295,8 +317,10 @@ export async function exportVenteExcel(
   const sheets: ExcelSheet[] = [
     {
       name: "Produits",
+      subtitle: `${siteLabel(site)} · ${date}`,
+      totals: ["Vendu aujourd’hui"],
       rows: board.products.map((p) => ({
-        Type: p.kind,
+        Famille: kindLabel(p.kind),
         Produit: p.name,
         "PU (FCFA)": p.unitPrice,
         "Vendu aujourd’hui": p.soldToday,
@@ -306,11 +330,13 @@ export async function exportVenteExcel(
     },
     {
       name: "Journal",
+      subtitle: `${siteLabel(site)} · ${date}`,
+      totals: ["Qté", "Montant (FCFA)"],
       rows: board.recent.map((e) => ({
         Date: e.date || date,
         Site: siteLabel(e.site || site),
-        Heure: e.at,
-        Type: e.kind,
+        Heure: heureLisible(e.at),
+        Famille: kindLabel(e.kind),
         Produit: e.name,
         Qté: e.qty,
         "PU (FCFA)": e.unitPrice,
@@ -318,26 +344,15 @@ export async function exportVenteExcel(
       })),
     },
     {
-      name: "Filtres",
+      name: "Synthèse",
+      subtitle: `${siteLabel(site)} · ${date}`,
       rows: [
         {
           Date: date,
           Zone: siteLabel(site),
           "CA (FCFA)": board.caToday,
-          "Nb produits catalogue": board.products.length,
-          "Lignes journal": board.recent.length,
-        },
-      ],
-    },
-    {
-      name: "Synthèse",
-      rows: [
-        {
-          Date: date,
-          Site: siteLabel(site),
-          "CA (FCFA)": board.caToday,
-          "Nb produits catalogue": board.products.length,
-          "Lignes journal": board.recent.length,
+          "Produits au catalogue": board.products.length,
+          "Lignes au journal": board.recent.length,
         },
       ],
     },
@@ -585,9 +600,11 @@ export function exportHistoriqueVentesExcel(input: {
   q?: string;
 }): void {
   const zone = input.site === "all" ? "tous" : input.site;
+  const periode = `${siteLabel(zone)} · du ${input.from} au ${input.to}`;
   const sheets: ExcelSheet[] = [
     {
       name: "Filtres",
+      subtitle: periode,
       rows: [
         {
           Du: input.from,
@@ -605,10 +622,12 @@ export function exportHistoriqueVentesExcel(input: {
     },
     {
       name: "Tickets",
+      subtitle: periode,
+      totals: ["Réduction (FCFA)", "Montant (FCFA)"],
       rows: input.tickets.map((t) => ({
         Ticket: t.numero,
         Date: t.date,
-        Quand: t.at,
+        Heure: heureLisible(t.at),
         Zone: siteLabel(t.site),
         Statut: t.statutLabel || STATUT_LABEL[t.statut] || t.statut,
         Source: SOURCE_LABEL[t.source] ?? t.source,
@@ -624,6 +643,8 @@ export function exportHistoriqueVentesExcel(input: {
     },
     {
       name: "Lignes",
+      subtitle: periode,
+      totals: ["Qté", "Montant (FCFA)"],
       rows: input.tickets.flatMap((t) =>
         t.lines.map((l) => ({
           Ticket: t.numero,
@@ -639,6 +660,7 @@ export function exportHistoriqueVentesExcel(input: {
     },
     {
       name: "Totaux",
+      subtitle: periode,
       rows: [
         {
           Tickets: input.totals.count,
