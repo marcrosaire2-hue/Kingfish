@@ -9,7 +9,7 @@ import {
   getCombosDayPayload,
   saveCombosDay,
 } from "@/lib/combos-repo";
-import { listVentesByKind } from "@/lib/vente-repo";
+import { listVentesByKind, sumCaByKindForSite } from "@/lib/vente-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
@@ -30,7 +30,11 @@ export async function GET(request: Request) {
       site,
       limit: 80,
     });
-    return NextResponse.json({ ...payload, exits });
+    const caJournal =
+      site === "zogbo" || site === "gbegamey"
+        ? await sumCaByKindForSite(date, site, "combo")
+        : 0;
+    return NextResponse.json({ ...payload, exits, caJournal });
   } catch (error) {
     return authErrorResponse(error);
   }

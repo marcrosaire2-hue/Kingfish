@@ -195,11 +195,15 @@ export type NavKey =
   | "compte-resultat"
   | "historique"
   | "historique-ventes"
+  | "equipes"
+  | "controle"
+  | "stock"
   | "admin"
+  | "reprise"
   | "guide";
 
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
-  vendeur: ["synthese", "vente", "caisse", "historique-ventes", "guide"],
+  vendeur: ["synthese", "vente", "caisse", "historique-ventes", "equipes", "guide"],
   cuisine: ["synthese", "zogbo", "appro", "matieres", "pertes", "guide"],
   // Union des deux rôles précédents, sans rien y ajouter.
   equipier: [
@@ -211,6 +215,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "matieres",
     "pertes",
     "historique-ventes",
+    "equipes",
     "guide",
   ],
   gerant: [
@@ -224,6 +229,9 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "matieres",
     "pertes",
     "historique-ventes",
+    "equipes",
+    "controle",
+    "stock",
     "historique",
     "reglages",
     "guide",
@@ -241,8 +249,13 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "pertes",
     "reglages",
     "historique-ventes",
+    "equipes",
+    "controle",
+    "stock",
     "historique",
     "admin",
+    // Écriture directe des compteurs de stock et de ventes : administration seule.
+    "reprise",
     "guide",
   ],
 };
@@ -332,7 +345,17 @@ export function canAccessPath(
   if (pathname.startsWith("/historique-ventes")) {
     return allowed.includes("historique-ventes");
   }
+  if (pathname.startsWith("/equipes")) {
+    return allowed.includes("equipes");
+  }
+  if (pathname.startsWith("/controle")) {
+    return allowed.includes("controle");
+  }
+  if (pathname.startsWith("/stock")) {
+    return allowed.includes("stock");
+  }
   if (pathname.startsWith("/historique")) return allowed.includes("historique");
+  if (pathname.startsWith("/reprise")) return allowed.includes("reprise");
   if (pathname.startsWith("/guide")) return allowed.includes("guide");
   if (pathname === "/" || pathname === "") {
     return allowed.includes("synthese");

@@ -12,6 +12,7 @@ export type GuideSlug =
   | "compte-resultat"
   | "historique"
   | "historique-ventes"
+  | "equipes"
   | "admin";
 
 export type GuideStep = {
@@ -299,6 +300,36 @@ export const GUIDES: Guide[] = [
     ],
   },
   {
+    slug: "equipes",
+    title: "Guide Répartition équipes",
+    space: "Équipes",
+    href: "/equipes",
+    summary:
+      "CA équipe de jour contre équipe de nuit sur une période — jour par jour, avec totaux et export Excel.",
+    steps: [
+      {
+        title: "Choisir la période",
+        body: "Du / Au, ou raccourcis Cette semaine, Semaine dernière, Ce mois. Par défaut : début du mois → aujourd’hui.",
+      },
+      {
+        title: "Filtrer par site",
+        body: "Tous les sites, Zogbo ou Gbégamey. Les comptes rattachés à une zone voient uniquement leur site.",
+      },
+      {
+        title: "Lire le tableau",
+        body: "Une ligne par jour : CA jour, CA nuit, total et pourcentages. Les jours sans vente apparaissent en grisé.",
+      },
+      {
+        title: "Exporter",
+        body: "Excel avec feuilles Jours (détail) et Synthèse (totaux période). Même source que l’écran Vente.",
+      },
+    ],
+    tips: [
+      "L’équipe est celle du compte vendeur au moment de la vente, pas celle saisie sur le ticket.",
+      "Les ventes antérieures aux équipes sont regroupées sous Hors équipe.",
+    ],
+  },
+  {
     slug: "historique",
     title: "Guide Registre",
     space: "Registre",
@@ -505,6 +536,7 @@ export function guideSlugForPath(pathname: string): GuideSlug {
   if (pathname.startsWith("/zogbo")) return "zogbo";
   if (pathname.startsWith("/gbegamey")) return "gbegamey";
   if (pathname.startsWith("/historique-ventes")) return "historique-ventes";
+  if (pathname.startsWith("/equipes")) return "equipes";
   if (pathname.startsWith("/historique")) return "historique";
   if (pathname.startsWith("/admin")) return "admin";
   if (pathname.startsWith("/guide")) return "demarrage";

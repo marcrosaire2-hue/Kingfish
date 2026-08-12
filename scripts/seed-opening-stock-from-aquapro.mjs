@@ -1,9 +1,12 @@
 /**
  * Projette le stock final AquaPro dans les journées King Fish (cutover).
  *
+ * AquaPro ne couvre que le point de vente Gbégamey : tout son stock y atterrit.
+ *
  * - matières ← aquapro_aliments_sources.stock
- * - Zogbo (plats de base) ← même source, match par nom
+ * - Gbégamey (plats de base, ligne « reçus ») ← même source, match par nom
  * - Gbégamey (plats locaux) ← même source, match par nom
+ * - Zogbo ← ouvert à zéro (aucune donnée de production dans AquaPro)
  * - boissons ← dernier inventaire validé (bouteilles → casiers) en initialStock
  *
  * Usage:
@@ -40,7 +43,14 @@ async function main() {
   await client.connect();
   const db = client.db(dbName);
   const now = new Date().toISOString();
-  const summary = { date, matieres: 0, zogbo: 0, gbegameyLocal: 0, boissons: 0 };
+  const summary = {
+    date,
+    matieres: 0,
+    zogbo: 0,
+    gbegameyBase: 0,
+    gbegameyLocal: 0,
+    boissons: 0,
+  };
 
   const parametres = await db.collection("parametres").findOne({ _id: "parametres" });
   if (!parametres) throw new Error("parametres manquants — importez d’abord le catalogue AquaPro");
@@ -98,21 +108,19 @@ async function main() {
     { upsert: true },
   );
 
-  // —— Zogbo plats de base ——
-  const zogboLines = baseDishes.map((d) => {
-    const stock = stockByName.get(normKey(d.name)) ?? 0;
-    if (stock > 0) summary.zogbo++;
-    return {
-      productId: d.id,
-      name: d.name,
-      stock,
-      prepared: stock,
-      sentToGbegamey: 0,
-      sold: 0,
-      counted: stock > 0 ? stock : null,
-      observations: stock > 0 ? "Ouverture AquaPro (stock final)" : "",
-    };
-  });
+  // —— Zogbo : à zéro ——
+  // AquaPro ne couvre que le point de vente Gbégamey : son stock de plats de
+  // base est physiquement à Gbégamey, pas à Zogbo. Zogbo ouvre donc vide.
+  const zogboLines = baseDishes.map((d) => ({
+    productId: d.id,
+    name: d.name,
+    stock: 0,
+    prepared: 0,
+    sentToGbegamey: 0,
+    sold: 0,
+    counted: null,
+    observations: "",
+  }));
   await db.collection("zogbo_jours").updateOne(
     { _id: date },
     {
@@ -129,16 +137,20 @@ async function main() {
     { upsert: true },
   );
 
-  // —— Gbégamey : reçus (base) à 0 + locaux avec stock AquaPro ——
-  const transferLines = baseDishes.map((d) => ({
-    productId: d.id,
-    name: d.name,
-    initialStock: 0,
-    received: 0,
-    sold: 0,
-    counted: null,
-    observations: "",
-  }));
+  // —— Gbégamey : plats de base + locaux, tous deux avec stock AquaPro ——
+  const transferLines = baseDishes.map((d) => {
+    const stock = stockByName.get(normKey(d.name)) ?? 0;
+    if (stock > 0) summary.gbegameyBase++;
+    return {
+      productId: d.id,
+      name: d.name,
+      initialStock: stock,
+      received: 0,
+      sold: 0,
+      counted: stock > 0 ? stock : null,
+      observations: stock > 0 ? "Ouverture AquaPro (stock final)" : "",
+    };
+  });
   const localLines = localDishes.map((d) => {
     const stock = stockByName.get(normKey(d.name)) ?? 0;
     if (stock > 0) summary.gbegameyLocal++;

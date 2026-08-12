@@ -209,13 +209,14 @@ export async function saveGbegameyDay(
     transferLines: GbegameyTransferLine[];
     localLines: GbegameyLocalLine[];
   },
-  options?: { lockSold?: boolean },
+  options?: { lockSold?: boolean; directWrite?: boolean },
 ): Promise<GbegameyDayPayload> {
   if (!isValidDate(input.date)) {
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
   }
 
   const lockSold = options?.lockSold !== false;
+  const directWrite = options?.directWrite === true;
   const { baseDishes, localDishes } = await getParametres();
   const openingEditable = await isOpeningDay(input.date);
 
@@ -245,8 +246,10 @@ export async function saveGbegameyDay(
         baseDishes,
       ).map((l) => {
         const normalized = normalizeTransferLine(l);
+        if (directWrite) {
+          return { ...normalized, pertes: 0 };
+        }
         const held = heldTransfer.get(l.productId);
-        // Première mise en service : la grille pilote le stock de départ.
         const initialStock = openingEditable
           ? normalized.initialStock
           : existing
@@ -255,7 +258,6 @@ export async function saveGbegameyDay(
               0)
             : (leftovers.transfer.get(l.productId) ?? 0);
         const sold = lockSold ? (held?.sold ?? 0) : normalized.sold;
-        // Compteur piloté par les déclarations de perte, pas par la grille.
         const pertes = held?.pertes ?? 0;
         return { ...normalized, initialStock, sold, pertes };
       });
@@ -263,6 +265,9 @@ export async function saveGbegameyDay(
       const localLines = syncLocalLines(input.localLines, localDishes).map(
         (l) => {
           const normalized = normalizeLocalLine(l);
+          if (directWrite) {
+            return { ...normalized, pertes: 0 };
+          }
           const held = heldLocal.get(l.productId);
           const initialStock = openingEditable
             ? normalized.initialStock

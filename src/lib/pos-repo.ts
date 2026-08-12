@@ -171,6 +171,7 @@ export async function validatePosTicket(input: {
           kind: line.kind,
           productId: line.productId,
           qty,
+          unitPrice: line.unitPrice,
           actor,
         });
         createdLogIds.push(result.entry.id);

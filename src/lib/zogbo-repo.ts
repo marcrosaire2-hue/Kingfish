@@ -3,6 +3,8 @@ import { isValidDate, updateDayDocument } from "@/lib/day-doc";
 import { getParametres } from "@/lib/parametres-repo";
 import type {
   BaseDish,
+  GbegameyLocalLine,
+  LocalDish,
   ZogboDay,
   ZogboLine,
   ZogboMovement,
@@ -27,7 +29,45 @@ import {
 
 type ZogboDoc = Omit<ZogboDay, "date"> & { _id: string; rev?: number };
 
-function toDay(doc: ZogboDoc): ZogboDay {
+function normalizeAccompanimentLine(
+  line: Partial<GbegameyLocalLine> & { productId: string; name: string },
+): GbegameyLocalLine {
+  return {
+    productId: line.productId,
+    name: line.name,
+    initialStock: Math.max(0, Number(line.initialStock) || 0),
+    prepared: Math.max(0, Number(line.prepared) || 0),
+    sold: Math.max(0, Number(line.sold) || 0),
+    pertes: Math.max(0, Number(line.pertes) || 0),
+    counted:
+      line.counted === null || line.counted === undefined
+        ? null
+        : Math.max(0, Number(line.counted) || 0),
+    observations: String(line.observations ?? ""),
+  };
+}
+
+export function syncZogboAccompanimentLines(
+  lines: GbegameyLocalLine[],
+  catalog: LocalDish[],
+): GbegameyLocalLine[] {
+  const byId = new Map(lines.map((l) => [l.productId, normalizeAccompanimentLine(l)]));
+  return catalog.map(
+    (d) =>
+      byId.get(d.id) ?? {
+        productId: d.id,
+        name: d.name,
+        initialStock: 0,
+        prepared: 0,
+        sold: 0,
+        pertes: 0,
+        counted: null,
+        observations: "",
+      },
+  );
+}
+
+function toDay(doc: ZogboDoc, accompanimentLines?: GbegameyLocalLine[]): ZogboDay {
   const movements = (doc.movements ?? [])
     .map((m) => normalizeZogboMovement(m))
     .filter((m): m is ZogboMovement => !!m);
@@ -35,6 +75,7 @@ function toDay(doc: ZogboDoc): ZogboDay {
     date: doc._id,
     status: doc.status ?? "ouverte",
     lines: (doc.lines ?? []).map((l) => normalizeZogboLine(l)),
+    accompanimentLines,
     movements,
     updatedAt: doc.updatedAt ?? null,
   };
@@ -85,7 +126,7 @@ export async function getZogboDayPayload(
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
   }
 
-  const { baseDishes } = await getParametres();
+  const { baseDishes, localDishes } = await getParametres();
   const db = await getDb();
   const col = db.collection<ZogboDoc>("zogbo_jours");
   const existing = await col.findOne({ _id: date });
@@ -122,11 +163,16 @@ export async function getZogboDayPayload(
     return { day, baseDishes };
   }
 
-  const day = toDay(existing);
+  const accompanimentLines = syncZogboAccompanimentLines(
+    existing.accompanimentLines ?? [],
+    localDishes,
+  );
+  const day = toDay(existing, accompanimentLines);
   return {
     day: {
       ...day,
       lines: syncZogboLinesWithCatalog(day.lines, baseDishes),
+      accompanimentLines,
     },
     baseDishes,
   };
@@ -139,13 +185,14 @@ export async function saveZogboDay(
     lines: ZogboLine[];
     movements?: ZogboMovement[];
   },
-  options?: { lockSold?: boolean },
+  options?: { lockSold?: boolean; directWrite?: boolean },
 ): Promise<ZogboDayPayload> {
   if (!isValidDate(input.date)) {
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
   }
 
   const lockSold = options?.lockSold !== false;
+  const directWrite = options?.directWrite === true;
   const { baseDishes } = await getParametres();
 
   return updateDayDocument<ZogboDoc, ZogboDayPayload>(
@@ -166,6 +213,12 @@ export async function saveZogboDay(
       const lines = syncZogboLinesWithCatalog(input.lines, baseDishes).map(
         (line) => {
           const normalized = normalizeZogboLine(line);
+          if (directWrite) {
+            return {
+              ...normalized,
+              pertes: 0,
+            };
+          }
           if (!existing) {
             return {
               ...normalized,
@@ -184,15 +237,16 @@ export async function saveZogboDay(
             sentToGbegamey:
               held?.sentToGbegamey ?? normalized.sentToGbegamey,
             sold: lockSold ? (held?.sold ?? 0) : normalized.sold,
-            // Compteur piloté par les déclarations de perte, pas par la grille.
             pertes: held?.pertes ?? 0,
           };
         },
       );
 
-      const movements = (input.movements ?? existing?.movements ?? [])
-        .map((m) => normalizeZogboMovement(m))
-        .filter((m): m is ZogboMovement => !!m);
+      const movements = directWrite
+        ? []
+        : (input.movements ?? existing?.movements ?? [])
+            .map((m) => normalizeZogboMovement(m))
+            .filter((m): m is ZogboMovement => !!m);
 
       const updatedAt = new Date().toISOString();
       const status = input.status ?? "ouverte";

@@ -12,19 +12,25 @@ import { getCombosDayPayload, saveCombosDay } from "@/lib/combos-repo";
 import { newId } from "@/lib/format";
 import { computeTransferLine } from "@/lib/gbegamey-calc";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
-import { physicalStock } from "@/lib/zogbo-calc";
+import { physicalStock, shiftIsoDate } from "@/lib/zogbo-calc";
+import {
+  ZOGBO_ACCOMPAGNEMENTS,
+  ZOGBO_PLATS,
+} from "@/lib/catalog-zogbo";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import type {
   BaseDish,
   ComboDish,
+  GbegameyLocalLine,
   Parametres,
   VenteKind,
   VenteLogEntry,
   VenteProduct,
   VenteSite,
+  VentesDaySummary,
 } from "@/lib/types";
 
-export type { VenteKind, VenteLogEntry, VenteProduct, VenteSite };
+export type { VenteKind, VenteLogEntry, VenteProduct, VenteSite, VentesDaySummary };
 
 export type VenteActor = {
   id: string;
@@ -61,7 +67,25 @@ type VenteLogDoc = {
   cancelledById?: string | null;
   cancelledByName?: string | null;
   cancelledByUsername?: string | null;
+  /** Provenance (caisse, carnet-zogbo, aquapro, reprise…) */
+  source?: string | null;
 };
+
+function mapVenteLogDoc(d: VenteLogDoc): VenteLogEntry {
+  return {
+    id: d._id.toHexString(),
+    date: d.date,
+    site: d.site,
+    kind: d.kind,
+    productId: d.productId,
+    name: d.name,
+    qty: d.qty,
+    unitPrice: d.unitPrice,
+    amount: d.amount,
+    at: d.at,
+    source: d.source ?? null,
+  };
+}
 
 /** Ventes actives : les annulations restent en base mais ne comptent plus. */
 const ACTIVE = { cancelledAt: null, caExcluded: { $ne: true } };
@@ -129,6 +153,30 @@ async function getLocalDishStockLeft(
   return Math.max(0, line.initialStock + line.prepared - line.sold);
 }
 
+/** Stock accompagnement : null = pas encore inventorié (vente autorisée). */
+async function getAccompanimentStockLeft(
+  date: string,
+  site: VenteSite,
+  productId: string,
+): Promise<number | null> {
+  if (site === "gbegamey") {
+    return getLocalDishStockLeft(date, productId);
+  }
+  const { day } = await getZogboDayPayload(date);
+  const line = day.accompanimentLines?.find((l) => l.productId === productId);
+  if (!line) return null;
+  const tracked =
+    line.initialStock > 0 ||
+    line.prepared > 0 ||
+    line.counted !== null;
+  if (!tracked) return null;
+  return Math.max(0, line.initialStock + line.prepared - line.sold);
+}
+
+function accompanimentTracked(line: GbegameyLocalLine): boolean {
+  return line.initialStock > 0 || line.prepared > 0 || line.counted !== null;
+}
+
 export async function getVenteBoard(
   date: string,
   site: VenteSite,
@@ -153,11 +201,10 @@ export async function getVenteBoard(
   );
 
   const parametres = await getParametres();
-  const [zogbo, gbegamey, combos, boissons, recent, caToday] =
+  const [zogbo, gbegamey, boissons, recent, caToday] =
     await Promise.all([
       getZogboDayPayload(date),
       getGbegameyDayPayload(date),
-      getCombosDayPayload(date),
       getBoissonsDayPayload(date),
       listRecentVentes(date, site, recentLimit),
       sumCaForSite(date, site),
@@ -174,17 +221,46 @@ export async function getVenteBoard(
     const soldById = new Map(
       zogbo.day.lines.map((l) => [l.productId, l.sold]),
     );
-    for (const dish of parametres.baseDishes) {
-      const stockLeft = stockById.get(dish.id) ?? 0;
+    for (const plat of ZOGBO_PLATS) {
+      const dish = parametres.baseDishes.find((d) => d.id === plat.id);
+      const stockLeft = stockById.get(plat.id) ?? 0;
       products.push({
         kind: "plat",
-        productId: dish.id,
-        name: dish.name,
-        unitPrice: dish.unitPrice,
-        soldToday: soldById.get(dish.id) ?? 0,
+        productId: plat.id,
+        name: plat.name,
+        unitPrice: plat.unitPrice,
+        soldToday: soldById.get(plat.id) ?? 0,
         stockLeft,
-        lowStock: isLowStock(stockLeft, dish.alertThreshold),
+        lowStock: isLowStock(stockLeft, dish?.alertThreshold),
         hint: `Reste ${stockLeft}`,
+      });
+    }
+    const accById = new Map(
+      (zogbo.day.accompanimentLines ?? []).map((l) => [l.productId, l]),
+    );
+    for (const acc of ZOGBO_ACCOMPAGNEMENTS) {
+      const dish = parametres.localDishes.find((d) => d.id === acc.id);
+      const line = accById.get(acc.id);
+      const tracked = line ? accompanimentTracked(line) : false;
+      const stockLeft = tracked
+        ? Math.max(
+            0,
+            (line?.initialStock ?? 0) +
+              (line?.prepared ?? 0) -
+              (line?.sold ?? 0),
+          )
+        : null;
+      products.push({
+        kind: "local",
+        productId: acc.id,
+        name: acc.name,
+        unitPrice: acc.unitPrice,
+        soldToday: line?.sold ?? 0,
+        stockLeft,
+        lowStock: isLowStock(stockLeft, dish?.alertThreshold),
+        hint: tracked
+          ? `Accompagnement · reste ${stockLeft ?? 0}`
+          : "Accompagnement · stock non inventorié",
       });
     }
   } else {
@@ -221,37 +297,9 @@ export async function getVenteBoard(
         soldToday: line?.sold ?? 0,
         stockLeft,
         lowStock: isLowStock(stockLeft, dish.alertThreshold),
-        hint: `Sur place · reste ${stockLeft}`,
+        hint: `Accompagnement · reste ${stockLeft}`,
       });
     }
-  }
-
-  const comboSold = new Map(
-    combos.day.lines.map((l) => [
-      l.productId,
-      site === "zogbo" ? l.soldZogbo : l.soldGbegamey,
-    ]),
-  );
-  for (const combo of parametres.combos) {
-    const line = combos.day.lines.find((l) => l.productId === combo.id);
-    const stockLeft = line
-      ? site === "zogbo"
-        ? physicalComboStockZogbo(line)
-        : physicalComboStockGbegamey(line)
-      : 0;
-    products.push({
-      kind: "combo",
-      productId: combo.id,
-      name: combo.name,
-      unitPrice: combo.unitPrice,
-      soldToday: comboSold.get(combo.id) ?? 0,
-      stockLeft,
-      lowStock: isLowStock(stockLeft, combo.alertThreshold),
-      hint:
-        site === "zogbo"
-          ? `Préparé Zogbo · reste ${stockLeft}`
-          : `Reçu de Zogbo · reste ${stockLeft}`,
-    });
   }
 
   const drinkSold = new Map(
@@ -320,7 +368,85 @@ export async function sumCaByShift(
   return parEquipe;
 }
 
-async function sumCaForSite(date: string, site: VenteSite): Promise<number> {
+export type ShiftDayRow = {
+  date: string;
+  jour: number;
+  nuit: number;
+  aucune: number;
+  total: number;
+};
+
+export type ShiftRangeSummary = {
+  days: ShiftDayRow[];
+  totals: Record<UserShift, number> & { total: number };
+};
+
+/** CA réparti par équipe sur une période — une ligne par jour ouvert. */
+export async function sumCaByShiftRange(
+  from: string,
+  to: string,
+  site: VenteSite | "all",
+): Promise<ShiftRangeSummary> {
+  const db = await getDb();
+  const match: Record<string, unknown> = {
+    date: { $gte: from, $lte: to },
+    ...ACTIVE,
+  };
+  if (site !== "all") match.site = site;
+
+  const rows = await db
+    .collection<VenteLogDoc>("ventes_log")
+    .aggregate<{
+      _id: { date: string; shift: UserShift | null };
+      total: number;
+    }>([
+      { $match: match },
+      {
+        $group: {
+          _id: { date: "$date", shift: "$shift" },
+          total: { $sum: "$amount" },
+        },
+      },
+      { $sort: { "_id.date": 1 } },
+    ])
+    .toArray();
+
+  const byDate = new Map<string, Record<UserShift, number>>();
+  for (const row of rows) {
+    const date = row._id.date;
+    const shift = effectiveShift(row._id.shift);
+    const bucket = byDate.get(date) ?? { jour: 0, nuit: 0, aucune: 0 };
+    bucket[shift] += row.total;
+    byDate.set(date, bucket);
+  }
+
+  const days: ShiftDayRow[] = [];
+  const totals: Record<UserShift, number> = { jour: 0, nuit: 0, aucune: 0 };
+  let cursor: string | null = from;
+  while (cursor && cursor <= to) {
+    const par = byDate.get(cursor) ?? { jour: 0, nuit: 0, aucune: 0 };
+    const total = par.jour + par.nuit + par.aucune;
+    days.push({ date: cursor, ...par, total });
+    totals.jour += par.jour;
+    totals.nuit += par.nuit;
+    totals.aucune += par.aucune;
+    cursor = shiftIsoDate(cursor, 1);
+  }
+
+  return {
+    days,
+    totals: {
+      ...totals,
+      total: totals.jour + totals.nuit + totals.aucune,
+    },
+  };
+}
+
+/** CA actif du jour pour un site — même source que l’écran Vente. */
+export async function sumCaForSite(
+  date: string,
+  site: VenteSite,
+): Promise<number> {
   const db = await getDb();
   const rows = await db
     .collection<VenteLogDoc>("ventes_log")
@@ -330,6 +456,35 @@ async function sumCaForSite(date: string, site: VenteSite): Promise<number> {
     ])
     .toArray();
   return rows[0]?.total ?? 0;
+}
+
+/** CA journal figé pour un type de produit (combos, boissons…). */
+export async function sumCaByKindForSite(
+  date: string,
+  site: VenteSite,
+  kind: VenteKind,
+): Promise<number> {
+  const db = await getDb();
+  const rows = await db
+    .collection<VenteLogDoc>("ventes_log")
+    .aggregate<{ total: number }>([
+      { $match: { date, site, kind, ...ACTIVE } },
+      { $group: { _id: null, total: { $sum: "$amount" } } },
+    ])
+    .toArray();
+  return rows[0]?.total ?? 0;
+}
+
+/** Dernière journée avec au moins une vente active sur le site. */
+export async function getLastSaleDate(
+  site: VenteSite,
+): Promise<string | null> {
+  const db = await getDb();
+  const doc = await db.collection<VenteLogDoc>("ventes_log").findOne(
+    { site, ...ACTIVE },
+    { sort: { date: -1, at: -1 }, projection: { date: 1 } },
+  );
+  return doc?.date ?? null;
 }
 
 async function listRecentVentes(
@@ -345,18 +500,7 @@ async function listRecentVentes(
     .limit(limit)
     .toArray();
 
-  return docs.map((d) => ({
-    id: d._id.toHexString(),
-    date: d.date,
-    site: d.site,
-    kind: d.kind,
-    productId: d.productId,
-    name: d.name,
-    qty: d.qty,
-    unitPrice: d.unitPrice,
-    amount: d.amount,
-    at: d.at,
-  }));
+  return docs.map(mapVenteLogDoc);
 }
 
 /** Sorties (ventes) du jour pour un type de produit — registre combos / boissons */
@@ -382,23 +526,72 @@ export async function listVentesByKind(input: {
     .limit(input.limit ?? 80)
     .toArray();
 
-  return docs.map((d) => ({
-    id: d._id.toHexString(),
-    date: d.date,
-    site: d.site,
-    kind: d.kind,
-    productId: d.productId,
-    name: d.name,
-    qty: d.qty,
-    unitPrice: d.unitPrice,
-    amount: d.amount,
-    at: d.at,
-  }));
+  return docs.map(mapVenteLogDoc);
+}
+
+/** Toutes les ventes actives du jour pour un site — journal complet. */
+export async function listVentesForSite(input: {
+  date: string;
+  site: VenteSite;
+  limit?: number;
+}): Promise<VenteLogEntry[]> {
+  if (!isValidDate(input.date)) throw new Error("Date invalide");
+  const db = await getDb();
+  const docs = await db
+    .collection<VenteLogDoc>("ventes_log")
+    .find({ date: input.date, site: input.site, ...ACTIVE })
+    .sort({ at: 1 })
+    .limit(input.limit ?? 500)
+    .toArray();
+  return docs.map(mapVenteLogDoc);
+}
+
+/** Synthèse du journal de ventes pour un site et une date. */
+export async function summarizeVentesForSite(
+  date: string,
+  site: VenteSite,
+): Promise<VentesDaySummary> {
+  if (!isValidDate(date)) throw new Error("Date invalide");
+  const db = await getDb();
+  const docs = await db
+    .collection<VenteLogDoc>("ventes_log")
+    .find({ date, site, ...ACTIVE })
+    .toArray();
+
+  const byKind: VentesDaySummary["byKind"] = {};
+  const bySource: VentesDaySummary["bySource"] = {};
+  let articles = 0;
+  let montant = 0;
+
+  for (const d of docs) {
+    articles += d.qty;
+    montant += d.amount;
+    const kind = d.kind;
+    const kindBucket = byKind[kind] ?? { lignes: 0, qty: 0, montant: 0 };
+    kindBucket.lignes += 1;
+    kindBucket.qty += d.qty;
+    kindBucket.montant += d.amount;
+    byKind[kind] = kindBucket;
+
+    const src = d.source ?? "caisse";
+    const srcBucket = bySource[src] ?? { lignes: 0, montant: 0 };
+    srcBucket.lignes += 1;
+    srcBucket.montant += d.amount;
+    bySource[src] = srcBucket;
+  }
+
+  return {
+    lignes: docs.length,
+    articles,
+    montant,
+    byKind,
+    bySource,
+  };
 }
 
 type SoldTarget = {
   collection: string;
-  arrayField: "lines" | "transferLines" | "localLines";
+  arrayField: "lines" | "transferLines" | "localLines" | "accompanimentLines";
   soldField: "sold" | "soldZogbo" | "soldGbegamey";
   name: string;
   unitPrice: number;
@@ -445,11 +638,19 @@ async function resolveSoldTarget(input: {
   }
 
   if (kind === "local") {
-    if (site !== "gbegamey") {
-      throw new Error("Les plats locaux ne sont vendus qu’à Gbégamey");
-    }
     const dish = parametres.localDishes.find((d) => d.id === productId);
-    if (!dish) throw new Error("Plat local introuvable");
+    if (!dish) throw new Error("Accompagnement introuvable");
+    if (site === "zogbo") {
+      return {
+        collection: "zogbo_jours",
+        arrayField: "accompanimentLines",
+        soldField: "sold",
+        name: dish.name,
+        unitPrice: dish.unitPrice,
+        costPrice: 0,
+        ensure: () => ensureZogboAccompanimentDay(date),
+      };
+    }
     return {
       collection: "gbegamey_jours",
       arrayField: "localLines",
@@ -516,6 +717,39 @@ async function ensureLinePresent(target: SoldTarget, input: {
 async function ensureZogboDay(date: string): Promise<void> {
   const { day } = await getZogboDayPayload(date);
   await saveZogboDay({ date, status: day.status, lines: day.lines });
+}
+
+async function ensureZogboAccompanimentDay(date: string): Promise<void> {
+  const parametres = await getParametres();
+  const { day } = await getZogboDayPayload(date);
+  const db = await getDb();
+  const lines =
+    day.accompanimentLines ??
+    parametres.localDishes.map((d) => ({
+      productId: d.id,
+      name: d.name,
+      initialStock: 0,
+      prepared: 0,
+      sold: 0,
+      pertes: 0,
+      counted: null,
+      observations: "",
+    }));
+  await db.collection("zogbo_jours").updateOne(
+    { _id: date as never },
+    {
+      $set: {
+        accompanimentLines: lines,
+        updatedAt: new Date().toISOString(),
+      },
+      $setOnInsert: {
+        status: "ouverte",
+        lines: [],
+        movements: [],
+      },
+    },
+    { upsert: true },
+  );
 }
 
 async function ensureGbegameyDay(date: string): Promise<void> {
@@ -611,6 +845,8 @@ export async function recordVente(input: {
   kind: VenteKind;
   productId: string;
   qty?: number;
+  /** Prix unitaire figé (ex. accompagnement à 500 ou 1 000 selon le plat). */
+  unitPrice?: number;
   actor?: VenteActor | null;
 }): Promise<{
   entry: VenteLogEntry;
@@ -635,8 +871,12 @@ export async function recordVente(input: {
         throw new Error(`Stock insuffisant (reste ${left})`);
       }
     } else if (input.kind === "local") {
-      const left = await getLocalDishStockLeft(input.date, input.productId);
-      if (left < qty) {
+      const left = await getAccompanimentStockLeft(
+        input.date,
+        input.site,
+        input.productId,
+      );
+      if (left !== null && left < qty) {
         throw new Error(`Stock insuffisant (reste ${left})`);
       }
     } else if (input.kind === "combo") {
@@ -671,8 +911,12 @@ export async function recordVente(input: {
     delta: qty,
   });
 
+  const unitPriceOverride = Math.round(Number(input.unitPrice) || 0);
+  const unitPrice =
+    unitPriceOverride > 0 ? unitPriceOverride : result.unitPrice;
+
   const at = new Date().toISOString();
-  const amount = Math.abs(qty) * result.unitPrice;
+  const amount = Math.abs(qty) * unitPrice;
   const db = await getDb();
   const insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
     _id: new ObjectId(),
@@ -682,7 +926,7 @@ export async function recordVente(input: {
     productId: input.productId,
     name: result.name,
     qty,
-    unitPrice: result.unitPrice,
+    unitPrice,
     costPrice: result.costPrice,
     amount: qty > 0 ? amount : -amount,
     at,
@@ -702,7 +946,7 @@ export async function recordVente(input: {
     productId: input.productId,
     name: result.name,
     qty,
-    unitPrice: result.unitPrice,
+    unitPrice,
     amount: qty > 0 ? amount : -amount,
     at,
   };

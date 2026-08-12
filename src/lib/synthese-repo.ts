@@ -10,6 +10,8 @@ import type {
   MonthPoint,
   ProductRank,
   ProductRanking,
+  RankPair,
+  SiteRank,
   YearPoint,
   ZogboDay,
 } from "@/lib/types";
@@ -203,26 +205,52 @@ export async function getProductRanking(
   limit = 5,
 ): Promise<ProductRanking> {
   const db = await getDb();
-  const rows = await db
-    .collection("ventes_log")
-    .aggregate<ProductAgg>([
-      { $match: caActifMatch({ ...match, qty: { $gt: 0 } }) },
-      {
-        $group: {
-          _id: {
-            productId: "$productId",
-            name: "$name",
-            kind: "$kind",
-          },
-          qty: { $sum: "$qty" },
-          ca: { $sum: "$amount" },
-        },
-      },
-      { $sort: { ca: -1, qty: -1 } },
-    ])
-    .toArray();
+  const emptyPair = (): RankPair => ({ best: [], worst: [] });
+  const empty: ProductRanking = {
+    best: [],
+    worst: [],
+    sites: [],
+    plats: emptyPair(),
+    accompagnements: emptyPair(),
+    boissons: emptyPair(),
+  };
 
-  const all: ProductRank[] = rows.map((r) => ({
+  const [productRows, siteRows] = await Promise.all([
+    db
+      .collection("ventes_log")
+      .aggregate<ProductAgg>([
+        { $match: caActifMatch({ ...match, qty: { $gt: 0 } }) },
+        {
+          $group: {
+            _id: {
+              productId: "$productId",
+              name: "$name",
+              kind: "$kind",
+            },
+            qty: { $sum: "$qty" },
+            ca: { $sum: "$amount" },
+          },
+        },
+        { $sort: { ca: -1, qty: -1 } },
+      ])
+      .toArray(),
+    db
+      .collection("ventes_log")
+      .aggregate<{ _id: string; qty: number; ca: number }>([
+        { $match: caActifMatch({ ...match, qty: { $gt: 0 } }) },
+        {
+          $group: {
+            _id: "$site",
+            qty: { $sum: "$qty" },
+            ca: { $sum: "$amount" },
+          },
+        },
+        { $sort: { ca: -1 } },
+      ])
+      .toArray(),
+  ]);
+
+  const all: ProductRank[] = productRows.map((r) => ({
     productId: String(r._id.productId ?? ""),
     name: String(r._id.name || "Sans nom"),
     kind: String(r._id.kind || "extra"),
@@ -230,24 +258,51 @@ export async function getProductRanking(
     ca: Number(r.ca) || 0,
   }));
 
-  if (all.length === 0) return { best: [], worst: [] };
+  const sites: SiteRank[] = siteRows.map((r) => ({
+    site: String(r._id || ""),
+    label:
+      r._id === "zogbo" ? "Zogbo" : r._id === "gbegamey" ? "Gbégamey" : String(r._id),
+    qty: Number(r.qty) || 0,
+    ca: Number(r.ca) || 0,
+  }));
 
-  const best = all.slice(0, Math.min(limit, all.length));
-  const bestKeys = new Set(best.map((p) => `${p.kind}:${p.productId}`));
-  const worst = [...all]
+  if (all.length === 0) return { ...empty, sites };
+
+  function pairFor(kinds: string[]): RankPair {
+    const subset = all.filter((p) => kinds.includes(p.kind));
+    if (subset.length === 0) return emptyPair();
+    const best = subset.slice(0, Math.min(limit, subset.length));
+    const bestKeys = new Set(best.map((p) => `${p.kind}:${p.productId}`));
+    let worst = [...subset]
+      .reverse()
+      .filter((p) => !bestKeys.has(`${p.kind}:${p.productId}`))
+      .slice(0, Math.min(limit, subset.length));
+    if (worst.length === 0 && subset.length > 1) {
+      worst = [...subset].reverse().slice(0, Math.min(limit, subset.length - 1));
+    }
+    return { best, worst };
+  }
+
+  const overallBest = all.slice(0, Math.min(limit, all.length));
+  const bestKeys = new Set(overallBest.map((p) => `${p.kind}:${p.productId}`));
+  let overallWorst = [...all]
     .reverse()
     .filter((p) => !bestKeys.has(`${p.kind}:${p.productId}`))
     .slice(0, Math.min(limit, all.length));
-
-  // Peu de produits : montrer le bas même s’il y a chevauchement partiel
-  if (worst.length === 0 && all.length > 1) {
-    return {
-      best,
-      worst: [...all].reverse().slice(0, Math.min(limit, all.length - 1)),
-    };
+  if (overallWorst.length === 0 && all.length > 1) {
+    overallWorst = [...all]
+      .reverse()
+      .slice(0, Math.min(limit, all.length - 1));
   }
 
-  return { best, worst };
+  return {
+    best: overallBest,
+    worst: overallWorst,
+    sites,
+    plats: pairFor(["plat"]),
+    accompagnements: pairFor(["local"]),
+    boissons: pairFor(["boisson"]),
+  };
 }
 
 /** CA période : actif (Validé) + exclus (annulées / en cours) pour notification UI. */

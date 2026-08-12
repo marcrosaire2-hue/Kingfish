@@ -22,7 +22,7 @@ type Payload = {
 };
 
 export function MatieresPage() {
-  const [date, setDate] = useState(todayIsoDate);
+  const [date, setDate] = useState(() => todayIsoDate());
   const [day, setDay] = useState<MatieresDay | null>(null);
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [loading, setLoading] = useState(true);

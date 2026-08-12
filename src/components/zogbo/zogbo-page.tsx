@@ -10,10 +10,13 @@ import { RegistreDrawer } from "@/components/registre-drawer";
 import { QtyInput } from "@/components/qty-input";
 import { ZoneBoissonsPanel } from "@/components/zone/zone-boissons-panel";
 import { ZoneCombosPanel } from "@/components/zone/zone-combos-panel";
+import { ZoneVentesPanel } from "@/components/zone/zone-ventes-panel";
 import { formatFcfa, formatUpdatedAt } from "@/lib/format";
 import { exportZogboExcel } from "@/lib/page-exports";
 import type {
   BaseDish,
+  VenteLogEntry,
+  VentesDaySummary,
   ZogboDay,
   ZogboLine,
   ZogboMovement,
@@ -26,11 +29,18 @@ import {
   todayIsoDate,
 } from "@/lib/zogbo-calc";
 
-type Payload = { day: ZogboDay; baseDishes: BaseDish[] };
-type TabKey = "inventaire" | "combos" | "boissons";
+type Payload = {
+  day: ZogboDay;
+  baseDishes: BaseDish[];
+  caJournal?: number;
+  lastSaleDate?: string | null;
+  ventes?: VenteLogEntry[];
+  ventesSummary?: VentesDaySummary;
+};
+type TabKey = "inventaire" | "combos" | "boissons" | "ventes";
 
 function parseTab(raw: string | null): TabKey {
-  if (raw === "combos" || raw === "boissons") return raw;
+  if (raw === "combos" || raw === "boissons" || raw === "ventes") return raw;
   return "inventaire";
 }
 
@@ -50,9 +60,21 @@ export function ZogboPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const tab = parseTab(searchParams.get("tab"));
-  const [date, setDate] = useState(todayIsoDate);
+  const dateFromUrl = searchParams.get("date");
+  const [date, setDate] = useState(() => {
+    if (dateFromUrl && /^\d{4}-\d{2}-\d{2}$/.test(dateFromUrl)) {
+      return dateFromUrl;
+    }
+    return todayIsoDate();
+  });
   const [day, setDay] = useState<ZogboDay | null>(null);
   const [baseDishes, setBaseDishes] = useState<BaseDish[]>([]);
+  const [caJournal, setCaJournal] = useState(0);
+  const [lastSaleDate, setLastSaleDate] = useState<string | null>(null);
+  const [ventes, setVentes] = useState<VenteLogEntry[]>([]);
+  const [ventesSummary, setVentesSummary] = useState<VentesDaySummary | null>(
+    null,
+  );
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -93,6 +115,10 @@ export function ZogboPage() {
       if (!res.ok) throw new Error(body.error || "Erreur de chargement");
       setDay(body.day);
       setBaseDishes(body.baseDishes);
+      setCaJournal(Number(body.caJournal) || 0);
+      setLastSaleDate(body.lastSaleDate ?? null);
+      setVentes(body.ventes ?? []);
+      setVentesSummary(body.ventesSummary ?? null);
       setDirty(false);
       setDraftPrepare({});
       setDraftSend({});
@@ -211,6 +237,15 @@ export function ZogboPage() {
   }
 
   const platsCount = computed?.lines.length ?? baseDishes.length;
+  const journalLignes = ventesSummary?.lignes ?? 0;
+  const counterSold = computed?.totals.sold ?? 0;
+  const movementCount = computed?.movements.length ?? 0;
+  const journalOnlyDay =
+    !loading &&
+    journalLignes > 0 &&
+    counterSold === 0 &&
+    movementCount === 0 &&
+    (computed?.totals.prepared ?? 0) === 0;
 
   return (
     <AppShell
@@ -278,11 +313,31 @@ export function ZogboPage() {
         >
           Boissons
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "ventes"}
+          className={`section-tab${tab === "ventes" ? " is-active" : ""}`}
+          onClick={() => setTab("ventes")}
+        >
+          Ventes
+          {journalLignes > 0 ? (
+            <span className="section-count">{journalLignes}</span>
+          ) : null}
+        </button>
       </div>
 
       {tab === "combos" ? <ZoneCombosPanel date={date} site="zogbo" /> : null}
       {tab === "boissons" ? (
         <ZoneBoissonsPanel date={date} site="zogbo" />
+      ) : null}
+      {tab === "ventes" ? (
+        <ZoneVentesPanel
+          date={date}
+          ventes={ventes}
+          summary={ventesSummary}
+          loading={loading}
+        />
       ) : null}
 
       {tab === "inventaire" ? (
@@ -311,17 +366,69 @@ export function ZogboPage() {
             </p>
           ) : null}
 
+          {!loading &&
+          caJournal <= 0 &&
+          lastSaleDate &&
+          lastSaleDate !== date ? (
+            <p className="ui-info" role="status">
+              <span className="ui-info-mark" aria-hidden>
+                i
+              </span>
+              Aucune vente enregistrée pour{" "}
+              <strong>{formatDisplayDate(date)}</strong>. Dernières ventes
+              Zogbo :{" "}
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => handleDateChange(lastSaleDate)}
+              >
+                {formatDisplayDate(lastSaleDate)}
+              </button>
+            </p>
+          ) : null}
+
+          {journalOnlyDay ? (
+            <p className="warn-inline" role="status">
+              {journalLignes} ligne{journalLignes > 1 ? "s" : ""} de vente dans
+              le journal ({formatFcfa(caJournal)}) sans stock ni mouvement sur
+              les plats — détail dans l’onglet{" "}
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setTab("ventes")}
+              >
+                Ventes
+              </button>
+              .
+            </p>
+          ) : null}
+
           {computed ? (
             <div className="zogbo-stats">
-              <div className="zogbo-stat zogbo-stat-main">
+              <div className="zogbo-stat zogbo-stat-ca">
                 <span className="zogbo-stat-icon" aria-hidden>
-                  ✓
+                  F
                 </span>
                 <div>
-                  <span className="stat-label">Stock actuel</span>
+                  <span className="stat-label">CA journal (FCFA)</span>
                   <span className="zogbo-stat-value mono">
-                    {computed.totals.theoretical}
+                    {formatFcfa(caJournal)}
                   </span>
+                  {journalLignes > 0 ? (
+                    <span className="cell-sub">
+                      {journalLignes} ligne{journalLignes > 1 ? "s" : ""} ·{" "}
+                      {ventesSummary?.articles ?? 0} art.
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+              <div className="zogbo-stat">
+                <span className="zogbo-stat-icon" aria-hidden>
+                  #
+                </span>
+                <div>
+                  <span className="stat-label">Transactions journal</span>
+                  <span className="zogbo-stat-value mono">{journalLignes}</span>
                 </div>
               </div>
               <div className="zogbo-stat">
@@ -368,14 +475,14 @@ export function ZogboPage() {
                   </span>
                 </div>
               </div>
-              <div className="zogbo-stat zogbo-stat-ca">
+              <div className="zogbo-stat zogbo-stat-main">
                 <span className="zogbo-stat-icon" aria-hidden>
-                  F
+                  ✓
                 </span>
                 <div>
-                  <span className="stat-label">CA plats (FCFA)</span>
+                  <span className="stat-label">Stock actuel</span>
                   <span className="zogbo-stat-value mono">
-                    {formatFcfa(computed.totals.soldAmount)}
+                    {computed.totals.theoretical}
                   </span>
                 </div>
               </div>
@@ -387,8 +494,16 @@ export function ZogboPage() {
               i
             </span>
             <p>
-              Saisissez Préparé puis Envoyer — chaque mouvement va au registre
-              (annulable). Les ventes libèrent le stock actuel automatiquement.
+              <strong>Plats</strong> : stock et mouvements (préparé, envoyé).
+              Les ventes encaissées sont dans le{" "}
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setTab("ventes")}
+              >
+                journal Ventes
+              </button>
+              . Le CA du jour en est la somme.
             </p>
           </div>
 

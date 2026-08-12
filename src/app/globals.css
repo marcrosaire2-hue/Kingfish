@@ -1381,6 +1381,75 @@ select {
   margin-top: 0;
 }
 
+.vente-meal-composer {
+  margin-bottom: 1rem;
+}
+
+.vente-acc-picker {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.65rem 0.85rem;
+  margin: 0.75rem 0;
+}
+
+.vente-acc-picker legend {
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0 0.25rem;
+}
+
+.vente-acc-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 10rem;
+  overflow-y: auto;
+}
+
+.vente-acc-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.vente-acc-option.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.vente-meal-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.vente-meal-total {
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.vente-acc-empty {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+.vente-hint-inline {
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  font-weight: 400;
+}
+
+.vente-acc-banner {
+  margin: 0 0 1rem;
+}
+
 .vente-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(240px, 300px);
@@ -2578,6 +2647,19 @@ select {
   box-shadow: none;
 }
 
+.equipes-presets .equipes-preset-btns {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.equipes-pct {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
 .zone-panel {
   display: flex;
   flex-direction: column;
@@ -3232,6 +3314,30 @@ select {
 }
 
 /* Classement produits */
+.sales-boards {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.sales-board-sub {
+  margin: -0.35rem 0 0.85rem;
+  font-size: 0.9rem;
+}
+
+.sales-board-table {
+  margin-top: 0.35rem;
+}
+
+.sales-board-table .row-leader td {
+  font-weight: 600;
+}
+
+.rank-panel-sites {
+  background: color-mix(in srgb, var(--brand, #005098) 6%, var(--surface));
+  border-color: color-mix(in srgb, var(--brand, #005098) 20%, var(--line));
+}
+
 .rank-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -4221,6 +4327,26 @@ body {
   background: var(--surface, #fff);
   font-variant-numeric: tabular-nums;
 }
+.input-text {
+  width: 100%;
+  min-width: 10rem;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+}
+.input-select {
+  max-width: 100%;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid var(--border, #d1d5db);
+  border-radius: 6px;
+  background: var(--surface, #fff);
+}
+.reprise-catalog-add {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
 .col-num {
   text-align: right;
   white-space: nowrap;
@@ -5119,4 +5245,27 @@ html.nav-open body {
   font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
+}
+
+/* ——— Reprise d'historique ——— */
+.reprise-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin-top: 12px;
+}
+
+.check-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.check-field input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent, #c8102e);
+  cursor: pointer;
 }

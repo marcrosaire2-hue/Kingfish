@@ -179,6 +179,8 @@ export type ZogboDay = {
   date: string; // YYYY-MM-DD
   status: DayStatus;
   lines: ZogboLine[];
+  /** Accompagnements vendus / stockés à Zogbo (riz, telibo…) */
+  accompanimentLines?: GbegameyLocalLine[];
   movements: ZogboMovement[];
   updatedAt: string | null;
 };
@@ -320,9 +322,27 @@ export type ProductRank = {
   ca: number;
 };
 
-export type ProductRanking = {
+export type RankPair = {
   best: ProductRank[];
   worst: ProductRank[];
+};
+
+export type SiteRank = {
+  site: string;
+  label: string;
+  qty: number;
+  ca: number;
+};
+
+export type ProductRanking = {
+  /** Tous produits confondus (rétrocompat) */
+  best: ProductRank[];
+  worst: ProductRank[];
+  /** Zone qui vend le plus */
+  sites: SiteRank[];
+  plats: RankPair;
+  accompagnements: RankPair;
+  boissons: RankPair;
 };
 
 /** Ventes + stock combos du jour (préparés à Zogbo, envoyés à Gbégamey) */
@@ -511,6 +531,19 @@ export type VenteLogEntry = {
   unitPrice: number;
   amount: number;
   at: string;
+  /** Origine de la ligne (caisse, carnet-zogbo, aquapro, reprise…) */
+  source?: string | null;
+};
+
+export type VentesDaySummary = {
+  lignes: number;
+  articles: number;
+  montant: number;
+  byKind: Record<
+    string,
+    { lignes: number; qty: number; montant: number }
+  >;
+  bySource: Record<string, { lignes: number; montant: number }>;
 };
 
 /** Types de vente POS (AquaPro) */

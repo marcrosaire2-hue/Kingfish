@@ -22,6 +22,7 @@ type Payload = {
   day: CombosDay;
   combos: ComboDish[];
   exits?: VenteLogEntry[];
+  caJournal?: number;
 };
 
 function formatTime(iso: string): string {
@@ -46,6 +47,7 @@ export function ZoneCombosPanel({
   const [day, setDay] = useState<CombosDay | null>(null);
   const [combos, setCombos] = useState<ComboDish[]>([]);
   const [exits, setExits] = useState<VenteLogEntry[]>([]);
+  const [caJournal, setCaJournal] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -69,6 +71,7 @@ export function ZoneCombosPanel({
       setDay(body.day);
       setCombos(body.combos);
       setExits(body.exits ?? []);
+      setCaJournal(Number(body.caJournal) || 0);
       setDirty(false);
       setDraftPrepare({});
       setDraftSend({});
@@ -77,6 +80,7 @@ export function ZoneCombosPanel({
       setDay(createEmptyCombosDay(date, []));
       setCombos([]);
       setExits([]);
+      setCaJournal(0);
     } finally {
       setLoading(false);
     }
@@ -198,11 +202,6 @@ export function ZoneCombosPanel({
   }
 
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
-  const caSite = computed
-    ? site === "zogbo"
-      ? computed.totals.soldAmountZogbo
-      : computed.totals.soldAmountGbegamey
-    : 0;
   const qtySite = computed
     ? site === "zogbo"
       ? computed.totals.soldZogbo
@@ -223,7 +222,7 @@ export function ZoneCombosPanel({
         <p>
           Combos — <strong>{siteLabel}</strong>
           {" · "}
-          CA en FCFA
+          CA journal
           {" · "}
           Sauvegarde :{" "}
           <strong>
@@ -297,8 +296,8 @@ export function ZoneCombosPanel({
           <span className="stat-value mono">{qtySite}</span>
         </div>
         <div className="stat-chip accent">
-          <span className="stat-label">CA Combos {siteLabel}</span>
-          <span className="stat-value mono">{formatFcfa(caSite)}</span>
+          <span className="stat-label">CA journal Combos</span>
+          <span className="stat-value mono">{formatFcfa(caJournal)}</span>
         </div>
       </div>
 

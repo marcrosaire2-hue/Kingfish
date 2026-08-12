@@ -32,7 +32,7 @@ const MOTIFS = Object.entries(PERTE_MOTIF_LABELS) as [PerteMotif, string][];
 type Candidat = { productId: string; name: string; stock: number | null };
 
 export function PertesPage() {
-  const [date, setDate] = useState(todayIsoDate);
+  const [date, setDate] = useState(() => todayIsoDate());
   const [site, setSite] = useState<VenteSite>("gbegamey");
   const [famille, setFamille] = useState<PerteKind>("plat");
 

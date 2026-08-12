@@ -128,6 +128,7 @@ export async function POST(request: Request) {
       kind: body.kind,
       productId: body.productId,
       qty: body.qty ?? 1,
+      unitPrice: body.unitPrice,
       actor,
     });
     return NextResponse.json(result);

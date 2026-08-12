@@ -55,11 +55,12 @@ const KIND_OPTIONS: { value: KindFilter; label: string }[] = [
   { value: "caisse", label: "Caisse" },
   { value: "pos", label: "Tickets POS" },
   { value: "matieres", label: "Matières" },
+  { value: "reprise", label: "Reprise d’historique" },
 ];
 
 export function HistoriquePage() {
-  const [from, setFrom] = useState(monthStartIso);
-  const [to, setTo] = useState(todayIsoDate);
+  const [from, setFrom] = useState(() => monthStartIso());
+  const [to, setTo] = useState(() => todayIsoDate());
   const [kind, setKind] = useState<KindFilter>("all");
   const [site, setSite] = useState<SiteFilter>("all");
   const [actorId, setActorId] = useState("");

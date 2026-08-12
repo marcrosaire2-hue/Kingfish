@@ -30,6 +30,7 @@ type Payload = {
   localDishes: LocalDish[];
   sentByProductId: Record<string, number>;
   openingEditable: boolean;
+  caJournal?: number;
 };
 
 type SectionKey = "transfer" | "local" | "combos" | "boissons";
@@ -45,7 +46,7 @@ export function GbegameyPage() {
   const section = parseSection(
     searchParams.get("tab") ?? searchParams.get("section"),
   );
-  const [date, setDate] = useState(todayIsoDate);
+  const [date, setDate] = useState(() => todayIsoDate());
   const [day, setDay] = useState<GbegameyDay | null>(null);
   const [baseDishes, setBaseDishes] = useState<BaseDish[]>([]);
   const [localDishes, setLocalDishes] = useState<LocalDish[]>([]);
@@ -54,6 +55,7 @@ export function GbegameyPage() {
   >({});
   /** Première mise en service : le stock de départ se saisit à la main. */
   const [openingEditable, setOpeningEditable] = useState(false);
+  const [caJournal, setCaJournal] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -98,6 +100,7 @@ export function GbegameyPage() {
           setDay(body.day);
           setBaseDishes(body.baseDishes);
           setLocalDishes(body.localDishes);
+          setCaJournal(Number(body.caJournal) || 0);
           setSentByProductId(body.sentByProductId);
           setOpeningEditable(!!body.openingEditable);
           setDirty(false);
@@ -110,6 +113,7 @@ export function GbegameyPage() {
           setLocalDishes([]);
           setSentByProductId({});
           setOpeningEditable(false);
+          setCaJournal(0);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -327,9 +331,9 @@ export function GbegameyPage() {
             <span className="stat-value mono">{computed.totals.localSold}</span>
           </div>
           <div className="stat-chip accent">
-            <span className="stat-label">CA plats (FCFA)</span>
+            <span className="stat-label">CA journal (FCFA)</span>
             <span className="stat-value mono">
-              {formatFcfa(computed.totals.soldAmount)}
+              {formatFcfa(caJournal)}
             </span>
           </div>
         </div>
@@ -355,8 +359,8 @@ export function GbegameyPage() {
         </span>
         <p>
           {section === "transfer"
-            ? "Stock actuel = solde − ventes (auto). Reçu réel seulement si vous vérifiez la livraison."
-            : "Stock actuel = dispo − ventes (auto). Préparé à saisir, compté en fin de service."}
+            ? "Stock = quantités (reçu, vendu, reste). Le CA affiché est la somme du journal des ventes (prix figés), pas qty × catalogue."
+            : "Stock = quantités (préparé, vendu, reste). Le CA du jour vient du journal des ventes."}
         </p>
       </div>
 
@@ -437,7 +441,7 @@ export function GbegameyPage() {
                               ) : null}
                             </span>
                             <span className="cell-sub mono">
-                              {formatFcfa(line.unitPrice)}
+                              Catalogue {formatFcfa(line.unitPrice)}
                             </span>
                           </span>
                         </span>
@@ -573,7 +577,7 @@ export function GbegameyPage() {
                               Init {line.initialStock}
                             </span>
                             <span className="cell-sub mono">
-                              {formatFcfa(line.unitPrice)}
+                              Catalogue {formatFcfa(line.unitPrice)}
                             </span>
                           </span>
                         </span>

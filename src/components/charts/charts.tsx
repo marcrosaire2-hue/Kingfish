@@ -29,7 +29,7 @@ function shortKind(kind: string): string {
     case "plat":
       return "Plat";
     case "local":
-      return "Local";
+      return "Accomp.";
     case "combo":
       return "Combo";
     case "boisson":
@@ -39,6 +39,227 @@ function shortKind(kind: string): string {
     default:
       return kind;
   }
+}
+
+type RankPairRows = {
+  best: ProductRankRow[];
+  worst: ProductRankRow[];
+};
+
+function RankList({
+  rows,
+  mode,
+  empty,
+}: {
+  rows: ProductRankRow[];
+  mode: "best" | "worst";
+  empty: string;
+}) {
+  const max = Math.max(1, ...rows.map((r) => r.ca));
+  if (!rows.length) return <p className="muted">{empty}</p>;
+  return (
+    <ol className="rank-list">
+      {rows.map((row, i) => (
+        <li key={`${mode}-${row.productId}-${row.kind}`} className="rank-row">
+          <span
+            className={
+              mode === "best"
+                ? `rank-medal rank-medal-${Math.min(i + 1, 4)}`
+                : "rank-medal rank-medal-low"
+            }
+          >
+            {i + 1}
+          </span>
+          <div className="rank-body">
+            <div className="rank-meta">
+              <strong className="rank-name">{row.name}</strong>
+              <span className="rank-kind">{shortKind(row.kind)}</span>
+            </div>
+            <div className="rank-track">
+              <div
+                className={`rank-fill rank-fill-${mode}`}
+                style={{ width: `${(row.ca / max) * 100}%` }}
+              />
+            </div>
+            <div className="rank-stats">
+              <span className="mono">{formatFcfa(row.ca)}</span>
+              <span className="muted">{row.qty} vendus</span>
+            </div>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+function CategoryRankPair({
+  title,
+  subtitle,
+  pair,
+}: {
+  title: string;
+  subtitle: string;
+  pair: RankPairRows;
+}) {
+  if (!pair.best.length && !pair.worst.length) return null;
+  return (
+    <section className="panel dash-card dash-card-wide sales-board">
+      <h2 className="panel-title">{title}</h2>
+      <p className="muted sales-board-sub">{subtitle}</p>
+      <div className="rank-grid">
+        <section className="rank-panel rank-panel-best">
+          <header className="rank-header">
+            <span className="rank-badge rank-badge-best">Top</span>
+            <h3 className="rank-title">Plus vendus</h3>
+            <p className="rank-sub">Par CA (FCFA)</p>
+          </header>
+          <RankList
+            rows={pair.best}
+            mode="best"
+            empty="Aucune vente dans cette catégorie."
+          />
+        </section>
+        <section className="rank-panel rank-panel-worst">
+          <header className="rank-header">
+            <span className="rank-badge rank-badge-worst">Bas</span>
+            <h3 className="rank-title">Moins vendus</h3>
+            <p className="rank-sub">Plus faible CA (parmi les vendus)</p>
+          </header>
+          <RankList
+            rows={pair.worst}
+            mode="worst"
+            empty="Pas assez de produits pour un bas de classement."
+          />
+        </section>
+      </div>
+    </section>
+  );
+}
+
+/** Classement podium : zones + plats / accompagnements / boissons */
+export function ProductRanking({
+  best,
+  worst,
+  sites,
+  plats,
+  accompagnements,
+  boissons,
+}: {
+  best: ProductRankRow[];
+  worst: ProductRankRow[];
+  sites?: { site: string; label: string; qty: number; ca: number }[];
+  plats?: RankPairRows;
+  accompagnements?: RankPairRows;
+  boissons?: RankPairRows;
+}) {
+  const siteList = sites ?? [];
+  const leader = siteList[0] ?? null;
+  const siteMax = Math.max(1, ...siteList.map((s) => s.ca));
+  const hasCategoryBoards = !!(plats || accompagnements || boissons);
+
+  return (
+    <div className="sales-boards">
+      {siteList.length > 0 ? (
+        <section className="rank-panel rank-panel-sites">
+          <header className="rank-header">
+            <span className="rank-badge rank-badge-best">Zones</span>
+            <h3 className="rank-title">Zone qui vend le plus</h3>
+            <p className="rank-sub">
+              {leader
+                ? `En tête : ${leader.label} · ${formatFcfa(leader.ca)}`
+                : "CA par point de vente"}
+            </p>
+          </header>
+          <table className="data-table sales-board-table">
+            <thead>
+              <tr>
+                <th scope="col">#</th>
+                <th scope="col">Zone</th>
+                <th scope="col" className="col-qty">
+                  Articles
+                </th>
+                <th scope="col" className="col-money">
+                  CA
+                </th>
+                <th scope="col">Part</th>
+              </tr>
+            </thead>
+            <tbody>
+              {siteList.map((s, i) => (
+                <tr key={s.site} className={i === 0 ? "row-leader" : undefined}>
+                  <td className="mono">{i + 1}</td>
+                  <td>
+                    <strong>{s.label}</strong>
+                  </td>
+                  <td className="col-qty mono">{s.qty}</td>
+                  <td className="col-money mono">{formatFcfa(s.ca)}</td>
+                  <td>
+                    <div className="rank-track">
+                      <div
+                        className="rank-fill rank-fill-best"
+                        style={{ width: `${(s.ca / siteMax) * 100}%` }}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ) : null}
+
+      {plats ? (
+        <CategoryRankPair
+          title="Plats"
+          subtitle="Meilleurs et moins bons plats (CA journal)"
+          pair={plats}
+        />
+      ) : null}
+      {accompagnements ? (
+        <CategoryRankPair
+          title="Accompagnements"
+          subtitle="Meilleurs et moins bons accompagnements"
+          pair={accompagnements}
+        />
+      ) : null}
+      {boissons ? (
+        <CategoryRankPair
+          title="Boissons"
+          subtitle="Boissons qui se vendent le mieux / le moins"
+          pair={boissons}
+        />
+      ) : null}
+
+      {!hasCategoryBoards ? (
+        <div className="rank-grid">
+          <section className="rank-panel rank-panel-best">
+            <header className="rank-header">
+              <span className="rank-badge rank-badge-best">Top</span>
+              <h3 className="rank-title">Meilleurs produits</h3>
+              <p className="rank-sub">Classés par CA (FCFA)</p>
+            </header>
+            <RankList
+              rows={best}
+              mode="best"
+              empty="Aucune vente sur cette période."
+            />
+          </section>
+          <section className="rank-panel rank-panel-worst">
+            <header className="rank-header">
+              <span className="rank-badge rank-badge-worst">Bas</span>
+              <h3 className="rank-title">Moins bons produits</h3>
+              <p className="rank-sub">Plus faible CA (parmi les vendus)</p>
+            </header>
+            <RankList
+              rows={worst}
+              mode="worst"
+              empty="Pas assez de produits pour un bas de classement."
+            />
+          </section>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /** Courbe « vague » : dégradés, halo, points lumineux */
@@ -424,94 +645,6 @@ export function HorizontalBars({
         </li>
       ))}
     </ul>
-  );
-}
-
-/** Classement podium meilleurs / moins bons produits */
-export function ProductRanking({
-  best,
-  worst,
-}: {
-  best: ProductRankRow[];
-  worst: ProductRankRow[];
-}) {
-  const bestMax = Math.max(1, ...best.map((r) => r.ca));
-  const worstMax = Math.max(1, ...worst.map((r) => r.ca));
-
-  return (
-    <div className="rank-grid">
-      <section className="rank-panel rank-panel-best">
-        <header className="rank-header">
-          <span className="rank-badge rank-badge-best">Top</span>
-          <h3 className="rank-title">Meilleurs produits</h3>
-          <p className="rank-sub">Classés par CA (FCFA)</p>
-        </header>
-        {best.length ? (
-          <ol className="rank-list">
-            {best.map((row, i) => (
-              <li key={`best-${row.productId}-${row.kind}`} className="rank-row">
-                <span className={`rank-medal rank-medal-${Math.min(i + 1, 4)}`}>
-                  {i + 1}
-                </span>
-                <div className="rank-body">
-                  <div className="rank-meta">
-                    <strong className="rank-name">{row.name}</strong>
-                    <span className="rank-kind">{shortKind(row.kind)}</span>
-                  </div>
-                  <div className="rank-track">
-                    <div
-                      className="rank-fill rank-fill-best"
-                      style={{ width: `${(row.ca / bestMax) * 100}%` }}
-                    />
-                  </div>
-                  <div className="rank-stats">
-                    <span className="mono">{formatFcfa(row.ca)}</span>
-                    <span className="muted">{row.qty} vendus</span>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="muted">Aucune vente sur cette période.</p>
-        )}
-      </section>
-
-      <section className="rank-panel rank-panel-worst">
-        <header className="rank-header">
-          <span className="rank-badge rank-badge-worst">Bas</span>
-          <h3 className="rank-title">Moins bons produits</h3>
-          <p className="rank-sub">Plus faible CA (parmi les vendus)</p>
-        </header>
-        {worst.length ? (
-          <ol className="rank-list">
-            {worst.map((row, i) => (
-              <li key={`worst-${row.productId}-${row.kind}`} className="rank-row">
-                <span className="rank-medal rank-medal-low">{i + 1}</span>
-                <div className="rank-body">
-                  <div className="rank-meta">
-                    <strong className="rank-name">{row.name}</strong>
-                    <span className="rank-kind">{shortKind(row.kind)}</span>
-                  </div>
-                  <div className="rank-track">
-                    <div
-                      className="rank-fill rank-fill-worst"
-                      style={{ width: `${(row.ca / worstMax) * 100}%` }}
-                    />
-                  </div>
-                  <div className="rank-stats">
-                    <span className="mono">{formatFcfa(row.ca)}</span>
-                    <span className="muted">{row.qty} vendus</span>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <p className="muted">Pas assez de produits pour un bas de classement.</p>
-        )}
-      </section>
-    </div>
   );
 }
 

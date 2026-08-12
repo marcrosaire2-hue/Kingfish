@@ -22,6 +22,7 @@ type Payload = {
   day: BoissonsDay;
   drinks: Drink[];
   exits?: VenteLogEntry[];
+  caJournal?: number;
 };
 
 function formatTime(iso: string): string {
@@ -46,6 +47,7 @@ export function ZoneBoissonsPanel({
   const [day, setDay] = useState<BoissonsDay | null>(null);
   const [drinks, setDrinks] = useState<Drink[]>([]);
   const [exits, setExits] = useState<VenteLogEntry[]>([]);
+  const [caJournal, setCaJournal] = useState(0);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -68,6 +70,7 @@ export function ZoneBoissonsPanel({
       setDay(body.day);
       setDrinks(body.drinks);
       setExits(body.exits ?? []);
+      setCaJournal(Number(body.caJournal) || 0);
       setDirty(false);
       setDraftBuy({});
     } catch (e) {
@@ -75,6 +78,7 @@ export function ZoneBoissonsPanel({
       setDay(createEmptyBoissonsDay(date, []));
       setDrinks([]);
       setExits([]);
+      setCaJournal(0);
     } finally {
       setLoading(false);
     }
@@ -196,11 +200,6 @@ export function ZoneBoissonsPanel({
       ? computed.totals.soldZogbo
       : computed.totals.soldGbegamey
     : 0;
-  const caSite = computed
-    ? site === "zogbo"
-      ? computed.totals.soldAmountZogbo
-      : computed.totals.soldAmountGbegamey
-    : 0;
   const siteExits = exits.filter((e) => e.site === site);
   const movementCount =
     (computed?.movements.length ?? 0) + siteExits.length;
@@ -211,7 +210,7 @@ export function ZoneBoissonsPanel({
         <p>
           Boissons — <strong>{siteLabel}</strong>
           {" · "}
-          CA en FCFA
+          CA journal
           {" · "}
           Sauvegarde :{" "}
           <strong>
@@ -282,8 +281,8 @@ export function ZoneBoissonsPanel({
           <span className="stat-value mono">{qtySite}</span>
         </div>
         <div className="stat-chip accent">
-          <span className="stat-label">CA Boissons {siteLabel}</span>
-          <span className="stat-value mono">{formatFcfa(caSite)}</span>
+          <span className="stat-label">CA journal Boissons</span>
+          <span className="stat-value mono">{formatFcfa(caJournal)}</span>
         </div>
       </div>
 

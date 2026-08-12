@@ -3,7 +3,11 @@
  * Site : gbegamey (point de vente POS).
  * Idempotent : remplace les lignes `source: "aquapro"`.
  *
- * Usage: node --env-file=.env.local scripts/import-aquapro-ventes.mjs
+ * `SINCE` (YYYY-MM-DD) ne garde que les ventes à partir de cette date métier.
+ *
+ * Usage:
+ *   node --env-file=.env.local scripts/import-aquapro-ventes.mjs
+ *   SINCE=2026-08-07 node --env-file=.env.local scripts/import-aquapro-ventes.mjs
  */
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -41,6 +45,11 @@ async function main() {
   const uri = process.env.MONGODB_URI;
   const dbName = process.env.MONGODB_DB || "gestion_restaurant";
   if (!uri) throw new Error("MONGODB_URI manquant");
+
+  const since = process.env.SINCE || null;
+  if (since && !/^\d{4}-\d{2}-\d{2}$/.test(since)) {
+    throw new Error(`SINCE invalide : ${since} (attendu YYYY-MM-DD)`);
+  }
 
   const raw = JSON.parse(
     await fs.readFile(path.join(EXPORT, "ventes_toutes.json"), "utf8"),
@@ -98,6 +107,7 @@ async function main() {
   const docs = [];
   const ticketDocs = [];
   let skipped = 0;
+  let beforeSince = 0;
   let unmatched = 0;
   const unmatchedNames = new Set();
 
@@ -109,6 +119,10 @@ async function main() {
     const caExcluded = !valide;
     const at = v.date || v.createdAt || new Date().toISOString();
     const date = portoDate(at);
+    if (since && date < since) {
+      beforeSince++;
+      continue;
+    }
     const ticketId = v.id;
 
     ticketDocs.push({
@@ -224,6 +238,8 @@ async function main() {
           activeLignes: active.length,
           ca,
           site: SITE,
+          since,
+          beforeSince,
           skipped,
           unmatched,
           unmatchedNames: [...unmatchedNames],
@@ -241,6 +257,8 @@ async function main() {
         lignes: docs.length,
         active: active.length,
         ca,
+        since,
+        beforeSince,
         skipped,
         unmatched,
         unmatchedNames: [...unmatchedNames],

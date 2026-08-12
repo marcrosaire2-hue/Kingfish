@@ -19,8 +19,8 @@ import type {
 } from "@/lib/types";
 
 type ZoneKey = "zogbo" | "gbegamey" | "cuisine";
-type ZogboSection = "base" | "combos" | "drinks";
-type GbegameySection = "local" | "combos" | "drinks";
+type ZogboSection = "base" | "accompagnements" | "drinks";
+type GbegameySection = "accompagnements" | "drinks";
 type CuisineSection = "matieres" | "composition";
 
 const ZONE_TABS: { key: ZoneKey; label: string }[] = [
@@ -40,9 +40,9 @@ const ZOGBO_SECTIONS: {
     hint: "Production Zogbo — prix aussi utilisés pour les ventes à Gbégamey (transferts).",
   },
   {
-    key: "combos",
-    label: "Combos",
-    hint: "Catalogue combos (partagé) — préparés à Zogbo, envoyés à Gbégamey, vendus par zone.",
+    key: "accompagnements",
+    label: "Accompagnements",
+    hint: "Riz, telibo, piron… — catalogue partagé, vendus seuls ou avec un plat (Zogbo et Gbégamey).",
   },
   {
     key: "drinks",
@@ -57,14 +57,9 @@ const GBEGAMEY_SECTIONS: {
   hint: string;
 }[] = [
   {
-    key: "local",
-    label: "Plats sur place",
-    hint: "Préparé uniquement à Gbégamey, hors circuit Zogbo.",
-  },
-  {
-    key: "combos",
-    label: "Combos",
-    hint: "Même catalogue — reçus depuis Zogbo, vendus ici via Vente.",
+    key: "accompagnements",
+    label: "Accompagnements",
+    hint: "Même catalogue que Zogbo — vente à l’unité ou en complément d’un plat.",
   },
   {
     key: "drinks",
@@ -86,7 +81,7 @@ const CUISINE_SECTIONS: {
   {
     key: "composition",
     label: "Composition",
-    hint: "Recettes : matières consommées par produit vendable (plats / combos / locaux).",
+    hint: "Recettes : matières consommées par produit vendable (plats / accompagnements).",
   },
 ];
 
@@ -136,7 +131,7 @@ export function ParametresPage() {
   const [zone, setZone] = useState<ZoneKey>("zogbo");
   const [zogboSection, setZogboSection] = useState<ZogboSection>("base");
   const [gbegameySection, setGbegameySection] =
-    useState<GbegameySection>("local");
+    useState<GbegameySection>("accompagnements");
   const [cuisineSection, setCuisineSection] =
     useState<CuisineSection>("matieres");
   const [savedFlash, setSavedFlash] = useState(false);
@@ -331,8 +326,8 @@ export function ParametresPage() {
               <span className="section-count">
                 {s.key === "base"
                   ? data.baseDishes.length
-                  : s.key === "combos"
-                    ? data.combos.length
+                  : s.key === "accompagnements"
+                    ? data.localDishes.length
                     : data.drinks.length}
               </span>
             </button>
@@ -355,11 +350,9 @@ export function ParametresPage() {
             >
               {s.label}
               <span className="section-count">
-                {s.key === "local"
+                {s.key === "accompagnements"
                   ? data.localDishes.length
-                  : s.key === "combos"
-                    ? data.combos.length
-                    : data.drinks.length}
+                  : data.drinks.length}
               </span>
             </button>
           ))}
@@ -404,11 +397,10 @@ export function ParametresPage() {
         />
       ) : null}
 
-      {zone === "zogbo" && zogboSection === "combos" ? (
-        <CombosTable
-          rows={data.combos}
-          baseNames={data.baseDishes.map((d) => d.name)}
-          onChange={(combos) => update({ ...data, combos })}
+      {zone === "zogbo" && zogboSection === "accompagnements" ? (
+        <LocalDishesTable
+          rows={data.localDishes}
+          onChange={(localDishes) => update({ ...data, localDishes })}
         />
       ) : null}
 
@@ -419,18 +411,10 @@ export function ParametresPage() {
         />
       ) : null}
 
-      {zone === "gbegamey" && gbegameySection === "local" ? (
+      {zone === "gbegamey" && gbegameySection === "accompagnements" ? (
         <LocalDishesTable
           rows={data.localDishes}
           onChange={(localDishes) => update({ ...data, localDishes })}
-        />
-      ) : null}
-
-      {zone === "gbegamey" && gbegameySection === "combos" ? (
-        <CombosTable
-          rows={data.combos}
-          baseNames={data.baseDishes.map((d) => d.name)}
-          onChange={(combos) => update({ ...data, combos })}
         />
       ) : null}
 
@@ -454,14 +438,13 @@ export function ParametresPage() {
           materials={rawMaterials}
           products={[
             ...data.baseDishes.map((d) => ({ id: d.id, name: d.name })),
-            ...data.combos.map((d) => ({ id: d.id, name: d.name })),
             ...data.localDishes.map((d) => ({ id: d.id, name: d.name })),
           ]}
           onChange={(next) => update({ ...data, recipes: next })}
         />
       ) : null}
 
-      {zone === "gbegamey" && gbegameySection === "local" ? (
+      {zone === "gbegamey" && gbegameySection === "accompagnements" ? (
         <p className="section-hint">
           Les plats reçus de Zogbo utilisent les prix de{" "}
           <strong>Zogbo → Plats de base</strong>.
@@ -929,7 +912,7 @@ function LocalDishesTable({
               <td>
                 <NameCell
                   value={row.name}
-                  ariaLabel={`Nom plat local ${index + 1}`}
+                  ariaLabel={`Nom accompagnement ${index + 1}`}
                   onChange={(name) =>
                     onChange(
                       rows.map((r) => (r.id === row.id ? { ...r, name } : r)),
@@ -992,11 +975,11 @@ function LocalDishesTable({
         onClick={() =>
           onChange([
             ...rows,
-            { id: newId("local"), name: "Nouveau plat", unitPrice: 500 },
+            { id: newId("local"), name: "Nouvel accompagnement", unitPrice: 500 },
           ])
         }
       >
-        + Ajouter un plat sur place
+        + Ajouter un accompagnement
       </button>
     </section>
   );

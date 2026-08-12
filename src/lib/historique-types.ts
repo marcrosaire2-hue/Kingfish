@@ -13,7 +13,8 @@ export type HistoriqueKind =
   | "user"
   | "caisse"
   | "pos"
-  | "matieres";
+  | "matieres"
+  | "reprise";
 
 export type HistoriqueSite = VenteSite | "tous" | null;
 
@@ -51,6 +52,7 @@ export const HISTORIQUE_KIND_LABELS: Record<HistoriqueKind, string> = {
   caisse: "Caisse",
   pos: "Ticket POS",
   matieres: "Matières",
+  reprise: "Reprise d’historique",
 };
 
 export function formatActorLabel(ev: {

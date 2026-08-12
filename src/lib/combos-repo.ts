@@ -93,13 +93,14 @@ export async function saveCombosDay(
     status?: CombosDay["status"];
     lines: CombosLine[];
   },
-  options?: { lockSold?: boolean },
+  options?: { lockSold?: boolean; directWrite?: boolean },
 ): Promise<CombosDayPayload> {
   if (!isValidDate(input.date)) {
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
   }
 
   const lockSold = options?.lockSold !== false;
+  const directWrite = options?.directWrite === true;
   const { combos } = await getParametres();
 
   return updateDayDocument<CombosDoc, CombosDayPayload>(
@@ -113,11 +114,21 @@ export async function saveCombosDay(
           normalizeCombosLine(l),
         ]),
       );
-      const movements = (existing?.movements ?? [])
-        .map((m) => normalizeCombosMovement(m))
-        .filter((m): m is CombosMovement => !!m);
+      const movements = directWrite
+        ? []
+        : (existing?.movements ?? [])
+            .map((m) => normalizeCombosMovement(m))
+            .filter((m): m is CombosMovement => !!m);
 
       const lines = syncCombosLines(input.lines, combos).map((line) => {
+        const normalized = normalizeCombosLine(line);
+        if (directWrite) {
+          return {
+            ...normalized,
+            pertesZogbo: 0,
+            pertesGbegamey: 0,
+          };
+        }
         const prev = held.get(line.productId);
         return {
           productId: line.productId,

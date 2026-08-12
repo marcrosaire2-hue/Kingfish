@@ -14,6 +14,10 @@ import {
   nombreEnAttente,
 } from "@/lib/offline-queue";
 import { exportVenteExcel } from "@/lib/page-exports";
+import {
+  accompanimentUnitPrice,
+  accompanimentsForPlat,
+} from "@/lib/catalog-zogbo";
 import type {
   CaisseSession,
   PosConfig,
@@ -43,12 +47,18 @@ type CartLine = {
   qty: number;
 };
 
-type CatKey = "plat" | "local" | "combo" | "boisson" | "extra";
+type CatKey = "plat" | "accompagnement" | "boisson" | "extra";
+
+/** Onglet UI → kind API (`extra` = saisie libre). */
+const CAT_KIND: Record<Exclude<CatKey, "extra">, VenteProduct["kind"]> = {
+  plat: "plat",
+  accompagnement: "local",
+  boisson: "boisson",
+};
 
 const CAT_LABELS: Record<CatKey, string> = {
   plat: "Plats",
-  local: "Sur place",
-  combo: "Combos",
+  accompagnement: "Accompagnements",
   boisson: "Boissons",
   extra: "Extra",
 };
@@ -115,7 +125,7 @@ function printTicket(
 }
 
 export function VentePage() {
-  const [date, setDate] = useState(todayIsoDate);
+  const [date, setDate] = useState(() => todayIsoDate());
   const [site, setSite] = useState<VenteSite>("gbegamey");
   const [lockedSite, setLockedSite] = useState(false);
   const [mode, setMode] = useState<"pos" | "rapide">("pos");
@@ -142,6 +152,8 @@ export function VentePage() {
   const [extraPrice, setExtraPrice] = useState("");
   const [extraBusy, setExtraBusy] = useState(false);
   const [posBusy, setPosBusy] = useState(false);
+  const [composerPlatId, setComposerPlatId] = useState("");
+  const [composerAccIds, setComposerAccIds] = useState<string[]>([]);
 
   async function load(nextDate = date, nextSite = site) {
     setLoading(true);
@@ -184,34 +196,150 @@ export function VentePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, site]);
 
-  useEffect(() => {
-    if (site === "zogbo" && cat === "local") setCat("plat");
-  }, [site, cat]);
+  const plats = useMemo(
+    () => board?.products.filter((p) => p.kind === "plat") ?? [],
+    [board],
+  );
 
-  // Service worker + rejeu des ventes encaissées pendant une coupure.
-  useEffect(() => {
-    return installerSupportHorsLigne((file) => setEnAttente(file.length));
-  }, []);
+  const accompagnements = useMemo(
+    () => board?.products.filter((p) => p.kind === "local") ?? [],
+    [board],
+  );
 
   const products = useMemo(() => {
-    if (!board) return [];
-    return board.products.filter((p) => p.kind === cat);
-  }, [board, cat]);
+    if (!board || cat === "extra") return [];
+    if (cat === "plat") return plats;
+    if (cat === "accompagnement") return accompagnements;
+    const kind = CAT_KIND[cat];
+    return board.products.filter((p) => p.kind === kind);
+  }, [board, cat, plats, accompagnements]);
 
   const categories = useMemo(() => {
-    const keys: CatKey[] =
-      site === "gbegamey"
-        ? ["plat", "local", "combo", "boisson", "extra"]
-        : ["plat", "combo", "boisson", "extra"];
+    const keys: CatKey[] = ["plat", "accompagnement", "boisson", "extra"];
     return keys.map((key) => ({
       key,
       label: CAT_LABELS[key],
       count:
         key === "extra"
           ? (board?.recent.filter((e) => e.kind === "extra").length ?? 0)
-          : (board?.products.filter((p) => p.kind === key).length ?? 0),
+          : key === "plat"
+            ? plats.length
+            : key === "accompagnement"
+              ? accompagnements.length
+              : (board?.products.filter((p) => p.kind === CAT_KIND[key]).length ??
+                0),
     }));
-  }, [board, site]);
+  }, [board, plats.length, accompagnements.length]);
+
+  // Service worker + rejeu des ventes encaissées pendant une coupure.
+  useEffect(() => {
+    return installerSupportHorsLigne((file) => setEnAttente(file.length));
+  }, []);
+
+  const composerPlat = useMemo(
+    () => plats.find((p) => p.productId === composerPlatId) ?? null,
+    [plats, composerPlatId],
+  );
+
+  const composerAccOptions = useMemo(() => {
+    if (!composerPlatId) return [];
+    const allowed = accompanimentsForPlat(composerPlatId);
+    return allowed
+      .map((acc) => accompagnements.find((p) => p.productId === acc.id))
+      .filter((p): p is VenteProduct => !!p);
+  }, [composerPlatId, accompagnements]);
+
+  useEffect(() => {
+    if (!composerPlatId) {
+      setComposerAccIds([]);
+      return;
+    }
+    const allowed = new Set(
+      accompanimentsForPlat(composerPlatId).map((a) => a.id),
+    );
+    setComposerAccIds((prev) => prev.filter((id) => allowed.has(id)));
+  }, [composerPlatId]);
+
+  const composerTotal = useMemo(() => {
+    let t = composerPlat?.unitPrice ?? 0;
+    if (!composerPlatId) return t;
+    for (const id of composerAccIds) {
+      t += accompanimentUnitPrice(composerPlatId, id);
+    }
+    return t;
+  }, [composerPlat, composerPlatId, composerAccIds]);
+
+  function toggleComposerAcc(productId: string) {
+    setComposerAccIds((prev) =>
+      prev.includes(productId)
+        ? prev.filter((id) => id !== productId)
+        : [...prev, productId],
+    );
+  }
+
+  function resetComposer() {
+    setComposerPlatId("");
+    setComposerAccIds([]);
+  }
+
+  async function commitMeal() {
+    if (!composerPlat) {
+      setError("Choisissez un plat.");
+      return;
+    }
+    if (
+      composerPlat.stockLeft !== null &&
+      composerPlat.stockLeft !== undefined &&
+      composerPlat.stockLeft <= 0
+    ) {
+      setError(`Stock épuisé : ${composerPlat.name}`);
+      return;
+    }
+    const accLines = composerAccIds
+      .map((id) => composerAccOptions.find((a) => a.productId === id))
+      .filter((a): a is VenteProduct => !!a);
+    for (const acc of accLines) {
+      if (
+        acc.stockLeft !== null &&
+        acc.stockLeft !== undefined &&
+        acc.stockLeft <= 0
+      ) {
+        setError(`Stock épuisé : ${acc.name}`);
+        return;
+      }
+    }
+
+    if (mode === "pos") {
+      addToCart(composerPlat);
+      for (const acc of accLines) {
+        addToCart(
+          acc,
+          accompanimentUnitPrice(composerPlat.productId, acc.productId),
+        );
+      }
+      resetComposer();
+      setError(null);
+      return;
+    }
+
+    setBusyKey("meal");
+    setError(null);
+    try {
+      await sell(composerPlat, 1);
+      for (const acc of accLines) {
+        await sell(
+          acc,
+          1,
+          accompanimentUnitPrice(composerPlat.productId, acc.productId),
+        );
+      }
+      resetComposer();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur de vente");
+    } finally {
+      setBusyKey(null);
+    }
+  }
 
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
   const recentCount = board?.recent.length ?? 0;
@@ -222,7 +350,7 @@ export function VentePage() {
   );
   const cartNet = cartTotal - reductionN;
 
-  function addToCart(product: VenteProduct) {
+  function addToCart(product: VenteProduct, unitPriceOverride?: number) {
     if (product.kind === "boisson" && product.unitPrice <= 0) return;
     if (
       product.stockLeft !== null &&
@@ -231,8 +359,9 @@ export function VentePage() {
     ) {
       return;
     }
+    const unitPrice = unitPriceOverride ?? product.unitPrice;
     setCart((prev) => {
-      const key = `${product.kind}:${product.productId}`;
+      const key = `${product.kind}:${product.productId}:${unitPrice}`;
       const existing = prev.find((l) => l.key === key);
       if (existing) {
         return prev.map((l) =>
@@ -246,7 +375,7 @@ export function VentePage() {
           kind: product.kind,
           productId: product.productId,
           name: product.name,
-          unitPrice: product.unitPrice,
+          unitPrice,
           qty: 1,
         },
       ];
@@ -364,7 +493,7 @@ export function VentePage() {
     }
   }
 
-  async function sell(product: VenteProduct, qty: number) {
+  async function sell(product: VenteProduct, qty: number, unitPrice?: number) {
     const key = `${product.kind}:${product.productId}:${qty}`;
     setBusyKey(key);
     setError(null);
@@ -379,6 +508,7 @@ export function VentePage() {
           kind: product.kind,
           productId: product.productId,
           qty,
+          unitPrice,
         }),
       });
       const body = await res.json();
@@ -657,8 +787,133 @@ export function VentePage() {
                   {mode === "pos" ? "Ajouter au panier" : "Enregistrer la vente"}
                 </button>
               </div>
+            ) : cat === "plat" ? (
+              <section className="vente-meal-composer vente-panel">
+                <header className="vente-panel-head">
+                  <h2>Vente plat + accompagnements</h2>
+                  <p>
+                    Choisissez le plat, puis les accompagnements souhaités
+                    (optionnels). Chaque ligne part séparément au panier.
+                  </p>
+                </header>
+                {plats.length === 0 ? (
+                  <p className="muted vente-empty">Aucun plat au catalogue.</p>
+                ) : (
+                  <>
+                    <label className="vente-field">
+                      <span>Plat</span>
+                      <select
+                        value={composerPlatId}
+                        onChange={(e) => setComposerPlatId(e.target.value)}
+                      >
+                        <option value="">— Choisir —</option>
+                        {plats.map((p) => (
+                          <option
+                            key={p.productId}
+                            value={p.productId}
+                            disabled={
+                              p.stockLeft !== null &&
+                              p.stockLeft !== undefined &&
+                              p.stockLeft <= 0
+                            }
+                          >
+                            {p.name}
+                            {p.unitPrice > 0
+                              ? ` · ${formatFcfa(p.unitPrice)}`
+                              : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    {composerPlat?.hint ? (
+                      <p className="vente-hint">{composerPlat.hint}</p>
+                    ) : null}
+                    {composerAccOptions.length > 0 ? (
+                      <fieldset className="vente-acc-picker">
+                        <legend>Accompagnements (optionnel)</legend>
+                        <ul className="vente-acc-list">
+                          {composerAccOptions.map((a) => {
+                            const out =
+                              a.stockLeft !== null &&
+                              a.stockLeft !== undefined &&
+                              a.stockLeft <= 0;
+                            const checked = composerAccIds.includes(a.productId);
+                            const accPrice = composerPlatId
+                              ? accompanimentUnitPrice(
+                                  composerPlatId,
+                                  a.productId,
+                                )
+                              : a.unitPrice;
+                            return (
+                              <li key={a.productId}>
+                                <label
+                                  className={`vente-acc-option${out ? " is-disabled" : ""}`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={checked}
+                                    disabled={out}
+                                    onChange={() =>
+                                      toggleComposerAcc(a.productId)
+                                    }
+                                  />
+                                  <span>
+                                    {a.name}
+                                    {accPrice > 0
+                                      ? ` · ${formatFcfa(accPrice)}`
+                                      : ""}
+                                    {a.hint ? (
+                                      <span className="vente-hint-inline">
+                                        {" "}
+                                        · {a.hint}
+                                      </span>
+                                    ) : null}
+                                  </span>
+                                </label>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </fieldset>
+                    ) : (
+                      <p className="muted vente-acc-empty">
+                        Aucun accompagnement — Paramètres → Accompagnements.
+                      </p>
+                    )}
+                    <div className="vente-meal-actions">
+                      <span className="vente-meal-total mono">
+                        {composerPlat ? formatFcfa(composerTotal) : "—"}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={
+                          !composerPlat ||
+                          (mode === "pos" && !caisse) ||
+                          busyKey === "meal"
+                        }
+                        onClick={() => void commitMeal()}
+                      >
+                        {busyKey === "meal"
+                          ? "Enregistrement…"
+                          : mode === "pos"
+                            ? "Ajouter au panier"
+                            : "Enregistrer la vente"}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </section>
             ) : (
-              <div className="vente-grid">
+              <>
+                {cat === "accompagnement" && accompagnements.length > 0 ? (
+                  <p className="ui-info vente-acc-banner">
+                    Vente à l&apos;unité — chaque + ajoute une portion au
+                    panier.
+                  </p>
+                ) : null}
+
+                <div className="vente-grid">
                 {products.length === 0 ? (
                   <p className="muted vente-empty">Aucun produit.</p>
                 ) : (
@@ -735,6 +990,7 @@ export function VentePage() {
                   })
                 )}
               </div>
+              </>
             )}
           </div>
 

@@ -30,8 +30,8 @@ function formatWhen(iso: string): string {
 }
 
 export function HistoriqueVentesPage() {
-  const [from, setFrom] = useState(monthStartIso);
-  const [to, setTo] = useState(todayIsoDate);
+  const [from, setFrom] = useState(() => monthStartIso());
+  const [to, setTo] = useState(() => todayIsoDate());
   const [site, setSite] = useState<SiteFilter>("all");
   const [lockedSite, setLockedSite] = useState(false);
   const [statut, setStatut] = useState<StatutFilter>("valide");

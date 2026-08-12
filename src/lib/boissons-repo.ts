@@ -125,13 +125,14 @@ export async function saveBoissonsDay(
     status?: BoissonsDay["status"];
     lines: BoissonsLine[];
   },
-  options?: { lockSold?: boolean },
+  options?: { lockSold?: boolean; directWrite?: boolean },
 ): Promise<BoissonsDayPayload> {
   if (!isValidDate(input.date)) {
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
   }
 
   const lockSold = options?.lockSold !== false;
+  const directWrite = options?.directWrite === true;
   const { drinks } = await getParametres();
 
   return updateDayDocument<BoissonsDoc, BoissonsDayPayload>(
@@ -147,16 +148,24 @@ export async function saveBoissonsDay(
         ]),
       );
 
-      const movements = (existing?.movements ?? [])
-        .map((m) => normalizeBoissonsMovement(m))
-        .filter((m): m is BoissonsMovement => !!m);
+      const movements = directWrite
+        ? []
+        : (existing?.movements ?? [])
+            .map((m) => normalizeBoissonsMovement(m))
+            .filter((m): m is BoissonsMovement => !!m);
 
       const lines = syncBoissonsLines(input.lines, drinks).map((line) => {
+        const normalized = normalizeBoissonsLine(line);
+        if (directWrite) {
+          return {
+            ...normalized,
+            pertes: 0,
+          };
+        }
         const prev = held.get(line.productId);
         const initialStock = existing
           ? (prev?.initialStock ?? 0)
           : (leftovers?.get(line.productId) ?? 0);
-        // Achats verrouillés : uniquement via mouvements POST
         const purchases = prev?.purchases ?? 0;
         return {
           productId: line.productId,
@@ -169,7 +178,6 @@ export async function saveBoissonsDay(
           soldGbegamey: lockSold
             ? (prev?.soldGbegamey ?? 0)
             : Math.max(0, Number(line.soldGbegamey) || 0),
-          // Compteur de pertes piloté par les déclarations, jamais par la grille.
           pertes: prev?.pertes ?? 0,
           counted: line.counted,
           observations: String(line.observations ?? ""),

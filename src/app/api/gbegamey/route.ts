@@ -8,6 +8,7 @@ import {
   getGbegameyDayPayload,
   saveGbegameyDay,
 } from "@/lib/gbegamey-repo";
+import { sumCaForSite } from "@/lib/vente-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
@@ -25,8 +26,11 @@ export async function GET(request: Request) {
     await requireGbegameyAccess();
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date") || todayIsoDate();
-    const payload = await getGbegameyDayPayload(date);
-    return NextResponse.json(payload);
+    const [payload, caJournal] = await Promise.all([
+      getGbegameyDayPayload(date),
+      sumCaForSite(date, "gbegamey"),
+    ]);
+    return NextResponse.json({ ...payload, caJournal });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     reportError("GET /api/gbegamey", error);

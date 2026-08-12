@@ -67,8 +67,8 @@ function shortDay(iso: string): string {
 
 export function SynthesePage() {
   const [view, setView] = useState<ViewKey>("year");
-  const [date, setDate] = useState(todayIsoDate);
-  const [month, setMonth] = useState(currentMonth);
+  const [date, setDate] = useState(() => todayIsoDate());
+  const [month, setMonth] = useState(() => currentMonth());
   const [year, setYear] = useState(() => String(new Date().getFullYear()));
 
   const [day, setDay] = useState<DayPoint | null>(null);
@@ -77,6 +77,10 @@ export function SynthesePage() {
   const [ranking, setRanking] = useState<ProductRankingData>({
     best: [],
     worst: [],
+    sites: [],
+    plats: { best: [], worst: [] },
+    accompagnements: { best: [], worst: [] },
+    boissons: { best: [], worst: [] },
   });
   const [cancelNotice, setCancelNotice] = useState<{
     caActif: number;
@@ -121,8 +125,22 @@ export function SynthesePage() {
         const nextRanking = (body.ranking as ProductRankingData | undefined) ?? {
           best: [],
           worst: [],
+          sites: [],
+          plats: { best: [], worst: [] },
+          accompagnements: { best: [], worst: [] },
+          boissons: { best: [], worst: [] },
         };
-        setRanking(nextRanking);
+        setRanking({
+          best: nextRanking.best ?? [],
+          worst: nextRanking.worst ?? [],
+          sites: nextRanking.sites ?? [],
+          plats: nextRanking.plats ?? { best: [], worst: [] },
+          accompagnements: nextRanking.accompagnements ?? {
+            best: [],
+            worst: [],
+          },
+          boissons: nextRanking.boissons ?? { best: [], worst: [] },
+        });
         setCancelNotice(
           (body.cancelNotice as {
             caActif: number;
@@ -567,8 +585,15 @@ function DayDashboard({
       </div>
 
       <section className="panel dash-card dash-card-wide">
-        <h2 className="panel-title">Classement des produits</h2>
-        <ProductRanking best={ranking.best} worst={ranking.worst} />
+        <h2 className="panel-title">Tableaux de ventes</h2>
+        <ProductRanking
+          best={ranking.best}
+          worst={ranking.worst}
+          sites={ranking.sites}
+          plats={ranking.plats}
+          accompagnements={ranking.accompagnements}
+          boissons={ranking.boissons}
+        />
       </section>
 
       <div className="dash-grid">
@@ -759,8 +784,15 @@ function MonthDashboard({
       </div>
 
       <section className="panel dash-card dash-card-wide">
-        <h2 className="panel-title">Classement des produits (mois)</h2>
-        <ProductRanking best={ranking.best} worst={ranking.worst} />
+        <h2 className="panel-title">Tableaux de ventes (mois)</h2>
+        <ProductRanking
+          best={ranking.best}
+          worst={ranking.worst}
+          sites={ranking.sites}
+          plats={ranking.plats}
+          accompagnements={ranking.accompagnements}
+          boissons={ranking.boissons}
+        />
       </section>
 
       <section className="panel panel-wide">
@@ -887,8 +919,15 @@ function YearDashboard({
       </section>
 
       <section className="panel dash-card dash-card-wide">
-        <h2 className="panel-title">Classement des produits (année)</h2>
-        <ProductRanking best={ranking.best} worst={ranking.worst} />
+        <h2 className="panel-title">Tableaux de ventes (année)</h2>
+        <ProductRanking
+          best={ranking.best}
+          worst={ranking.worst}
+          sites={ranking.sites}
+          plats={ranking.plats}
+          accompagnements={ranking.accompagnements}
+          boissons={ranking.boissons}
+        />
       </section>
 
       <section className="panel panel-wide">

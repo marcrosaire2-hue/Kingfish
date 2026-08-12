@@ -190,7 +190,7 @@ function buildYearStatement(data: YearPoint, label: string): Statement {
 
 export function CompteResultatPage() {
   const [view, setView] = useState<ViewKey>("day");
-  const [date, setDate] = useState(todayIsoDate);
+  const [date, setDate] = useState(() => todayIsoDate());
   const [month, setMonth] = useState(currentMonth);
   const [year, setYear] = useState(() => String(new Date().getFullYear()));
   const [payload, setPayload] = useState<Payload | null>(null);

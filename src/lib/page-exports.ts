@@ -365,6 +365,187 @@ export async function exportVenteExcel(
   downloadExcel(excelFilename("vente", date, site), sheets);
 }
 
+/** Répartition équipes — tableau jour / nuit sur une période */
+export function exportEquipesExcel(input: {
+  from: string;
+  to: string;
+  site: "all" | VenteSite;
+  days: Array<{
+    date: string;
+    jour: number;
+    nuit: number;
+    aucune: number;
+    total: number;
+  }>;
+  totals: { jour: number; nuit: number; aucune: number; total: number };
+}): void {
+  const showAucune = input.totals.aucune > 0;
+  const pct = (part: number, whole: number) =>
+    whole > 0 ? Math.round((part / whole) * 100) : "";
+
+  const sheets: ExcelSheet[] = [
+    {
+      name: "Jours",
+      subtitle: `${siteLabel(input.site)} · ${input.from} → ${input.to}`,
+      totals: ["Total (FCFA)"],
+      rows: input.days
+        .filter((d) => d.total > 0)
+        .map((d) => ({
+          Date: d.date,
+          "CA jour (FCFA)": d.jour,
+          "CA nuit (FCFA)": d.nuit,
+          ...(showAucune ? { "CA hors équipe (FCFA)": d.aucune } : {}),
+          "Total (FCFA)": d.total,
+          "% jour": pct(d.jour, d.total),
+          "% nuit": pct(d.nuit, d.total),
+        })),
+    },
+    {
+      name: "Synthèse",
+      subtitle: `${siteLabel(input.site)} · ${input.from} → ${input.to}`,
+      rows: [
+        {
+          Du: input.from,
+          Au: input.to,
+          Zone: siteLabel(input.site),
+          "CA équipe jour (FCFA)": input.totals.jour,
+          "CA équipe nuit (FCFA)": input.totals.nuit,
+          ...(showAucune
+            ? { "CA hors équipe (FCFA)": input.totals.aucune }
+            : {}),
+          "CA total (FCFA)": input.totals.total,
+          "% jour": pct(input.totals.jour, input.totals.total),
+          "% nuit": pct(input.totals.nuit, input.totals.total),
+        },
+      ],
+    },
+  ];
+
+  downloadExcel(
+    excelFilename("equipes", `${input.from}_${input.to}`, input.site),
+    sheets,
+  );
+}
+
+const CONTROLE_SOURCE_LABELS: Record<string, string> = {
+  caisse: "Caisse",
+  aquapro: "AquaPro",
+  "carnet-zogbo": "Carnet Zogbo",
+  reprise: "Reprise historique",
+  "inventaire-marco": "Inventaire",
+};
+
+function controleSourceLabel(source: string): string {
+  return CONTROLE_SOURCE_LABELS[source] ?? source;
+}
+
+/** Contrôle — points initiaux et vérification CA */
+export function exportControleExcel(data: import("@/lib/controle-repo").ControlePayload): void {
+  const openingRows = data.openings.map((row) => {
+    const extra = row.extra ?? {};
+    return {
+      Zone: row.zoneLabel,
+      Produit: row.name,
+      Ouverture: row.opening,
+      Unité: row.unit,
+      Détails: Object.entries(extra)
+        .map(([k, v]) => `${k}: ${v}`)
+        .join(" · "),
+    };
+  });
+
+  const caRows = data.caDays
+    .filter((d) => d.hasJournal || d.hasCompteur || d.journalTotal > 0)
+    .map((d) => ({
+      Date: d.date,
+      "Journal Zogbo (FCFA)": d.journalZogbo || "",
+      "Journal Gbé (FCFA)": d.journalGbegamey || "",
+      "Journal total (FCFA)": d.journalTotal || "",
+      "Estimation Zogbo (FCFA)": d.compteurZogbo || "",
+      "Estimation Gbé (FCFA)": d.compteurGbegamey || "",
+      "Estimation catalogue (FCFA)": d.compteurTotal || "",
+      "Écart tarif (FCFA)": d.ecart,
+      Sources: d.sources
+        .map(
+          (s) =>
+            `${controleSourceLabel(s.source)} ${s.montant} (${s.lignes} lignes)`,
+        )
+        .join(" · "),
+    }));
+
+  const sheets: ExcelSheet[] = [
+    {
+      name: "Points initiaux",
+      subtitle: `${data.date} · ${data.scopeSite ?? "tous sites"}`,
+      rows: openingRows,
+    },
+    {
+      name: "CA journalier",
+      subtitle: `${data.from} → ${data.to}`,
+      totals: ["Total (FCFA)"],
+      rows: caRows,
+    },
+    {
+      name: "Synthèse CA",
+      rows: [
+        {
+          Du: data.from,
+          Au: data.to,
+          "Journal total (FCFA)": data.caTotals.journal,
+          "Estimation catalogue (FCFA)": data.caTotals.compteur,
+          "Écart tarif (FCFA)": data.caTotals.ecart,
+        },
+      ],
+    },
+  ];
+
+  downloadExcel(
+    excelFilename("controle", `${data.from}_${data.to}`, data.scopeSite ?? "all"),
+    sheets,
+  );
+}
+
+/** Stock final par zone (plats + accompagnements). */
+export function exportStockExcel(
+  data: import("@/lib/stock-repo").StockPayload,
+): void {
+  const rows = data.rows.map((row) => ({
+    Zone: row.zoneLabel,
+    Produit: row.name,
+    Type: row.kind === "plat" ? "Plat" : "Accompagnement",
+    Ouverture: row.opening,
+    Entrées: row.entrees,
+    "Envoyé Gbé": row.envoye || "",
+    Vendu: row.vendu,
+    Pertes: row.pertes,
+    "Stock final": row.stockFinal,
+    Vendable: row.stockVendable ?? "",
+    Compté: row.compte ?? "",
+    Écart: row.ecart ?? "",
+  }));
+
+  const synthèse = data.totalsByZone.map((t) => ({
+    Zone: t.zoneLabel,
+    Lignes: t.lignes,
+    "Stock final": t.stockFinal,
+    Vendable: t.stockVendable ?? "",
+    Vendu: t.vendu,
+    "Écarts inventaire": t.ecarts,
+  }));
+
+  downloadExcel(
+    excelFilename("stock", data.date, data.scopeSite ?? "all"),
+    [
+      {
+        name: "Stock final",
+        subtitle: `${data.date} · ${data.scopeSite ?? "tous sites"}`,
+        rows,
+      },
+      { name: "Par zone", rows: synthèse },
+    ],
+  );
+}
+
 /** Tableau de bord / synthèse */
 export async function exportSyntheseExcel(input: {
   view: "day" | "month" | "year";

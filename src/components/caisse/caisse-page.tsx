@@ -44,7 +44,7 @@ function formatOpened(iso: string): string {
 }
 
 export function CaissePage() {
-  const [date, setDate] = useState(todayIsoDate);
+  const [date, setDate] = useState(() => todayIsoDate());
   const [site, setSite] = useState<VenteSite>("gbegamey");
   const [lockedSite, setLockedSite] = useState(false);
   const [board, setBoard] = useState<Board | null>(null);

@@ -11,6 +11,12 @@ import {
   listZogboDays,
   saveZogboDay,
 } from "@/lib/zogbo-repo";
+import {
+  sumCaForSite,
+  getLastSaleDate,
+  listVentesForSite,
+  summarizeVentesForSite,
+} from "@/lib/vente-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
@@ -44,8 +50,21 @@ export async function GET(request: Request) {
       return NextResponse.json({ days });
     }
     const date = searchParams.get("date") || todayIsoDate();
-    const payload = await getZogboDayPayload(date);
-    return NextResponse.json(payload);
+    const [payload, caJournal, lastSaleDate, ventes, ventesSummary] =
+      await Promise.all([
+        getZogboDayPayload(date),
+        sumCaForSite(date, "zogbo"),
+        getLastSaleDate("zogbo"),
+        listVentesForSite({ date, site: "zogbo" }),
+        summarizeVentesForSite(date, "zogbo"),
+      ]);
+    return NextResponse.json({
+      ...payload,
+      caJournal,
+      lastSaleDate,
+      ventes,
+      ventesSummary,
+    });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     reportError("GET /api/zogbo", error);
