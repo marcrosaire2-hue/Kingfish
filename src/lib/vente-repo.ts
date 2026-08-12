@@ -13,12 +13,8 @@ import { newId } from "@/lib/format";
 import { computeTransferLine } from "@/lib/gbegamey-calc";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
 import { physicalStock, shiftIsoDate } from "@/lib/zogbo-calc";
-import {
-  ZOGBO_ACCOMPAGNEMENTS,
-  ZOGBO_PLATS,
-} from "@/lib/catalog-zogbo";
-import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import { isLegalAccompanimentPrice } from "@/lib/catalog-zogbo";
+import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import type {
   GbegameyLocalLine,
   VenteKind,
@@ -264,46 +260,49 @@ export async function getVenteBoard(
   const products: VenteProduct[] = [];
 
   if (site === "zogbo") {
+    // Grille construite depuis les paramètres (comme Gbégamey) : le catalogue
+    // statique n'était pas maître de la base produits réelle — les articles
+    // en stock (brochette, chawarma, choukouya…) n'apparaissaient pas.
     const stockById = new Map(
       zogbo.day.lines.map((l) => [l.productId, physicalStock(l)]),
     );
     const soldById = new Map(
       zogbo.day.lines.map((l) => [l.productId, l.sold]),
     );
-    for (const plat of ZOGBO_PLATS) {
-      const dish = parametres.baseDishes.find((d) => d.id === plat.id);
-      const stockLeft = stockById.get(plat.id) ?? 0;
+    for (const dish of parametres.baseDishes) {
+      const line = zogbo.day.lines.find((l) => l.productId === dish.id);
+      const stockLeft = line ? physicalStock(line) : 0;
       products.push({
         kind: "plat",
-        productId: plat.id,
-        name: plat.name,
-        unitPrice: plat.unitPrice,
-        soldToday: soldById.get(plat.id) ?? 0,
+        productId: dish.id,
+        name: dish.name,
+        unitPrice: dish.unitPrice,
+        soldToday: soldById.get(dish.id) ?? 0,
         stockLeft,
-        lowStock: isLowStock(stockLeft, dish?.alertThreshold),
+        lowStock: isLowStock(stockLeft, dish.alertThreshold),
         hint: `Reste ${stockLeft}`,
       });
     }
     const accById = new Map(
       (zogbo.day.accompanimentLines ?? []).map((l) => [l.productId, l]),
     );
-    for (const acc of ZOGBO_ACCOMPAGNEMENTS) {
-      const dish = parametres.localDishes.find((d) => d.id === acc.id);
-      const line = accById.get(acc.id);
+    for (const dish of parametres.localDishes) {
+      const line = accById.get(dish.id);
       const tracked = line ? accompanimentTracked(line) : false;
       const stockLeft = tracked
         ? Math.max(
             0,
             (line?.initialStock ?? 0) +
               (line?.prepared ?? 0) -
-              (line?.sold ?? 0),
+              (line?.sold ?? 0) -
+              Math.max(0, Number(line?.pertes) || 0),
           )
         : null;
       products.push({
         kind: "local",
-        productId: acc.id,
-        name: acc.name,
-        unitPrice: acc.unitPrice,
+        productId: dish.id,
+        name: dish.name,
+        unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
         lowStock: isLowStock(stockLeft, dish?.alertThreshold),
@@ -1008,7 +1007,12 @@ export async function recordVente(input: {
   let unitPrice = target.unitPrice;
   if (unitPriceOverride > 0) {
     if (input.kind === "local") {
-      if (!isLegalAccompanimentPrice(input.productId, unitPriceOverride)) {
+      // Prix légal : celui du catalogue (paramètres) ou les grilles
+      // « plat + accompagnement » (500 / 1 000) du catalogue statique.
+      const legal =
+        unitPriceOverride === target.unitPrice ||
+        isLegalAccompanimentPrice(input.productId, unitPriceOverride);
+      if (!legal) {
         throw new Error(
           `Prix non autorisé pour cet accompagnement : ${unitPriceOverride} F.`,
         );

@@ -16,7 +16,7 @@ import {
 import { exportVenteExcel } from "@/lib/page-exports";
 import {
   accompanimentUnitPrice,
-  accompanimentsForPlat,
+  getZogboPlat,
 } from "@/lib/catalog-zogbo";
 import type {
   CaisseSession,
@@ -241,33 +241,51 @@ export function VentePage() {
     [plats, composerPlatId],
   );
 
+  const platDefStatic = useMemo(
+    () => (composerPlatId ? getZogboPlat(composerPlatId) : null),
+    [composerPlatId],
+  );
+
   const composerAccOptions = useMemo(() => {
     if (!composerPlatId) return [];
-    const allowed = accompanimentsForPlat(composerPlatId);
-    return allowed
-      .map((acc) => accompagnements.find((p) => p.productId === acc.id))
-      .filter((p): p is VenteProduct => !!p);
-  }, [composerPlatId, accompagnements]);
+    // Les plats réels (paramètres) n'ont pas de liste d'accompagnements :
+    // on propose tous ceux du jour. Seuls les plats du catalogue statique
+    // restreignent à leur liste.
+    const plat = platDefStatic;
+    if (!plat) return accompagnements;
+    const allowed = new Set(plat.accompanimentIds);
+    return accompagnements.filter((p) => allowed.has(p.productId));
+  }, [composerPlatId, platDefStatic, accompagnements]);
+
+  /** Prix d'un accompagnement : grille « plat + accompagnement » si le plat
+   *  est au catalogue statique, sinon son prix du jour. */
+  function accPriceFor(acc: VenteProduct): number {
+    if (!composerPlatId || !platDefStatic) return acc.unitPrice;
+    return accompanimentUnitPrice(composerPlatId, acc.productId);
+  }
 
   useEffect(() => {
     if (!composerPlatId) {
       setComposerAccIds([]);
       return;
     }
-    const allowed = new Set(
-      accompanimentsForPlat(composerPlatId).map((a) => a.id),
-    );
+    if (!platDefStatic) return;
+    const allowed = new Set(platDefStatic.accompanimentIds);
     setComposerAccIds((prev) => prev.filter((id) => allowed.has(id)));
-  }, [composerPlatId]);
+  }, [composerPlatId, platDefStatic]);
 
   const composerTotal = useMemo(() => {
-    let t = composerPlat?.unitPrice ?? 0;
-    if (!composerPlatId) return t;
-    for (const id of composerAccIds) {
-      t += accompanimentUnitPrice(composerPlatId, id);
-    }
-    return t;
-  }, [composerPlat, composerPlatId, composerAccIds]);
+    const plat = composerPlat;
+    if (!composerPlatId || !plat) return 0;
+    const selected = composerAccOptions.filter((a) =>
+      composerAccIds.includes(a.productId),
+    );
+    return (
+      plat.unitPrice +
+      selected.reduce((s, a) => s + accPriceFor(a), 0)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composerPlat, composerPlatId, composerAccIds, composerAccOptions]);
 
   function toggleComposerAcc(productId: string) {
     setComposerAccIds((prev) =>
@@ -312,10 +330,7 @@ export function VentePage() {
     if (mode === "pos") {
       addToCart(composerPlat);
       for (const acc of accLines) {
-        addToCart(
-          acc,
-          accompanimentUnitPrice(composerPlat.productId, acc.productId),
-        );
+        addToCart(acc, accPriceFor(acc));
       }
       resetComposer();
       setError(null);
@@ -327,11 +342,7 @@ export function VentePage() {
     try {
       await sell(composerPlat, 1);
       for (const acc of accLines) {
-        await sell(
-          acc,
-          1,
-          accompanimentUnitPrice(composerPlat.productId, acc.productId),
-        );
+        await sell(acc, 1, accPriceFor(acc));
       }
       resetComposer();
     } catch (e) {
@@ -838,12 +849,7 @@ export function VentePage() {
                               a.stockLeft !== undefined &&
                               a.stockLeft <= 0;
                             const checked = composerAccIds.includes(a.productId);
-                            const accPrice = composerPlatId
-                              ? accompanimentUnitPrice(
-                                  composerPlatId,
-                                  a.productId,
-                                )
-                              : a.unitPrice;
+                            const accPrice = accPriceFor(a);
                             return (
                               <li key={a.productId}>
                                 <label
