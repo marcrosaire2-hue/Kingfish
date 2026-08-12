@@ -154,6 +154,7 @@ export function VentePage() {
   const [posBusy, setPosBusy] = useState(false);
   const [composerPlatId, setComposerPlatId] = useState("");
   const [composerAccIds, setComposerAccIds] = useState<string[]>([]);
+  const [composerQty, setComposerQty] = useState(1);
 
   async function load(nextDate = date, nextSite = site) {
     setLoading(true);
@@ -283,9 +284,9 @@ export function VentePage() {
     return (
       plat.unitPrice +
       selected.reduce((s, a) => s + accPriceFor(a), 0)
-    );
+    ) * composerQty;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composerPlat, composerPlatId, composerAccIds, composerAccOptions]);
+  }, [composerPlat, composerPlatId, composerAccIds, composerAccOptions, composerQty]);
 
   function toggleComposerAcc(productId: string) {
     setComposerAccIds((prev) =>
@@ -298,6 +299,7 @@ export function VentePage() {
   function resetComposer() {
     setComposerPlatId("");
     setComposerAccIds([]);
+    setComposerQty(1);
   }
 
   async function commitMeal() {
@@ -313,6 +315,16 @@ export function VentePage() {
       setError(`Stock épuisé : ${composerPlat.name}`);
       return;
     }
+    if (
+      composerPlat.stockLeft !== null &&
+      composerPlat.stockLeft !== undefined &&
+      composerQty > composerPlat.stockLeft
+    ) {
+      setError(
+        `Stock insuffisant : reste ${composerPlat.stockLeft} ${composerPlat.name}`,
+      );
+      return;
+    }
     const accLines = composerAccIds
       .map((id) => composerAccOptions.find((a) => a.productId === id))
       .filter((a): a is VenteProduct => !!a);
@@ -325,12 +337,22 @@ export function VentePage() {
         setError(`Stock épuisé : ${acc.name}`);
         return;
       }
+      if (
+        acc.stockLeft !== null &&
+        acc.stockLeft !== undefined &&
+        composerQty > acc.stockLeft
+      ) {
+        setError(
+          `Stock insuffisant : reste ${acc.stockLeft} ${acc.name}`,
+        );
+        return;
+      }
     }
 
     if (mode === "pos") {
-      addToCart(composerPlat);
+      addToCart(composerPlat, undefined, composerQty);
       for (const acc of accLines) {
-        addToCart(acc, accPriceFor(acc));
+        addToCart(acc, accPriceFor(acc), composerQty);
       }
       resetComposer();
       setError(null);
@@ -340,9 +362,9 @@ export function VentePage() {
     setBusyKey("meal");
     setError(null);
     try {
-      await sell(composerPlat, 1);
+      await sell(composerPlat, composerQty);
       for (const acc of accLines) {
-        await sell(acc, 1, accPriceFor(acc));
+        await sell(acc, composerQty, accPriceFor(acc));
       }
       resetComposer();
     } catch (e) {
@@ -361,7 +383,11 @@ export function VentePage() {
   );
   const cartNet = cartTotal - reductionN;
 
-  function addToCart(product: VenteProduct, unitPriceOverride?: number) {
+  function addToCart(
+    product: VenteProduct,
+    unitPriceOverride?: number,
+    qty = 1,
+  ) {
     if (product.kind === "boisson" && product.unitPrice <= 0) return;
     if (
       product.stockLeft !== null &&
@@ -376,7 +402,7 @@ export function VentePage() {
       const existing = prev.find((l) => l.key === key);
       if (existing) {
         return prev.map((l) =>
-          l.key === key ? { ...l, qty: l.qty + 1 } : l,
+          l.key === key ? { ...l, qty: l.qty + qty } : l,
         );
       }
       return [
@@ -387,7 +413,7 @@ export function VentePage() {
           productId: product.productId,
           name: product.name,
           unitPrice,
-          qty: 1,
+          qty,
         },
       ];
     });
@@ -887,6 +913,40 @@ export function VentePage() {
                       </p>
                     )}
                     <div className="vente-meal-actions">
+                      <div className="vente-meal-qty">
+                        <span className="vente-qty-label">Qté</span>
+                        <button
+                          type="button"
+                          className="vente-minus"
+                          aria-label="Moins de plats"
+                          disabled={
+                            !composerPlat ||
+                            composerQty <= 1 ||
+                            !!busyKey
+                          }
+                          onClick={() =>
+                            setComposerQty((q) => Math.max(1, q - 1))
+                          }
+                        >
+                          −
+                        </button>
+                        <span className="vente-qty mono">{composerQty}</span>
+                        <button
+                          type="button"
+                          className="vente-plus"
+                          aria-label="Plus de plats"
+                          disabled={
+                            !composerPlat ||
+                            !!busyKey ||
+                            (composerPlat.stockLeft !== null &&
+                              composerPlat.stockLeft !== undefined &&
+                              composerQty >= composerPlat.stockLeft)
+                          }
+                          onClick={() => setComposerQty((q) => q + 1)}
+                        >
+                          +
+                        </button>
+                      </div>
                       <span className="vente-meal-total mono">
                         {composerPlat ? formatFcfa(composerTotal) : "—"}
                       </span>
@@ -904,7 +964,7 @@ export function VentePage() {
                           ? "Enregistrement…"
                           : mode === "pos"
                             ? "Ajouter au panier"
-                            : "Enregistrer la vente"}
+                            : `Enregistrer${composerQty > 1 ? ` (${composerQty} plats)` : ""}`}
                       </button>
                     </div>
                   </>

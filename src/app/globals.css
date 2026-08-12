@@ -1430,6 +1430,18 @@ select {
   margin-top: 0.75rem;
 }
 
+.vente-meal-qty {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.vente-meal-qty .vente-qty-label {
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
 .vente-meal-total {
   font-size: 1.15rem;
   font-weight: 800;
