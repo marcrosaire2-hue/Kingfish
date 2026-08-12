@@ -177,7 +177,6 @@ export function AppShell({
   }, [pathname]);
 
   const onGuideArea = pathname.startsWith("/guide");
-  const showGuideNav = !nav || nav.includes("guide");
 
   useEffect(() => {
     let cancelled = false;
@@ -285,16 +284,6 @@ export function AppShell({
         </nav>
 
         <div className="sidebar-footer">
-          {showGuideNav && !onGuideArea ? (
-            <Link href={spaceGuideHref} className="sidebar-help">
-              <span className="sidebar-help-text">
-                <strong>Besoin d’aide ?</strong>
-                <span>Consultez le guide de cet espace</span>
-              </span>
-              <span className="sidebar-help-cta">Voir le guide</span>
-            </Link>
-          ) : null}
-
           {user ? (
             <div className="user-chip user-chip-sidebar">
               <span className="user-avatar" aria-hidden>
