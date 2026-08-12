@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify } from "jose";
-import type { SessionUser } from "@/lib/auth-types";
+import { effectiveShift, type SessionUser } from "@/lib/auth-types";
 
 export const SESSION_COOKIE = "zg_session";
 
@@ -30,6 +30,7 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
     name: user.name,
     role: user.role,
     site: user.site,
+    shift: user.shift ?? "aucune",
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -57,6 +58,9 @@ export async function verifySessionToken(
       name: payload.name,
       role: payload.role as SessionUser["role"],
       site: payload.site as SessionUser["site"],
+      // Absent des sessions ouvertes avant l'introduction des équipes : la
+      // vente sera simplement rattachée à « hors équipe ».
+      shift: effectiveShift(payload.shift as SessionUser["shift"]),
     };
   } catch {
     return null;

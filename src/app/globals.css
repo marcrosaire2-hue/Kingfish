@@ -5108,3 +5108,15 @@ html.nav-open body {
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* Répartition du chiffre d'affaires entre les équipes de jour et de nuit. */
+.vente-equipes {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #ffffff 16%, transparent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}

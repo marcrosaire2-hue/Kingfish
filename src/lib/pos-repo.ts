@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { effectiveShift } from "@/lib/auth-types";
 import { getActiveCaisse, addCaisseVenteAmount } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getPosConfig } from "@/lib/pos-config-repo";
@@ -44,6 +45,7 @@ function toTicket(doc: TicketDoc): PosTicket {
     montant: Number(doc.montant) || 0,
     userId: doc.userId,
     userName: doc.userName,
+    shift: doc.shift,
     at: doc.at,
     cancelledAt: doc.cancelledAt ?? null,
   };
@@ -116,6 +118,7 @@ export async function validatePosTicket(input: {
     id: input.user.id,
     name: input.user.name,
     username: input.user.username,
+    shift: input.user.shift,
   };
   const caisse = await getActiveCaisse(input.user.id, input.site);
   if (!caisse) {
@@ -232,6 +235,7 @@ export async function validatePosTicket(input: {
     montant,
     userId: input.user.id,
     userName: input.user.name,
+    shift: effectiveShift(input.user.shift),
     at: now,
     cancelledAt: null,
     clientRef: input.clientRef ?? null,
@@ -268,6 +272,7 @@ export async function cancelPosTicket(input: {
     id: input.user.id,
     name: input.user.name,
     username: input.user.username,
+    shift: input.user.shift,
   };
 
   for (const line of doc.lines || []) {

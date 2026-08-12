@@ -5,6 +5,8 @@ import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import {
   ROLE_LABELS,
+  SHIFT_LABELS,
+  SHIFTS,
   SITE_LABELS,
   adminKindLabel,
   isGlobalAdmin,
@@ -15,6 +17,7 @@ import {
   type AppUser,
   type SessionUser,
   type UserRole,
+  type UserShift,
   type UserSite,
 } from "@/lib/auth-types";
 import { exportAdminUsersExcel } from "@/lib/page-exports";
@@ -108,6 +111,7 @@ export function AdminPage() {
     name: "",
     password: "",
     role: "equipier" as UserRole,
+    shift: "jour" as UserShift,
     site: "gbegamey" as UserSite,
   });
 
@@ -247,6 +251,7 @@ export function AdminPage() {
     patch: Partial<{
       role: UserRole;
       site: UserSite;
+      shift: UserShift;
       active: boolean;
       password: string;
       name: string;
@@ -419,6 +424,29 @@ export function AdminPage() {
                 ))}
               </select>
             </label>
+            <label className="login-field">
+              <span>Équipe de service</span>
+              <select
+                className="select-input"
+                value={form.shift}
+                onChange={(e) =>
+                  setForm((f) => ({
+                    ...f,
+                    shift: e.target.value as UserShift,
+                  }))
+                }
+              >
+                {SHIFTS.map((eq) => (
+                  <option key={eq} value={eq}>
+                    {SHIFT_LABELS[eq]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <p className="muted admin-site-hint">
+              Les ventes encaissées par ce compte seront créditées à son
+              équipe. « Hors équipe » convient à l’encadrement.
+            </p>
             <p className="muted admin-site-hint">
               {form.role === "admin"
                 ? form.site === "tous"
@@ -500,6 +528,7 @@ export function AdminPage() {
                 <th>Nom</th>
                 <th>Rôle / périmètre</th>
                 <th>Site</th>
+                <th>Équipe</th>
                 <th>Actif</th>
                 <th>Mot de passe</th>
                 <th />
@@ -568,6 +597,25 @@ export function AdminPage() {
                             {u.role === "admin"
                               ? adminKindLabel(s)
                               : SITE_LABELS[s]}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <select
+                        className="select-input"
+                        value={u.shift ?? "aucune"}
+                        disabled={lockedPrincipal}
+                        onChange={(e) =>
+                          void patchUser(u.id, {
+                            shift: e.target.value as UserShift,
+                          })
+                        }
+                        aria-label={`Équipe de ${u.username}`}
+                      >
+                        {SHIFTS.map((eq) => (
+                          <option key={eq} value={eq}>
+                            {SHIFT_LABELS[eq]}
                           </option>
                         ))}
                       </select>

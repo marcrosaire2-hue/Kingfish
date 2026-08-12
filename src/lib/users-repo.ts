@@ -3,8 +3,11 @@ import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
 import {
   assertValidRoleSite,
+  effectiveShift,
+  isShift,
   type AppUser,
   type UserRole,
+  type UserShift,
   type UserSite,
 } from "@/lib/auth-types";
 
@@ -15,6 +18,7 @@ type UserDoc = {
   passwordHash: string;
   role: UserRole;
   site: UserSite;
+  shift?: UserShift;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -35,6 +39,7 @@ function toAppUser(doc: UserDoc): AppUser {
     name: doc.name,
     role: doc.role,
     site: doc.site,
+    shift: effectiveShift(doc.shift),
     active: doc.active,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
@@ -59,6 +64,7 @@ export async function ensureDefaultAdmin(): Promise<void> {
     passwordHash: await bcrypt.hash(DEFAULT_ADMIN.password, 10),
     role: DEFAULT_ADMIN.role,
     site: DEFAULT_ADMIN.site,
+    shift: "aucune",
     active: true,
     createdAt: now,
     updatedAt: now,
@@ -113,6 +119,7 @@ export async function createUser(input: {
   password: string;
   role: UserRole;
   site: UserSite;
+  shift?: UserShift;
 }): Promise<AppUser> {
   const username = normalizeUsername(input.username);
   if (!username || username.length < 3) {
@@ -137,6 +144,7 @@ export async function createUser(input: {
     passwordHash: await bcrypt.hash(input.password, 10),
     role: input.role,
     site: input.site,
+    shift: effectiveShift(input.shift),
     active: true,
     createdAt: now,
     updatedAt: now,
@@ -151,6 +159,7 @@ export type BulkUserInput = {
   password: string;
   role: UserRole;
   site: UserSite;
+  shift?: UserShift;
 };
 
 export async function createUsersBulk(inputs: BulkUserInput[]): Promise<{
@@ -183,6 +192,7 @@ export async function updateUser(
     name?: string;
     role?: UserRole;
     site?: UserSite;
+    shift?: UserShift;
     active?: boolean;
     password?: string;
   },
@@ -208,6 +218,10 @@ export async function updateUser(
   }
   if (input.role !== undefined) $set.role = input.role;
   if (input.site !== undefined) $set.site = input.site;
+  if (input.shift !== undefined) {
+    if (!isShift(input.shift)) throw new Error("Équipe invalide.");
+    $set.shift = input.shift;
+  }
   if (input.active !== undefined) {
     if (
       existing.role === "admin" &&

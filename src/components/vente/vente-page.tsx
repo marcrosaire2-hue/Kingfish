@@ -28,6 +28,7 @@ import { todayIsoDate } from "@/lib/zogbo-calc";
 type Board = {
   date: string;
   site: VenteSite;
+  caParEquipe?: Record<string, number>;
   products: VenteProduct[];
   recent: VenteLogEntry[];
   caToday: number;
@@ -523,6 +524,13 @@ export function VentePage() {
             </span>
             <span className="vente-hero-label">
               CA validé · {siteLabel}
+              {board?.caParEquipe &&
+              (board.caParEquipe.jour > 0 || board.caParEquipe.nuit > 0) ? (
+                <span className="vente-equipes">
+                  Jour {formatFcfa(board.caParEquipe.jour ?? 0)} · Nuit{" "}
+                  {formatFcfa(board.caParEquipe.nuit ?? 0)}
+                </span>
+              ) : null}
               {enAttente > 0 ? (
                 <span className="vente-attente" role="status">
                   {enAttente} vente{enAttente > 1 ? "s" : ""} en attente d’envoi

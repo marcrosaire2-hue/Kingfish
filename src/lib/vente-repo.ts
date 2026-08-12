@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { effectiveShift, type UserShift } from "@/lib/auth-types";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import { physicalBoissonsStock } from "@/lib/boissons-calc";
@@ -29,6 +30,9 @@ export type VenteActor = {
   id: string;
   name: string;
   username: string;
+  /** Équipe du vendeur, figée sur la vente : changer d'équipe plus tard ne
+   *  doit pas réattribuer les ventes déjà encaissées. */
+  shift?: UserShift;
 };
 
 type VenteLogDoc = {
@@ -52,6 +56,8 @@ type VenteLogDoc = {
   actorId?: string | null;
   actorName?: string | null;
   actorUsername?: string | null;
+  /** Équipe créditée de cette vente */
+  shift?: UserShift | null;
   cancelledById?: string | null;
   cancelledByName?: string | null;
   cancelledByUsername?: string | null;
@@ -133,6 +139,8 @@ export async function getVenteBoard(
   products: VenteProduct[];
   recent: VenteLogEntry[];
   caToday: number;
+  /** Répartition du CA du jour entre les équipes */
+  caParEquipe: Record<UserShift, number>;
 }> {
   if (!isValidDate(date)) throw new Error("Date invalide");
   if (site !== "zogbo" && site !== "gbegamey") {
@@ -154,6 +162,8 @@ export async function getVenteBoard(
       listRecentVentes(date, site, recentLimit),
       sumCaForSite(date, site),
     ]);
+
+  const caParEquipe = await sumCaByShift(date, site);
 
   const products: VenteProduct[] = [];
 
@@ -281,7 +291,33 @@ export async function getVenteBoard(
     });
   }
 
-  return { date, site, products, recent, caToday };
+  return { date, site, products, recent, caToday, caParEquipe };
+}
+
+/** CA du jour réparti par équipe — répond à « quelle équipe a vendu ». */
+export async function sumCaByShift(
+  date: string,
+  site: VenteSite | "all",
+): Promise<Record<UserShift, number>> {
+  const db = await getDb();
+  const match: Record<string, unknown> = { date, ...ACTIVE };
+  if (site !== "all") match.site = site;
+
+  const rows = await db
+    .collection<VenteLogDoc>("ventes_log")
+    .aggregate<{ _id: UserShift | null; total: number }>([
+      { $match: match },
+      { $group: { _id: "$shift", total: { $sum: "$amount" } } },
+    ])
+    .toArray();
+
+  const parEquipe: Record<UserShift, number> = { jour: 0, nuit: 0, aucune: 0 };
+  for (const row of rows) {
+    // Les ventes antérieures aux équipes n'en portent aucune : elles vont
+    // dans « hors équipe » plutôt que d'être attribuées arbitrairement.
+    parEquipe[effectiveShift(row._id)] += row.total;
+  }
+  return parEquipe;
 }
 
 async function sumCaForSite(date: string, site: VenteSite): Promise<number> {
@@ -655,6 +691,7 @@ export async function recordVente(input: {
     actorId: input.actor?.id ?? null,
     actorName: input.actor?.name ?? null,
     actorUsername: input.actor?.username ?? null,
+    shift: effectiveShift(input.actor?.shift),
   });
 
   const entry: VenteLogEntry = {
@@ -718,6 +755,7 @@ export async function recordExtraVente(input: {
     actorId: input.actor?.id ?? null,
     actorName: input.actor?.name ?? null,
     actorUsername: input.actor?.username ?? null,
+    shift: effectiveShift(input.actor?.shift),
   });
 
   const entry: VenteLogEntry = {

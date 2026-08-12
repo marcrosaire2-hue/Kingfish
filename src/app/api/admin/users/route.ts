@@ -5,6 +5,7 @@ import {
   assertValidRoleSite,
   userVisibleToAdmin,
   type UserRole,
+  type UserShift,
   type UserSite,
 } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
       password?: string;
       role?: UserRole;
       site?: UserSite;
+      shift?: UserShift;
       users?: BulkUserInput[];
     };
 
@@ -184,6 +186,7 @@ export async function POST(request: Request) {
       password: body.password,
       role: body.role,
       site: body.site,
+      shift: body.shift,
     });
     await logActivity({
       user: admin,
@@ -221,6 +224,7 @@ export async function PUT(request: Request) {
       name?: string;
       role?: UserRole;
       site?: UserSite;
+      shift?: UserShift;
       active?: boolean;
       password?: string;
     };
@@ -260,6 +264,7 @@ export async function PUT(request: Request) {
       name: body.name,
       role: body.role,
       site: body.site,
+      shift: body.shift,
       active: body.active,
       password: body.password,
     });

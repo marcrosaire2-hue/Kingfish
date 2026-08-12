@@ -1,3 +1,5 @@
+import type { UserShift } from "@/lib/auth-types";
+
 export type ProductId = string;
 
 export type BaseDish = {
@@ -621,6 +623,8 @@ export type PosTicket = {
   montant: number;
   userId: string;
   userName: string;
+  /** Équipe créditée de ce ticket, figée à l'encaissement */
+  shift?: UserShift;
   at: string;
   cancelledAt: string | null;
 };

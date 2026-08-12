@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canUseSite } from "@/lib/auth-types";
+import { canUseSite, type UserShift } from "@/lib/auth-types";
 import { reportError } from "@/lib/report-error";
 import {
   getVenteBoard,
@@ -21,8 +21,19 @@ function resolveSite(
   return requested === "gbegamey" ? "gbegamey" : "zogbo";
 }
 
-function actorOf(user: { id: string; name: string; username: string }) {
-  return { id: user.id, name: user.name, username: user.username };
+function actorOf(user: {
+  id: string;
+  name: string;
+  username: string;
+  shift?: UserShift;
+}) {
+  return {
+    id: user.id,
+    name: user.name,
+    username: user.username,
+    // L'équipe suit le compte : le vendeur n'a rien à saisir.
+    shift: user.shift,
+  };
 }
 
 export async function GET(request: Request) {

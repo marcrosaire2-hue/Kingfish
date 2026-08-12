@@ -78,6 +78,7 @@ export async function POST(request: Request) {
       name: user.name,
       role: user.role,
       site: user.site,
+      shift: user.shift,
     };
     const token = await createSessionToken(sessionUser);
 

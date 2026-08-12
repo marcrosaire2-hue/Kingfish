@@ -11,12 +11,37 @@ export type UserRole =
   | "admin";
 export type UserSite = "zogbo" | "gbegamey" | "tous";
 
+/**
+ * Équipe de service. Rattachée au compte : c'est ainsi qu'on sait quelle
+ * équipe a encaissé, sans rien demander au vendeur au moment de la vente.
+ * Les comptes d'encadrement peuvent n'appartenir à aucune équipe.
+ */
+export type UserShift = "jour" | "nuit" | "aucune";
+
+export const SHIFT_LABELS: Record<UserShift, string> = {
+  jour: "Équipe de jour",
+  nuit: "Équipe de nuit",
+  aucune: "Hors équipe",
+};
+
+export const SHIFTS: UserShift[] = ["jour", "nuit", "aucune"];
+
+export function isShift(value: unknown): value is UserShift {
+  return SHIFTS.includes(value as UserShift);
+}
+
+/** Équipe retenue, en tolérant un compte antérieur à cette notion. */
+export function effectiveShift(shift: UserShift | undefined | null): UserShift {
+  return isShift(shift) ? shift : "aucune";
+}
+
 export type AppUser = {
   id: string;
   username: string;
   name: string;
   role: UserRole;
   site: UserSite;
+  shift?: UserShift;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -28,6 +53,7 @@ export type SessionUser = {
   name: string;
   role: UserRole;
   site: UserSite;
+  shift?: UserShift;
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
