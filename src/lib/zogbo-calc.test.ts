@@ -4,10 +4,12 @@ import {
   cancelZogboMovementInState,
   emptyZogboLine,
   leftoverFromZogboLines,
+  leftoverMapHasStock,
   normalizeZogboLine,
   physicalStock,
   previousIsoDate,
   shiftIsoDate,
+  zogboDayHasCarryStock,
 } from "@/lib/zogbo-calc";
 import type { ZogboLine } from "@/lib/types";
 
@@ -150,6 +152,18 @@ describe("leftoverFromZogboLines", () => {
     expect(map.get("a")).toBe(7);
     // Le comptage physique fait foi sur le théorique.
     expect(map.get("b")).toBe(5);
+  });
+
+  it("détecte une journée vide vs une journée reportable", () => {
+    expect(
+      zogboDayHasCarryStock([ligne({ productId: "a", stock: 0, sold: 0 })]),
+    ).toBe(false);
+    expect(
+      zogboDayHasCarryStock([ligne({ productId: "a", stock: 10, sold: 3 })]),
+    ).toBe(true);
+    expect(
+      leftoverMapHasStock(new Map([["x", 0], ["y", 2]])),
+    ).toBe(true);
   });
 });
 

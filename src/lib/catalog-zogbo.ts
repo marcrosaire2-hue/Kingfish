@@ -203,6 +203,26 @@ export function accompanimentUnitPrice(
   return accById.get(accompanimentId)?.unitPrice ?? 500;
 }
 
+/**
+ * Prix autorisés pour un accompagnement : son prix catalogue, et le prix
+ * « plat + accompagnement » de chaque plat qui le propose. Côté serveur,
+ * l'unitPrice envoyé par le client doit appartenir à cet ensemble — jamais
+ * de valeur libre.
+ */
+export function isLegalAccompanimentPrice(
+  accompanimentId: string,
+  price: number,
+): boolean {
+  const acc = accById.get(accompanimentId);
+  if (!acc) return false;
+  if (acc.unitPrice === price) return true;
+  return ZOGBO_PLATS.some(
+    (p) =>
+      p.accompanimentIds.includes(accompanimentId) &&
+      p.accompanimentPrice === price,
+  );
+}
+
 /** Payload pour mise à jour des paramètres (conserve boissons / matières). */
 export function zogboCatalogParametresPatch(): {
   baseDishes: { id: string; name: string; unitPrice: number }[];

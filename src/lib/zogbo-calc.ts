@@ -327,17 +327,37 @@ export function cancelZogboMovementInState(
   };
 }
 
-export function leftoverFromZogboLines(lines: ZogboLine[]): Map<string, number> {
+export function leftoverFromZogboLines(
+  lines: ZogboLine[],
+  options?: { useCounted?: boolean },
+): Map<string, number> {
+  const useCounted = options?.useCounted !== false;
   const out = new Map<string, number>();
   for (const line of lines) {
     const computed = computeZogboLine(line, 0);
     const leftover =
-      computed.counted !== null
+      useCounted && computed.counted !== null
         ? computed.counted
         : Math.max(0, computed.theoreticalRemaining);
     out.set(line.productId, leftover);
   }
   return out;
+}
+
+/** True s’il reste au moins une portion à reporter. */
+export function leftoverMapHasStock(map: Map<string, number>): boolean {
+  for (const qty of map.values()) {
+    if (qty > 0) return true;
+  }
+  return false;
+}
+
+/**
+ * Journée « vide » (souvent aquapro-opening) : rien à vendre ni à reporter.
+ * On ne doit pas bloquer le report du dernier inventaire réel.
+ */
+export function zogboDayHasCarryStock(lines: ZogboLine[]): boolean {
+  return leftoverMapHasStock(leftoverFromZogboLines(lines));
 }
 
 /** Décale une date ISO de `days` jours (négatif = vers le passé). */

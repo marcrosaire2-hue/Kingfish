@@ -196,7 +196,9 @@ export function leftoverFromTransferLines(
   lines: GbegameyTransferLine[],
   receivedById: Map<string, number>,
   unitPriceById?: Map<string, number>,
+  options?: { useCounted?: boolean },
 ): Map<string, number> {
+  const useCounted = options?.useCounted !== false;
   const out = new Map<string, number>();
   for (const line of lines) {
     const computed = computeTransferLine(
@@ -205,7 +207,7 @@ export function leftoverFromTransferLines(
       unitPriceById?.get(line.productId) ?? 0,
     );
     const leftover =
-      computed.counted !== null
+      useCounted && computed.counted !== null
         ? computed.counted
         : Math.max(0, computed.theoreticalRemaining);
     out.set(line.productId, leftover);
@@ -216,7 +218,9 @@ export function leftoverFromTransferLines(
 export function leftoverFromLocalLines(
   lines: GbegameyLocalLine[],
   unitPriceById?: Map<string, number>,
+  options?: { useCounted?: boolean },
 ): Map<string, number> {
+  const useCounted = options?.useCounted !== false;
   const out = new Map<string, number>();
   for (const line of lines) {
     const computed = computeLocalLine(
@@ -224,7 +228,7 @@ export function leftoverFromLocalLines(
       unitPriceById?.get(line.productId) ?? 0,
     );
     const leftover =
-      computed.counted !== null
+      useCounted && computed.counted !== null
         ? computed.counted
         : Math.max(0, computed.theoreticalRemaining);
     out.set(line.productId, leftover);

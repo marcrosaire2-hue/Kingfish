@@ -1,6 +1,10 @@
 import { ObjectId } from "mongodb";
 import { effectiveShift } from "@/lib/auth-types";
-import { getActiveCaisse, addCaisseVenteAmount } from "@/lib/caisse-repo";
+import {
+  getActiveCaisse,
+  getCaisseById,
+  addCaisseVenteAmount,
+} from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getPosConfig } from "@/lib/pos-config-repo";
 import { getVenteBoard, recordExtraVente, recordVente, undoVente } from "@/lib/vente-repo";
@@ -99,12 +103,14 @@ export async function validatePosTicket(input: {
   if (!input.lines.length) throw new Error("Panier vide");
 
   // Vente rejouée après une coupure : si elle a déjà abouti, on renvoie le
-  // ticket existant au lieu d'en créer un second.
+  // ticket existant au lieu d'en créer un second. La déduplication se fait
+  // par référence de poste ET site — une référence d'un autre point ne peut
+  // pas absorber la vente de celui-ci.
   if (input.clientRef) {
     const db = await getDb();
     const existant = await db
       .collection<TicketDoc>("pos_tickets")
-      .findOne({ clientRef: input.clientRef });
+      .findOne({ clientRef: input.clientRef, site: input.site });
     if (existant) {
       return {
         ticket: toTicket(existant),
@@ -205,10 +211,16 @@ export async function validatePosTicket(input: {
   if (!ticketLines.length) throw new Error("Aucune ligne valide");
 
   const montantBrut = ticketLines.reduce((s, l) => s + l.amount, 0);
-  const reduction = Math.max(
-    0,
-    Math.min(montantBrut, Math.round(Number(input.reduction) || 0)),
-  );
+  const reductionRaw = Math.round(Number(input.reduction) || 0);
+  let reduction = 0;
+  if (reductionRaw > 0) {
+    // Réduction = argent qui sort de la caisse : réservée au gérant et à
+    // l'administrateur, jamais au vendeur.
+    if (!["gerant", "admin"].includes(input.user.role)) {
+      throw new Error("Réduction réservée au gérant ou à l'administrateur.");
+    }
+    reduction = Math.min(montantBrut, reductionRaw);
+  }
   const montant = montantBrut - reduction;
   const now = new Date().toISOString();
   const numero = await nextNumero(input.date);
@@ -269,6 +281,16 @@ export async function cancelPosTicket(input: {
   if (!doc) throw new Error("Ticket introuvable");
   if (doc.statut === "annule") throw new Error("Ticket déjà annulé");
 
+  // Caisse fermée : revoir un ticket de cette caisse détournerait l'encaissé
+  // déjà contrôlé (addCaisseVenteAmount n'a aucun effet sur une caisse
+  // fermée, le stock serait pourtant remis et le CA du jour modifié).
+  if (doc.caisseId) {
+    const caisse = await getCaisseById(doc.caisseId);
+    if (caisse && caisse.statut !== "ouverte") {
+      throw new Error("Caisse déjà clôturée : annulation impossible.");
+    }
+  }
+
   const actor = {
     id: input.user.id,
     name: input.user.name,
@@ -285,8 +307,11 @@ export async function cancelPosTicket(input: {
         site: input.site,
         actor,
       });
-    } catch {
-      /* line may already be undone */
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      // Ligne déjà annulée (double clic, rejeu) : le reste suit.
+      if (message.includes("déjà annulée")) continue;
+      throw error;
     }
   }
 

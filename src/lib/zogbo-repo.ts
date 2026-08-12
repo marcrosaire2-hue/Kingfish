@@ -15,19 +15,28 @@ import {
   cancelZogboMovementInState,
   createEmptyZogboDay,
   leftoverFromZogboLines,
+  leftoverMapHasStock,
   LEFTOVER_LOOKBACK_DAYS,
   normalizeZogboLine,
   normalizeZogboMovement,
   previousIsoDate,
   shiftIsoDate,
   syncZogboLinesWithCatalog,
+  zogboDayHasCarryStock,
 } from "@/lib/zogbo-calc";
+import {
+  leftoverFromLocalLines,
+} from "@/lib/gbegamey-calc";
 import {
   loadAquaAlimentStocks,
   openingByProductName,
 } from "@/lib/aquapro-opening-stock";
 
-type ZogboDoc = Omit<ZogboDay, "date"> & { _id: string; rev?: number };
+type ZogboDoc = Omit<ZogboDay, "date"> & {
+  _id: string;
+  rev?: number;
+  source?: string;
+};
 
 function normalizeAccompanimentLine(
   line: Partial<GbegameyLocalLine> & { productId: string; name: string },
@@ -87,36 +96,115 @@ export type ZogboDayPayload = {
 };
 
 /**
- * Reste à reporter : on remonte au dernier jour réellement travaillé,
- * pas seulement à la veille — sinon une journée de fermeture remet
- * tous les stocks à zéro.
+ * Reste à reporter : on remonte au dernier jour avec un stock réel
+ * (comptage ou théorique), en ignorant les journées vides auto-créées
+ * (aquapro-opening à zéro) qui sinon casseraient la chaîne.
+ * Inclut les accompagnements Zogbo (ex. Attasi).
  */
 async function leftoversForDate(
   date: string,
   baseDishes: BaseDish[],
-): Promise<Map<string, number>> {
+  localDishes: LocalDish[],
+): Promise<{
+  lines: Map<string, number>;
+  accompaniment: Map<string, number>;
+}> {
   const prev = previousIsoDate(date);
   const floor = shiftIsoDate(date, -LEFTOVER_LOOKBACK_DAYS);
   if (prev && floor) {
     const db = await getDb();
-    const prevDoc = await db
+    const docs = await db
       .collection<ZogboDoc>("zogbo_jours")
       .find({ _id: { $lte: prev, $gte: floor } })
       .sort({ _id: -1 })
-      .limit(1)
-      .next();
-    if (prevDoc?.lines?.length) {
-      return leftoverFromZogboLines(
-        prevDoc.lines.map((l) => normalizeZogboLine(l)),
+      .toArray();
+
+    for (const prevDoc of docs) {
+      const useCounted = prevDoc.status === "cloturee";
+      const lines = leftoverFromZogboLines(
+        (prevDoc.lines ?? []).map((l) => normalizeZogboLine(l)),
+        { useCounted },
       );
+      const accompaniment = leftoverFromLocalLines(
+        (prevDoc.accompanimentLines ?? []).map((l) =>
+          normalizeAccompanimentLine(l),
+        ),
+        undefined,
+        { useCounted },
+      );
+      if (
+        leftoverMapHasStock(lines) ||
+        leftoverMapHasStock(accompaniment)
+      ) {
+        return { lines, accompaniment };
+      }
     }
   }
   try {
     const { byName } = await loadAquaAlimentStocks();
-    return openingByProductName(baseDishes, byName);
+    return {
+      lines: openingByProductName(baseDishes, byName),
+      accompaniment: openingByProductName(localDishes, byName),
+    };
   } catch {
-    return new Map();
+    return { lines: new Map(), accompaniment: new Map() };
   }
+}
+
+function buildAccompanimentOpening(
+  localDishes: LocalDish[],
+  leftovers: Map<string, number>,
+): GbegameyLocalLine[] {
+  return localDishes.map((d) => {
+    const opening = leftovers.get(d.id) ?? 0;
+    return {
+      productId: d.id,
+      name: d.name,
+      initialStock: opening,
+      prepared: 0,
+      sold: 0,
+      pertes: 0,
+      // Non signé : le report du lendemain utilisera le théorique (init − vendu).
+      counted: null,
+      observations:
+        opening > 0 ? "Report stock veille (non inventorié)" : "",
+    };
+  });
+}
+
+function applyLineOpenings(
+  baseDishes: BaseDish[],
+  leftovers: Map<string, number>,
+): ZogboLine[] {
+  return createEmptyZogboDay("tmp", baseDishes, leftovers).lines.map((l) => ({
+    ...l,
+    prepared: 0,
+    counted: null,
+    observations:
+      (leftovers.get(l.productId) ?? 0) > 0
+        ? "Report stock veille (non inventorié)"
+        : "",
+  }));
+}
+
+function accompanimentHasCarryStock(lines: GbegameyLocalLine[]): boolean {
+  return leftoverMapHasStock(leftoverFromLocalLines(lines));
+}
+
+function zogboDocNeedsStockHeal(doc: ZogboDoc): boolean {
+  const lines = (doc.lines ?? []).map((l) => normalizeZogboLine(l));
+  const acc = (doc.accompanimentLines ?? []).map((l) =>
+    normalizeAccompanimentLine(l),
+  );
+  const empty =
+    !zogboDayHasCarryStock(lines) && !accompanimentHasCarryStock(acc);
+  if (!empty) return false;
+  // Journée déjà travaillée (ventes / envois) : ne pas écraser.
+  const worked = lines.some(
+    (l) => l.sold > 0 || l.sentToGbegamey > 0 || l.prepared > 0,
+  );
+  const accWorked = acc.some((l) => l.sold > 0 || l.prepared > 0);
+  return !(worked || accWorked);
 }
 
 export async function getZogboDayPayload(
@@ -131,36 +219,65 @@ export async function getZogboDayPayload(
   const col = db.collection<ZogboDoc>("zogbo_jours");
   const existing = await col.findOne({ _id: date });
 
-  if (!existing) {
-    const leftovers = await leftoversForDate(date, baseDishes);
-    const day = createEmptyZogboDay(date, baseDishes, leftovers);
-    if (leftovers.size > 0) {
-      const updatedAt = new Date().toISOString();
-      const lines = day.lines.map((l) => ({
-        ...l,
-        prepared: l.stock,
-        counted: leftovers.has(l.productId) ? l.stock : null,
-        observations: leftovers.has(l.productId)
-          ? "Ouverture AquaPro (stock final)"
-          : "",
-      }));
-      await col.updateOne(
-        { _id: date },
-        {
-          $set: {
-            status: "ouverte",
-            lines,
-            movements: [],
-            updatedAt,
-            source: "aquapro-opening",
-          },
-          $setOnInsert: { _id: date },
+  const materializeFromLeftovers = async (source: string) => {
+    const leftovers = await leftoversForDate(date, baseDishes, localDishes);
+    const has =
+      leftoverMapHasStock(leftovers.lines) ||
+      leftoverMapHasStock(leftovers.accompaniment);
+    if (!has) return null;
+
+    const updatedAt = new Date().toISOString();
+    const lines = applyLineOpenings(baseDishes, leftovers.lines);
+    const accompanimentLines = buildAccompanimentOpening(
+      localDishes,
+      leftovers.accompaniment,
+    );
+    await col.updateOne(
+      { _id: date },
+      {
+        $set: {
+          status: existing?.status ?? "ouverte",
+          lines,
+          accompanimentLines,
+          movements: existing?.movements ?? [],
+          updatedAt,
+          source,
         },
-        { upsert: true },
-      );
-      return { day: { ...day, lines, updatedAt }, baseDishes };
-    }
-    return { day, baseDishes };
+        $setOnInsert: { _id: date },
+      },
+      { upsert: true },
+    );
+    return {
+      day: {
+        date,
+        status: (existing?.status ?? "ouverte") as ZogboDay["status"],
+        lines,
+        accompanimentLines,
+        movements: (existing?.movements ?? [])
+          .map((m) => normalizeZogboMovement(m))
+          .filter((m): m is ZogboMovement => !!m),
+        updatedAt,
+      },
+      baseDishes,
+    };
+  };
+
+  if (!existing) {
+    const created = await materializeFromLeftovers("stock-report");
+    if (created) return created;
+    const day = createEmptyZogboDay(date, baseDishes);
+    return {
+      day: {
+        ...day,
+        accompanimentLines: syncZogboAccompanimentLines([], localDishes),
+      },
+      baseDishes,
+    };
+  }
+
+  if (zogboDocNeedsStockHeal(existing)) {
+    const healed = await materializeFromLeftovers("stock-report");
+    if (healed) return healed;
   }
 
   const accompanimentLines = syncZogboAccompanimentLines(
@@ -193,13 +310,15 @@ export async function saveZogboDay(
 
   const lockSold = options?.lockSold !== false;
   const directWrite = options?.directWrite === true;
-  const { baseDishes } = await getParametres();
+  const { baseDishes, localDishes } = await getParametres();
 
   return updateDayDocument<ZogboDoc, ZogboDayPayload>(
     "zogbo_jours",
     input.date,
     async (existing) => {
-      const leftovers = existing ? null : await leftoversForDate(input.date, baseDishes);
+      const leftovers = existing
+        ? null
+        : await leftoversForDate(input.date, baseDishes, localDishes);
 
       // Les compteurs restent ceux de la base : la grille ne pilote ni le
       // stock, ni les envois, ni les ventes.
@@ -222,7 +341,7 @@ export async function saveZogboDay(
           if (!existing) {
             return {
               ...normalized,
-              stock: leftovers?.get(line.productId) ?? 0,
+              stock: leftovers?.lines.get(line.productId) ?? 0,
               prepared: 0,
               sentToGbegamey: 0,
               sold: lockSold ? 0 : normalized.sold,

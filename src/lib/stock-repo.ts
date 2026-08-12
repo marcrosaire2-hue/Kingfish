@@ -113,10 +113,10 @@ function buildZoneTotals(rows: StockRow[]): StockZoneTotal[] {
 export async function getStockPayload(input: {
   date: string;
   scopeSite?: VenteSite | null;
-  /** false = tout le catalogue ; true = lignes avec mouvement uniquement */
+  /** false = tout le catalogue ; true = lignes avec stock ou mouvement */
   onlyActive?: boolean;
 }): Promise<StockPayload> {
-  const { date, scopeSite = null, onlyActive = false } = input;
+  const { date, scopeSite = null, onlyActive = true } = input;
   if (!isValidDate(date)) throw new Error("Date invalide (attendu YYYY-MM-DD)");
 
   const parametres = await getParametres();

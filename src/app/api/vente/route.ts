@@ -137,6 +137,9 @@ export async function POST(request: Request) {
       const m = error.message;
       if (
         m.includes("Prix de vente") ||
+        m.includes("Prix non autorisé") ||
+        m.includes("Réduction réservée") ||
+        m.includes("clôturée") ||
         m.includes("introuvable") ||
         m.includes("insuffisante") ||
         m.includes("insuffisant") ||

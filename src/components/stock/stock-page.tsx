@@ -86,7 +86,7 @@ export function StockPage() {
   return (
     <AppShell
       title="Stock"
-      subtitle="Stock final par plat et accompagnement, calculé depuis les inventaires du jour"
+      subtitle="Stock final par plat et accompagnement pour chaque site et chaque date — inventaire signé ou report théorique"
       actions={
         data ? (
           <ExportExcelButton
@@ -231,8 +231,10 @@ export function StockPage() {
 
               {filteredRows.length === 0 ? (
                 <p className="p-6 text-sm text-stone-500">
-                  Aucun mouvement de stock pour cette date
-                  {zoneFilter !== "all" ? " dans cette zone" : ""}.
+                  Aucun stock reporté pour cette date
+                  {zoneFilter !== "all" ? " dans cette zone" : ""}
+                  . Ouvrez la fiche du site ou choisissez une date après
+                  inventaire.
                 </p>
               ) : (
                 <div className="overflow-x-auto">

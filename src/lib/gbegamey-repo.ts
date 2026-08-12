@@ -20,6 +20,7 @@ import {
 import { getZogboDayPayload } from "@/lib/zogbo-repo";
 import {
   LEFTOVER_LOOKBACK_DAYS,
+  leftoverMapHasStock,
   previousIsoDate,
   shiftIsoDate,
 } from "@/lib/zogbo-calc";
@@ -28,7 +29,11 @@ import {
   openingByProductName,
 } from "@/lib/aquapro-opening-stock";
 
-type GbegameyDoc = Omit<GbegameyDay, "date"> & { _id: string; rev?: number };
+type GbegameyDoc = Omit<GbegameyDay, "date"> & {
+  _id: string;
+  rev?: number;
+  source?: string;
+};
 
 function isValidDate(date: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(date);
@@ -79,9 +84,8 @@ async function loadSentMap(date: string): Promise<Record<string, number>> {
 }
 
 /**
- * Reste à reporter : on remonte au dernier jour réellement travaillé dans la
- * fenêtre de report — une journée de fermeture ne doit pas remettre les
- * stocks à zéro, mais un plat ne se reporte pas indéfiniment.
+ * Reste à reporter : saute les journées vides pour ne pas casser la chaîne
+ * après un jour auto-créé à zéro (signé ou non).
  */
 async function leftoversForDate(
   date: string,
@@ -94,24 +98,30 @@ async function leftoversForDate(
   const floor = shiftIsoDate(date, -LEFTOVER_LOOKBACK_DAYS);
   if (prev && floor) {
     const db = await getDb();
-    const prevDoc = await db
+    const docs = await db
       .collection<GbegameyDoc>("gbegamey_jours")
       .find({ _id: { $lte: prev, $gte: floor } })
       .sort({ _id: -1 })
-      .limit(1)
-      .next();
-    if (prevDoc) {
+      .toArray();
+
+    for (const prevDoc of docs) {
+      const useCounted = prevDoc.status === "cloturee";
       const prevSent = await loadSentMap(prevDoc._id);
       const receivedMap = new Map(Object.entries(prevSent));
-      return {
-        transfer: leftoverFromTransferLines(
-          (prevDoc.transferLines ?? []).map((l) => normalizeTransferLine(l)),
-          receivedMap,
-        ),
-        local: leftoverFromLocalLines(
-          (prevDoc.localLines ?? []).map((l) => normalizeLocalLine(l)),
-        ),
-      };
+      const transfer = leftoverFromTransferLines(
+        (prevDoc.transferLines ?? []).map((l) => normalizeTransferLine(l)),
+        receivedMap,
+        undefined,
+        { useCounted },
+      );
+      const local = leftoverFromLocalLines(
+        (prevDoc.localLines ?? []).map((l) => normalizeLocalLine(l)),
+        undefined,
+        { useCounted },
+      );
+      if (leftoverMapHasStock(transfer) || leftoverMapHasStock(local)) {
+        return { transfer, local };
+      }
     }
   }
   try {
@@ -123,6 +133,32 @@ async function leftoversForDate(
   } catch {
     return { transfer: new Map(), local: new Map() };
   }
+}
+
+function gbegameyDocNeedsStockHeal(doc: GbegameyDoc): boolean {
+  // Sans received map on approxime via initialStock / counted / sold.
+  const transferEmpty = !(doc.transferLines ?? []).some((l) => {
+    const n = normalizeTransferLine(l);
+    return (
+      n.initialStock > 0 ||
+      n.sold > 0 ||
+      (n.counted !== null && n.counted > 0)
+    );
+  });
+  const localEmpty = !leftoverMapHasStock(
+    leftoverFromLocalLines(
+      (doc.localLines ?? []).map((l) => normalizeLocalLine(l)),
+    ),
+  );
+  if (!transferEmpty || !localEmpty) return false;
+  const worked = (doc.transferLines ?? []).some(
+    (l) => normalizeTransferLine(l).sold > 0,
+  );
+  const localWorked = (doc.localLines ?? []).some((l) => {
+    const n = normalizeLocalLine(l);
+    return n.sold > 0 || n.prepared > 0;
+  });
+  return !(worked || localWorked);
 }
 
 export async function getGbegameyDayPayload(
@@ -139,8 +175,13 @@ export async function getGbegameyDayPayload(
   const col = db.collection<GbegameyDoc>("gbegamey_jours");
   const existing = await col.findOne({ _id: date });
 
-  if (!existing) {
+  const materializeFromLeftovers = async (source: string) => {
     const leftovers = await leftoversForDate(date, localDishes);
+    const has =
+      leftoverMapHasStock(leftovers.transfer) ||
+      leftoverMapHasStock(leftovers.local);
+    if (!has) return null;
+
     const day = createEmptyGbegameyDay(
       date,
       baseDishes,
@@ -148,44 +189,64 @@ export async function getGbegameyDayPayload(
       leftovers.transfer,
       leftovers.local,
     );
-    if (leftovers.local.size > 0 || leftovers.transfer.size > 0) {
-      const updatedAt = new Date().toISOString();
-      const localLines = day.localLines.map((l) => ({
-        ...l,
-        counted: leftovers.local.has(l.productId) ? l.initialStock : null,
-        observations: leftovers.local.has(l.productId)
-          ? "Ouverture AquaPro (stock final)"
-          : "",
-      }));
-      await col.updateOne(
-        { _id: date },
-        {
-          $set: {
-            status: "ouverte",
-            transferLines: day.transferLines,
-            localLines,
-            updatedAt,
-            source: "aquapro-opening",
-          },
-          $setOnInsert: { _id: date },
+    const updatedAt = new Date().toISOString();
+    // Non signé : counted reste null pour que le théorique suive les ventes.
+    const localLines = day.localLines.map((l) => ({
+      ...l,
+      counted: null,
+      observations:
+        l.initialStock > 0 ? "Report stock veille (non inventorié)" : "",
+    }));
+    const transferLines = day.transferLines.map((l) => ({
+      ...l,
+      counted: null,
+      observations:
+        l.initialStock > 0 ? "Report stock veille (non inventorié)" : "",
+    }));
+    await col.updateOne(
+      { _id: date },
+      {
+        $set: {
+          status: existing?.status ?? "ouverte",
+          transferLines,
+          localLines,
+          updatedAt,
+          source,
         },
-        { upsert: true },
-      );
-      return {
-        day: { ...day, localLines, updatedAt },
-        baseDishes,
-        localDishes,
-        sentByProductId,
-        openingEditable,
-      };
-    }
+        $setOnInsert: { _id: date },
+      },
+      { upsert: true },
+    );
     return {
-      day,
+      day: {
+        ...day,
+        transferLines,
+        localLines,
+        status: (existing?.status ?? "ouverte") as GbegameyDay["status"],
+        updatedAt,
+      },
       baseDishes,
       localDishes,
       sentByProductId,
       openingEditable,
     };
+  };
+
+  if (!existing) {
+    const created = await materializeFromLeftovers("stock-report");
+    if (created) return created;
+    return {
+      day: createEmptyGbegameyDay(date, baseDishes, localDishes),
+      baseDishes,
+      localDishes,
+      sentByProductId,
+      openingEditable,
+    };
+  }
+
+  if (gbegameyDocNeedsStockHeal(existing)) {
+    const healed = await materializeFromLeftovers("stock-report");
+    if (healed) return healed;
   }
 
   const day = toDay(existing);
