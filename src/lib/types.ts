@@ -91,6 +91,52 @@ export type Parametres = {
 
 export type DayStatus = "ouverte" | "cloturee";
 
+/**
+ * Motif d'une sortie de stock qui n'est pas une vente. Le motif est
+ * obligatoire : une quantité qui disparaît sans raison déclarée est
+ * indiscernable d'un vol.
+ */
+export type PerteMotif =
+  | "gate"
+  | "casse"
+  | "test"
+  | "offert"
+  | "erreur"
+  | "autre";
+
+export const PERTE_MOTIF_LABELS: Record<PerteMotif, string> = {
+  gate: "Produit gâté / périmé",
+  casse: "Casse",
+  test: "Test / dégustation",
+  offert: "Offert",
+  erreur: "Erreur de préparation",
+  autre: "Autre (à préciser)",
+};
+
+/** Famille de stock concernée par une perte. */
+export type PerteKind = "plat" | "local" | "combo" | "boisson" | "matiere";
+
+/** Une déclaration de perte au journal — jamais effacée, seulement annulable. */
+export type PerteEntry = {
+  id: string;
+  date: string;
+  site: VenteSite;
+  kind: PerteKind;
+  productId: ProductId;
+  name: string;
+  qty: number;
+  motif: PerteMotif;
+  commentaire: string;
+  /** Prix de revient unitaire figé au moment de la déclaration */
+  unitCost: number;
+  /** qty × unitCost, ce que la perte coûte réellement */
+  cost: number;
+  at: string;
+  cancelledAt: string | null;
+  actorName: string | null;
+  cancelledByName: string | null;
+};
+
 /** Mouvement de stock Zogbo (préparation ou envoi) */
 export type ZogboMovementType = "prepare" | "send";
 
@@ -121,6 +167,8 @@ export type ZogboLine = {
   /** Total envoyé à Gbégamey aujourd’hui */
   sentToGbegamey: number;
   sold: number;
+  /** Sorties déclarées hors vente (gâté, casse, test…) */
+  pertes: number;
   counted: number | null;
   observations: string;
 };
@@ -155,6 +203,8 @@ export type GbegameyTransferLine = {
    */
   received: number | null;
   sold: number;
+  /** Sorties déclarées hors vente */
+  pertes: number;
   counted: number | null;
   observations: string;
 };
@@ -167,6 +217,8 @@ export type GbegameyLocalLine = {
   initialStock: number;
   prepared: number;
   sold: number;
+  /** Sorties déclarées hors vente */
+  pertes: number;
   counted: number | null;
   observations: string;
 };
@@ -276,10 +328,14 @@ export type CombosLine = {
   prepared: number;
   sentToGbegamey: number;
   soldZogbo: number;
+  /** Sorties déclarées hors vente, côté Zogbo */
+  pertesZogbo: number;
   countedZogbo: number | null;
   /** Reste Gbégamey en début de jour */
   initialGbegamey: number;
   soldGbegamey: number;
+  /** Sorties déclarées hors vente, côté Gbégamey */
+  pertesGbegamey: number;
   countedGbegamey: number | null;
   observations: string;
 };
@@ -334,6 +390,8 @@ export type BoissonsLine = {
   soldZogbo: number;
   /** Ventes Gbégamey en bouteilles */
   soldGbegamey: number;
+  /** Sorties déclarées hors vente, en bouteilles */
+  pertes: number;
   /** Comptage physique en casiers */
   counted: number | null;
   observations: string;
@@ -568,6 +626,8 @@ export type MatieresLine = {
   initialStock: number;
   purchases: number;
   consumed: number;
+  /** Sorties déclarées hors consommation (gâté, casse…) */
+  pertes: number;
   counted: number | null;
   observations: string;
 };

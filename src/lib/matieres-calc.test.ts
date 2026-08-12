@@ -9,6 +9,7 @@ function ligne(patch: Partial<MatieresLine> = {}): MatieresLine {
     initialStock: 0,
     purchases: 0,
     consumed: 0,
+    pertes: 0,
     counted: null,
     observations: "",
     ...patch,

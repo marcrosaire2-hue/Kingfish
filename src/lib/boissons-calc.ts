@@ -71,6 +71,7 @@ export function emptyBoissonsLine(
     purchases: 0,
     soldZogbo: 0,
     soldGbegamey: 0,
+    pertes: 0,
     counted: null,
     observations: "",
   };
@@ -88,6 +89,7 @@ export function normalizeBoissonsLine(line: LegacyBoissonsLine): BoissonsLine {
       line.soldZogbo !== undefined ? Number(line.soldZogbo) || 0 : legacySold,
     ),
     soldGbegamey: Math.max(0, Number(line.soldGbegamey) || 0),
+    pertes: Math.max(0, Number(line.pertes) || 0),
     counted:
       line.counted === null || line.counted === undefined
         ? null
@@ -157,7 +159,7 @@ function remainingCasiers(
   line: Pick<
     BoissonsLine,
     "initialStock" | "purchases" | "soldZogbo" | "soldGbegamey"
-  >,
+  > & { pertes?: number },
   upc: number,
 ): number {
   const available = line.initialStock + line.purchases;
@@ -197,7 +199,9 @@ export function computeBoissonsLine(
   const available = normalized.initialStock + normalized.purchases;
   const soldTotal = normalized.soldZogbo + normalized.soldGbegamey;
   const soldCasiers = soldTotal / upc;
-  const theoreticalRemaining = available - soldCasiers;
+  // La perte est saisie en bouteilles, le stock se raisonne en casiers.
+  const perteCasiers = normalized.pertes / upc;
+  const theoreticalRemaining = available - soldCasiers - perteCasiers;
   const stockBottles = Math.max(0, Math.round(available * upc - soldTotal));
   const soldAmountZogbo =
     salePrice === null ? 0 : normalized.soldZogbo * salePrice;
@@ -234,14 +238,15 @@ export function physicalBoissonsStock(
   line: Pick<
     BoissonsLine,
     "initialStock" | "purchases" | "soldZogbo" | "soldGbegamey"
-  >,
+  > & { pertes?: number },
   unitsPerCasier: number = DEFAULT_UNITS_PER_CASIER,
 ): number {
   const upc = Math.max(1, Math.round(unitsPerCasier) || DEFAULT_UNITS_PER_CASIER);
   const bottles =
     (line.initialStock + line.purchases) * upc -
     line.soldZogbo -
-    line.soldGbegamey;
+    line.soldGbegamey -
+    Math.max(0, Number(line.pertes) || 0);
   return Math.max(0, Math.round(bottles));
 }
 

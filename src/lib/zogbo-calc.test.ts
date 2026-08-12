@@ -19,6 +19,7 @@ function ligne(patch: Partial<ZogboLine> = {}): ZogboLine {
     prepared: 0,
     sentToGbegamey: 0,
     sold: 0,
+    pertes: 0,
     counted: null,
     observations: "",
     ...patch,

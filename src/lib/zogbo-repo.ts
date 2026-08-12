@@ -173,6 +173,7 @@ export async function saveZogboDay(
               prepared: 0,
               sentToGbegamey: 0,
               sold: lockSold ? 0 : normalized.sold,
+              pertes: 0,
             };
           }
           const held = current.get(line.productId);
@@ -183,6 +184,8 @@ export async function saveZogboDay(
             sentToGbegamey:
               held?.sentToGbegamey ?? normalized.sentToGbegamey,
             sold: lockSold ? (held?.sold ?? 0) : normalized.sold,
+            // Compteur piloté par les déclarations de perte, pas par la grille.
+            pertes: held?.pertes ?? 0,
           };
         },
       );

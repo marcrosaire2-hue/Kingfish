@@ -21,6 +21,7 @@ export function emptyTransferLine(
     initialStock: Math.max(0, initialStock),
     received: null,
     sold: 0,
+    pertes: 0,
     counted: null,
     observations: "",
   };
@@ -36,6 +37,7 @@ export function emptyLocalLine(
     initialStock: Math.max(0, initialStock),
     prepared: 0,
     sold: 0,
+    pertes: 0,
     counted: null,
     observations: "",
   };
@@ -53,6 +55,7 @@ export function normalizeTransferLine(
         ? null
         : Math.max(0, Number(line.received) || 0),
     sold: Math.max(0, Number(line.sold) || 0),
+    pertes: Math.max(0, Number(line.pertes) || 0),
     counted:
       line.counted === null || line.counted === undefined
         ? null
@@ -68,6 +71,7 @@ export function normalizeLocalLine(line: LegacyLocal): GbegameyLocalLine {
     initialStock: Math.max(0, Number(line.initialStock) || 0),
     prepared: Math.max(0, Number(line.prepared) || 0),
     sold: Math.max(0, Number(line.sold) || 0),
+    pertes: Math.max(0, Number(line.pertes) || 0),
     counted:
       line.counted === null || line.counted === undefined
         ? null
@@ -144,7 +148,8 @@ export function computeTransferLine(
     normalized.received === null ? null : sentFromZogbo - normalized.received;
 
   const available = normalized.initialStock + receivedFromZogbo;
-  const theoreticalRemaining = available - normalized.sold;
+  const theoreticalRemaining =
+    available - normalized.sold - normalized.pertes;
   const variance =
     normalized.counted === null
       ? null
@@ -170,7 +175,8 @@ export function computeLocalLine(
 ): GbegameyLocalComputed {
   const normalized = normalizeLocalLine(line);
   const available = normalized.initialStock + normalized.prepared;
-  const theoreticalRemaining = available - normalized.sold;
+  const theoreticalRemaining =
+    available - normalized.sold - normalized.pertes;
   const variance =
     normalized.counted === null
       ? null

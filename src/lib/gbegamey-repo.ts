@@ -255,7 +255,9 @@ export async function saveGbegameyDay(
               0)
             : (leftovers.transfer.get(l.productId) ?? 0);
         const sold = lockSold ? (held?.sold ?? 0) : normalized.sold;
-        return { ...normalized, initialStock, sold };
+        // Compteur piloté par les déclarations de perte, pas par la grille.
+        const pertes = held?.pertes ?? 0;
+        return { ...normalized, initialStock, sold, pertes };
       });
 
       const localLines = syncLocalLines(input.localLines, localDishes).map(
@@ -268,7 +270,8 @@ export async function saveGbegameyDay(
               ? (held?.initialStock ?? leftovers.local.get(l.productId) ?? 0)
               : (leftovers.local.get(l.productId) ?? 0);
           const sold = lockSold ? (held?.sold ?? 0) : normalized.sold;
-          return { ...normalized, initialStock, sold };
+          const pertes = held?.pertes ?? 0;
+          return { ...normalized, initialStock, sold, pertes };
         },
       );
 

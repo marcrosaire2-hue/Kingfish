@@ -26,9 +26,11 @@ export function emptyCombosLine(
     prepared: 0,
     sentToGbegamey: 0,
     soldZogbo: 0,
+    pertesZogbo: 0,
     countedZogbo: null,
     initialGbegamey: Math.max(0, opening?.initialGbegamey ?? 0),
     soldGbegamey: 0,
+    pertesGbegamey: 0,
     countedGbegamey: null,
     observations: "",
   };
@@ -43,12 +45,14 @@ export function normalizeCombosLine(line: LegacyCombosLine): CombosLine {
     prepared: Math.max(0, Number(line.prepared) || 0),
     sentToGbegamey: Math.max(0, Number(line.sentToGbegamey) || 0),
     soldZogbo: Math.max(0, Number(line.soldZogbo) || 0),
+    pertesZogbo: Math.max(0, Number(line.pertesZogbo) || 0),
     countedZogbo:
       line.countedZogbo === null || line.countedZogbo === undefined
         ? null
         : Math.max(0, Number(line.countedZogbo) || 0),
     initialGbegamey: Math.max(0, Number(line.initialGbegamey) || 0),
     soldGbegamey: Math.max(0, Number(line.soldGbegamey) || 0),
+    pertesGbegamey: Math.max(0, Number(line.pertesGbegamey) || 0),
     countedGbegamey:
       line.countedGbegamey === null || line.countedGbegamey === undefined
         ? null
@@ -133,15 +137,27 @@ export function createEmptyCombosDay(
 }
 
 export function physicalComboStockZogbo(
-  line: Pick<CombosLine, "stockZogbo" | "soldZogbo">,
+  line: Pick<CombosLine, "stockZogbo" | "soldZogbo"> & { pertesZogbo?: number },
 ): number {
-  return line.stockZogbo - line.soldZogbo;
+  return (
+    line.stockZogbo -
+    line.soldZogbo -
+    Math.max(0, Number(line.pertesZogbo) || 0)
+  );
 }
 
 export function physicalComboStockGbegamey(
-  line: Pick<CombosLine, "initialGbegamey" | "sentToGbegamey" | "soldGbegamey">,
+  line: Pick<
+    CombosLine,
+    "initialGbegamey" | "sentToGbegamey" | "soldGbegamey"
+  > & { pertesGbegamey?: number },
 ): number {
-  return line.initialGbegamey + line.sentToGbegamey - line.soldGbegamey;
+  return (
+    line.initialGbegamey +
+    line.sentToGbegamey -
+    line.soldGbegamey -
+    Math.max(0, Number(line.pertesGbegamey) || 0)
+  );
 }
 
 export function computeCombosLine(

@@ -131,6 +131,7 @@ export async function saveCombosDay(
           soldZogbo: lockSold
             ? (prev?.soldZogbo ?? 0)
             : Math.max(0, Number(line.soldZogbo) || 0),
+          pertesZogbo: prev?.pertesZogbo ?? 0,
           countedZogbo: line.countedZogbo,
           initialGbegamey: existing
             ? (prev?.initialGbegamey ?? 0)
@@ -138,6 +139,7 @@ export async function saveCombosDay(
           soldGbegamey: lockSold
             ? (prev?.soldGbegamey ?? 0)
             : Math.max(0, Number(line.soldGbegamey) || 0),
+          pertesGbegamey: prev?.pertesGbegamey ?? 0,
           countedGbegamey: line.countedGbegamey,
           observations: String(line.observations ?? ""),
         };

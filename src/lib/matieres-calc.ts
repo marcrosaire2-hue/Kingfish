@@ -16,6 +16,7 @@ export function emptyMatieresLine(
     initialStock: Math.max(0, Number(openingStock) || 0),
     purchases: 0,
     consumed: 0,
+    pertes: 0,
     counted: null,
     observations: "",
   };
@@ -30,6 +31,7 @@ export function normalizeMatieresLine(
     initialStock: Math.max(0, Number(line.initialStock) || 0),
     purchases: Math.max(0, Number(line.purchases) || 0),
     consumed: Math.max(0, Number(line.consumed) || 0),
+    pertes: Math.max(0, Number(line.pertes) || 0),
     counted:
       line.counted === null || line.counted === undefined
         ? null
@@ -58,7 +60,10 @@ export function normalizeMatieresMovement(
 export function stockOf(line: MatieresLine): number {
   return Math.max(
     0,
-    line.initialStock + line.purchases - line.consumed,
+    line.initialStock +
+      line.purchases -
+      line.consumed -
+      Math.max(0, Number(line.pertes) || 0),
   );
 }
 

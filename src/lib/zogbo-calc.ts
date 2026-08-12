@@ -26,6 +26,7 @@ export function emptyZogboLine(
     prepared: 0,
     sentToGbegamey: 0,
     sold: 0,
+    pertes: 0,
     counted: null,
     observations: "",
   };
@@ -52,6 +53,7 @@ export function normalizeZogboLine(line: LegacyZogboLine): ZogboLine {
     prepared,
     sentToGbegamey,
     sold,
+    pertes: Math.max(0, Number(line.pertes) || 0),
     counted:
       line.counted === null || line.counted === undefined
         ? null
@@ -118,8 +120,10 @@ export function createEmptyZogboDay(
  * Ce qui est réellement en main à Zogbo : le préparé encore présent
  * (les envois l’ont déjà décrémenté) moins ce qui a été vendu sur place.
  */
-export function physicalStock(line: Pick<ZogboLine, "stock" | "sold">): number {
-  return line.stock - line.sold;
+export function physicalStock(
+  line: Pick<ZogboLine, "stock" | "sold"> & { pertes?: number },
+): number {
+  return line.stock - line.sold - Math.max(0, Number(line.pertes) || 0);
 }
 
 export function computeZogboLine(
@@ -128,7 +132,7 @@ export function computeZogboLine(
 ): ZogboLineComputed {
   const normalized = normalizeZogboLine(line);
   const available = normalized.stock;
-  const theoreticalRemaining = available - normalized.sold;
+  const theoreticalRemaining = available - normalized.sold - normalized.pertes;
   const variance =
     normalized.counted === null
       ? null

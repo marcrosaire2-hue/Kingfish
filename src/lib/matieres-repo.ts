@@ -166,6 +166,8 @@ export async function saveMatieresDay(input: {
           initialStock,
           purchases,
           consumed,
+          // Compteur de pertes piloté par les déclarations, jamais par la grille.
+          pertes: prev?.pertes ?? 0,
           counted: line.counted,
           observations: String(line.observations ?? ""),
         };

@@ -17,6 +17,7 @@ function ligne(patch: Partial<BoissonsLine> = {}): BoissonsLine {
     purchases: 0,
     soldZogbo: 0,
     soldGbegamey: 0,
+    pertes: 0,
     counted: null,
     observations: "",
     ...patch,

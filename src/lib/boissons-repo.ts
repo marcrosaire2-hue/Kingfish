@@ -169,6 +169,8 @@ export async function saveBoissonsDay(
           soldGbegamey: lockSold
             ? (prev?.soldGbegamey ?? 0)
             : Math.max(0, Number(line.soldGbegamey) || 0),
+          // Compteur de pertes piloté par les déclarations, jamais par la grille.
+          pertes: prev?.pertes ?? 0,
           counted: line.counted,
           observations: String(line.observations ?? ""),
         };
