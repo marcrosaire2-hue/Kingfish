@@ -44,7 +44,8 @@ const MONTH_NAMES = [
 ];
 
 const CHARGE_FIELDS: {
-  key: keyof Omit<DayCharges, "date" | "updatedAt">;
+  // « pertes » est calculé depuis le journal des pertes : jamais saisi ici.
+  key: keyof Omit<DayCharges, "date" | "updatedAt" | "pertes">;
   label: string;
 }[] = [
   { key: "matieresPremieres", label: "Achats matières 1ères" },

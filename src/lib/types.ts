@@ -263,6 +263,12 @@ export type DayCharges = {
   electricite: number;
   carburant: number;
   reparations: number;
+  /**
+   * Coût des pertes déclarées, valorisé au prix de revient. Calculé depuis le
+   * journal des pertes, jamais saisi à la main : il doit toujours correspondre
+   * aux déclarations.
+   */
+  pertes?: number;
   updatedAt: string | null;
 };
 

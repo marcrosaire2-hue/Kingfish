@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
+import { sumPertesCost } from "@/lib/pertes-repo";
 import type {
   BoissonsDay,
   CombosDay,
@@ -83,6 +84,29 @@ function toCharges(doc: ChargesDoc | null, date: string): DayCharges {
     reparations: Number(doc.reparations) || 0,
     updatedAt: doc.updatedAt ?? null,
   };
+}
+
+/**
+ * Injecte le coût des pertes dans les charges du jour. Il n'est jamais stocké
+ * dans charges_jours : le journal des pertes fait foi, et une annulation doit
+ * se répercuter immédiatement sur le résultat.
+ */
+async function withPertes(
+  charges: Map<string, DayCharges>,
+  start: string,
+  end: string,
+  scopeSite?: VenteSite | null,
+): Promise<Map<string, DayCharges>> {
+  const { parJour } = await sumPertesCost({
+    from: start,
+    to: end,
+    site: scopeSite ?? "all",
+  });
+  for (const [date, cout] of Object.entries(parJour) as [string, number][]) {
+    const existante = charges.get(date) ?? emptyCharges(date);
+    charges.set(date, { ...existante, pertes: cout });
+  }
+  return charges;
 }
 
 type Maps = {
@@ -358,7 +382,12 @@ async function loadMaps(
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     combos: new Map(combosDocs.map((d) => [d._id, toCombos(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+    charges: await withPertes(
+      new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+      dates[0]!,
+      dates[dates.length - 1]!,
+      scopeSite,
+    ),
     ventes,
   };
 }
@@ -400,7 +429,12 @@ async function loadRange(
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     combos: new Map(combosDocs.map((d) => [d._id, toCombos(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+    charges: await withPertes(
+      new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+      start,
+      end,
+      scopeSite,
+    ),
     ventes,
   };
 }
