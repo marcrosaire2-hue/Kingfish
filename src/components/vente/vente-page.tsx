@@ -8,6 +8,11 @@ import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
 import { RegistreDrawer } from "@/components/registre-drawer";
 import { formatFcfa, parseMoneyInput } from "@/lib/format";
+import {
+  ajouterEnAttente,
+  installerSupportHorsLigne,
+  nombreEnAttente,
+} from "@/lib/offline-queue";
 import { exportVenteExcel } from "@/lib/page-exports";
 import type {
   CaisseSession,
@@ -113,6 +118,8 @@ export function VentePage() {
   const [site, setSite] = useState<VenteSite>("gbegamey");
   const [lockedSite, setLockedSite] = useState(false);
   const [mode, setMode] = useState<"pos" | "rapide">("pos");
+  /** Ventes encaissées hors ligne, en attente d'envoi au serveur. */
+  const [enAttente, setEnAttente] = useState(0);
   const [cat, setCat] = useState<CatKey>("plat");
   const [board, setBoard] = useState<Board | null>(null);
   const [config, setConfig] = useState<PosConfig | null>(null);
@@ -179,6 +186,11 @@ export function VentePage() {
   useEffect(() => {
     if (site === "zogbo" && cat === "local") setCat("plat");
   }, [site, cat]);
+
+  // Service worker + rejeu des ventes encaissées pendant une coupure.
+  useEffect(() => {
+    return installerSupportHorsLigne((file) => setEnAttente(file.length));
+  }, []);
 
   const products = useMemo(() => {
     if (!board) return [];
@@ -259,29 +271,44 @@ export function VentePage() {
     }
     setPosBusy(true);
     setError(null);
+    const corps = {
+      action: "validate",
+      date,
+      site,
+      saleType,
+      paymentMethodId: paymentId || undefined,
+      tableId: saleType === "Sur place" ? tableId || undefined : undefined,
+      serveurId: serveurId || undefined,
+      clientNom: clientNom || undefined,
+      reduction: reductionN,
+      lines: cart.map((l) => ({
+        kind: l.kind,
+        productId: l.productId,
+        name: l.name,
+        qty: l.qty,
+        unitPrice: l.unitPrice,
+      })),
+    };
     try {
-      const res = await fetch("/api/pos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "validate",
-          date,
-          site,
-          saleType,
-          paymentMethodId: paymentId || undefined,
-          tableId: saleType === "Sur place" ? tableId || undefined : undefined,
-          serveurId: serveurId || undefined,
-          clientNom: clientNom || undefined,
-          reduction: reductionN,
-          lines: cart.map((l) => ({
-            kind: l.kind,
-            productId: l.productId,
-            name: l.name,
-            qty: l.qty,
-            unitPrice: l.unitPrice,
-          })),
-        }),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/pos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(corps),
+        });
+      } catch {
+        // Réseau coupé en plein service : la vente est mise de côté et rejouée
+        // au retour de la connexion, plutôt que perdue.
+        ajouterEnAttente(corps);
+        setEnAttente(nombreEnAttente());
+        setCart([]);
+        setClientNom("");
+        setReduction("0");
+        setFlash("Hors ligne — vente enregistrée, elle partira au retour du réseau");
+        window.setTimeout(() => setFlash(null), 3500);
+        return;
+      }
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Validation impossible");
       setBoard(body.board as Board);
@@ -494,7 +521,14 @@ export function VentePage() {
                   : "Caisse fermée"
                 : "Mode rapide"}
             </span>
-            <span className="vente-hero-label">CA validé · {siteLabel}</span>
+            <span className="vente-hero-label">
+              CA validé · {siteLabel}
+              {enAttente > 0 ? (
+                <span className="vente-attente" role="status">
+                  {enAttente} vente{enAttente > 1 ? "s" : ""} en attente d’envoi
+                </span>
+              ) : null}
+            </span>
             <strong className="vente-hero-value mono">
               {loading && !board ? "…" : formatFcfa(board?.caToday ?? 0)}
             </strong>

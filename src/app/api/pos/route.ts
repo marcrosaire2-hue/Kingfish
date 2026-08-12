@@ -80,6 +80,9 @@ export async function POST(request: Request) {
         site,
         user,
         saleType: body.saleType || "Sur place",
+        // Vente encaissée hors ligne puis rejouée : la référence du poste
+        // évite de compter deux fois la même commande.
+        clientRef: request.headers.get("X-Vente-Locale"),
         paymentMethodId: body.paymentMethodId,
         tableId: body.tableId,
         serveurId: body.serveurId,

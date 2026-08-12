@@ -12,7 +12,15 @@ import type {
   VenteSite,
 } from "@/lib/types";
 
-type TicketDoc = Omit<PosTicket, "id"> & { _id: ObjectId };
+type TicketDoc = Omit<PosTicket, "id"> & {
+  _id: ObjectId;
+  /**
+   * Référence produite par le poste de vente. Une vente encaissée hors ligne
+   * puis rejouée porte la même référence : elle sert de clé d'idempotence pour
+   * ne pas encaisser deux fois la même commande.
+   */
+  clientRef?: string | null;
+};
 
 function toTicket(doc: TicketDoc): PosTicket {
   return {
@@ -72,6 +80,8 @@ export async function validatePosTicket(input: {
   serveurId?: string | null;
   clientNom?: string | null;
   reduction?: number;
+  /** Référence du poste de vente, pour les ventes rejouées après coupure. */
+  clientRef?: string | null;
   lines: Array<{
     kind: VenteKind;
     productId: string;
@@ -85,6 +95,22 @@ export async function validatePosTicket(input: {
   caisseId: string | null;
 }> {
   if (!input.lines.length) throw new Error("Panier vide");
+
+  // Vente rejouée après une coupure : si elle a déjà abouti, on renvoie le
+  // ticket existant au lieu d'en créer un second.
+  if (input.clientRef) {
+    const db = await getDb();
+    const existant = await db
+      .collection<TicketDoc>("pos_tickets")
+      .findOne({ clientRef: input.clientRef });
+    if (existant) {
+      return {
+        ticket: toTicket(existant),
+        board: await getVenteBoard(existant.date, existant.site),
+        caisseId: existant.caisseId,
+      };
+    }
+  }
 
   const actor = {
     id: input.user.id,
@@ -208,6 +234,7 @@ export async function validatePosTicket(input: {
     userName: input.user.name,
     at: now,
     cancelledAt: null,
+    clientRef: input.clientRef ?? null,
   };
 
   const db = await getDb();

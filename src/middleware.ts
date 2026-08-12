@@ -8,13 +8,21 @@ import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 
 const PUBLIC = ["/login"];
 
+/**
+ * Ressources de l'installation PWA. Le navigateur les demande sans cookie de
+ * session : redirigées vers /login, l'application ne serait ni installable ni
+ * capable d'enregistrer son service worker. Aucune donnée métier n'y transite.
+ */
+const PWA_PUBLIC = ["/manifest.webmanifest", "/sw.js"];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon")
+    pathname.startsWith("/favicon") ||
+    PWA_PUBLIC.includes(pathname)
   ) {
     return NextResponse.next();
   }
