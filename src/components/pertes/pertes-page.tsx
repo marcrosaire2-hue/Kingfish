@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ContextBar } from "@/components/context-bar";
+import { ExportExcelButton } from "@/components/export-excel-button";
 import { formatFcfa } from "@/lib/format";
 import { computeMatieresDay } from "@/lib/matieres-calc";
+import { exportPertesExcel } from "@/lib/page-exports";
 import { PERTE_MOTIF_LABELS } from "@/lib/types";
 import type {
   MatieresDay,
@@ -224,6 +226,16 @@ export function PertesPage() {
     <AppShell
       title="Pertes"
       subtitle="Sortie de stock sans vente — produit gâté, casse, test. Le motif est obligatoire."
+      actions={
+        pertes.length > 0 ? (
+          <ExportExcelButton
+            label="Exporter Excel"
+            onExport={() =>
+              exportPertesExcel({ date, site: userSite ?? site, pertes })
+            }
+          />
+        ) : undefined
+      }
     >
       <ContextBar
         date={date}

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { ContextBar } from "@/components/context-bar";
+import { ExportExcelButton } from "@/components/export-excel-button";
 import {
   CAISSES,
   CAISSE_LABELS,
@@ -12,6 +13,7 @@ import {
   soldeTheorique as theo,
 } from "@/lib/caisse-model";
 import { formatFcfa } from "@/lib/format";
+import { exportCaisseExcel } from "@/lib/page-exports";
 import type {
   CaisseKey,
   CaisseMouvement,
@@ -241,6 +243,22 @@ export function CaissePage() {
         estCentrale
           ? "Coffre central · versements des zones, dépenses générales"
           : `${label} · encaissements POS, mouvements et clôture`
+      }
+      actions={
+        board ? (
+          <ExportExcelButton
+            label="Exporter Excel"
+            onExport={() =>
+              exportCaisseExcel({
+                date,
+                caisse: resolved,
+                historique: board.historique ?? [],
+                overview: board.overview ?? null,
+                activeMouvements: detail?.mouvements ?? [],
+              })
+            }
+          />
+        ) : undefined
       }
     >
       <div className="caisse-page">

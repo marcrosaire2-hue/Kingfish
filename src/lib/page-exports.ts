@@ -14,16 +14,23 @@ import type { HistoriqueEvent } from "@/lib/historique-types";
 import type {
   BaseDish,
   BoissonsDay,
+  CaisseKey,
+  CaisseMouvement,
+  CaisseOverviewItem,
+  CaisseSession,
   CombosDay,
   Drink,
   GbegameyDay,
   LocalDish,
   Parametres,
+  PerteEntry,
   VenteLogEntry,
   VenteProduct,
   VenteSite,
   ZogboDay,
 } from "@/lib/types";
+import { CAISSE_LABELS, soldeTheorique } from "@/lib/caisse-model";
+import { PERTE_MOTIF_LABELS } from "@/lib/types";
 import { computeZogboDay } from "@/lib/zogbo-calc";
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -928,6 +935,119 @@ export async function exportAllHistoriqueVentesExcel(input: {
     paiement: input.paiement,
     q: input.q,
   });
+}
+
+/** Caisse — historique des sessions d'une caisse, journal en cours, réseau. */
+export function exportCaisseExcel(input: {
+  date: string;
+  caisse: CaisseKey;
+  historique: CaisseSession[];
+  overview: CaisseOverviewItem[] | null;
+  activeMouvements: CaisseMouvement[];
+}): void {
+  const label = CAISSE_LABELS[input.caisse];
+
+  const historiqueRows = input.historique.map((s) => {
+    const t = soldeTheorique(s);
+    return {
+      Date: s.date,
+      Statut: s.statut === "ouverte" ? "Ouverte" : "Fermée",
+      "Ouverte par": s.userName,
+      "Fond de caisse (FCFA)": s.soldeInitial,
+      "Ventes (FCFA)": s.totalVente,
+      "Dépenses (FCFA)": s.totalDepense,
+      "Autres recettes (FCFA)": s.totalRecette,
+      "Versements reçus (FCFA)": s.totalVersementRecu,
+      "Versements sortis (FCFA)": s.totalVersementSorti,
+      "Solde théorique (FCFA)": t,
+      "Solde physique (FCFA)": s.soldePhysique ?? "",
+      "Écart (FCFA)": s.soldePhysique === null ? "" : s.soldePhysique - t,
+    };
+  });
+
+  const mouvementRows = input.activeMouvements.map((m) => ({
+    Heure: heureLisible(m.at),
+    Type: MOUVEMENT_KIND_LABELS[m.kind] ?? m.kind,
+    Nature: m.nature,
+    "Bénéficiaire / provenance": m.beneficiaire ?? "",
+    "Montant (FCFA)": m.montant,
+    Acteur: m.actorName ?? "",
+    Contrepartie: m.contrepartie ? CAISSE_LABELS[m.contrepartie] : "",
+  }));
+
+  const sheets: ExcelSheet[] = [
+    {
+      name: "Historique",
+      subtitle: label,
+      totals: [
+        "Ventes (FCFA)",
+        "Dépenses (FCFA)",
+        "Autres recettes (FCFA)",
+        "Versements reçus (FCFA)",
+        "Versements sortis (FCFA)",
+      ],
+      rows: historiqueRows,
+    },
+    {
+      name: "Journal en cours",
+      subtitle: `${label} · ${input.date}`,
+      totals: ["Montant (FCFA)"],
+      rows: mouvementRows,
+    },
+  ];
+
+  if (input.overview) {
+    sheets.push({
+      name: "Réseau",
+      subtitle: input.date,
+      rows: input.overview.map((o) => ({
+        Caisse: CAISSE_LABELS[o.caisse],
+        Statut: o.session ? "Ouverte" : "Fermée",
+        "Ouverte par": o.session?.userName ?? "",
+        "Solde théorique (FCFA)": o.session ? o.soldeTheorique : "",
+      })),
+    });
+  }
+
+  downloadExcel(excelFilename("caisse", input.date, input.caisse), sheets);
+}
+
+const MOUVEMENT_KIND_LABELS: Record<CaisseMouvement["kind"], string> = {
+  depense: "Dépense",
+  recette: "Recette",
+  "versement-sortie": "Versement sorti",
+  "versement-entree": "Versement reçu",
+};
+
+/** Pertes — journal du jour, tel qu'affiché à l'écran. */
+export function exportPertesExcel(input: {
+  date: string;
+  site: VenteSite | "tous";
+  pertes: PerteEntry[];
+}): void {
+  const rows = input.pertes.map((p) => ({
+    Heure: heureLisible(p.at),
+    Zone: siteLabel(p.site),
+    Famille: kindLabel(p.kind),
+    Produit: p.name,
+    Quantité: p.qty,
+    Motif: PERTE_MOTIF_LABELS[p.motif],
+    Commentaire: p.commentaire,
+    "Coût (FCFA)": p.cost,
+    Acteur: p.actorName ?? "",
+    Statut: p.cancelledAt ? `Annulée par ${p.cancelledByName ?? "—"}` : "Active",
+  }));
+
+  const sheets: ExcelSheet[] = [
+    {
+      name: "Pertes",
+      subtitle: `${siteLabel(input.site)} · ${input.date}`,
+      totals: ["Coût (FCFA)"],
+      rows,
+    },
+  ];
+
+  downloadExcel(excelFilename("pertes", input.date, input.site), sheets);
 }
 
 /** Admin — utilisateurs (sans mots de passe) */
