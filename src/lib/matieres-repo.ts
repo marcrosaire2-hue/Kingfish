@@ -1,4 +1,4 @@
-import { updateDayDocument } from "@/lib/day-doc";
+import { assertDayOpen, updateDayDocument } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import {
@@ -213,6 +213,10 @@ export async function applyMatieresPurchase(input: {
 }): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getMatieresDayPayload(input.date);
+  assertDayOpen(
+    payload.day.status,
+    "Journée clôturée : achat matière impossible.",
+  );
   const mat = payload.materials.find((m) => m.id === input.productId);
   const applied = applyMatieresPurchaseToState(
     payload.day.lines,
@@ -262,6 +266,10 @@ export async function cancelMatieresMovement(input: {
 }): Promise<MatieresDayPayload> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getMatieresDayPayload(input.date);
+  assertDayOpen(
+    payload.day.status,
+    "Journée clôturée : annulation d'achat impossible.",
+  );
   const applied = cancelMatieresMovementInState(
     payload.day.lines,
     payload.day.movements ?? [],

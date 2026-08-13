@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { assertDayOpen } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import { unitsPerCasierOf } from "@/lib/boissons-calc";
@@ -55,40 +56,48 @@ async function resolveTarget(input: {
   const { date, site, kind, productId } = input;
   const parametres = await getParametres();
 
+  // Le statut de la journée conditionne toute déclaration ou annulation de
+  // perte, qu'elle crée ou non la ligne : on le lit une seule fois ici et on
+  // réutilise le jour chargé dans `ensure` plutôt que de le relire deux fois.
+  const closedMessage = "Journée clôturée : perte impossible.";
+
   if (kind === "plat") {
     const dish = parametres.baseDishes.find((d) => d.id === productId);
     if (!dish) throw new Error("Plat introuvable");
     // Faute de prix de revient renseigné, on ne valorise pas : mieux vaut un
     // coût nul qu'un chiffre inventé à partir du prix de vente.
     const unitCost = dish.costPrice ?? 0;
-    return site === "zogbo"
-      ? {
-          collection: "zogbo_jours",
-          arrayField: "lines",
-          perteField: "pertes",
-          name: dish.name,
-          unitCost,
-          ensure: async () => {
-            const { day } = await getZogboDayPayload(date);
-            await saveZogboDay({ date, status: day.status, lines: day.lines });
-          },
-        }
-      : {
-          collection: "gbegamey_jours",
-          arrayField: "transferLines",
-          perteField: "pertes",
-          name: dish.name,
-          unitCost,
-          ensure: async () => {
-            const { day } = await getGbegameyDayPayload(date);
-            await saveGbegameyDay({
-              date,
-              status: day.status,
-              transferLines: day.transferLines,
-              localLines: day.localLines,
-            });
-          },
-        };
+    if (site === "zogbo") {
+      const { day } = await getZogboDayPayload(date);
+      assertDayOpen(day.status, closedMessage);
+      return {
+        collection: "zogbo_jours",
+        arrayField: "lines",
+        perteField: "pertes",
+        name: dish.name,
+        unitCost,
+        ensure: async () => {
+          await saveZogboDay({ date, status: day.status, lines: day.lines });
+        },
+      };
+    }
+    const { day } = await getGbegameyDayPayload(date);
+    assertDayOpen(day.status, closedMessage);
+    return {
+      collection: "gbegamey_jours",
+      arrayField: "transferLines",
+      perteField: "pertes",
+      name: dish.name,
+      unitCost,
+      ensure: async () => {
+        await saveGbegameyDay({
+          date,
+          status: day.status,
+          transferLines: day.transferLines,
+          localLines: day.localLines,
+        });
+      },
+    };
   }
 
   if (kind === "local") {
@@ -97,6 +106,8 @@ async function resolveTarget(input: {
     }
     const dish = parametres.localDishes.find((d) => d.id === productId);
     if (!dish) throw new Error("Plat local introuvable");
+    const { day } = await getGbegameyDayPayload(date);
+    assertDayOpen(day.status, closedMessage);
     return {
       collection: "gbegamey_jours",
       arrayField: "localLines",
@@ -104,7 +115,6 @@ async function resolveTarget(input: {
       name: dish.name,
       unitCost: dish.costPrice ?? 0,
       ensure: async () => {
-        const { day } = await getGbegameyDayPayload(date);
         await saveGbegameyDay({
           date,
           status: day.status,
@@ -118,6 +128,8 @@ async function resolveTarget(input: {
   if (kind === "combo") {
     const combo = parametres.combos.find((c) => c.id === productId);
     if (!combo) throw new Error("Combo introuvable");
+    const { day } = await getCombosDayPayload(date);
+    assertDayOpen(day.status, closedMessage);
     return {
       collection: "combos_jours",
       arrayField: "lines",
@@ -125,7 +137,6 @@ async function resolveTarget(input: {
       name: combo.name,
       unitCost: combo.costPrice ?? 0,
       ensure: async () => {
-        const { day } = await getCombosDayPayload(date);
         await saveCombosDay({ date, status: day.status, lines: day.lines });
       },
     };
@@ -134,6 +145,8 @@ async function resolveTarget(input: {
   if (kind === "boisson") {
     const drink = parametres.drinks.find((d) => d.id === productId);
     if (!drink) throw new Error("Boisson introuvable");
+    const { day } = await getBoissonsDayPayload(date);
+    assertDayOpen(day.status, closedMessage);
     return {
       collection: "boissons_jours",
       arrayField: "lines",
@@ -143,7 +156,6 @@ async function resolveTarget(input: {
       // bouteilles : le prix d'achat est déjà par bouteille.
       unitCost: drink.purchasePrice ?? 0,
       ensure: async () => {
-        const { day } = await getBoissonsDayPayload(date);
         await saveBoissonsDay({ date, status: day.status, lines: day.lines });
       },
     };
@@ -153,6 +165,8 @@ async function resolveTarget(input: {
     (m) => m.id === productId,
   );
   if (!matiere) throw new Error("Matière introuvable");
+  const { day } = await getMatieresDayPayload(date);
+  assertDayOpen(day.status, closedMessage);
   return {
     collection: "matieres_jours",
     arrayField: "lines",
@@ -160,7 +174,6 @@ async function resolveTarget(input: {
     name: matiere.name,
     unitCost: matiere.purchasePrice ?? 0,
     ensure: async () => {
-      const { day } = await getMatieresDayPayload(date);
       await saveMatieresDay({ date, status: day.status, lines: day.lines });
     },
   };

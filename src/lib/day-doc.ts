@@ -48,6 +48,20 @@ export function assertValidDate(date: string): void {
 }
 
 /**
+ * Refuse toute écriture sur une journée clôturée (reprise) : au-delà du
+ * contrôle de vente déjà en place, achats matières et pertes contrediraient
+ * eux aussi un inventaire et un compte de résultat déjà arrêtés.
+ */
+export function assertDayOpen(
+  status: string | null | undefined,
+  message = "Journée clôturée : modification impossible.",
+): void {
+  if (status === "cloturee") {
+    throw new Error(message);
+  }
+}
+
+/**
  * `build` reçoit le document tel qu’il est en base et renvoie les champs à
  * écrire plus la valeur à retourner. Il peut être rappelé plusieurs fois :
  * il doit rester une fonction pure du document lu.
