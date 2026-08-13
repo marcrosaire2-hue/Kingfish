@@ -3333,6 +3333,39 @@ select {
   grid-column: 1 / -1;
 }
 
+.dash-epuises-panel {
+  margin-top: 1.35rem;
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+}
+
+.dash-epuises {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+
+.dash-epuise {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: calc(var(--radius) + 2px);
+  background: color-mix(in srgb, var(--danger-soft) 55%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 25%, var(--line));
+  font-size: 0.9rem;
+}
+
+.dash-epuise strong {
+  color: var(--danger);
+}
+
+.dash-epuise em {
+  font-style: normal;
+  opacity: 0.65;
+  font-size: 0.8rem;
+}
+
 .dash-breakdown {
   margin-top: 1rem;
   display: flex;

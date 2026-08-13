@@ -420,6 +420,7 @@ export function SynthesePage() {
           day={day}
           ranking={ranking}
           shiftTotals={shiftTotals}
+          epuises={epuises}
         />
       ) : null}
 
@@ -429,6 +430,7 @@ export function SynthesePage() {
           ranking={ranking}
           chargesDraft={chargesDraft}
           dayResultat={dayResultat}
+          epuises={epuises}
           onChargeChange={(key, value) => {
             setChargesDraft((prev) => ({ ...prev, [key]: value ?? 0 }));
             setDirtyCharges(true);
@@ -491,10 +493,12 @@ function GeneralDayDashboard({
   day,
   ranking,
   shiftTotals,
+  epuises,
 }: {
   day: DayPoint;
   ranking: ProductRankingData;
   shiftTotals: { jour: number; nuit: number; aucune: number } | null;
+  epuises: EpuiseRow[];
 }) {
   const mixSlices = [
     {
@@ -627,7 +631,32 @@ function GeneralDayDashboard({
           boissons={ranking.boissons}
         />
       </section>
+
+      <EpuisesPanel epuises={epuises} />
     </div>
+  );
+}
+
+function EpuisesPanel({ epuises }: { epuises: EpuiseRow[] }) {
+  if (!epuises.length) return null;
+  return (
+    <section
+      className="panel dash-card dash-card-wide dash-epuises-panel"
+      aria-label="Produits épuisés"
+    >
+      <h2 className="panel-title">Produits épuisés</h2>
+      <p className="muted">
+        Plus rien à vendre en fin de journée — à préparer / réapprovisionner.
+      </p>
+      <div className="dash-epuises">
+        {epuises.map((e) => (
+          <span key={`${e.zone}:${e.productId}`} className="dash-epuise">
+            <strong>{e.name}</strong>
+            <em>{e.zoneLabel}</em>
+          </span>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -636,12 +665,14 @@ function DayDashboard({
   ranking,
   chargesDraft,
   dayResultat,
+  epuises,
   onChargeChange,
 }: {
   day: DayPoint;
   ranking: ProductRankingData;
   chargesDraft: DayCharges;
   dayResultat: { chargesTotal: number; resultat: number } | null;
+  epuises: EpuiseRow[];
   onChargeChange: (
     key: keyof Omit<DayCharges, "date" | "updatedAt">,
     value: number | null,
@@ -826,6 +857,8 @@ function DayDashboard({
           </table>
         </section>
       </div>
+
+      <EpuisesPanel epuises={epuises} />
     </div>
   );
 }

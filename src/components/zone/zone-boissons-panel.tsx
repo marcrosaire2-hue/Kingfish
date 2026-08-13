@@ -312,24 +312,20 @@ export function ZoneBoissonsPanel({
               </th>
               <th scope="col" className="col-qty">
                 Stock actuel
-                <span className="col-auto-tag">casiers</span>
-              </th>
-              <th scope="col" className="col-qty">
-                Compté
-                <span className="col-auto-tag">casiers</span>
+                <span className="col-auto-tag">saisie = comptage</span>
               </th>
             </tr>
           </thead>
           <tbody>
             {loading || !computed ? (
               <tr>
-                <td colSpan={5}>
+                <td colSpan={4}>
                       <BrandLoader variant="ligne" label="Chargement…" />
                     </td>
               </tr>
             ) : computed.lines.length === 0 ? (
               <tr>
-                <td colSpan={5} className="muted">
+                <td colSpan={4} className="muted">
                   Aucune boisson dans Paramètres.
                 </td>
               </tr>
@@ -407,18 +403,14 @@ export function ZoneBoissonsPanel({
                       {qty}
                       <span className="cell-sub">bt</span>
                     </td>
-                    <td className="col-qty mono cell-readonly stock-actuel">
-                      {formatCasiers(Math.max(0, line.theoreticalRemaining))}
-                      <span className="cell-sub">
-                        cas. · {line.stockBottles} bt
-                      </span>
-                    </td>
                     <td className="col-qty">
                       <input
                         className="qty-input"
                         inputMode="decimal"
-                        aria-label={`Compté casiers ${line.name}`}
-                        placeholder="cas."
+                        aria-label={`Stock actuel casiers ${line.name}`}
+                        placeholder={formatCasiers(
+                          Math.max(0, line.theoreticalRemaining),
+                        )}
                         value={line.counted ?? ""}
                         onChange={(e) => {
                           const raw = e.target.value.trim().replace(",", ".");
@@ -432,6 +424,12 @@ export function ZoneBoissonsPanel({
                           });
                         }}
                       />
+                      {line.counted !== null ? (
+                        <span className="cell-sub muted">
+                          théo. {formatCasiers(line.theoreticalRemaining)} cas.
+                          · {line.stockBottles} bt
+                        </span>
+                      ) : null}
                     </td>
                   </tr>
                 );

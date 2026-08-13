@@ -172,28 +172,51 @@ async function getBaseDishStockLeft(
   };
 }
 
-async function getLocalDishStockLeft(
-  date: string,
-  productId: string,
-): Promise<{ left: number; maxSold: number }> {
-  const { day } = await getGbegameyDayPayload(date);
-  const line = day.localLines.find((l) => l.productId === productId);
-  if (!line) return { left: 0, maxSold: 0 };
-  const maxSold = Math.max(
-    0,
-    line.initialStock + line.prepared - line.pertes,
-  );
-  return { left: Math.max(0, maxSold - line.sold), maxSold };
-}
-
 /** Un accompagnement est suivi (stock contrôlé) dès qu'il a une activité. */
-function accompanimentTracked(line: GbegameyLocalLine): boolean {
+export function accompanimentTracked(line: GbegameyLocalLine): boolean {
   return (
     line.initialStock > 0 ||
     line.prepared > 0 ||
     line.counted !== null ||
     line.pertes > 0
   );
+}
+
+/**
+ * Disponibilité d'un accompagnement, identique à Zogbo et à Gbégamey :
+ * pas encore inventorié (jamais préparé, jamais compté) = vente libre
+ * (`null`), sinon stock = initial + préparé − vendu − pertes.
+ *
+ * Fonction pure et partagée exprès : les deux points de vente et le contrôle
+ * de vente (`recordVente`) doivent lire exactement la même règle, sinon un
+ * accompagnement se retrouve bloqué à Gbégamey mais libre à Zogbo pour la
+ * même raison — c'est le bug que ce partage referme.
+ */
+export function accompanimentAvailability(
+  line: GbegameyLocalLine | null | undefined,
+): { tracked: boolean; stockLeft: number | null; maxSold: number | null } {
+  if (!line || !accompanimentTracked(line)) {
+    return { tracked: false, stockLeft: null, maxSold: null };
+  }
+  const maxSold = Math.max(
+    0,
+    line.initialStock + line.prepared - Math.max(0, Number(line.pertes) || 0),
+  );
+  return {
+    tracked: true,
+    stockLeft: Math.max(0, maxSold - line.sold),
+    maxSold,
+  };
+}
+
+async function getLocalDishStockLeft(
+  date: string,
+  productId: string,
+): Promise<{ left: number | null; maxSold: number | null }> {
+  const { day } = await getGbegameyDayPayload(date);
+  const line = day.localLines.find((l) => l.productId === productId);
+  const { stockLeft, maxSold } = accompanimentAvailability(line);
+  return { left: stockLeft, maxSold };
 }
 
 /** Stock accompagnement : null = pas encore inventorié (vente autorisée). */
@@ -203,23 +226,12 @@ async function getAccompanimentStockLeft(
   productId: string,
 ): Promise<{ left: number | null; maxSold: number | null }> {
   if (site === "gbegamey") {
-    const local = await getLocalDishStockLeft(date, productId);
-    return { left: local.left, maxSold: local.maxSold };
+    return getLocalDishStockLeft(date, productId);
   }
   const { day } = await getZogboDayPayload(date);
   const line = day.accompanimentLines?.find((l) => l.productId === productId);
-  if (!line) return { left: null, maxSold: null };
-  const tracked =
-    line.initialStock > 0 ||
-    line.prepared > 0 ||
-    line.counted !== null ||
-    line.pertes > 0;
-  if (!tracked) return { left: null, maxSold: null };
-  const maxSold = Math.max(
-    0,
-    line.initialStock + line.prepared - line.pertes,
-  );
-  return { left: Math.max(0, maxSold - line.sold), maxSold };
+  const { stockLeft, maxSold } = accompanimentAvailability(line);
+  return { left: stockLeft, maxSold };
 }
 
 export async function getVenteBoard(
@@ -288,16 +300,7 @@ export async function getVenteBoard(
     );
     for (const dish of parametres.localDishes) {
       const line = accById.get(dish.id);
-      const tracked = line ? accompanimentTracked(line) : false;
-      const stockLeft = tracked
-        ? Math.max(
-            0,
-            (line?.initialStock ?? 0) +
-              (line?.prepared ?? 0) -
-              (line?.sold ?? 0) -
-              Math.max(0, Number(line?.pertes) || 0),
-          )
-        : null;
+      const { tracked, stockLeft } = accompanimentAvailability(line);
       products.push({
         kind: "local",
         productId: dish.id,
@@ -332,11 +335,11 @@ export async function getVenteBoard(
         hint: `Reçu ${sent} · reste ${stockLeft}`,
       });
     }
+    // Même règle qu'à Zogbo : un accompagnement jamais préparé ni compté
+    // n'est pas bloqué à zéro — le stock réel n'est pas encore maîtrisé.
     for (const dish of parametres.localDishes) {
       const line = gbegamey.day.localLines.find((l) => l.productId === dish.id);
-      const stockLeft = line
-        ? Math.max(0, line.initialStock + line.prepared - line.sold)
-        : 0;
+      const { tracked, stockLeft } = accompanimentAvailability(line);
       products.push({
         kind: "local",
         productId: dish.id,
@@ -344,8 +347,10 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
-        lowStock: isLowStock(stockLeft, dish.alertThreshold),
-        hint: `Accompagnement · reste ${stockLeft}`,
+        lowStock: isLowStock(stockLeft, dish?.alertThreshold),
+        hint: tracked
+          ? `Accompagnement · reste ${stockLeft ?? 0}`
+          : "Accompagnement · stock non inventorié",
       });
     }
   }

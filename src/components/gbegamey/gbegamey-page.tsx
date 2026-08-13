@@ -8,7 +8,6 @@ import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
 import { QtyInput } from "@/components/qty-input";
 import { ZoneBoissonsPanel } from "@/components/zone/zone-boissons-panel";
-import { ZoneCombosPanel } from "@/components/zone/zone-combos-panel";
 import { formatFcfa, formatUpdatedAt } from "@/lib/format";
 import {
   computeGbegameyDay,
@@ -34,10 +33,10 @@ type Payload = {
   caJournal?: number;
 };
 
-type SectionKey = "transfer" | "local" | "combos" | "boissons";
+type SectionKey = "transfer" | "local" | "boissons";
 
 function parseSection(raw: string | null): SectionKey {
-  if (raw === "local" || raw === "combos" || raw === "boissons") return raw;
+  if (raw === "local" || raw === "boissons") return raw;
   return "transfer";
 }
 
@@ -246,15 +245,6 @@ export function GbegameyPage() {
         <button
           type="button"
           role="tab"
-          aria-selected={section === "combos"}
-          className={`section-tab${section === "combos" ? " is-active" : ""}`}
-          onClick={() => setSection("combos")}
-        >
-          Combos
-        </button>
-        <button
-          type="button"
-          role="tab"
           aria-selected={section === "boissons"}
           className={`section-tab${section === "boissons" ? " is-active" : ""}`}
           onClick={() => setSection("boissons")}
@@ -263,9 +253,6 @@ export function GbegameyPage() {
         </button>
       </div>
 
-      {section === "combos" ? (
-        <ZoneCombosPanel date={date} site="gbegamey" />
-      ) : null}
       {section === "boissons" ? (
         <ZoneBoissonsPanel date={date} site="gbegamey" />
       ) : null}
@@ -391,23 +378,20 @@ export function GbegameyPage() {
                 </th>
                 <th scope="col" className="col-qty">
                   Stock actuel
-                  <span className="col-auto-tag">solde − vendu</span>
-                </th>
-                <th scope="col" className="col-qty">
-                  Compté
+                  <span className="col-auto-tag">saisie = comptage</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={openingEditable ? 7 : 6}>
+                  <td colSpan={openingEditable ? 6 : 5}>
                     <BrandLoader variant="ligne" label="Chargement…" />
                   </td>
                 </tr>
               ) : computed.transfers.length === 0 ? (
                 <tr>
-                  <td colSpan={openingEditable ? 7 : 6} className="muted">
+                  <td colSpan={openingEditable ? 6 : 5} className="muted">
                     Aucun plat de base. Configurez Paramètres puis saisissez
                     les envois dans Zogbo.
                   </td>
@@ -477,19 +461,21 @@ export function GbegameyPage() {
                       <td className="col-qty mono cell-readonly cell-auto">
                         {line.sold}
                       </td>
-                      <td className="col-qty mono cell-readonly stock-actuel">
-                        {line.theoreticalRemaining}
-                      </td>
                       <td className="col-qty">
                         <QtyInput
                           value={line.counted}
                           allowEmpty
-                          placeholder="—"
-                          ariaLabel={`Compté ${line.name}`}
+                          placeholder={String(line.theoreticalRemaining)}
+                          ariaLabel={`Stock actuel ${line.name}`}
                           onChange={(counted) =>
                             patchTransfer(line.productId, { counted })
                           }
                         />
+                        {line.counted !== null ? (
+                          <span className="cell-sub muted">
+                            théo. {line.theoreticalRemaining}
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
                   );
@@ -508,7 +494,6 @@ export function GbegameyPage() {
                   </td>
                   <td />
                   <td className="mono">{computed.totals.transferSold}</td>
-                  <td />
                   <td />
                 </tr>
               </tfoot>
@@ -540,23 +525,20 @@ export function GbegameyPage() {
                 </th>
                 <th scope="col" className="col-qty">
                   Stock actuel
-                  <span className="col-auto-tag">dispo − vendu</span>
-                </th>
-                <th scope="col" className="col-qty">
-                  Compté
+                  <span className="col-auto-tag">saisie = comptage</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={openingEditable ? 7 : 6}>
+                  <td colSpan={openingEditable ? 6 : 5}>
                     <BrandLoader variant="ligne" label="Chargement…" />
                   </td>
                 </tr>
               ) : computed.locals.length === 0 ? (
                 <tr>
-                  <td colSpan={openingEditable ? 7 : 6} className="muted">
+                  <td colSpan={openingEditable ? 6 : 5} className="muted">
                     Aucun plat local dans Paramètres.
                   </td>
                 </tr>
@@ -613,19 +595,21 @@ export function GbegameyPage() {
                       <td className="col-qty mono cell-readonly cell-auto">
                         {line.sold}
                       </td>
-                      <td className="col-qty mono cell-readonly stock-actuel">
-                        {line.theoreticalRemaining}
-                      </td>
                       <td className="col-qty">
                         <QtyInput
                           value={line.counted}
                           allowEmpty
-                          placeholder="—"
-                          ariaLabel={`Compté ${line.name}`}
+                          placeholder={String(line.theoreticalRemaining)}
+                          ariaLabel={`Stock actuel ${line.name}`}
                           onChange={(counted) =>
                             patchLocal(line.productId, { counted })
                           }
                         />
+                        {line.counted !== null ? (
+                          <span className="cell-sub muted">
+                            théo. {line.theoreticalRemaining}
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
                   );
@@ -640,7 +624,6 @@ export function GbegameyPage() {
                   <td />
                   <td className="mono">{computed.totals.localPrepared}</td>
                   <td className="mono">{computed.totals.localSold}</td>
-                  <td />
                   <td />
                 </tr>
               </tfoot>
