@@ -41,7 +41,8 @@ export type VenteHistoryFilters = {
   serveur?: string;
   paiement?: string;
   q?: string;
-  limit?: number;
+  /** "all" = toutes les ventes (export Excel), sinon nombre (plafonné à 500) */
+  limit?: number | "all";
 };
 
 export type VenteHistoryResult = {
@@ -198,7 +199,11 @@ export async function listVentesHistory(
 ): Promise<VenteHistoryResult> {
   const from = filters.from;
   const to = filters.to;
-  const limit = Math.min(500, Math.max(1, filters.limit ?? 200));
+  const all = filters.limit === "all";
+  const limit = Math.min(
+    500,
+    Math.max(1, typeof filters.limit === "number" ? filters.limit : 200),
+  );
   const site = filters.site || "all";
   const statut = filters.statut || "all";
   const source = filters.source || "all";
@@ -224,7 +229,7 @@ export async function listVentesHistory(
       .collection("pos_tickets")
       .find(kfFilter)
       .sort({ at: -1 })
-      .limit(limit * 2)
+      .limit(all ? 0 : limit * 2)
       .toArray();
 
     for (const d of docs) {
@@ -299,7 +304,7 @@ export async function listVentesHistory(
       .collection("ventes_log")
       .find(vlFilter)
       .sort({ at: -1 })
-      .limit(Math.min(5000, limit * 40))
+      .limit(all ? 0 : Math.min(5000, limit * 40))
       .toArray()) as VentesLogRow[];
 
     for (const t of ticketsFromVentesLog(vlDocs, {
@@ -320,7 +325,7 @@ export async function listVentesHistory(
         .collection("aquapro_tickets")
         .find(aquaFilter)
         .sort({ at: -1 })
-        .limit(limit * 2)
+        .limit(all ? 0 : limit * 2)
         .toArray();
 
       for (const d of docs) {
@@ -390,7 +395,7 @@ export async function listVentesHistory(
   }
 
   tickets.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
-  const sliced = tickets.slice(0, limit);
+  const sliced = all ? tickets : tickets.slice(0, limit);
 
   const totals = {
     count: sliced.length,

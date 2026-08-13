@@ -28,7 +28,13 @@ export async function GET(request: Request) {
     const serveur = searchParams.get("serveur") || "";
     const paiement = searchParams.get("paiement") || "";
     const q = searchParams.get("q") || "";
-    const limit = Number(searchParams.get("limit") || "200");
+    const limitRaw = searchParams.get("limit") || "200";
+    const limit: number | "all" =
+      limitRaw === "all"
+        ? "all"
+        : Number.isFinite(Number(limitRaw))
+          ? Number(limitRaw)
+          : 200;
 
     if (siteRaw !== "all" && siteRaw !== "zogbo" && siteRaw !== "gbegamey") {
       return NextResponse.json({ error: "Site invalide." }, { status: 400 });
@@ -54,7 +60,7 @@ export async function GET(request: Request) {
       serveur,
       paiement,
       q,
-      limit: Number.isFinite(limit) ? limit : 200,
+      limit,
     });
 
     return NextResponse.json({

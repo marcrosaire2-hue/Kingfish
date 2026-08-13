@@ -5,7 +5,7 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { formatFcfa } from "@/lib/format";
-import { exportHistoriqueVentesExcel } from "@/lib/page-exports";
+import { exportAllHistoriqueVentesExcel } from "@/lib/page-exports";
 import type { VenteHistoryTicket } from "@/lib/ventes-history-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import { BrandLoader } from "@/components/brand-loader";
@@ -114,9 +114,7 @@ export function HistoriqueVentesPage() {
         <>
           <ExportExcelButton
             onExport={() =>
-              exportHistoriqueVentesExcel({
-                tickets,
-                totals,
+              exportAllHistoriqueVentesExcel({
                 from,
                 to,
                 site,
@@ -127,7 +125,7 @@ export function HistoriqueVentesPage() {
                 q,
               })
             }
-            disabled={loading || tickets.length === 0}
+            disabled={loading}
           />
           <Link href="/vente" className="btn btn-ghost">
             ← Vente

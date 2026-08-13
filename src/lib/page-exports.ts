@@ -838,6 +838,7 @@ export function exportHistoriqueVentesExcel(input: {
         t.lines.map((l) => ({
           Ticket: t.numero,
           Date: t.date,
+          Heure: heureLisible(t.at),
           Zone: siteLabel(t.site),
           Statut: t.statutLabel || t.statut,
           Produit: l.name,
@@ -866,6 +867,67 @@ export function exportHistoriqueVentesExcel(input: {
     excelFilename("historique_ventes", input.from, input.to, zone),
     sheets,
   );
+}
+
+type HistoriqueVentesExportTicket = Parameters<
+  typeof exportHistoriqueVentesExcel
+>[0]["tickets"][number];
+
+/**
+ * Export Excel de TOUTES les ventes de la période (et filtres courants),
+ * sans la limite d'affichage : relit l'API avec `limit=all`.
+ */
+export async function exportAllHistoriqueVentesExcel(input: {
+  from: string;
+  to: string;
+  site: string;
+  statut?: string;
+  source?: string;
+  serveur?: string;
+  paiement?: string;
+  q?: string;
+}): Promise<void> {
+  const params = new URLSearchParams({
+    from: input.from,
+    to: input.to,
+    site: input.site,
+    limit: "all",
+  });
+  if (input.statut) params.set("statut", input.statut);
+  if (input.source) params.set("source", input.source);
+  if (input.serveur?.trim()) params.set("serveur", input.serveur.trim());
+  if (input.paiement?.trim()) params.set("paiement", input.paiement.trim());
+  if (input.q?.trim()) params.set("q", input.q.trim());
+
+  const res = await fetch(`/api/historique-ventes?${params}`, {
+    cache: "no-store",
+  });
+  const body = (await res.json()) as {
+    tickets?: HistoriqueVentesExportTicket[];
+    totals?: Parameters<typeof exportHistoriqueVentesExcel>[0]["totals"];
+    error?: string;
+  };
+  if (!res.ok) throw new Error(body.error || "Export impossible");
+
+  const zeroTotals = {
+    count: 0,
+    montant: 0,
+    valide: 0,
+    annule: 0,
+    encours: 0,
+  };
+  exportHistoriqueVentesExcel({
+    tickets: body.tickets ?? [],
+    totals: body.totals ?? zeroTotals,
+    from: input.from,
+    to: input.to,
+    site: input.site,
+    statut: input.statut,
+    source: input.source,
+    serveur: input.serveur,
+    paiement: input.paiement,
+    q: input.q,
+  });
 }
 
 /** Admin — utilisateurs (sans mots de passe) */
