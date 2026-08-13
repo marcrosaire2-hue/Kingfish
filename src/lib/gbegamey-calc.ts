@@ -142,10 +142,10 @@ export function computeTransferLine(
   const normalized = normalizeTransferLine(line);
 
   // Le reçu constaté (si saisi) sert uniquement à mesurer l'écart de
-  // transport. Le stock, lui, est TOUJOURS alimenté par l'envoi déclaré de
+  // transport. Ce qui entre réellement en stock, c'est l'envoi déclaré par
   // Zogbo : un nouvel envoi s'additionne à l'ancien stock (et les ventes le
   // décrementent) même si un constaté plus ancien existe.
-  const receivedFromZogbo = normalized.received ?? sentFromZogbo;
+  const receivedFromZogbo = sentFromZogbo;
   const transportVariance =
     normalized.received === null ? null : sentFromZogbo - normalized.received;
   const counted = normalized.counted;
