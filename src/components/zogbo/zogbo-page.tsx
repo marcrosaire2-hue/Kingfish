@@ -45,7 +45,6 @@ type TabKey = "inventaire" | "acc" | "boissons" | "ventes";
 
 function parseTab(raw: string | null): TabKey {
   if (raw === "acc" || raw === "boissons" || raw === "ventes") return raw;
-  if (raw === "combos") return "acc";
   return "inventaire";
 }
 

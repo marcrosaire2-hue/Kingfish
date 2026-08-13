@@ -80,7 +80,9 @@ function extraColumns(row: OpeningRow): { label: string; value: string }[] {
 function zoneLink(row: OpeningRow, date: string): string | null {
   if (row.zone === "zogbo-plats") return `/zogbo?date=${date}`;
   if (row.zone.startsWith("gbegamey")) return `/gbegamey?date=${date}`;
-  if (row.zone === "combos") return `/combos?date=${date}`;
+  // Combos : plus d'écran de saisie dédié, seul l'historique (CA) subsiste
+  // et se lit déjà sur cette même ligne — pas de lien à afficher.
+  if (row.zone === "combos") return null;
   if (row.zone === "boissons") return `/boissons?date=${date}`;
   // Le comptage détaillé (seuils, compté, observations) vivait dans l'onglet
   // Matières, supprimé : la même matière se gère désormais depuis Stock.
