@@ -5804,6 +5804,11 @@ html.nav-open body {
   margin-left: 0.5rem;
 }
 
+.vente-low-badge-inline {
+  position: static;
+  margin-left: 0.5rem;
+}
+
 /* Barre persistante : produits actuellement épuisés. */
 .vente-rupture-bar {
   display: flex;

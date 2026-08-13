@@ -493,6 +493,15 @@ export function AchatsPage() {
                       {line.unit ? (
                         <span className="muted"> · {line.unit}</span>
                       ) : null}
+                      {line.stock <= 0 ? (
+                        <span className="vente-out-badge vente-out-badge-inline">
+                          ÉPUISÉ
+                        </span>
+                      ) : line.belowThreshold ? (
+                        <span className="vente-low-badge vente-low-badge-inline">
+                          Bientôt épuisé
+                        </span>
+                      ) : null}
                     </td>
                     <td className="col-num mono">{line.stock}</td>
                     <td className="col-num mono">{line.purchases}</td>
