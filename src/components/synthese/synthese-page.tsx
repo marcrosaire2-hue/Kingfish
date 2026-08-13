@@ -534,6 +534,12 @@ function GeneralDayDashboard({
       color: CHART_COLORS.plats,
     },
     {
+      key: "accompagnements",
+      label: "Accompagnements",
+      value: day.caAccompagnements,
+      color: CHART_COLORS.accompagnements,
+    },
+    {
       key: "combos",
       label: "Combos",
       value: day.caCombos,
@@ -631,13 +637,15 @@ function GeneralDayDashboard({
           <div className="dash-breakdown">
             <p>
               <strong>Zogbo</strong> — plats {formatFcfa(day.caZogboPlats)} ·
-              combos {formatFcfa(day.caCombosZogbo)} · boissons{" "}
+              acc. {formatFcfa(day.caAccompagnementsZogbo)} · combos{" "}
+              {formatFcfa(day.caCombosZogbo)} · boissons{" "}
               {formatFcfa(day.caBoissonsZogbo)} · extra{" "}
               {formatFcfa(day.caExtraZogbo)}
             </p>
             <p>
               <strong>Gbégamey</strong> — plats{" "}
-              {formatFcfa(day.caGbegameyPlats)} · combos{" "}
+              {formatFcfa(day.caGbegameyPlats)} · acc.{" "}
+              {formatFcfa(day.caAccompagnementsGbegamey)} · combos{" "}
               {formatFcfa(day.caCombosGbegamey)} · boissons{" "}
               {formatFcfa(day.caBoissonsGbegamey)} · extra{" "}
               {formatFcfa(day.caExtraGbegamey)}
@@ -713,6 +721,12 @@ function DayDashboard({
       label: "Plats",
       value: day.caZogboPlats + day.caGbegameyPlats,
       color: CHART_COLORS.plats,
+    },
+    {
+      key: "accompagnements",
+      label: "Accompagnements",
+      value: day.caAccompagnements,
+      color: CHART_COLORS.accompagnements,
     },
     {
       key: "combos",
@@ -812,13 +826,15 @@ function DayDashboard({
           <div className="dash-breakdown">
             <p>
               <strong>Zogbo</strong> — plats {formatFcfa(day.caZogboPlats)} ·
-              combos {formatFcfa(day.caCombosZogbo)} · boissons{" "}
+              acc. {formatFcfa(day.caAccompagnementsZogbo)} · combos{" "}
+              {formatFcfa(day.caCombosZogbo)} · boissons{" "}
               {formatFcfa(day.caBoissonsZogbo)} · extra{" "}
               {formatFcfa(day.caExtraZogbo)}
             </p>
             <p>
               <strong>Gbégamey</strong> — plats{" "}
-              {formatFcfa(day.caGbegameyPlats)} · combos{" "}
+              {formatFcfa(day.caGbegameyPlats)} · acc.{" "}
+              {formatFcfa(day.caAccompagnementsGbegamey)} · combos{" "}
               {formatFcfa(day.caCombosGbegamey)} · boissons{" "}
               {formatFcfa(day.caBoissonsGbegamey)} · extra{" "}
               {formatFcfa(day.caExtraGbegamey)}

@@ -179,6 +179,55 @@ export async function sumCaisseDepensesRecettes(input: {
   return { totalDepense, totalRecette, sessions: docs.length };
 }
 
+export type CaisseDepensesRecettesRow = {
+  caisse: CaisseKey;
+  totalDepense: number;
+  totalRecette: number;
+  sessions: number;
+};
+
+/**
+ * Mêmes totaux que `sumCaisseDepensesRecettes`, mais détaillés caisse par
+ * caisse plutôt qu'additionnés — le compte de résultat les affiche côte à
+ * côte pour ne pas perdre, dans un seul chiffre, la visibilité que le modèle
+ * à trois caisses est censé apporter.
+ */
+export async function sumCaisseDepensesRecettesParCaisse(input: {
+  dateFrom: string;
+  dateTo: string;
+  /** Zone de l'utilisateur : null = les trois caisses (admin global). */
+  scopeSite?: VenteSite | null;
+}): Promise<CaisseDepensesRecettesRow[]> {
+  if (!isValidDate(input.dateFrom) || !isValidDate(input.dateTo)) {
+    throw new Error("Date invalide");
+  }
+  // Un admin de zone ne voit que sa propre caisse, jamais le coffre central
+  // ni l'autre zone — même règle d'accès que l'écran Caisse.
+  const caisses: CaisseKey[] = input.scopeSite ? [input.scopeSite] : CAISSES;
+  const db = await getDb();
+  const docs = await db
+    .collection<CaisseDoc>("caisses_sessions")
+    .find({ date: { $gte: input.dateFrom, $lte: input.dateTo } })
+    .toArray();
+
+  const parCaisse = new Map<CaisseKey, CaisseDepensesRecettesRow>(
+    caisses.map((caisse) => [
+      caisse,
+      { caisse, totalDepense: 0, totalRecette: 0, sessions: 0 },
+    ]),
+  );
+  for (const d of docs) {
+    // Session antérieure aux caisses nommées : le site fait foi.
+    const caisse = (d.caisse ?? d.site ?? "zogbo") as CaisseKey;
+    const row = parCaisse.get(caisse);
+    if (!row) continue; // hors du périmètre de l'utilisateur
+    row.totalDepense += Number(d.totalDepense) || 0;
+    row.totalRecette += Number(d.totalRecette) || 0;
+    row.sessions += 1;
+  }
+  return caisses.map((caisse) => parCaisse.get(caisse)!);
+}
+
 export async function getCaisseById(id: string): Promise<CaisseSession | null> {
   if (!ObjectId.isValid(id)) return null;
   const db = await getDb();

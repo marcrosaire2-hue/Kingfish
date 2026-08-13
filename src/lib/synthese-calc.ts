@@ -52,6 +52,9 @@ export function chargesTotal(c: DayCharges): number {
 export type VenteTotals = {
   platsZogbo: number;
   platsGbegamey: number;
+  /** Accompagnements locaux (frites, attiéké…) : vendus « sur place » */
+  localZogbo: number;
+  localGbegamey: number;
   combosZogbo: number;
   combosGbegamey: number;
   boissonsZogbo: number;
@@ -66,6 +69,8 @@ export function emptyVenteTotals(): VenteTotals {
   return {
     platsZogbo: 0,
     platsGbegamey: 0,
+    localZogbo: 0,
+    localGbegamey: 0,
     combosZogbo: 0,
     combosGbegamey: 0,
     boissonsZogbo: 0,
@@ -126,7 +131,14 @@ export function computeDayRevenue(input: {
     : null;
   const caGbegameyPlats = fromJournal
     ? ventes.platsGbegamey
-    : (gbegameyTotals?.soldAmount ?? 0);
+    : (gbegameyTotals?.transferSoldAmount ?? 0);
+  const caAccompagnementsZogbo = fromJournal
+    ? ventes.localZogbo
+    : // Avant l'écran Vente, les accompagnements Zogbo n'étaient pas tracés.
+      0;
+  const caAccompagnementsGbegamey = fromJournal
+    ? ventes.localGbegamey
+    : (gbegameyTotals?.localSoldAmount ?? 0);
   const varianceGbegamey = gbegameyTotals?.varianceCount ?? 0;
   const hasGbegameyData = !!gbegamey?.updatedAt;
 
@@ -161,15 +173,27 @@ export function computeDayRevenue(input: {
   const caCombos = caCombosZogbo + caCombosGbegamey;
   const caBoissons = caBoissonsZogbo + caBoissonsGbegamey;
   const caExtra = caExtraZogbo + caExtraGbegamey;
+  const caAccompagnements =
+    caAccompagnementsZogbo + caAccompagnementsGbegamey;
   const caZogbo =
-    caZogboPlats + caCombosZogbo + caBoissonsZogbo + caExtraZogbo;
+    caZogboPlats +
+    caAccompagnementsZogbo +
+    caCombosZogbo +
+    caBoissonsZogbo +
+    caExtraZogbo;
   const caGbegamey =
-    caGbegameyPlats + caCombosGbegamey + caBoissonsGbegamey + caExtraGbegamey;
+    caGbegameyPlats +
+    caAccompagnementsGbegamey +
+    caCombosGbegamey +
+    caBoissonsGbegamey +
+    caExtraGbegamey;
   const caTotal = caZogbo + caGbegamey;
 
   return {
     caZogboPlats,
     caGbegameyPlats,
+    caAccompagnementsZogbo,
+    caAccompagnementsGbegamey,
     caCombosZogbo,
     caCombosGbegamey,
     caBoissonsZogbo,
@@ -178,6 +202,7 @@ export function computeDayRevenue(input: {
     caExtraGbegamey,
     caZogbo,
     caGbegamey,
+    caAccompagnements,
     caCombos,
     caBoissons,
     caExtra,
@@ -222,6 +247,14 @@ export function daysInMonth(year: number, month: number): string[] {
 export function sumMonth(days: DayPoint[]): MonthPoint["totals"] {
   return days.reduce(
     (acc, d) => {
+      acc.caPlatsZogbo += d.caZogboPlats;
+      acc.caPlatsGbegamey += d.caGbegameyPlats;
+      acc.caAccompagnementsZogbo += d.caAccompagnementsZogbo;
+      acc.caAccompagnementsGbegamey += d.caAccompagnementsGbegamey;
+      acc.caBoissonsZogbo += d.caBoissonsZogbo;
+      acc.caBoissonsGbegamey += d.caBoissonsGbegamey;
+      acc.caExtraZogbo += d.caExtraZogbo;
+      acc.caExtraGbegamey += d.caExtraGbegamey;
       acc.caZogbo += d.caZogbo;
       acc.caGbegamey += d.caGbegamey;
       acc.caCombos += d.caCombos;
@@ -232,6 +265,14 @@ export function sumMonth(days: DayPoint[]): MonthPoint["totals"] {
       return acc;
     },
     {
+      caPlatsZogbo: 0,
+      caPlatsGbegamey: 0,
+      caAccompagnementsZogbo: 0,
+      caAccompagnementsGbegamey: 0,
+      caBoissonsZogbo: 0,
+      caBoissonsGbegamey: 0,
+      caExtraZogbo: 0,
+      caExtraGbegamey: 0,
       caZogbo: 0,
       caGbegamey: 0,
       caCombos: 0,
@@ -250,6 +291,7 @@ export function buildYearPoint(
   const rows = months.map((m) => ({
     month: m.month,
     caTotal: m.totals.caTotal,
+    caCombos: m.totals.caCombos,
     chargesTotal: m.totals.chargesTotal,
     resultat: m.totals.resultat,
     daysWithData: m.days.filter(
@@ -265,11 +307,12 @@ export function buildYearPoint(
   const totals = rows.reduce(
     (acc, r) => {
       acc.caTotal += r.caTotal;
+      acc.caCombos += r.caCombos;
       acc.chargesTotal += r.chargesTotal;
       acc.resultat += r.resultat;
       return acc;
     },
-    { caTotal: 0, chargesTotal: 0, resultat: 0 },
+    { caTotal: 0, caCombos: 0, chargesTotal: 0, resultat: 0 },
   );
 
   return { year, months: rows, totals };

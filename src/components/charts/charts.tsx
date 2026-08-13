@@ -656,6 +656,7 @@ export const CHART_COLORS = {
   charges: "#dc2626",
   resultat: "#004888",
   plats: "#0060b0",
+  accompagnements: "#6f8fae",
   accent: "#f0b018",
   extra: "#5a7a9a",
   best: "#16a34a",

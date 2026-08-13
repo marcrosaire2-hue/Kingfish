@@ -295,8 +295,12 @@ export type DayCharges = {
 export type DayRevenue = {
   /** CA plats simples Zogbo */
   caZogboPlats: number;
-  /** CA plats Gbégamey (transferts + locaux) */
+  /** CA plats Gbégamey (transferts uniquement, les locaux = accompagnements) */
   caGbegameyPlats: number;
+  /** CA accompagnements Zogbo (frites, légumes… vendus « sur place ») */
+  caAccompagnementsZogbo: number;
+  /** CA accompagnements Gbégamey (plats locaux : attiéké, placali…) */
+  caAccompagnementsGbegamey: number;
   caCombosZogbo: number;
   caCombosGbegamey: number;
   caBoissonsZogbo: number;
@@ -304,10 +308,11 @@ export type DayRevenue = {
   /** Ventes extraordinaires (description libre) */
   caExtraZogbo: number;
   caExtraGbegamey: number;
-  /** Point zone Zogbo = plats + combos + boissons + extra */
+  /** Point zone Zogbo = plats + accompagnements + combos + boissons + extra */
   caZogbo: number;
-  /** Point zone Gbégamey = plats + combos + boissons + extra */
+  /** Point zone Gbégamey = plats + accompagnements + combos + boissons + extra */
   caGbegamey: number;
+  caAccompagnements: number;
   caCombos: number;
   caBoissons: number;
   caExtra: number;
@@ -491,6 +496,14 @@ export type MonthPoint = {
   month: number; // 1-12
   days: DayPoint[];
   totals: {
+    caPlatsZogbo: number;
+    caPlatsGbegamey: number;
+    caAccompagnementsZogbo: number;
+    caAccompagnementsGbegamey: number;
+    caBoissonsZogbo: number;
+    caBoissonsGbegamey: number;
+    caExtraZogbo: number;
+    caExtraGbegamey: number;
     caZogbo: number;
     caGbegamey: number;
     caCombos: number;
@@ -506,12 +519,14 @@ export type YearPoint = {
   months: {
     month: number;
     caTotal: number;
+    caCombos: number;
     chargesTotal: number;
     resultat: number;
     daysWithData: number;
   }[];
   totals: {
     caTotal: number;
+    caCombos: number;
     chargesTotal: number;
     resultat: number;
   };

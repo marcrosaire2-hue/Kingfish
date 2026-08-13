@@ -5,13 +5,20 @@ import { AppShell } from "@/components/app-shell";
 import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { PriceInput } from "@/components/parametres/price-input";
+import { CAISSE_LABELS, CAISSES } from "@/lib/caisse-model";
 import {
   downloadExcel,
   excelFilename,
 } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
 import { emptyCharges } from "@/lib/synthese-calc";
-import type { DayCharges, DayPoint, MonthPoint, YearPoint } from "@/lib/types";
+import type {
+  CaisseKey,
+  DayCharges,
+  DayPoint,
+  MonthPoint,
+  YearPoint,
+} from "@/lib/types";
 import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
 import { BrandLoader } from "@/components/brand-loader";
 
@@ -28,6 +35,8 @@ type Payload = {
   caisseDepenses: number;
   caisseRecettes: number;
   caisseSessions: number;
+  caisseParCaisse: { caisse: CaisseKey; totalDepense: number; totalRecette: number; sessions: number }[];
+  matieresPurchasesToday?: number;
 };
 
 const CHARGE_FIELDS: {
@@ -65,17 +74,43 @@ type Statement = {
 };
 
 function buildDayStatement(day: DayPoint, date: string): Statement {
+  // Les combos ne sont plus vendus : le compte de résultat les exclut des
+  // produits (le journal les garde pour l'historique).
+  const produitsTotal = day.caTotal - day.caCombos;
   return {
     title: `Compte de résultat — ${formatDisplayDate(date)}`,
     produits: [
       { label: "CA plats Zogbo", amount: day.caZogboPlats, kind: "item" },
       { label: "CA plats Gbégamey", amount: day.caGbegameyPlats, kind: "item" },
-      { label: "CA combos", amount: day.caCombos, kind: "item" },
-      { label: "CA boissons", amount: day.caBoissons, kind: "item" },
-      { label: "CA extra", amount: day.caExtra, kind: "item" },
+      {
+        label: "CA accompagnements Zogbo",
+        amount: day.caAccompagnementsZogbo,
+        kind: "item",
+      },
+      {
+        label: "CA accompagnements Gbégamey",
+        amount: day.caAccompagnementsGbegamey,
+        kind: "item",
+      },
+      {
+        label: "CA boissons Zogbo",
+        amount: day.caBoissonsZogbo,
+        kind: "item",
+      },
+      {
+        label: "CA boissons Gbégamey",
+        amount: day.caBoissonsGbegamey,
+        kind: "item",
+      },
+      { label: "CA extra Zogbo", amount: day.caExtraZogbo, kind: "item" },
+      {
+        label: "CA extra Gbégamey",
+        amount: day.caExtraGbegamey,
+        kind: "item",
+      },
       {
         label: "Total produits d’exploitation",
-        amount: day.caTotal,
+        amount: produitsTotal,
         kind: "subtotal",
       },
     ],
@@ -108,7 +143,7 @@ function buildDayStatement(day: DayPoint, date: string): Statement {
     resultat: [
       {
         label: "Résultat d’exploitation",
-        amount: day.resultat,
+        amount: produitsTotal - day.chargesTotal,
         kind: "result",
       },
       {
@@ -117,24 +152,46 @@ function buildDayStatement(day: DayPoint, date: string): Statement {
         kind: "info",
       },
     ],
-    caTotal: day.caTotal,
+    caTotal: produitsTotal,
     chargesTotal: day.chargesTotal,
-    resultatAmount: day.resultat,
+    resultatAmount: produitsTotal - day.chargesTotal,
   };
 }
 
 function buildMonthStatement(data: MonthPoint, label: string): Statement {
   const t = data.totals;
+  // Les combos sont exclus des produits (arrêtés à la vente).
+  const produitsTotal = t.caTotal - t.caCombos;
   return {
     title: `Compte de résultat — ${label}`,
     produits: [
-      { label: "CA Zogbo", amount: t.caZogbo, kind: "item" },
-      { label: "CA Gbégamey", amount: t.caGbegamey, kind: "item" },
-      { label: "CA combos", amount: t.caCombos, kind: "item" },
-      { label: "CA boissons", amount: t.caBoissons, kind: "item" },
+      { label: "CA plats Zogbo", amount: t.caPlatsZogbo, kind: "item" },
+      { label: "CA plats Gbégamey", amount: t.caPlatsGbegamey, kind: "item" },
+      {
+        label: "CA accompagnements Zogbo",
+        amount: t.caAccompagnementsZogbo,
+        kind: "item",
+      },
+      {
+        label: "CA accompagnements Gbégamey",
+        amount: t.caAccompagnementsGbegamey,
+        kind: "item",
+      },
+      {
+        label: "CA boissons Zogbo",
+        amount: t.caBoissonsZogbo,
+        kind: "item",
+      },
+      {
+        label: "CA boissons Gbégamey",
+        amount: t.caBoissonsGbegamey,
+        kind: "item",
+      },
+      { label: "CA extra Zogbo", amount: t.caExtraZogbo, kind: "item" },
+      { label: "CA extra Gbégamey", amount: t.caExtraGbegamey, kind: "item" },
       {
         label: "Total produits d’exploitation",
-        amount: t.caTotal,
+        amount: produitsTotal,
         kind: "subtotal",
       },
     ],
@@ -148,24 +205,26 @@ function buildMonthStatement(data: MonthPoint, label: string): Statement {
     resultat: [
       {
         label: "Résultat d’exploitation",
-        amount: t.resultat,
+        amount: produitsTotal - t.chargesTotal,
         kind: "result",
       },
     ],
-    caTotal: t.caTotal,
+    caTotal: produitsTotal,
     chargesTotal: t.chargesTotal,
-    resultatAmount: t.resultat,
+    resultatAmount: produitsTotal - t.chargesTotal,
   };
 }
 
 function buildYearStatement(data: YearPoint, label: string): Statement {
   const t = data.totals;
+  // Les combos sont exclus des produits (arrêtés à la vente).
+  const produitsTotal = t.caTotal - t.caCombos;
   return {
     title: `Compte de résultat — ${label}`,
     produits: [
       {
-        label: "Total produits d’exploitation (CA)",
-        amount: t.caTotal,
+        label: "Total produits d’exploitation (CA hors combos)",
+        amount: produitsTotal,
         kind: "subtotal",
       },
     ],
@@ -179,13 +238,13 @@ function buildYearStatement(data: YearPoint, label: string): Statement {
     resultat: [
       {
         label: "Résultat d’exploitation",
-        amount: t.resultat,
+        amount: produitsTotal - t.chargesTotal,
         kind: "result",
       },
     ],
-    caTotal: t.caTotal,
+    caTotal: produitsTotal,
     chargesTotal: t.chargesTotal,
-    resultatAmount: t.resultat,
+    resultatAmount: produitsTotal - t.chargesTotal,
   };
 }
 
@@ -381,6 +440,7 @@ export function CompteResultatPage() {
             <header className="pnl-header">
               <h2>{statement.title}</h2>
               <p className="muted">Montants en FCFA</p>
+              <p className="muted">Combos historiques exclus des produits</p>
             </header>
 
             <div className="pnl-section-label">I — Produits d’exploitation</div>
@@ -441,29 +501,98 @@ export function CompteResultatPage() {
                   <dd className="mono">{payload.caisseSessions}</dd>
                 </div>
               </dl>
+
+              {/* Le total ci-dessus mélange coffre central et caisses de
+                  zone : on y perd exactement la visibilité par point que le
+                  modèle à trois caisses apporte ailleurs. Détail seulement
+                  quand plus d'une caisse est dans le périmètre du compte. */}
+              {payload.caisseParCaisse.length > 1 ? (
+                <table className="pnl-caisse-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Caisse</th>
+                      <th scope="col" className="col-money">Dépenses</th>
+                      <th scope="col" className="col-money">Recettes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {CAISSES.filter((c) =>
+                      payload.caisseParCaisse.some((r) => r.caisse === c),
+                    ).map((c) => {
+                      const row = payload.caisseParCaisse.find(
+                        (r) => r.caisse === c,
+                      );
+                      return (
+                        <tr key={c}>
+                          <th scope="row">{CAISSE_LABELS[c]}</th>
+                          <td className="mono col-money">
+                            {formatFcfa(row?.totalDepense ?? 0)}
+                          </td>
+                          <td className="mono col-money">
+                            {formatFcfa(row?.totalRecette ?? 0)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : null}
             </section>
 
             {view === "day" ? (
               <section className="panel">
                 <h3 className="panel-title">Saisie des charges</h3>
                 <div className="stack-form">
-                  {CHARGE_FIELDS.map((f) => (
-                    <label key={f.key}>
-                      {f.label}
-                      <PriceInput
-                        value={chargesDraft[f.key]}
-                        ariaLabel={f.label}
-                        onChange={(v) => {
-                          setChargesDraft((c) => ({
-                            ...c,
-                            date,
-                            [f.key]: v ?? 0,
-                          }));
-                          setDirty(true);
-                        }}
-                      />
-                    </label>
-                  ))}
+                  {CHARGE_FIELDS.map((f) => {
+                    const suggestion =
+                      f.key === "matieresPremieres"
+                        ? payload.matieresPurchasesToday
+                        : undefined;
+                    const suggestionUtile =
+                      suggestion !== undefined &&
+                      suggestion > 0 &&
+                      suggestion !== chargesDraft[f.key];
+                    return (
+                      <label key={f.key}>
+                        {f.label}
+                        <PriceInput
+                          value={chargesDraft[f.key]}
+                          ariaLabel={f.label}
+                          onChange={(v) => {
+                            setChargesDraft((c) => ({
+                              ...c,
+                              date,
+                              [f.key]: v ?? 0,
+                            }));
+                            setDirty(true);
+                          }}
+                        />
+                        {/* Suggestion, pas un remplacement automatique :
+                            l'onglet Achats → Stock connaît le total exact du
+                            jour, mais seul le gérant sait si ce chiffre
+                            couvre tout ce qu'il veut mettre dans ce poste. */}
+                        {suggestionUtile ? (
+                          <span className="pnl-suggestion">
+                            Achats du jour (Stock) : {formatFcfa(suggestion)}
+                            <button
+                              type="button"
+                              className="btn-link"
+                              onClick={() => {
+                                setChargesDraft((c) => ({
+                                  ...c,
+                                  date,
+                                  matieresPremieres: suggestion,
+                                }));
+                                setDirty(true);
+                              }}
+                            >
+                              Utiliser
+                            </button>
+                          </span>
+                        ) : null}
+                      </label>
+                    );
+                  })}
                 </div>
               </section>
             ) : null}
@@ -492,7 +621,11 @@ export function CompteResultatPage() {
                         >
                           {d.date.slice(8)}
                         </button>
-                        <span className="mono">{formatFcfa(d.resultat)}</span>
+                        <span className="mono">
+                          {formatFcfa(
+                            d.caTotal - d.caCombos - d.chargesTotal,
+                          )}
+                        </span>
                       </li>
                     ))}
                 </ul>

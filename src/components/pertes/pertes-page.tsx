@@ -23,7 +23,6 @@ type Famille = { key: PerteKind; label: string };
 const FAMILLES: Famille[] = [
   { key: "plat", label: "Plats" },
   { key: "local", label: "Sur place" },
-  { key: "combo", label: "Combos" },
   { key: "boisson", label: "Boissons" },
   { key: "matiere", label: "Matières" },
 ];

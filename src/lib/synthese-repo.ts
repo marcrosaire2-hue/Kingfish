@@ -172,9 +172,12 @@ async function loadVenteTotals(
     const totals = out.get(date) ?? emptyVenteTotals();
     const zogbo = site === "zogbo";
 
-    if (kind === "plat" || kind === "local") {
+    if (kind === "plat") {
       if (zogbo) totals.platsZogbo += row.amount;
       else totals.platsGbegamey += row.amount;
+    } else if (kind === "local") {
+      if (zogbo) totals.localZogbo += row.amount;
+      else totals.localGbegamey += row.amount;
     } else if (kind === "combo") {
       if (zogbo) totals.combosZogbo += row.amount;
       else totals.combosGbegamey += row.amount;

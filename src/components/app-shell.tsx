@@ -129,6 +129,13 @@ const NAV_ITEMS: {
     mark: "←",
     group: "pilot",
   },
+  {
+    href: "/pilotage-global",
+    label: "Pilotage global",
+    key: "pilotage-global",
+    mark: "◎",
+    group: "pilot",
+  },
   { href: "/guide", label: "Guides", key: "guide", mark: "?", group: "pilot" },
   {
     href: "/admin",

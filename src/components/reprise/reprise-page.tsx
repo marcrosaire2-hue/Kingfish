@@ -19,7 +19,7 @@ import type {
 } from "@/lib/reprise-repo";
 import { BrandLoader } from "@/components/brand-loader";
 
-type Zone = "journal" | "zogbo" | "gbegamey" | "boissons" | "combos";
+type Zone = "journal" | "zogbo" | "gbegamey" | "boissons";
 
 type SourceTotal = { source: string; lignes: number; montant: number };
 
@@ -49,15 +49,13 @@ const ZONES: { key: Zone; label: string }[] = [
   { key: "journal", label: "Journal ventes Zogbo" },
   { key: "zogbo", label: "Stock plats" },
   { key: "boissons", label: "Stock boissons" },
-  { key: "combos", label: "Stock combos" },
   { key: "gbegamey", label: "Gbégamey" },
 ];
 
 const KIND_OPTIONS: { value: VenteKind; label: string }[] = [
-  { value: "extra", label: "Vente libre / combo menu" },
+  { value: "extra", label: "Vente libre" },
   { value: "plat", label: "Plat" },
   { value: "boisson", label: "Boisson" },
-  { value: "combo", label: "Combo catalogue" },
 ];
 
 const ZOGBO_REPRISE_FROM = "2026-08-07";
@@ -374,7 +372,7 @@ export function ReprisePage() {
           Ajoutez ou corrigez les ventes et le stock sans effacer le carnet,
           les ventes importées ni la caisse déjà enregistrées. Dans{" "}
           <strong>Journal ventes</strong>, saisissez vos lignes (nom du plat,
-          combo, boisson, quantité, prix). Les ventes déjà présentes restent
+          accompagnement, boisson, quantité, prix). Les ventes déjà présentes restent
           visibles en lecture seule.
         </p>
 
@@ -483,19 +481,10 @@ export function ReprisePage() {
                   if (item) addVenteFromCatalog(item);
                 }}
               >
-                <option value="">+ Plat, combo ou boisson…</option>
+                <option value="">+ Plat ou boisson…</option>
                 <optgroup label="Plats">
                   {data.catalog
                     .filter((c) => c.kind === "plat")
-                    .map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name} ({formatFcfa(c.unitPrice)})
-                      </option>
-                    ))}
-                </optgroup>
-                <optgroup label="Combos">
-                  {data.catalog
-                    .filter((c) => c.kind === "combo")
                     .map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name} ({formatFcfa(c.unitPrice)})
@@ -925,92 +914,6 @@ export function ReprisePage() {
         </section>
       ) : null}
 
-      {!loading && data && zone === "combos" ? (
-        <section className="panel">
-          <h2 className="panel-title">Combos · stock Zogbo</h2>
-          {data.combos.length === 0 ? (
-            <p className="ui-info">
-              Aucun combo au catalogue — saisissez les menus dans le{" "}
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setZone("journal")}
-              >
-                journal ventes
-              </button>{" "}
-              (type « Vente libre ») ou ajoutez les combos dans Paramètres.
-            </p>
-          ) : (
-            <div className="table-scroll">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Combo</th>
-                    <th className="col-num">Préparé</th>
-                    <th className="col-num">Envoyé</th>
-                    <th className="col-num">Vendu Zogbo</th>
-                    <th className="col-num">Vendu Gbégamey</th>
-                    <th className="col-num">Compté Zogbo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.combos.map((l, i) => (
-                    <tr key={l.productId}>
-                      <td>
-                        <strong>{l.name}</strong>
-                        {l.baseDishName ? (
-                          <span className="cell-sub"> · {l.baseDishName}</span>
-                        ) : null}
-                      </td>
-                      <td className="col-num">
-                        <QtyInput
-                          value={l.prepared}
-                          onChange={(v) =>
-                            patch("combos", i, { prepared: v ?? 0 })
-                          }
-                        />
-                      </td>
-                      <td className="col-num">
-                        <QtyInput
-                          value={l.sentToGbegamey}
-                          onChange={(v) =>
-                            patch("combos", i, { sentToGbegamey: v ?? 0 })
-                          }
-                        />
-                      </td>
-                      <td className="col-num">
-                        <QtyInput
-                          value={l.soldZogbo}
-                          onChange={(v) =>
-                            patch("combos", i, { soldZogbo: v ?? 0 })
-                          }
-                        />
-                      </td>
-                      <td className="col-num">
-                        <QtyInput
-                          value={l.soldGbegamey}
-                          onChange={(v) =>
-                            patch("combos", i, { soldGbegamey: v ?? 0 })
-                          }
-                        />
-                      </td>
-                      <td className="col-num">
-                        <QtyInput
-                          nullable
-                          value={l.countedZogbo}
-                          onChange={(v) =>
-                            patch("combos", i, { countedZogbo: v })
-                          }
-                        />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      ) : null}
     </AppShell>
   );
 }

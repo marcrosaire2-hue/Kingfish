@@ -74,6 +74,22 @@ async function leftoversForDate(
   }
 }
 
+/**
+ * Total FCFA des achats matières du jour (mouvements actifs). Sert à
+ * suggérer la charge « Achats matières premières » du compte de résultat au
+ * lieu de la faire retaper à la main alors que l'onglet Stock la connaît
+ * déjà, ligne par ligne et fournisseur par fournisseur.
+ */
+export async function sumMatieresPurchasesForDate(date: string): Promise<number> {
+  if (!isValidDate(date)) throw new Error("Date invalide (attendu YYYY-MM-DD)");
+  const db = await getDb();
+  const doc = await db.collection<MatieresDoc>("matieres_jours").findOne({ _id: date });
+  if (!doc) return 0;
+  return (doc.movements ?? [])
+    .filter((m) => !m.cancelledAt)
+    .reduce((s, m) => s + (Number(m.qty) || 0) * (Number(m.unitPrice) || 0), 0);
+}
+
 export async function getMatieresDayPayload(
   date: string,
 ): Promise<MatieresDayPayload> {

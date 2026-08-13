@@ -1,4 +1,9 @@
-import { sumCaisseDepensesRecettes } from "@/lib/caisse-repo";
+import {
+  sumCaisseDepensesRecettes,
+  sumCaisseDepensesRecettesParCaisse,
+  type CaisseDepensesRecettesRow,
+} from "@/lib/caisse-repo";
+import { sumMatieresPurchasesForDate } from "@/lib/matieres-repo";
 import {
   getDayPoint,
   getMonthPoint,
@@ -19,6 +24,9 @@ export type CompteResultatDay = {
   caisseDepenses: number;
   caisseRecettes: number;
   caisseSessions: number;
+  caisseParCaisse: CaisseDepensesRecettesRow[];
+  /** Achats matières du jour (Achats → Stock), pour suggérer la charge. */
+  matieresPurchasesToday: number;
 };
 
 export type CompteResultatMonth = {
@@ -29,6 +37,7 @@ export type CompteResultatMonth = {
   caisseDepenses: number;
   caisseRecettes: number;
   caisseSessions: number;
+  caisseParCaisse: CaisseDepensesRecettesRow[];
 };
 
 export type CompteResultatYear = {
@@ -39,6 +48,7 @@ export type CompteResultatYear = {
   caisseDepenses: number;
   caisseRecettes: number;
   caisseSessions: number;
+  caisseParCaisse: CaisseDepensesRecettesRow[];
 };
 
 export type CompteResultatPayload =
@@ -69,9 +79,11 @@ export async function getCompteResultatDay(
   date: string,
   scopeSite?: VenteSite | null,
 ): Promise<CompteResultatDay> {
-  const [day, caisse] = await Promise.all([
+  const [day, caisse, caisseParCaisse, matieresPurchasesToday] = await Promise.all([
     getDayPoint(date, scopeSite),
     sumCaisseDepensesRecettes({ dateFrom: date, dateTo: date, scopeSite }),
+    sumCaisseDepensesRecettesParCaisse({ dateFrom: date, dateTo: date, scopeSite }),
+    sumMatieresPurchasesForDate(date),
   ]);
   return {
     view: "day",
@@ -81,6 +93,8 @@ export async function getCompteResultatDay(
     caisseDepenses: caisse.totalDepense,
     caisseRecettes: caisse.totalRecette,
     caisseSessions: caisse.sessions,
+    caisseParCaisse,
+    matieresPurchasesToday,
   };
 }
 
@@ -93,9 +107,10 @@ export async function getCompteResultatMonth(
   const monthKey = `${year}-${mm}`;
   const dateFrom = `${monthKey}-01`;
   const dateTo = `${monthKey}-${String(daysInMonth(year, month)).padStart(2, "0")}`;
-  const [data, caisse] = await Promise.all([
+  const [data, caisse, caisseParCaisse] = await Promise.all([
     getMonthPoint(year, month, scopeSite),
     sumCaisseDepensesRecettes({ dateFrom, dateTo, scopeSite }),
+    sumCaisseDepensesRecettesParCaisse({ dateFrom, dateTo, scopeSite }),
   ]);
   return {
     view: "month",
@@ -105,6 +120,7 @@ export async function getCompteResultatMonth(
     caisseDepenses: caisse.totalDepense,
     caisseRecettes: caisse.totalRecette,
     caisseSessions: caisse.sessions,
+    caisseParCaisse,
   };
 }
 
@@ -112,19 +128,18 @@ export async function getCompteResultatYear(
   year: number,
   scopeSite?: VenteSite | null,
 ): Promise<CompteResultatYear> {
-  const [data, caisse] = await Promise.all([
+  const yearRange = { dateFrom: `${year}-01-01`, dateTo: `${year}-12-31`, scopeSite };
+  const [data, caisse, caisseParCaisse] = await Promise.all([
     getYearPoint(year, scopeSite),
-    sumCaisseDepensesRecettes({
-      dateFrom: `${year}-01-01`,
-      dateTo: `${year}-12-31`,
-      scopeSite,
-    }),
+    sumCaisseDepensesRecettes(yearRange),
+    sumCaisseDepensesRecettesParCaisse(yearRange),
   ]);
   return {
     view: "year",
     label: String(year),
     year,
     data,
+    caisseParCaisse,
     caisseDepenses: caisse.totalDepense,
     caisseRecettes: caisse.totalRecette,
     caisseSessions: caisse.sessions,
