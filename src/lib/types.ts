@@ -187,11 +187,16 @@ export type ZogboDay = {
 
 export type ZogboLineComputed = ZogboLine & {
   unitPrice: number;
-  /** Alias de stock (ce que j’ai) */
+  /** Stock de référence du jour : compté saisi sinon stock mouvementé */
   available: number;
   availableAmount: number;
   soldAmount: number;
+  /** Reste estimé : disponible − vendu − pertes */
   theoreticalRemaining: number;
+  /** Reste réel : compté − vendu (le comptage EST le stock du jour) */
+  prevalentRemaining: number;
+  /** Plafond de vente : comptage saisi s'il existe, sinon disponible − pertes */
+  prevalentMaxSold: number;
   variance: number | null;
 };
 

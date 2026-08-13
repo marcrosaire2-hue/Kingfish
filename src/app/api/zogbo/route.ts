@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
-import type { ZogboLine, ZogboMovementType } from "@/lib/types";
+import type {
+  GbegameyLocalLine,
+  ZogboLine,
+  ZogboMovementType,
+} from "@/lib/types";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
@@ -87,6 +91,7 @@ export async function PUT(request: Request) {
       date?: string;
       status?: "ouverte" | "cloturee";
       lines?: ZogboLine[];
+      accompanimentLines?: GbegameyLocalLine[];
     };
 
     if (!body.date || !Array.isArray(body.lines)) {
@@ -100,6 +105,7 @@ export async function PUT(request: Request) {
       date: body.date,
       status: body.status,
       lines: body.lines,
+      accompanimentLines: body.accompanimentLines,
     });
     await logActivity({
       user,

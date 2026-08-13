@@ -12,7 +12,7 @@ import { getCombosDayPayload, saveCombosDay } from "@/lib/combos-repo";
 import { newId } from "@/lib/format";
 import { computeTransferLine } from "@/lib/gbegamey-calc";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
-import { physicalStock, shiftIsoDate } from "@/lib/zogbo-calc";
+import { computeZogboLine, shiftIsoDate } from "@/lib/zogbo-calc";
 import { isLegalAccompanimentPrice } from "@/lib/catalog-zogbo";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import type {
@@ -154,9 +154,11 @@ async function getBaseDishStockLeft(
     const { day } = await getZogboDayPayload(date);
     const line = day.lines.find((l) => l.productId === productId);
     if (!line) return { left: 0, maxSold: 0 };
-    const maxSold =
-      Math.max(0, line.stock) - Math.max(0, Number(line.pertes) || 0);
-    return { left: physicalStock(line), maxSold: Math.max(0, maxSold) };
+    const computed = computeZogboLine(line, 0);
+    return {
+      left: computed.prevalentRemaining,
+      maxSold: computed.prevalentMaxSold,
+    };
   }
   const { day, sentByProductId } = await getGbegameyDayPayload(date);
   const line = day.transferLines.find((l) => l.productId === productId);
@@ -254,15 +256,12 @@ export async function getVenteBoard(
     // Grille construite depuis les paramètres (comme Gbégamey) : le catalogue
     // statique n'était pas maître de la base produits réelle — les articles
     // en stock (brochette, chawarma, choukouya…) n'apparaissaient pas.
-    const stockById = new Map(
-      zogbo.day.lines.map((l) => [l.productId, physicalStock(l)]),
-    );
     const soldById = new Map(
       zogbo.day.lines.map((l) => [l.productId, l.sold]),
     );
     for (const dish of parametres.baseDishes) {
       const line = zogbo.day.lines.find((l) => l.productId === dish.id);
-      const stockLeft = line ? physicalStock(line) : 0;
+      const stockLeft = line ? computeZogboLine(line, 0).prevalentRemaining : 0;
       products.push({
         kind: "plat",
         productId: dish.id,

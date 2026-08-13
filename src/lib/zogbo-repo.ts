@@ -93,6 +93,7 @@ function toDay(doc: ZogboDoc, accompanimentLines?: GbegameyLocalLine[]): ZogboDa
 export type ZogboDayPayload = {
   day: ZogboDay;
   baseDishes: BaseDish[];
+  localDishes: LocalDish[];
 };
 
 /**
@@ -267,6 +268,7 @@ export async function getZogboDayPayload(
         updatedAt,
       },
       baseDishes,
+      localDishes,
     };
   };
 
@@ -280,6 +282,7 @@ export async function getZogboDayPayload(
         accompanimentLines: syncZogboAccompanimentLines([], localDishes),
       },
       baseDishes,
+      localDishes,
     };
   }
 
@@ -300,6 +303,7 @@ export async function getZogboDayPayload(
       accompanimentLines,
     },
     baseDishes,
+    localDishes,
   };
 }
 
@@ -308,6 +312,7 @@ export async function saveZogboDay(
     date: string;
     status?: ZogboDay["status"];
     lines: ZogboLine[];
+    accompanimentLines?: GbegameyLocalLine[];
     movements?: ZogboMovement[];
   },
   options?: { lockSold?: boolean; directWrite?: boolean },
@@ -375,14 +380,52 @@ export async function saveZogboDay(
             .map((m) => normalizeZogboMovement(m))
             .filter((m): m is ZogboMovement => !!m);
 
+      // Accompagnements du jour : la grille pilote le comptage (stock
+      // initial) et le préparé ; les ventes et pertes restent celles de la
+      // base.
+      const heldAcc = new Map(
+        (existing?.accompanimentLines ?? []).map((l) => [
+          l.productId,
+          normalizeAccompanimentLine(l),
+        ]),
+      );
+      const accompanimentLines = syncZogboAccompanimentLines(
+        input.accompanimentLines ?? existing?.accompanimentLines ?? [],
+        localDishes,
+      ).map((l) => {
+        const normalized = normalizeAccompanimentLine(l);
+        if (directWrite) return { ...normalized, pertes: 0 };
+        const held = heldAcc.get(l.productId);
+        return {
+          ...normalized,
+          initialStock: held?.initialStock ?? normalized.initialStock,
+          sold: lockSold ? (held?.sold ?? 0) : normalized.sold,
+          pertes: held?.pertes ?? 0,
+        };
+      });
+
       const updatedAt = new Date().toISOString();
       const status = input.status ?? "ouverte";
 
       return {
-        set: { status, lines, movements, updatedAt },
+        set: {
+          status,
+          lines,
+          accompanimentLines,
+          movements,
+          updatedAt,
+        },
         result: {
-          day: { date: input.date, status, lines, movements, updatedAt },
+          day: {
+            date: input.date,
+            status,
+            lines,
+            accompanimentLines,
+            movements,
+            updatedAt,
+          },
           baseDishes,
+          localDishes,
         },
       };
     },
@@ -418,6 +461,7 @@ async function mutateZogboDay(
       result: {
         day: { date, status, lines, movements, updatedAt },
         baseDishes: payload.baseDishes,
+        localDishes: payload.localDishes,
         movement: applied.movement,
       },
     };

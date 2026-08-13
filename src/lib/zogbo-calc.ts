@@ -131,12 +131,25 @@ export function computeZogboLine(
   unitPrice: number,
 ): ZogboLineComputed {
   const normalized = normalizeZogboLine(line);
-  const available = normalized.stock;
-  const theoreticalRemaining = available - normalized.sold - normalized.pertes;
-  const variance =
-    normalized.counted === null
-      ? null
-      : theoreticalRemaining - normalized.counted;
+  const counted = normalized.counted;
+  // Le comptage saisi devient le stock du jour : la vérité physique remplace
+  // le stock mouvementé dès qu'elle est saisie. Les ventes et pertes le
+  // décrementent ensuite.
+  const available =
+    counted !== null ? Math.max(0, counted) : normalized.stock;
+  const theoreticalRemaining = Math.max(
+    0,
+    available - normalized.sold - normalized.pertes,
+  );
+  // Stock qui prévaut : le comptage (stock initial) s'il existe, sinon le
+  // mouvementé. Le comptage est la vérité physique : les ventes suivantes le
+  // décrementent, sans recompter le vendu antérieur.
+  const prevalentMaxSold =
+    counted !== null
+      ? Math.max(0, counted)
+      : Math.max(0, available - normalized.pertes);
+  // Plus d'écart mesurable : le comptage EST le stock du jour.
+  const variance = null;
 
   return {
     ...normalized,
@@ -145,6 +158,8 @@ export function computeZogboLine(
     availableAmount: available * unitPrice,
     soldAmount: normalized.sold * unitPrice,
     theoreticalRemaining,
+    prevalentMaxSold,
+    prevalentRemaining: Math.max(0, prevalentMaxSold - normalized.sold),
     variance,
   };
 }
@@ -329,17 +344,16 @@ export function cancelZogboMovementInState(
 
 export function leftoverFromZogboLines(
   lines: ZogboLine[],
-  options?: { useCounted?: boolean },
+  // Conservé pour compatibilité d’appel ; le comptage étant le stock du
+  // jour, le théorique en tient déjà compte.
+  _options?: { useCounted?: boolean },
 ): Map<string, number> {
-  const useCounted = options?.useCounted !== false;
+  // Le comptage étant le stock du jour, le reste du jour l'est aussi :
+  // compté − vendu − pertes, même si la journée n'est pas clôturée.
   const out = new Map<string, number>();
   for (const line of lines) {
     const computed = computeZogboLine(line, 0);
-    const leftover =
-      useCounted && computed.counted !== null
-        ? computed.counted
-        : Math.max(0, computed.theoreticalRemaining);
-    out.set(line.productId, leftover);
+    out.set(line.productId, Math.max(0, computed.theoreticalRemaining));
   }
   return out;
 }

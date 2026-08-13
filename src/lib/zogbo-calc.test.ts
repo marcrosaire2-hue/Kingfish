@@ -144,14 +144,15 @@ describe("cancelZogboMovementInState", () => {
 });
 
 describe("leftoverFromZogboLines", () => {
-  it("reporte ce qui reste réellement, comptage prioritaire", () => {
+  it("reporte le reste théorique, comptage prioritaire", () => {
     const map = leftoverFromZogboLines([
       ligne({ productId: "a", stock: 10, sold: 3 }),
       ligne({ productId: "b", stock: 10, sold: 3, counted: 5 }),
     ]);
     expect(map.get("a")).toBe(7);
-    // Le comptage physique fait foi sur le théorique.
-    expect(map.get("b")).toBe(5);
+    // Le comptage étant le stock initial, il est aussi le reste du jour :
+    // compté − vendu.
+    expect(map.get("b")).toBe(2);
   });
 
   it("détecte une journée vide vs une journée reportable", () => {

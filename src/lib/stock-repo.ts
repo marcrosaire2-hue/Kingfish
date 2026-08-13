@@ -1,6 +1,6 @@
 import { getParametres } from "@/lib/parametres-repo";
 import { computeGbegameyDay, computeLocalLine } from "@/lib/gbegamey-calc";
-import { computeZogboDay, physicalStock } from "@/lib/zogbo-calc";
+import { computeZogboDay } from "@/lib/zogbo-calc";
 import { getGbegameyDayPayload } from "@/lib/gbegamey-repo";
 import { getZogboDayPayload } from "@/lib/zogbo-repo";
 import type { VenteSite } from "@/lib/types";
@@ -183,7 +183,7 @@ export async function getStockPayload(input: {
 
     for (const line of computed.lines) {
       const opening = zogboOpeningStock(line);
-      const stockVendable = physicalStock(line);
+      const stockVendable = line.prevalentRemaining;
       const row: StockRow = {
         zone: "zogbo-plats",
         zoneLabel: "Zogbo · plats",

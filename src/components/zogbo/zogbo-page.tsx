@@ -9,12 +9,13 @@ import { ProductIcon } from "@/components/product-icon";
 import { RegistreDrawer } from "@/components/registre-drawer";
 import { QtyInput } from "@/components/qty-input";
 import { ZoneBoissonsPanel } from "@/components/zone/zone-boissons-panel";
-import { ZoneCombosPanel } from "@/components/zone/zone-combos-panel";
 import { ZoneVentesPanel } from "@/components/zone/zone-ventes-panel";
 import { formatFcfa, formatUpdatedAt } from "@/lib/format";
 import { exportZogboExcel } from "@/lib/page-exports";
 import type {
   BaseDish,
+  GbegameyLocalLine,
+  LocalDish,
   VenteLogEntry,
   VentesDaySummary,
   ZogboDay,
@@ -28,20 +29,23 @@ import {
   movementTypeLabel,
   todayIsoDate,
 } from "@/lib/zogbo-calc";
+import { computeLocalLine } from "@/lib/gbegamey-calc";
 import { BrandLoader } from "@/components/brand-loader";
 
 type Payload = {
   day: ZogboDay;
   baseDishes: BaseDish[];
+  localDishes?: LocalDish[];
   caJournal?: number;
   lastSaleDate?: string | null;
   ventes?: VenteLogEntry[];
   ventesSummary?: VentesDaySummary;
 };
-type TabKey = "inventaire" | "combos" | "boissons" | "ventes";
+type TabKey = "inventaire" | "acc" | "boissons" | "ventes";
 
 function parseTab(raw: string | null): TabKey {
-  if (raw === "combos" || raw === "boissons" || raw === "ventes") return raw;
+  if (raw === "acc" || raw === "boissons" || raw === "ventes") return raw;
+  if (raw === "combos") return "acc";
   return "inventaire";
 }
 
@@ -70,6 +74,7 @@ export function ZogboPage() {
   });
   const [day, setDay] = useState<ZogboDay | null>(null);
   const [baseDishes, setBaseDishes] = useState<BaseDish[]>([]);
+  const [localDishes, setLocalDishes] = useState<LocalDish[]>([]);
   const [caJournal, setCaJournal] = useState(0);
   const [lastSaleDate, setLastSaleDate] = useState<string | null>(null);
   const [ventes, setVentes] = useState<VenteLogEntry[]>([]);
@@ -89,7 +94,7 @@ export function ZogboPage() {
   function handleDateChange(next: string) {
     if (
       dirty &&
-      tab === "inventaire" &&
+      (tab === "inventaire" || tab === "acc") &&
       !window.confirm("Modifications non enregistrées. Changer de jour ?")
     ) {
       return;
@@ -116,6 +121,7 @@ export function ZogboPage() {
       if (!res.ok) throw new Error(body.error || "Erreur de chargement");
       setDay(body.day);
       setBaseDishes(body.baseDishes);
+      setLocalDishes(body.localDishes ?? []);
       setCaJournal(Number(body.caJournal) || 0);
       setLastSaleDate(body.lastSaleDate ?? null);
       setVentes(body.ventes ?? []);
@@ -127,6 +133,7 @@ export function ZogboPage() {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
       setDay(createEmptyZogboDay(nextDate, []));
       setBaseDishes([]);
+      setLocalDishes([]);
     } finally {
       setLoading(false);
     }
@@ -141,6 +148,28 @@ export function ZogboPage() {
     if (!day) return null;
     return computeZogboDay(day, baseDishes);
   }, [day, baseDishes]);
+
+  const accPriceById = useMemo(
+    () => new Map(localDishes.map((d) => [d.id, d.unitPrice])),
+    [localDishes],
+  );
+  const accComputed = useMemo(() => {
+    if (!day) return [];
+    return (day.accompanimentLines ?? []).map((l) =>
+      computeLocalLine(l, accPriceById.get(l.productId) ?? 0),
+    );
+  }, [day, accPriceById]);
+
+  function patchAccompaniment(productId: string, patch: Partial<GbegameyLocalLine>) {
+    if (!day) return;
+    setDay({
+      ...day,
+      accompanimentLines: (day.accompanimentLines ?? []).map((l) =>
+        l.productId === productId ? { ...l, ...patch } : l,
+      ),
+    });
+    setDirty(true);
+  }
 
   function patchLine(productId: string, patch: Partial<ZogboLine>) {
     if (!day) return;
@@ -165,6 +194,7 @@ export function ZogboPage() {
           date: day.date,
           status: day.status,
           lines: day.lines,
+          accompanimentLines: day.accompanimentLines ?? [],
         }),
       });
       const body = (await res.json()) as Payload & { error?: string };
@@ -246,19 +276,20 @@ export function ZogboPage() {
     journalLignes > 0 &&
     counterSold === 0 &&
     movementCount === 0 &&
-    (computed?.totals.prepared ?? 0) === 0;
+    (computed?.totals.prepared ?? 0) === 0 &&
+    (computed?.totals.available ?? 0) === 0;
 
   return (
     <AppShell
       title="Zogbo"
-      subtitle="Préparer, envoyer, vendre. Stock actuel = dispo − ventes. Montants en FCFA."
+      subtitle="Préparer, envoyer, vendre. Le comptage saisi devient le stock du jour. Montants en FCFA."
     >
       <ContextBar date={date} onDateChange={handleDateChange}>
         <ExportExcelButton
           onExport={() => exportZogboExcel(date)}
           disabled={loading}
         />
-        {tab === "inventaire" ? (
+        {tab === "inventaire" || tab === "acc" ? (
           <>
             <button
               type="button"
@@ -299,11 +330,14 @@ export function ZogboPage() {
         <button
           type="button"
           role="tab"
-          aria-selected={tab === "combos"}
-          className={`section-tab${tab === "combos" ? " is-active" : ""}`}
-          onClick={() => setTab("combos")}
+          aria-selected={tab === "acc"}
+          className={`section-tab${tab === "acc" ? " is-active" : ""}`}
+          onClick={() => setTab("acc")}
         >
-          Combos
+          Accompagnements
+          <span className="section-count">
+            {day?.accompanimentLines?.length ?? localDishes.length}
+          </span>
         </button>
         <button
           type="button"
@@ -328,7 +362,146 @@ export function ZogboPage() {
         </button>
       </div>
 
-      {tab === "combos" ? <ZoneCombosPanel date={date} site="zogbo" /> : null}
+      {tab === "acc" ? (
+        <section className="panel panel-wide">
+          <div className="param-meta zogbo-meta">
+            <p>
+              <strong>{formatDisplayDate(date)}</strong>
+              {" · "}
+              Dernière sauvegarde :{" "}
+              <strong>
+                {loading ? "…" : formatUpdatedAt(day?.updatedAt ?? null)}
+              </strong>
+            </p>
+          </div>
+
+          {error ? (
+            <p className="error-banner" role="alert">
+              {error}
+            </p>
+          ) : null}
+
+          <div className="ui-info" role="note">
+            <span className="ui-info-mark" aria-hidden>
+              i
+            </span>
+            <p>
+              <strong>Accompagnements</strong> : saisissez préparé et Stock
+              actuel (comptage = stock initial du jour). Les ventes
+              encaissées sont dans le journal Ventes.
+            </p>
+          </div>
+
+          <table className="data-table zogbo-table">
+            <thead>
+              <tr>
+                <th scope="col">Accompagnement</th>
+                <th scope="col" className="col-qty">
+                  Dispo
+                  <span className="col-auto-tag">= comptage saisi</span>
+                </th>
+                <th scope="col" className="col-qty">
+                  Préparé
+                </th>
+                <th scope="col" className="col-qty">
+                  Vendu
+                  <span className="col-auto-tag">via Vente</span>
+                </th>
+                <th scope="col" className="col-qty">
+                  Stock actuel
+                  <span className="col-auto-tag">comptage = stock initial</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={5}>
+                    <BrandLoader variant="ligne" label="Chargement…" />
+                  </td>
+                </tr>
+              ) : accComputed.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="muted">
+                    Aucun accompagnement dans Paramètres.
+                  </td>
+                </tr>
+              ) : (
+                accComputed.map((line) => (
+                  <tr key={line.productId}>
+                    <td className="cell-name">
+                      <span className="zogbo-plat-cell">
+                        <ProductIcon
+                          kind="local"
+                          name={line.name}
+                          size="sm"
+                        />
+                        <span>
+                          {line.name}
+                          <span className="cell-sub mono">
+                            {formatFcfa(line.unitPrice)}
+                          </span>
+                        </span>
+                      </span>
+                    </td>
+                    <td className="col-qty mono cell-readonly cell-auto">
+                      {line.available}
+                    </td>
+                    <td className="col-qty">
+                      <QtyInput
+                        value={line.prepared}
+                        ariaLabel={`Préparé ${line.name}`}
+                        onChange={(prepared) =>
+                          patchAccompaniment(line.productId, {
+                            prepared: prepared ?? 0,
+                          })
+                        }
+                      />
+                    </td>
+                    <td className="col-qty mono cell-readonly cell-auto">
+                      {line.sold}
+                    </td>
+                    <td className="col-qty">
+                      <QtyInput
+                        value={line.counted}
+                        allowEmpty
+                        placeholder={String(line.theoreticalRemaining)}
+                        ariaLabel={`Stock actuel ${line.name}`}
+                        onChange={(counted) =>
+                          patchAccompaniment(line.productId, { counted })
+                        }
+                      />
+                      {line.counted !== null ? (
+                        <span className="cell-sub muted">
+                          théo. {line.theoreticalRemaining}
+                        </span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {accComputed.length > 0 ? (
+              <tfoot>
+                <tr>
+                  <th scope="row">TOTAL</th>
+                  <td className="mono">
+                    {accComputed.reduce((s, l) => s + l.available, 0)}
+                  </td>
+                  <td className="mono">
+                    {accComputed.reduce((s, l) => s + l.prepared, 0)}
+                  </td>
+                  <td className="mono">
+                    {accComputed.reduce((s, l) => s + l.sold, 0)}
+                  </td>
+                  <td />
+                </tr>
+              </tfoot>
+            ) : null}
+          </table>
+        </section>
+      ) : null}
+
       {tab === "boissons" ? (
         <ZoneBoissonsPanel date={date} site="zogbo" />
       ) : null}
@@ -352,13 +525,6 @@ export function ZogboPage() {
                 {loading ? "…" : formatUpdatedAt(day?.updatedAt ?? null)}
               </strong>
             </p>
-            {computed && computed.totals.varianceCount > 0 ? (
-              <p className="warn-inline">
-                {computed.totals.varianceCount} écart
-                {computed.totals.varianceCount > 1 ? "s" : ""} détecté
-                {computed.totals.varianceCount > 1 ? "s" : ""}
-              </p>
-            ) : null}
           </div>
 
           {error ? (
@@ -437,9 +603,9 @@ export function ZogboPage() {
                   ▦
                 </span>
                 <div>
-                  <span className="stat-label">Dispo (préparé − envoyé)</span>
+                  <span className="stat-label">Dispo (compté, sinon préparé − envoyé)</span>
                   <span className="zogbo-stat-value mono">
-                    {computed.totals.stock}
+                    {computed.totals.available}
                   </span>
                 </div>
               </div>
@@ -496,7 +662,9 @@ export function ZogboPage() {
             </span>
             <p>
               <strong>Plats</strong> : stock et mouvements (préparé, envoyé).
-              Les ventes encaissées sont dans le{" "}
+              Le comptage saisi dans <strong>Stock actuel</strong> devient le
+              stock initial du jour — les ventes le décrementent ensuite. Les
+              ventes encaissées sont dans le{" "}
               <button
                 type="button"
                 className="btn btn-ghost"
@@ -515,7 +683,7 @@ export function ZogboPage() {
                   <th scope="col">Plat</th>
                   <th scope="col" className="col-qty">
                     Dispo
-                    <span className="col-auto-tag">préparé − envoyé</span>
+                    <span className="col-auto-tag">compté saisi, sinon préparé − envoyé</span>
                   </th>
                   <th scope="col" className="col-qty">
                     + Préparé
@@ -529,37 +697,31 @@ export function ZogboPage() {
                   </th>
                   <th scope="col" className="col-qty">
                     Stock actuel
-                    <span className="col-auto-tag">dispo − vendu</span>
-                  </th>
-                  <th scope="col" className="col-qty">
-                    Compté
+                    <span className="col-auto-tag">
+                      comptage = stock initial
+                    </span>
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {loading || !computed ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={6}>
                       <BrandLoader variant="ligne" label="Chargement…" />
                     </td>
                   </tr>
                 ) : computed.lines.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="muted">
+                    <td colSpan={6} className="muted">
                       Aucun plat de base dans Paramètres.
                     </td>
                   </tr>
                 ) : (
                   computed.lines.map((line) => {
-                    const hasVariance =
-                      line.variance !== null && line.variance !== 0;
                     const prepBusy = busyId === `${line.productId}-prepare`;
                     const sendBusy = busyId === `${line.productId}-send`;
                     return (
-                      <tr
-                        key={line.productId}
-                        className={hasVariance ? "row-warn" : undefined}
-                      >
+                      <tr key={line.productId}>
                         <td className="cell-name">
                           <span className="zogbo-plat-cell">
                             <ProductIcon
@@ -576,7 +738,7 @@ export function ZogboPage() {
                           </span>
                         </td>
                         <td className="col-qty mono cell-readonly cell-auto">
-                          {line.stock}
+                          {line.available}
                         </td>
                         <td className="col-qty">
                           <div className="mvt-entry">
@@ -663,19 +825,21 @@ export function ZogboPage() {
                         <td className="col-qty mono cell-readonly cell-auto">
                           {line.sold}
                         </td>
-                        <td className="col-qty mono cell-readonly stock-actuel">
-                          {line.theoreticalRemaining}
-                        </td>
                         <td className="col-qty">
                           <QtyInput
                             value={line.counted}
                             allowEmpty
-                            placeholder="—"
-                            ariaLabel={`Compté ${line.name}`}
+                            placeholder={String(line.theoreticalRemaining)}
+                            ariaLabel={`Stock actuel ${line.name}`}
                             onChange={(counted) =>
                               patchLine(line.productId, { counted })
                             }
                           />
+                          {line.counted !== null ? (
+                            <span className="cell-sub muted">
+                              théo. {line.theoreticalRemaining}
+                            </span>
+                          ) : null}
                         </td>
                       </tr>
                     );
@@ -686,12 +850,11 @@ export function ZogboPage() {
                 <tfoot>
                   <tr>
                     <th scope="row">TOTAL</th>
-                    <td className="mono">{computed.totals.stock}</td>
+                    <td className="mono">{computed.totals.available}</td>
                     <td className="mono">{computed.totals.prepared}</td>
                     <td className="mono">{computed.totals.sent}</td>
                     <td className="mono">{computed.totals.sold}</td>
                     <td className="mono">{computed.totals.theoretical}</td>
-                    <td className="mono">{computed.totals.counted}</td>
                   </tr>
                 </tfoot>
               ) : null}
