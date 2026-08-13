@@ -55,10 +55,28 @@ function toTicket(doc: TicketDoc): PosTicket {
   };
 }
 
+type CounterDoc = { _id: string; count: number };
+
+export function formatTicketNumero(date: string, count: number): string {
+  return `T-${date.replace(/-/g, "").slice(2)}-${String(count).padStart(3, "0")}`;
+}
+
+/**
+ * Compteur atomique par jour : deux validations simultanées (Zogbo et
+ * Gbégamey encaissent en parallèle) ne peuvent pas lire le même total avant
+ * d'écrire, contrairement à un `countDocuments` suivi d'une insertion — la
+ * fenêtre entre lecture et écriture y permettait un doublon de numéro.
+ */
 async function nextNumero(date: string): Promise<string> {
   const db = await getDb();
-  const count = await db.collection("pos_tickets").countDocuments({ date });
-  return `T-${date.replace(/-/g, "").slice(2)}-${String(count + 1).padStart(3, "0")}`;
+  const doc = await db
+    .collection<CounterDoc>("pos_counters")
+    .findOneAndUpdate(
+      { _id: date },
+      { $inc: { count: 1 } },
+      { upsert: true, returnDocument: "after" },
+    );
+  return formatTicketNumero(date, doc?.count ?? 1);
 }
 
 export async function listTickets(input: {

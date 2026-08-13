@@ -24,7 +24,7 @@ if (!uri || !dbName) {
   process.exit(1);
 }
 
-/** @type {{collection: string, index: Record<string, 1|-1>, nom: string, pourquoi: string}[]} */
+/** @type {{collection: string, index: Record<string, 1|-1>, nom: string, pourquoi: string, unique?: boolean}[]} */
 const INDEX = [
   {
     collection: "ventes_log",
@@ -61,6 +61,14 @@ const INDEX = [
     index: { clientRef: 1, site: 1 },
     nom: "reference_poste",
     pourquoi: "déduplication des ventes rejouées après coupure",
+  },
+  {
+    collection: "pos_tickets",
+    index: { date: 1, numero: 1 },
+    nom: "numero_unique",
+    pourquoi:
+      "filet de sécurité anti-doublon (T4) : le compteur atomique pos_counters empêche déjà la collision, cet index la rendrait de toute façon impossible à écrire",
+    unique: true,
   },
   {
     collection: "caisses_sessions",
@@ -131,6 +139,7 @@ for (const item of INDEX) {
   // inscriptible pendant la construction.
   await db.collection(item.collection).createIndex(item.index, {
     name: item.nom,
+    ...(item.unique ? { unique: true } : {}),
   });
   console.log(`créé ${item.collection}.${item.nom} (${Date.now() - debut} ms)`);
 }
