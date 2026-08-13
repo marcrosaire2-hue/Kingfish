@@ -1139,6 +1139,27 @@ export async function recordExtraVente(input: {
   return { entry, board };
 }
 
+/**
+ * Une équipe ne peut pas annuler une vente encaissée par l'autre équipe :
+ * l'équipe de nuit ne touche pas aux ventes de l'équipe de jour, et
+ * réciproquement. Hors équipe (encadrement) et ventes sans équipe restent
+ * annulables par tous.
+ */
+export function assertSameTeamCancellation(input: {
+  saleShift: UserShift | string | null | undefined;
+  cancellerShift: UserShift | string | null | undefined;
+}): void {
+  const sale = effectiveShift(input.saleShift);
+  const canceller = effectiveShift(input.cancellerShift);
+  if (sale === "aucune" || canceller === "aucune") return;
+  if (sale === canceller) return;
+  const teamLabel = (s: UserShift) =>
+    s === "jour" ? "Équipe de jour" : "Équipe de nuit";
+  throw new Error(
+    `Annulation refusée : une vente de l’${teamLabel(sale)} ne peut pas être annulée par l’${teamLabel(canceller)}.`,
+  );
+}
+
 export async function undoVente(input: {
   id: string;
   date: string;
@@ -1156,6 +1177,11 @@ export async function undoVente(input: {
     ...ACTIVE,
   });
   if (!doc) throw new Error("Vente introuvable ou déjà annulée");
+
+  assertSameTeamCancellation({
+    saleShift: doc.shift,
+    cancellerShift: input.actor?.shift,
+  });
 
   const marked = await db.collection<VenteLogDoc>("ventes_log").updateOne(
     { _id: doc._id, ...ACTIVE },

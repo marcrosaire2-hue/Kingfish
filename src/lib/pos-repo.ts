@@ -7,7 +7,7 @@ import {
 } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getPosConfig } from "@/lib/pos-config-repo";
-import { getVenteBoard, recordExtraVente, recordVente, undoVente } from "@/lib/vente-repo";
+import { getVenteBoard, recordExtraVente, recordVente, undoVente, assertSameTeamCancellation } from "@/lib/vente-repo";
 import type { SessionUser } from "@/lib/auth-types";
 import type {
   PosTicket,
@@ -322,6 +322,12 @@ export async function cancelPosTicket(input: {
   });
   if (!doc) throw new Error("Ticket introuvable");
   if (doc.statut === "annule") throw new Error("Ticket déjà annulé");
+
+  // Une équipe ne peut pas annuler un ticket encaissé par l'autre équipe.
+  assertSameTeamCancellation({
+    saleShift: doc.shift,
+    cancellerShift: input.user.shift,
+  });
 
   // Caisse fermée : revoir un ticket de cette caisse détournerait l'encaissé
   // déjà contrôlé (addCaisseVenteAmount n'a aucun effet sur une caisse
