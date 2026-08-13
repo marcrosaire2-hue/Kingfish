@@ -52,7 +52,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Suivre Gbégamey",
-        body: "Dans Gbégamey → Reçu de Zogbo : solde et reçu sont automatiques. Après une vente, le stock actuel baisse tout seul (solde − vendu). Compté sert au contrôle physique.",
+        body: "Dans Gbégamey → Plats : le stock initial du jour est le comptage que vous saisissez. Après une vente, le stock actuel baisse tout seul (compté − vendu). Le reste du jour est reporté au lendemain.",
       },
       {
         title: "Enregistrer les ventes au fil de l’eau",
@@ -184,7 +184,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Onglet Boissons",
-        body: "Stock et achats en casiers (+ Achat). Ventes à la bouteille via Vente. Le stock actuel convertit automatiquement (bt / casier dans Paramètres).",
+        body: "Stock, achats et comptage en bouteilles (+ Achat). Le stock actuel sert aussi à la vente, à la bouteille. Contenance du carton de livraison dans Paramètres.",
       },
       {
         title: "Contrôler le point",
@@ -222,7 +222,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Onglets Combos et Boissons",
-        body: "Combos : préparés à Zogbo, reçus auto à Gbégamey, vendus via Vente. Boissons : achats en casiers (+ Achat) et ventes à la bouteille via Vente.",
+        body: "Combos : préparés à Zogbo, reçus auto à Gbégamey, vendus via Vente. Boissons : achats et ventes à la bouteille.",
       },
       {
         title: "Point Gbégamey",

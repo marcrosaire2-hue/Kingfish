@@ -238,23 +238,34 @@ export type GbegameyDay = {
 export type GbegameyTransferComputed = GbegameyTransferLine & {
   /** Ce que Zogbo a déclaré envoyer */
   sentFromZogbo: number;
-  /** Ce qui est retenu pour le stock : le constaté s’il existe, sinon l’envoyé */
+  /** Ce qui est retenu pour le stock : le constaté s'il existe, sinon l'envoyé */
   receivedFromZogbo: number;
   /** Envoyé − constaté : la perte sur le trajet (null si non vérifié) */
   transportVariance: number | null;
   unitPrice: number;
+  /** Stock de référence du jour : compté saisi sinon init.+reçu (auto) */
   available: number;
   receivedAmount: number;
   soldAmount: number;
+  /** Reste estimé : disponible − vendu − pertes */
   theoreticalRemaining: number;
+  /** Stock restant réel : compté − vendu (le comptage EST le stock initial) */
+  prevalentRemaining: number;
+  /** Plafond de vente : comptage saisi s'il existe, sinon disponible − pertes */
+  prevalentMaxSold: number;
   variance: number | null;
 };
 
 export type GbegameyLocalComputed = GbegameyLocalLine & {
   unitPrice: number;
+  /** Stock de référence du jour : compté saisi sinon init.+préparé */
   available: number;
   soldAmount: number;
   theoreticalRemaining: number;
+  /** Stock restant réel : compté − vendu (le comptage EST le stock initial) */
+  prevalentRemaining: number;
+  /** Plafond de vente : comptage saisi s'il existe, sinon disponible − pertes */
+  prevalentMaxSold: number;
   variance: number | null;
 };
 
@@ -420,7 +431,7 @@ export type BoissonsLine = {
   soldGbegamey: number;
   /** Sorties déclarées hors vente, en bouteilles */
   pertes: number;
-  /** Comptage physique en casiers */
+  /** Comptage physique en bouteilles */
   counted: number | null;
   observations: string;
 };

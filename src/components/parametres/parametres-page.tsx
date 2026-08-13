@@ -47,7 +47,7 @@ const ZOGBO_SECTIONS: {
   {
     key: "drinks",
     label: "Boissons",
-    hint: "Catalogue boissons (partagé) — stock en casiers, ventes à la bouteille.",
+    hint: "Catalogue boissons (partagé) — stock et ventes en bouteilles.",
   },
 ];
 
@@ -64,7 +64,7 @@ const GBEGAMEY_SECTIONS: {
   {
     key: "drinks",
     label: "Boissons",
-    hint: "Même catalogue — stock en casiers, ventes à la bouteille.",
+    hint: "Même catalogue — stock et ventes en bouteilles.",
   },
 ];
 
@@ -723,15 +723,15 @@ function DrinksTable({
   return (
     <section className="panel">
       <p className="section-hint">
-        Stock et achats se comptent en <strong>casiers</strong>. Les prix sont
-        par bouteille ; indiquez combien de bouteilles contient un casier.
+        Le stock et les achats se comptent en <strong>bouteilles</strong>.
+        Indiquez la contenance du carton de livraison pour les conversions.
       </p>
       <table className="data-table">
         <thead>
           <tr>
             <th scope="col">Boisson</th>
             <th scope="col" className="col-qty">
-              Bt / casier
+              Contenance (bt)
             </th>
             <th scope="col" className="col-price">
               PA / bouteille
@@ -774,7 +774,7 @@ function DrinksTable({
                   <input
                     className="qty-input"
                     inputMode="numeric"
-                    aria-label={`Bouteilles par casier ${row.name}`}
+                    aria-label={`Contenance en bouteilles ${row.name}`}
                     value={row.unitsPerCasier ?? 12}
                     onChange={(e) => {
                       const n = Math.max(

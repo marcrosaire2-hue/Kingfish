@@ -210,6 +210,32 @@ export function SynthesePage() {
     };
   }, [viewMode, view, date, month, year]);
 
+  // Rafraîchissement silencieux de la vue jour : le gérant voit en direct
+  // les produits épuisés au fur et à mesure des ventes. Suspendu pendant
+  // la saisie des charges non enregistrées (on ne touche pas au brouillon).
+  useEffect(() => {
+    if (viewMode !== "day") return;
+    const id = window.setInterval(() => {
+      if (dirtyCharges || document.visibilityState !== "visible") return;
+      void (async () => {
+        try {
+          const res = await fetch(
+            `/api/synthese?view=day&date=${encodeURIComponent(date)}`,
+            { cache: "no-store" },
+          );
+          const body = await res.json();
+          if (!res.ok || !body.day) return;
+          setDay(body.day as DayPoint);
+          setEpuises((body.epuises as EpuiseRow[] | undefined) ?? []);
+        } catch {
+          // Silencieux : le prochain passage retentera.
+        }
+      })();
+    }, 45000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, date, dirtyCharges]);
+
   const dayResultat = useMemo(() => {
     if (!day) return null;
     const chargesTotal = CHARGE_FIELDS.reduce(

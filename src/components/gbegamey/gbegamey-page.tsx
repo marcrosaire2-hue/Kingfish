@@ -194,7 +194,7 @@ export function GbegameyPage() {
   return (
     <AppShell
       title="Gbégamey"
-      subtitle="Stock init. et reçu auto ; saisissez vendu et compté. Montants en FCFA."
+      subtitle="Plats, accompagnements et boissons : saisissez vendu, préparé et compté."
     >
       <ContextBar date={date} onDateChange={handleDateChange}>
         <ExportExcelButton
@@ -227,7 +227,7 @@ export function GbegameyPage() {
           className={`section-tab${section === "transfer" ? " is-active" : ""}`}
           onClick={() => setSection("transfer")}
         >
-          Reçu de Zogbo
+          Plats
           <span className="section-count">
             {day?.transferLines.length ?? 0}
           </span>
@@ -239,7 +239,7 @@ export function GbegameyPage() {
           className={`section-tab${section === "local" ? " is-active" : ""}`}
           onClick={() => setSection("local")}
         >
-          Sur place
+          Accompagnements
           <span className="section-count">{day?.localLines.length ?? 0}</span>
         </button>
         <button
@@ -285,37 +285,17 @@ export function GbegameyPage() {
       {computed ? (
         <div className="stat-row">
           <div className="stat-chip">
-            <span className="stat-label">Solde initial</span>
-            <span className="stat-value mono">
-              {computed.totals.initialStock}
-            </span>
+            <span className="stat-label">Stock du jour (compté)</span>
+            <span className="stat-value mono">{computed.totals.available}</span>
           </div>
           <div className="stat-chip">
-            <span className="stat-label">Envoyé par Zogbo</span>
-            <span className="stat-value mono">{computed.totals.sent}</span>
-          </div>
-          {computed.totals.transportVarianceCount > 0 ? (
-            <div className="stat-chip">
-              <span className="stat-label">Perte au transport</span>
-              <span className="stat-value mono">
-                {computed.totals.transportLost}
-              </span>
-            </div>
-          ) : null}
-          <div className="stat-chip">
-            <span className="stat-label">Solde (init.+reçu)</span>
-            <span className="stat-value mono">
-              {computed.totals.initialStock + computed.totals.received}
-            </span>
-          </div>
-          <div className="stat-chip">
-            <span className="stat-label">Vendu (transferts)</span>
+            <span className="stat-label">Vendu (plats)</span>
             <span className="stat-value mono">
               {computed.totals.transferSold}
             </span>
           </div>
           <div className="stat-chip">
-            <span className="stat-label">Vendu (locaux)</span>
+            <span className="stat-label">Vendu (acc.)</span>
             <span className="stat-value mono">{computed.totals.localSold}</span>
           </div>
           <div className="stat-chip accent">
@@ -336,7 +316,7 @@ export function GbegameyPage() {
             Première mise en service : saisissez vous-même le stock initial de
             chaque plat, puis enregistrez. Dès le lendemain, ce stock est
             reporté automatiquement du reste de la veille et la colonne
-            disparaît — vous ne saisirez plus que le reçu de Zogbo.
+            disparaît — vous ne saisirez plus que le stock actuel (comptage).
           </p>
         </div>
       ) : null}
@@ -347,7 +327,7 @@ export function GbegameyPage() {
         </span>
         <p>
           {section === "transfer"
-            ? "Stock = quantités (reçu, vendu, reste). Le CA affiché est la somme du journal des ventes (prix figés), pas qty × catalogue."
+            ? "Stock = quantités (solde, vendu, reste). Le CA affiché est la somme du journal des ventes (prix figés), pas qty × catalogue."
             : "Stock = quantités (préparé, vendu, reste). Le CA du jour vient du journal des ventes."}
         </p>
       </div>
@@ -366,11 +346,7 @@ export function GbegameyPage() {
                 ) : null}
                 <th scope="col" className="col-qty">
                   Solde
-                  <span className="col-auto-tag">init.+reçu</span>
-                </th>
-                <th scope="col" className="col-qty">
-                  Reçu réel
-                  <span className="col-auto-tag">si vérifié</span>
+                  <span className="col-auto-tag">= comptage saisi</span>
                 </th>
                 <th scope="col" className="col-qty">
                   Vendu
@@ -378,37 +354,31 @@ export function GbegameyPage() {
                 </th>
                 <th scope="col" className="col-qty">
                   Stock actuel
-                  <span className="col-auto-tag">saisie = comptage</span>
+                  <span className="col-auto-tag">comptage = stock initial</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={openingEditable ? 6 : 5}>
+                  <td colSpan={openingEditable ? 5 : 4}>
                     <BrandLoader variant="ligne" label="Chargement…" />
                   </td>
                 </tr>
               ) : computed.transfers.length === 0 ? (
                 <tr>
-                  <td colSpan={openingEditable ? 6 : 5} className="muted">
-                    Aucun plat de base. Configurez Paramètres puis saisissez
-                    les envois dans Zogbo.
+                  <td colSpan={openingEditable ? 5 : 4} className="muted">
+                    Aucun plat dans Paramètres.
                   </td>
                 </tr>
               ) : (
                 computed.transfers.map((line) => {
                   const hasVariance =
                     line.variance !== null && line.variance !== 0;
-                  const hasTransportLoss =
-                    line.transportVariance !== null &&
-                    line.transportVariance !== 0;
                   return (
                     <tr
                       key={line.productId}
-                      className={
-                        hasVariance || hasTransportLoss ? "row-warn" : undefined
-                      }
+                      className={hasVariance ? "row-warn" : undefined}
                     >
                       <td className="cell-name">
                         <span className="plat-cell">
@@ -416,14 +386,8 @@ export function GbegameyPage() {
                           <span>
                             {line.name}
                             <span className="cell-sub">
-                              Init {line.initialStock} · Reçu{" "}
-                              {line.receivedFromZogbo}
-                              {hasTransportLoss ? (
-                                <span className="cell-variance">
-                                  {" "}
-                                  · Écart transp. {line.transportVariance}
-                                </span>
-                              ) : null}
+                              Initial {line.counted ?? line.initialStock}
+                              {line.counted !== null ? " (compté)" : ""}
                             </span>
                             <span className="cell-sub mono">
                               Catalogue {formatFcfa(line.unitPrice)}
@@ -446,17 +410,6 @@ export function GbegameyPage() {
                       ) : null}
                       <td className="col-qty mono cell-readonly cell-auto">
                         {line.available}
-                      </td>
-                      <td className="col-qty">
-                        <QtyInput
-                          value={line.received}
-                          allowEmpty
-                          placeholder="—"
-                          ariaLabel={`Reçu réel ${line.name}`}
-                          onChange={(received) =>
-                            patchTransfer(line.productId, { received })
-                          }
-                        />
                       </td>
                       <td className="col-qty mono cell-readonly cell-auto">
                         {line.sold}
@@ -492,7 +445,6 @@ export function GbegameyPage() {
                   <td className="mono">
                     {computed.totals.initialStock + computed.totals.received}
                   </td>
-                  <td />
                   <td className="mono">{computed.totals.transferSold}</td>
                   <td />
                 </tr>
@@ -514,7 +466,7 @@ export function GbegameyPage() {
                 ) : null}
                 <th scope="col" className="col-qty">
                   Dispo
-                  <span className="col-auto-tag">init.+préparé</span>
+                  <span className="col-auto-tag">= comptage saisi</span>
                 </th>
                 <th scope="col" className="col-qty">
                   Préparé
@@ -525,7 +477,7 @@ export function GbegameyPage() {
                 </th>
                 <th scope="col" className="col-qty">
                   Stock actuel
-                  <span className="col-auto-tag">saisie = comptage</span>
+                  <span className="col-auto-tag">comptage = stock initial</span>
                 </th>
               </tr>
             </thead>
@@ -539,7 +491,7 @@ export function GbegameyPage() {
               ) : computed.locals.length === 0 ? (
                 <tr>
                   <td colSpan={openingEditable ? 6 : 5} className="muted">
-                    Aucun plat local dans Paramètres.
+                    Aucun accompagnement dans Paramètres.
                   </td>
                 </tr>
               ) : (
@@ -557,7 +509,8 @@ export function GbegameyPage() {
                           <span>
                             {line.name}
                             <span className="cell-sub">
-                              Init {line.initialStock}
+                              Initial {line.counted ?? line.initialStock}
+                              {line.counted !== null ? " (compté)" : ""}
                             </span>
                             <span className="cell-sub mono">
                               Catalogue {formatFcfa(line.unitPrice)}

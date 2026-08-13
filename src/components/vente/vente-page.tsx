@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
@@ -186,6 +186,58 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [operateur, setOperateur] = useState<string | null>(null);
   /** Facture du dernier ticket validé — générée systématiquement. */
   const [facture, setFacture] = useState<PosTicket | null>(null);
+  /** Alerte transitoire quand un produit vient de s'épuiser (rupture). */
+  const [ruptureAlert, setRuptureAlert] = useState<string | null>(null);
+  /** Ruptures connues au dernier chargement (pour ne signaler que les nouvelles). */
+  const prevRuptures = useRef<Set<string> | null>(null);
+  const ruptureAlertTimer = useRef<number | null>(null);
+
+  /** Produits actuellement à zéro (plats/boissons suivis). Accompagnements : jamais bloqués. */
+  const ruptureCount = useMemo(
+    () =>
+      board?.products.filter(
+        (p) =>
+          p.kind !== "local" &&
+          p.stockLeft !== null &&
+          p.stockLeft !== undefined &&
+          p.stockLeft <= 0,
+      ).length ?? 0,
+    [board],
+  );
+
+  useEffect(() => {
+    if (!board) return;
+    const ruptures = new Set(
+      board.products
+        .filter(
+          (p) =>
+            p.kind !== "local" &&
+            p.stockLeft !== null &&
+            p.stockLeft !== undefined &&
+            p.stockLeft <= 0,
+        )
+        .map((p) => p.name),
+    );
+    if (prevRuptures.current === null) {
+      prevRuptures.current = ruptures;
+      return;
+    }
+    const nouvelles = [...ruptures].filter(
+      (name) => !prevRuptures.current!.has(name),
+    );
+    prevRuptures.current = ruptures;
+    if (nouvelles.length === 0) return;
+    setRuptureAlert(
+      `${nouvelles.length === 1 ? "ÉPUISÉ :" : "ÉPUISÉS :"} ${nouvelles.join(", ")}`,
+    );
+    if (ruptureAlertTimer.current !== null) {
+      window.clearTimeout(ruptureAlertTimer.current);
+    }
+    ruptureAlertTimer.current = window.setTimeout(
+      () => setRuptureAlert(null),
+      8000,
+    );
+  }, [board]);
 
   async function load(nextDate = date, nextSite = site) {
     setLoading(true);
@@ -383,26 +435,6 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     const accLines = composerAccOptions
       .filter((a) => (composerAccQtys[a.productId] ?? 0) > 0)
       .map((a) => ({ acc: a, qty: composerAccQtys[a.productId] ?? 0 }));
-    for (const { acc, qty } of accLines) {
-      if (
-        acc.stockLeft !== null &&
-        acc.stockLeft !== undefined &&
-        acc.stockLeft <= 0
-      ) {
-        setError(`Stock épuisé : ${acc.name}`);
-        return;
-      }
-      if (
-        acc.stockLeft !== null &&
-        acc.stockLeft !== undefined &&
-        qty > acc.stockLeft
-      ) {
-        setError(
-          `Stock insuffisant : reste ${acc.stockLeft} ${acc.name}`,
-        );
-        return;
-      }
-    }
 
     addToCart(composerPlat, undefined, composerQty);
     for (const { acc, qty } of accLines) {
@@ -427,7 +459,9 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     qty = 1,
   ) {
     if (product.kind === "boisson" && product.unitPrice <= 0) return;
+    // Accompagnements toujours vendables, même à stock nul.
     if (
+      product.kind !== "local" &&
       product.stockLeft !== null &&
       product.stockLeft !== undefined &&
       product.stockLeft <= 0
@@ -648,6 +682,33 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
           </button>
         </ContextBar>
 
+        {ruptureAlert ? (
+          <div className="vente-rupture-alert" role="alert">
+            <strong>{ruptureAlert}</strong>
+            <span className="vente-rupture-alert-sub">
+              — réapprovisionnez ou mettez à jour le comptage pour revendre.
+            </span>
+            <button
+              type="button"
+              className="vente-rupture-alert-close"
+              aria-label="Fermer l'alerte"
+              onClick={() => setRuptureAlert(null)}
+            >
+              ×
+            </button>
+          </div>
+        ) : null}
+
+        {ruptureCount > 0 ? (
+          <div className="vente-rupture-bar" role="status">
+            <strong>
+              {ruptureCount} produit{ruptureCount > 1 ? "s" : ""} épuisé
+              {ruptureCount > 1 ? "s" : ""}
+            </strong>
+            <span>— vente bloquée tant que le stock n'est pas renseigné.</span>
+          </div>
+        ) : null}
+
         <div className={`vente-hero${caisse ? " is-ready" : " is-idle"}`}>
           <div className="vente-hero-main">
             <span className="vente-hero-status">
@@ -816,22 +877,25 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                           onChange={(e) => setComposerPlatId(e.target.value)}
                         >
                           <option value="">— Choisir —</option>
-                          {plats.map((p) => (
-                            <option
-                              key={p.productId}
-                              value={p.productId}
-                              disabled={
-                                p.stockLeft !== null &&
-                                p.stockLeft !== undefined &&
-                                p.stockLeft <= 0
-                              }
-                            >
-                              {p.name}
-                              {p.unitPrice > 0
-                                ? ` · ${formatFcfa(p.unitPrice)}`
-                                : ""}
-                            </option>
-                          ))}
+                          {plats.map((p) => {
+                            const platEpuise =
+                              p.stockLeft !== null &&
+                              p.stockLeft !== undefined &&
+                              p.stockLeft <= 0;
+                            return (
+                              <option
+                                key={p.productId}
+                                value={p.productId}
+                                disabled={platEpuise}
+                              >
+                                {p.name}
+                                {platEpuise ? " · ÉPUISÉ" : ""}
+                                {p.unitPrice > 0
+                                  ? ` · ${formatFcfa(p.unitPrice)}`
+                                  : ""}
+                              </option>
+                            );
+                          })}
                         </select>
                       </label>
                       <div className="vente-meal-qty">
@@ -879,17 +943,11 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                         <legend>Accompagnements (optionnel) — quantité par ligne</legend>
                         <ul className="vente-acc-list">
                           {composerAccOptions.map((a) => {
-                            const out =
-                              a.stockLeft !== null &&
-                              a.stockLeft !== undefined &&
-                              a.stockLeft <= 0;
                             const accQty = composerAccQtys[a.productId] ?? 0;
                             const accPrice = accPriceFor(a);
                             return (
                               <li key={a.productId}>
-                                <div
-                                  className={`vente-acc-option${out ? " is-disabled" : ""}`}
-                                >
+                                <div className="vente-acc-option">
                                   <span className="vente-acc-option-name">
                                     <span>
                                       {a.name}
@@ -909,7 +967,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                                       type="button"
                                       className="vente-minus"
                                       aria-label={`Moins de ${a.name}`}
-                                      disabled={out || accQty <= 0 || !!busyKey}
+                                      disabled={accQty <= 0 || !!busyKey}
                                       onClick={() =>
                                         changeComposerAccQty(a.productId, -1)
                                       }
@@ -923,13 +981,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                                       type="button"
                                       className="vente-plus"
                                       aria-label={`Plus de ${a.name}`}
-                                      disabled={
-                                        out ||
-                                        !!busyKey ||
-                                        (a.stockLeft !== null &&
-                                          a.stockLeft !== undefined &&
-                                          accQty >= a.stockLeft)
-                                      }
+                                      disabled={!!busyKey}
                                       onClick={() =>
                                         changeComposerAccQty(a.productId, 1)
                                       }
@@ -980,7 +1032,9 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   products.map((p) => {
                     const disabledPv =
                       p.kind === "boisson" && p.unitPrice <= 0;
+                    // Accompagnements toujours vendables, même à stock nul.
                     const outOfStock =
+                      p.kind !== "local" &&
                       p.stockLeft !== null &&
                       p.stockLeft !== undefined &&
                       p.stockLeft <= 0;
@@ -993,8 +1047,12 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                       >
                         <div className="vente-card-media" aria-hidden>
                           <ProductIcon kind={p.kind} name={p.name} size="lg" />
-                          {p.lowStock && !outOfStock ? (
-                            <span className="vente-low-badge">Bientôt épuisé</span>
+                          {outOfStock ? (
+                            <span className="vente-out-badge">ÉPUISÉ</span>
+                          ) : p.lowStock && !outOfStock ? (
+                            <span className="vente-low-badge">
+                              Bientôt épuisé
+                            </span>
                           ) : null}
                         </div>
                         <div className="vente-card-body">

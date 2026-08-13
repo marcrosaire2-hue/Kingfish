@@ -80,15 +80,22 @@ export async function getEpuises(input: {
     onlyActive: false,
   });
   return rows
-    .filter((r) => (r.stockVendable ?? r.stockFinal) <= 0)
     .map((r) => ({
       zone: r.zone,
       zoneLabel: r.zoneLabel,
       productId: r.productId,
       name: r.name,
       kind: r.kind,
-      restant: r.stockVendable ?? r.stockFinal,
+      // Le comptage saisi prévaut : reste = compté − vendu, exactement la
+      // même règle que le contrôle de vente (un produit compté 3 puis vendu
+      // 3 est épuisé, malgré un comptage brut positif).
+      stock:
+        r.compte !== null
+          ? r.compte - r.vendu
+          : (r.stockVendable ?? r.stockFinal),
     }))
+    .filter((r) => r.stock <= 0)
+    .map(({ stock, ...e }) => ({ ...e, restant: stock }))
     .sort(
       (a, b) =>
         a.zoneLabel.localeCompare(b.zoneLabel, "fr") ||

@@ -146,14 +146,28 @@ export function computeTransferLine(
   const receivedFromZogbo = normalized.received ?? sentFromZogbo;
   const transportVariance =
     normalized.received === null ? null : sentFromZogbo - normalized.received;
+  const counted = normalized.counted;
 
-  const available = normalized.initialStock + receivedFromZogbo;
-  const theoreticalRemaining =
-    available - normalized.sold - normalized.pertes;
-  const variance =
-    normalized.counted === null
-      ? null
-      : theoreticalRemaining - normalized.counted;
+  const available =
+    counted !== null
+      ? Math.max(0, counted)
+      : normalized.initialStock + receivedFromZogbo;
+  // Le comptage saisi devient le stock initial du jour : la vérité physique
+  // remplace init.+reçu dès qu'elle est saisie. Les ventes et pertes le
+  // décrementent ensuite.
+  const theoreticalRemaining = Math.max(
+    0,
+    available - normalized.sold - normalized.pertes,
+  );
+  // Stock qui prévaut : le comptage (stock initial) s'il existe, sinon le
+  // théorique. Le comptage est la vérité physique : les ventes suivantes le
+  // décrementent, sans recompter le vendu antérieur.
+  const prevalentMaxSold =
+    counted !== null
+      ? Math.max(0, counted)
+      : Math.max(0, available - normalized.pertes);
+  // Plus d'écart mesurable : le comptage EST le stock initial.
+  const variance = null;
 
   return {
     ...normalized,
@@ -165,6 +179,8 @@ export function computeTransferLine(
     receivedAmount: receivedFromZogbo * unitPrice,
     soldAmount: normalized.sold * unitPrice,
     theoreticalRemaining,
+    prevalentRemaining: Math.max(0, prevalentMaxSold - normalized.sold),
+    prevalentMaxSold,
     variance,
   };
 }
@@ -174,13 +190,25 @@ export function computeLocalLine(
   unitPrice: number,
 ): GbegameyLocalComputed {
   const normalized = normalizeLocalLine(line);
-  const available = normalized.initialStock + normalized.prepared;
-  const theoreticalRemaining =
-    available - normalized.sold - normalized.pertes;
-  const variance =
-    normalized.counted === null
-      ? null
-      : theoreticalRemaining - normalized.counted;
+  const counted = normalized.counted;
+  // Le comptage saisi devient le stock initial du jour : la vérité physique
+  // remplace init.+préparé dès qu'elle est saisie.
+  const available =
+    counted !== null
+      ? Math.max(0, counted)
+      : normalized.initialStock + normalized.prepared;
+  const theoreticalRemaining = Math.max(
+    0,
+    available - normalized.sold - normalized.pertes,
+  );
+  // Stock qui prévaut : le comptage (stock initial) s'il existe, sinon le
+  // théorique.
+  const prevalentMaxSold =
+    counted !== null
+      ? Math.max(0, counted)
+      : Math.max(0, available - normalized.pertes);
+  // Plus d'écart mesurable : le comptage EST le stock initial.
+  const variance = null;
 
   return {
     ...normalized,
@@ -188,6 +216,8 @@ export function computeLocalLine(
     available,
     soldAmount: normalized.sold * unitPrice,
     theoreticalRemaining,
+    prevalentRemaining: Math.max(0, prevalentMaxSold - normalized.sold),
+    prevalentMaxSold,
     variance,
   };
 }
@@ -196,9 +226,7 @@ export function leftoverFromTransferLines(
   lines: GbegameyTransferLine[],
   receivedById: Map<string, number>,
   unitPriceById?: Map<string, number>,
-  options?: { useCounted?: boolean },
 ): Map<string, number> {
-  const useCounted = options?.useCounted !== false;
   const out = new Map<string, number>();
   for (const line of lines) {
     const computed = computeTransferLine(
@@ -206,11 +234,9 @@ export function leftoverFromTransferLines(
       receivedById.get(line.productId) ?? 0,
       unitPriceById?.get(line.productId) ?? 0,
     );
-    const leftover =
-      useCounted && computed.counted !== null
-        ? computed.counted
-        : Math.max(0, computed.theoreticalRemaining);
-    out.set(line.productId, leftover);
+    // Le comptage étant le stock initial, le reste du jour l'est aussi :
+    // compté − vendu − pertes, même si la journée n'est pas clôturée.
+    out.set(line.productId, Math.max(0, computed.theoreticalRemaining));
   }
   return out;
 }
@@ -218,20 +244,14 @@ export function leftoverFromTransferLines(
 export function leftoverFromLocalLines(
   lines: GbegameyLocalLine[],
   unitPriceById?: Map<string, number>,
-  options?: { useCounted?: boolean },
 ): Map<string, number> {
-  const useCounted = options?.useCounted !== false;
   const out = new Map<string, number>();
   for (const line of lines) {
     const computed = computeLocalLine(
       line,
       unitPriceById?.get(line.productId) ?? 0,
     );
-    const leftover =
-      useCounted && computed.counted !== null
-        ? computed.counted
-        : Math.max(0, computed.theoreticalRemaining);
-    out.set(line.productId, leftover);
+    out.set(line.productId, Math.max(0, computed.theoreticalRemaining));
   }
   return out;
 }
@@ -248,6 +268,8 @@ export function computeGbegameyDay(
     initialStock: number;
     sent: number;
     received: number;
+    /** Stock de référence du jour : compté si saisi, sinon init.+apports */
+    available: number;
     /** Total envoyé − constaté sur les lignes vérifiées */
     transportLost: number;
     /** Nombre de lignes vérifiées présentant une perte au transport */
@@ -281,6 +303,7 @@ export function computeGbegameyDay(
     initialStock: 0,
     sent: 0,
     received: 0,
+    available: 0,
     transportLost: 0,
     transportVarianceCount: 0,
     transferSold: 0,
@@ -297,6 +320,7 @@ export function computeGbegameyDay(
     totals.initialStock += t.initialStock;
     totals.sent += t.sentFromZogbo;
     totals.received += t.receivedFromZogbo;
+    totals.available += t.available;
     totals.transferSold += t.sold;
     totals.transferSoldAmount += t.soldAmount;
     if (t.transportVariance !== null && t.transportVariance !== 0) {
@@ -309,6 +333,7 @@ export function computeGbegameyDay(
     totals.localInitial += l.initialStock;
     totals.localPrepared += l.prepared;
     totals.localSold += l.sold;
+    totals.available += l.available;
     totals.localSoldAmount += l.soldAmount;
     if (l.variance !== null && l.variance !== 0) totals.varianceCount += 1;
   }

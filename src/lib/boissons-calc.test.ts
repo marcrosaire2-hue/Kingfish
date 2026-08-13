@@ -3,6 +3,7 @@ import {
   computeBoissonsLine,
   formatCasiers,
   guessUnitsPerCasier,
+  leftoverFromBoissonsLines,
   normalizeBoissonsLine,
   physicalBoissonsStock,
   unitsPerCasierOf,
@@ -49,6 +50,27 @@ describe("physicalBoissonsStock", () => {
   it("ne descend jamais sous zéro", () => {
     expect(
       physicalBoissonsStock(ligne({ initialStock: 1, soldZogbo: 50 }), 12),
+    ).toBe(0);
+  });
+
+  it("le comptage saisi prévaut sur le théorique", () => {
+    // Théorique : 3 casiers de 12 = 36 bt, moins 5 vendues = 31.
+    // Compté 24 bouteilles, moins 5 vendues = 19 : c'est le comptage
+    // qui fait foi.
+    expect(
+      physicalBoissonsStock(
+        ligne({ initialStock: 2, purchases: 1, soldZogbo: 5, counted: 24 }),
+        12,
+      ),
+    ).toBe(19);
+  });
+
+  it("le comptage à zéro vide le stock même si le théorique est positif", () => {
+    expect(
+      physicalBoissonsStock(
+        ligne({ initialStock: 2, purchases: 1, soldZogbo: 1, counted: 0 }),
+        12,
+      ),
     ).toBe(0);
   });
 
@@ -107,12 +129,21 @@ describe("computeBoissonsLine", () => {
 
   it("mesure l'écart entre théorique et comptage physique", () => {
     const c = computeBoissonsLine(
-      ligne({ initialStock: 10, soldZogbo: 12, counted: 8 }),
+      ligne({ initialStock: 10, soldZogbo: 12, counted: 96 }),
       boisson(),
     );
-    // 10 casiers − 1 casier vendu = 9 théoriques, 8 comptés : 1 casier manquant.
+    // 10 casiers − 1 casier vendu = 9 théoriques ; 96 bt comptées = 8 casiers.
     expect(c.theoreticalRemaining).toBe(9);
     expect(c.variance).toBe(1);
+  });
+
+  it("reporte le comptage en casiers pour le jour suivant", () => {
+    const map = leftoverFromBoissonsLines(
+      [ligne({ initialStock: 3, counted: 25 })],
+      [boisson()],
+    );
+    // 25 bouteilles comptées = 2,08 casiers reportés.
+    expect(map.get("drink-beaufort")).toBeCloseTo(25 / 12, 2);
   });
 
   it("ne calcule aucun écart tant que rien n'est compté", () => {

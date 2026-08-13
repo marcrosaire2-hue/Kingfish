@@ -1,4 +1,4 @@
-import { computeBoissonsDay, formatCasiers } from "@/lib/boissons-calc";
+import { computeBoissonsDay } from "@/lib/boissons-calc";
 import { computeCombosDay } from "@/lib/combos-calc";
 import {
   downloadExcel,
@@ -186,12 +186,13 @@ export async function exportZogboExcel(date: string): Promise<void> {
       name: "Boissons",
       rows: b.lines.map((l) => ({
         Boisson: l.name,
-        "Bt/casier": l.unitsPerCasier,
-        "Init (cas.)": formatCasiers(l.initialStock),
-        "Achats (cas.)": formatCasiers(l.purchases),
+        "Contenance (bt/casier)": l.unitsPerCasier,
+        "Init (bt)": Math.round(l.initialStock * l.unitsPerCasier),
+        "Achats (bt)": Math.round(l.purchases * l.unitsPerCasier),
         "Vendu Zogbo (bt)": l.soldZogbo,
-        "Stock (cas.)": formatCasiers(Math.max(0, l.theoreticalRemaining)),
-        "Stock (bt)": l.stockBottles,
+        "Stock (bt)": Math.round(
+          Math.max(0, l.theoreticalRemaining) * l.unitsPerCasier,
+        ),
         "PA/bt": l.purchasePrice,
         "PV/bt": l.salePrice ?? "",
         Compté: l.counted ?? "",
@@ -236,7 +237,7 @@ export async function exportGbegameyExcel(date: string): Promise<void> {
 
   const sheets: ExcelSheet[] = [
     {
-      name: "Reçu Zogbo",
+      name: "Plats",
       rows: transfer.map((l) => ({
         Plat: l.name,
         "Stock init.": l.initialStock,
@@ -284,12 +285,13 @@ export async function exportGbegameyExcel(date: string): Promise<void> {
       name: "Boissons",
       rows: b.lines.map((l) => ({
         Boisson: l.name,
-        "Bt/casier": l.unitsPerCasier,
-        "Init (cas.)": formatCasiers(l.initialStock),
-        "Achats (cas.)": formatCasiers(l.purchases),
+        "Contenance (bt/casier)": l.unitsPerCasier,
+        "Init (bt)": Math.round(l.initialStock * l.unitsPerCasier),
+        "Achats (bt)": Math.round(l.purchases * l.unitsPerCasier),
         "Vendu Gbégamey (bt)": l.soldGbegamey,
-        "Stock (cas.)": formatCasiers(Math.max(0, l.theoreticalRemaining)),
-        "Stock (bt)": l.stockBottles,
+        "Stock (bt)": Math.round(
+          Math.max(0, l.theoreticalRemaining) * l.unitsPerCasier,
+        ),
         "PV/bt": l.salePrice ?? "",
         Compté: l.counted ?? "",
       })),

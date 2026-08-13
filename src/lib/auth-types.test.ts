@@ -102,6 +102,14 @@ describe("étanchéité des zones", () => {
     expect(canAccessPath("gerant", "/stock", "zogbo")).toBe(true);
     expect(navForUser("gerant", "zogbo")).toContain("stock");
   });
+
+  it("le gérant accède à l'historique des ventes de SA zone", () => {
+    expect(canAccessPath("gerant", "/historique-ventes", "zogbo")).toBe(true);
+    const menu = navForUser("gerant", "zogbo");
+    expect(menu).toContain("historique-ventes");
+    // La zone est imposée par l'API : le menu ne propose que la sienne.
+    expect(navForUser("gerant", "zogbo")).not.toContain("gbegamey");
+  });
 });
 
 /**

@@ -5,7 +5,7 @@ import { RegistreDrawer } from "@/components/registre-drawer";
 import {
   computeBoissonsDay,
   createEmptyBoissonsDay,
-  formatCasiers,
+  DEFAULT_UNITS_PER_CASIER,
   movementTypeLabelBoissons,
 } from "@/lib/boissons-calc";
 import { formatFcfa, formatUpdatedAt } from "@/lib/format";
@@ -136,8 +136,17 @@ export function ZoneBoissonsPanel({
   }
 
   async function submitPurchase(productId: string, raw: string) {
-    const qty = Math.round(Number(raw.replace(",", ".")) || 0);
-    if (qty <= 0) return;
+    const upc = Math.max(
+      1,
+      Math.round(
+        drinks.find((d) => d.id === productId)?.unitsPerCasier ||
+          DEFAULT_UNITS_PER_CASIER,
+      ),
+    );
+    const bt = Math.round(Number(raw.replace(",", ".")) || 0);
+    if (bt <= 0) return;
+    // Saisie en bouteilles → stock interne en casiers (29 bt = 2,42 casiers).
+    const qty = Math.round((bt / upc) * 100) / 100;
     setBusyId(`buy-${productId}`);
     setError(null);
     try {
@@ -163,9 +172,16 @@ export function ZoneBoissonsPanel({
   }
 
   async function cancelMovement(m: BoissonsMovement) {
+    const upc = Math.max(
+      1,
+      Math.round(
+        drinks.find((d) => d.id === m.productId)?.unitsPerCasier ||
+          DEFAULT_UNITS_PER_CASIER,
+      ),
+    );
     if (
       !window.confirm(
-        `Annuler cet achat ?\n\n+${m.qty} casier(s) × ${m.name}`,
+        `Annuler cet achat ?\n\n+${Math.round(m.qty * upc)} bouteille(s) × ${m.name}`,
       )
     ) {
       return;
@@ -196,6 +212,14 @@ export function ZoneBoissonsPanel({
   }
 
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
+  const upcOf = (productId: string) =>
+    Math.max(
+      1,
+      Math.round(
+        drinks.find((d) => d.id === productId)?.unitsPerCasier ||
+          DEFAULT_UNITS_PER_CASIER,
+      ),
+    );
   const qtySite = computed
     ? site === "zogbo"
       ? computed.totals.soldZogbo
@@ -245,9 +269,8 @@ export function ZoneBoissonsPanel({
           i
         </span>
         <p>
-          Stock et achats en <strong>casiers</strong>. Les ventes (page Vente)
-          sont en <strong>bouteilles</strong> et baissent le stock actuel.
-          Compté = contrôle physique en casiers.
+          Stock, achats et comptage en <strong>bouteilles</strong>. Les ventes
+          (page Vente) baissent le stock actuel, en bouteilles elles aussi.
         </p>
       </div>
 
@@ -259,22 +282,30 @@ export function ZoneBoissonsPanel({
 
       <div className="stat-row">
         <div className="stat-chip">
-          <span className="stat-label">Stock actuel (cas.)</span>
+          <span className="stat-label">Stock actuel (bt)</span>
           <span className="stat-value mono">
             {computed
-              ? formatCasiers(
-                  computed.lines.reduce(
-                    (s, l) => s + Math.max(0, l.theoreticalRemaining),
-                    0,
-                  ),
+              ? computed.lines.reduce(
+                  (s, l) =>
+                    s +
+                    Math.max(
+                      0,
+                      Math.round(l.theoreticalRemaining * l.unitsPerCasier),
+                    ),
+                  0,
                 )
               : 0}
           </span>
         </div>
         <div className="stat-chip">
-          <span className="stat-label">Achats (casiers)</span>
+          <span className="stat-label">Achats (bt)</span>
           <span className="stat-value mono">
-            {computed?.totals.purchases ?? 0}
+            {computed
+              ? computed.lines.reduce(
+                  (s, l) => s + Math.round(l.purchases * l.unitsPerCasier),
+                  0,
+                )
+              : 0}
           </span>
         </div>
         <div className="stat-chip">
@@ -304,7 +335,7 @@ export function ZoneBoissonsPanel({
               <th scope="col">Boisson</th>
               <th scope="col" className="col-qty">
                 + Achat
-                <span className="col-auto-tag">casiers</span>
+                <span className="col-auto-tag">bouteilles</span>
               </th>
               <th scope="col" className="col-qty">
                 Vendu {siteLabel}
@@ -312,7 +343,7 @@ export function ZoneBoissonsPanel({
               </th>
               <th scope="col" className="col-qty">
                 Stock actuel
-                <span className="col-auto-tag">saisie = comptage</span>
+                <span className="col-auto-tag">saisie = comptage (bt)</span>
               </th>
             </tr>
           </thead>
@@ -347,10 +378,11 @@ export function ZoneBoissonsPanel({
                     <td className="cell-name">
                       {line.name}
                       <span className="cell-sub mono">
-                        {line.unitsPerCasier} bt/cas. · init.{" "}
-                        {formatCasiers(line.initialStock)} cas. · achats{" "}
-                        {formatCasiers(line.purchases)} cas. · solde{" "}
-                        {formatCasiers(line.available)} cas.
+                        init. {Math.round(line.initialStock * line.unitsPerCasier)}{" "}
+                        bt · achats{" "}
+                        {Math.round(line.purchases * line.unitsPerCasier)} bt ·
+                        solde {Math.round(line.available * line.unitsPerCasier)}{" "}
+                        bt
                         {" · "}
                         PA {formatFcfa(line.purchasePrice)}/bt
                         {" · "}
@@ -365,8 +397,8 @@ export function ZoneBoissonsPanel({
                         <input
                           className="qty-input"
                           inputMode="numeric"
-                          aria-label={`Achat casiers ${line.name}`}
-                          placeholder="cas."
+                          aria-label={`Achat bouteilles ${line.name}`}
+                          placeholder="bt"
                           value={draftBuy[line.productId] ?? ""}
                           disabled={!!busyId}
                           onChange={(e) =>
@@ -406,10 +438,15 @@ export function ZoneBoissonsPanel({
                     <td className="col-qty">
                       <input
                         className="qty-input"
-                        inputMode="decimal"
-                        aria-label={`Stock actuel casiers ${line.name}`}
-                        placeholder={formatCasiers(
-                          Math.max(0, line.theoreticalRemaining),
+                        inputMode="numeric"
+                        aria-label={`Stock actuel bouteilles ${line.name}`}
+                        placeholder={String(
+                          Math.max(
+                            0,
+                            Math.round(
+                              line.theoreticalRemaining * line.unitsPerCasier,
+                            ),
+                          ),
                         )}
                         value={line.counted ?? ""}
                         onChange={(e) => {
@@ -420,14 +457,20 @@ export function ZoneBoissonsPanel({
                           }
                           const n = Math.max(0, Number(raw) || 0);
                           patchLine(line.productId, {
-                            counted: Math.round(n * 100) / 100,
+                            counted: Math.round(n),
                           });
                         }}
                       />
                       {line.counted !== null ? (
                         <span className="cell-sub muted">
-                          théo. {formatCasiers(line.theoreticalRemaining)} cas.
-                          · {line.stockBottles} bt
+                          théo.{" "}
+                          {Math.max(
+                            0,
+                            Math.round(
+                              line.theoreticalRemaining * line.unitsPerCasier,
+                            ),
+                          )}{" "}
+                          bt
                         </span>
                       ) : null}
                     </td>
@@ -443,13 +486,13 @@ export function ZoneBoissonsPanel({
         open={registreOpen}
         onClose={() => setRegistreOpen(false)}
         title="Registre Boissons"
-        subtitle={`${siteLabel} · achats en casiers · ventes en bouteilles`}
+        subtitle={`${siteLabel} · achats et ventes en bouteilles`}
       >
         <section className="drawer-section">
           <h3 className="panel-title">Entrées (achats)</h3>
           <p className="section-hint">
-            Chaque achat est saisi en casiers, tracé ici, et peut être annulé
-            tant que le stock le permet.
+            Chaque achat est saisi en bouteilles, tracé ici, et peut être
+            annulé tant que le stock le permet.
           </p>
           <table className="data-table zogbo-table zogbo-registre-table">
             <thead>
@@ -458,10 +501,10 @@ export function ZoneBoissonsPanel({
                 <th scope="col">Type</th>
                 <th scope="col">Boisson</th>
                 <th scope="col" className="col-qty">
-                  Casiers
+                  Bouteilles
                 </th>
                 <th scope="col" className="col-qty">
-                  Dispo après (cas.)
+                  Dispo après (bt)
                 </th>
                 <th scope="col">Action</th>
               </tr>
@@ -488,9 +531,13 @@ export function ZoneBoissonsPanel({
                         </span>
                       </td>
                       <td className="cell-name">{m.name}</td>
-                      <td className="col-qty mono">+{m.qty} cas.</td>
+                      <td className="col-qty mono">
+                        +{Math.round(m.qty * upcOf(m.productId))} bt
+                      </td>
                       <td className="col-qty mono cell-readonly">
-                        {cancelled ? "—" : `${formatCasiers(m.stockAfter)} cas.`}
+                        {cancelled
+                          ? "—"
+                          : `${Math.round(m.stockAfter * upcOf(m.productId))} bt`}
                       </td>
                       <td>
                         {cancelled ? (

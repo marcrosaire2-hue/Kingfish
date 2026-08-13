@@ -120,7 +120,7 @@ export function normalizeBoissonsMovement(
 }
 
 export function movementTypeLabelBoissons(type: BoissonsMovementType): string {
-  return type === "purchase" ? "Achat (casiers)" : type;
+  return type === "purchase" ? "Achat" : type;
 }
 
 export function syncBoissonsLines(
@@ -181,7 +181,8 @@ export function leftoverFromBoissonsLines(
     );
     const leftover =
       computed.counted !== null
-        ? computed.counted
+        ? // Comptage saisi en bouteilles → report en casiers.
+          Math.round((computed.counted / computed.unitsPerCasier) * 100) / 100
         : Math.max(0, computed.theoreticalRemaining);
     out.set(line.productId, leftover);
   }
@@ -213,7 +214,8 @@ export function computeBoissonsLine(
   const variance =
     normalized.counted === null
       ? null
-      : theoreticalRemaining - normalized.counted;
+      // Le comptage est saisi en bouteilles, le théorique se raisonne en casiers.
+      : theoreticalRemaining - normalized.counted / upc;
 
   return {
     ...normalized,
@@ -238,12 +240,17 @@ export function physicalBoissonsStock(
   line: Pick<
     BoissonsLine,
     "initialStock" | "purchases" | "soldZogbo" | "soldGbegamey"
-  > & { pertes?: number },
+  > & { pertes?: number; counted?: number | null },
   unitsPerCasier: number = DEFAULT_UNITS_PER_CASIER,
 ): number {
   const upc = Math.max(1, Math.round(unitsPerCasier) || DEFAULT_UNITS_PER_CASIER);
+  // Comptage saisi en bouteilles : le stock physique prévaut sur le théorique.
+  const stockBottles =
+    line.counted !== null && line.counted !== undefined
+      ? Math.max(0, Number(line.counted) || 0)
+      : (line.initialStock + line.purchases) * upc;
   const bottles =
-    (line.initialStock + line.purchases) * upc -
+    stockBottles -
     line.soldZogbo -
     line.soldGbegamey -
     Math.max(0, Number(line.pertes) || 0);
@@ -259,8 +266,10 @@ export function applyBoissonsPurchaseToState(
   movements: BoissonsMovement[];
   movement: BoissonsMovement;
 } {
-  const qty = Math.max(0, Math.round(Number(input.qty) || 0));
-  if (qty <= 0) throw new Error("Quantité invalide (casiers)");
+  // L'achat est saisi en bouteilles sur l'écran et converti en casiers pour
+  // le stock interne : on conserve les centièmes (ex. 29 bt = 2,42 casiers).
+  const qty = Math.max(0, Math.round((Number(input.qty) || 0) * 100) / 100);
+  if (qty <= 0) throw new Error("Quantité invalide");
 
   const idx = lines.findIndex((l) => l.productId === input.productId);
   if (idx < 0) throw new Error("Boisson introuvable");

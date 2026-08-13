@@ -129,8 +129,6 @@ async function leftoversForDate(
         (prevDoc.accompanimentLines ?? []).map((l) =>
           normalizeAccompanimentLine(l),
         ),
-        undefined,
-        { useCounted },
       );
       if (
         leftoverMapHasStock(lines) ||

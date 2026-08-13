@@ -85,7 +85,7 @@ export async function PUT(request: Request) {
       user,
       kind: "gbegamey",
       title: `Inventaire plats Gbégamey · ${body.date}`,
-      detail: `reçu vendu ${transferSold} · sur place vendu ${localSold}`,
+      detail: `plats vendu ${transferSold} · acc. vendu ${localSold}`,
       date: body.date,
       site: "gbegamey",
     });

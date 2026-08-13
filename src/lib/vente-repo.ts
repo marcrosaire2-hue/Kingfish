@@ -167,8 +167,8 @@ async function getBaseDishStockLeft(
     0,
   );
   return {
-    left: computed.theoreticalRemaining,
-    maxSold: Math.max(0, computed.available - computed.pertes),
+    left: computed.prevalentRemaining,
+    maxSold: computed.prevalentMaxSold,
   };
 }
 
@@ -184,13 +184,8 @@ export function accompanimentTracked(line: GbegameyLocalLine): boolean {
 
 /**
  * Disponibilité d'un accompagnement, identique à Zogbo et à Gbégamey :
- * pas encore inventorié (jamais préparé, jamais compté) = vente libre
- * (`null`), sinon stock = initial + préparé − vendu − pertes.
- *
- * Fonction pure et partagée exprès : les deux points de vente et le contrôle
- * de vente (`recordVente`) doivent lire exactement la même règle, sinon un
- * accompagnement se retrouve bloqué à Gbégamey mais libre à Zogbo pour la
- * même raison — c'est le bug que ce partage referme.
+ * le stock est une indication pour le caissier, jamais un blocage — les
+ * accompagnements restent vendables même à stock nul.
  */
 export function accompanimentAvailability(
   line: GbegameyLocalLine | null | undefined,
@@ -198,40 +193,24 @@ export function accompanimentAvailability(
   if (!line || !accompanimentTracked(line)) {
     return { tracked: false, stockLeft: null, maxSold: null };
   }
-  const maxSold = Math.max(
+  // Comptage saisi : le stock physique prévaut sur le théorique.
+  if (line.counted !== null && line.counted !== undefined) {
+    const prevalent = Math.max(0, Number(line.counted) || 0);
+    return {
+      tracked: true,
+      stockLeft: Math.max(0, prevalent - line.sold),
+      maxSold: null,
+    };
+  }
+  const stock = Math.max(
     0,
     line.initialStock + line.prepared - Math.max(0, Number(line.pertes) || 0),
   );
   return {
     tracked: true,
-    stockLeft: Math.max(0, maxSold - line.sold),
-    maxSold,
+    stockLeft: Math.max(0, stock - line.sold),
+    maxSold: null,
   };
-}
-
-async function getLocalDishStockLeft(
-  date: string,
-  productId: string,
-): Promise<{ left: number | null; maxSold: number | null }> {
-  const { day } = await getGbegameyDayPayload(date);
-  const line = day.localLines.find((l) => l.productId === productId);
-  const { stockLeft, maxSold } = accompanimentAvailability(line);
-  return { left: stockLeft, maxSold };
-}
-
-/** Stock accompagnement : null = pas encore inventorié (vente autorisée). */
-async function getAccompanimentStockLeft(
-  date: string,
-  site: VenteSite,
-  productId: string,
-): Promise<{ left: number | null; maxSold: number | null }> {
-  if (site === "gbegamey") {
-    return getLocalDishStockLeft(date, productId);
-  }
-  const { day } = await getZogboDayPayload(date);
-  const line = day.accompanimentLines?.find((l) => l.productId === productId);
-  const { stockLeft, maxSold } = accompanimentAvailability(line);
-  return { left: stockLeft, maxSold };
 }
 
 export async function getVenteBoard(
@@ -323,7 +302,7 @@ export async function getVenteBoard(
       const computed = line
         ? computeTransferLine(line, sent, dish.unitPrice)
         : null;
-      const stockLeft = computed?.theoreticalRemaining ?? 0;
+      const stockLeft = computed?.prevalentRemaining ?? 0;
       products.push({
         kind: "plat",
         productId: dish.id,
@@ -374,7 +353,6 @@ export async function getVenteBoard(
   for (const drink of parametres.drinks) {
     const stockLeft = drinkStock.get(drink.id) ?? 0;
     const upc = Math.max(1, drink.unitsPerCasier || 12);
-    const casiersLeft = Math.round((stockLeft / upc) * 100) / 100;
     const line = boissons.day.lines.find((l) => l.productId === drink.id);
     // Boisson jamais inventoriée (aucun comptage, stock 0) : vendable sans
     // stock, comme un accompagnement non suivi — sinon elle resterait grisée.
@@ -398,7 +376,7 @@ export async function getVenteBoard(
           ? "PV manquant"
           : untracked
             ? "Stock non inventorié"
-            : `Reste ${stockLeft} bt (${casiersLeft} cas.) · ${upc} bt/cas.`,
+            : `Reste ${stockLeft} bt`,
     });
   }
 
@@ -953,15 +931,9 @@ export async function recordVente(input: {
         throw new Error(`Stock insuffisant (reste ${left})`);
       }
     } else if (input.kind === "local") {
-      const { left, maxSold: max } = await getAccompanimentStockLeft(
-        input.date,
-        input.site,
-        input.productId,
-      );
-      maxSold = max;
-      if (left !== null && left < qty) {
-        throw new Error(`Stock insuffisant (reste ${left})`);
-      }
+      // Accompagnements toujours vendables, même à stock nul : le stock est
+      // une indication, jamais un blocage.
+      maxSold = null;
     } else if (input.kind === "combo") {
       const { day } = await getCombosDayPayload(input.date);
       const line = day.lines.find((l) => l.productId === input.productId);
@@ -999,9 +971,12 @@ export async function recordVente(input: {
           1,
           Math.round(Number(upc) || DEFAULT_UNITS_PER_CASIER),
         );
-        const bottles =
-          (line.initialStock + line.purchases) * upcResolved -
-          Math.max(0, Number(line.pertes) || 0);
+        // Comptage saisi en bouteilles : le stock physique prévaut.
+        const stockBottles =
+          line.counted !== null && line.counted !== undefined
+            ? Math.max(0, Number(line.counted) || 0)
+            : (line.initialStock + line.purchases) * upcResolved;
+        const bottles = stockBottles - Math.max(0, Number(line.pertes) || 0);
         maxSold =
           Math.max(0, bottles) -
           (input.site === "zogbo"

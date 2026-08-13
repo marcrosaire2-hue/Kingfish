@@ -5680,6 +5680,80 @@ html.nav-open body {
   white-space: nowrap;
 }
 
+.vente-out-badge {
+  position: absolute;
+  top: 0.35rem;
+  left: 0.35rem;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  background: var(--danger);
+  color: var(--on-danger, #fff);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+.vente-out-badge-inline {
+  position: static;
+  margin-left: 0.5rem;
+}
+
+/* Barre persistante : produits actuellement épuisés. */
+.vente-rupture-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  margin: 0.4rem 0 0;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger-soft) 55%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.vente-rupture-bar strong {
+  color: var(--danger);
+}
+
+/* Alerte transitoire : produit qui vient de s'épuiser à la vente. */
+.vente-rupture-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.6rem 0.9rem;
+  margin: 0.4rem 0 0;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 92%, black 4%);
+  border: 1px solid var(--danger);
+  color: #fff;
+  font-size: 0.92rem;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.vente-rupture-alert-sub {
+  opacity: 0.85;
+}
+
+.vente-rupture-alert-close {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  border-radius: var(--radius);
+}
+
+.vente-rupture-alert-close:hover {
+  background: color-mix(in srgb, white 15%, transparent);
+}
+
 /* Ventes encaissées hors ligne, pas encore transmises au serveur. */
 .vente-attente {
   display: inline-block;
@@ -6220,5 +6294,60 @@ html.nav-open body {
   .brand-loader-logo,
   .side-nav-link .nav-pending.is-pending {
     animation: none;
+  }
+}
+
+/* ————————————————————————————————————————————————
+   Vente : la page reste défilable.
+   Le verrouillage plein écran tenait le poste à hauteur d'écran mais
+   interdisait de faire défiler la page dès que le contenu dépassait la
+   fenêtre. Les colonnes (catalogue, panier, composeur) reprennent leur
+   hauteur naturelle et la page défile comme toutes les autres. Le panier
+   reste collant pour rester sous les yeux.
+   ———————————————————————————————————————————————— */
+@media (min-width: 901px) {
+  .main-vente {
+    height: auto;
+    overflow: visible;
+  }
+
+  .main-vente .page-body {
+    flex: none;
+    overflow: visible;
+  }
+
+  .main-vente .vente-page {
+    flex: none;
+  }
+
+  .main-vente .vente-workspace {
+    flex: none;
+    align-items: start;
+  }
+
+  .main-vente .vente-catalog {
+    min-height: 0;
+    overflow: visible;
+  }
+
+  .main-vente .pos-cart {
+    position: sticky;
+    top: 0.75rem;
+    max-height: calc(100vh - 1.5rem);
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .main-vente .vente-meal-composer {
+    flex: none;
+    max-height: none;
+  }
+
+  .main-vente .vente-acc-picker {
+    overflow: visible;
+  }
+
+  .main-vente .vente-acc-list {
+    max-height: 15rem;
   }
 }

@@ -240,6 +240,9 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "appro",
     "pertes",
     "stock",
+    // L'historique des ventes de SA zone : le filtre Site est verrouillé
+    // sur sa zone (jamais celle d'à côté).
+    "historique-ventes",
   ],
   admin: [
     "synthese",

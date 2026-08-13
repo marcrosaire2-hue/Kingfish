@@ -105,19 +105,16 @@ async function leftoversForDate(
       .toArray();
 
     for (const prevDoc of docs) {
-      const useCounted = prevDoc.status === "cloturee";
       const prevSent = await loadSentMap(prevDoc._id);
       const receivedMap = new Map(Object.entries(prevSent));
       const transfer = leftoverFromTransferLines(
         (prevDoc.transferLines ?? []).map((l) => normalizeTransferLine(l)),
         receivedMap,
         undefined,
-        { useCounted },
       );
       const local = leftoverFromLocalLines(
         (prevDoc.localLines ?? []).map((l) => normalizeLocalLine(l)),
         undefined,
-        { useCounted },
       );
       if (leftoverMapHasStock(transfer) || leftoverMapHasStock(local)) {
         return { transfer, local };

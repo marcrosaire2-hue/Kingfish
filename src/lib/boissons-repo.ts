@@ -11,6 +11,7 @@ import {
   applyBoissonsPurchaseToState,
   cancelBoissonsMovementInState,
   createEmptyBoissonsDay,
+  DEFAULT_UNITS_PER_CASIER,
   leftoverFromBoissonsLines,
   normalizeBoissonsLine,
   normalizeBoissonsMovement,
@@ -86,13 +87,25 @@ export async function getBoissonsDayPayload(
     const day = createEmptyBoissonsDay(date, drinks, leftovers);
     if (leftovers.size > 0) {
       const updatedAt = new Date().toISOString();
-      const lines = day.lines.map((l) => ({
-        ...l,
-        counted: leftovers.has(l.productId) ? leftovers.get(l.productId)! : null,
-        observations: leftovers.has(l.productId)
-          ? "Ouverture (dernier inventaire)"
-          : "",
-      }));
+      const lines = day.lines.map((l) => {
+        // Le report arrive en casiers ; le comptage d'ouverture est en bouteilles.
+        const upc = Math.max(
+          1,
+          Math.round(
+            drinks.find((d) => d.id === l.productId)?.unitsPerCasier ||
+              DEFAULT_UNITS_PER_CASIER,
+          ),
+        );
+        return {
+          ...l,
+          counted: leftovers.has(l.productId)
+            ? Math.round((leftovers.get(l.productId)! * upc) * 100) / 100
+            : null,
+          observations: leftovers.has(l.productId)
+            ? "Ouverture (dernier inventaire)"
+            : "",
+        };
+      });
       await db.collection<BoissonsDoc>("boissons_jours").updateOne(
         { _id: date },
         {
