@@ -345,6 +345,10 @@ export function GbegameyPage() {
                   </th>
                 ) : null}
                 <th scope="col" className="col-qty">
+                  Reçu constaté
+                  <span className="col-auto-tag">vs envoyé Zogbo</span>
+                </th>
+                <th scope="col" className="col-qty">
                   Solde
                   <span className="col-auto-tag">= comptage saisi</span>
                 </th>
@@ -361,13 +365,13 @@ export function GbegameyPage() {
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={openingEditable ? 5 : 4}>
+                  <td colSpan={openingEditable ? 6 : 5}>
                     <BrandLoader variant="ligne" label="Chargement…" />
                   </td>
                 </tr>
               ) : computed.transfers.length === 0 ? (
                 <tr>
-                  <td colSpan={openingEditable ? 5 : 4} className="muted">
+                  <td colSpan={openingEditable ? 6 : 5} className="muted">
                     Aucun plat dans Paramètres.
                   </td>
                 </tr>
@@ -408,6 +412,26 @@ export function GbegameyPage() {
                           />
                         </td>
                       ) : null}
+                      <td className="col-qty">
+                        <QtyInput
+                          value={line.received}
+                          allowEmpty
+                          placeholder={String(line.sentFromZogbo)}
+                          ariaLabel={`Reçu constaté ${line.name}`}
+                          onChange={(received) =>
+                            patchTransfer(line.productId, { received })
+                          }
+                        />
+                        <span className="cell-sub muted">
+                          envoyé {line.sentFromZogbo}
+                        </span>
+                        {line.transportVariance ? (
+                          <span className="cell-sub text-amber-700">
+                            écart transport {line.transportVariance > 0 ? "-" : "+"}
+                            {Math.abs(line.transportVariance)}
+                          </span>
+                        ) : null}
+                      </td>
                       <td className="col-qty mono cell-readonly cell-auto">
                         {line.available}
                       </td>
@@ -442,6 +466,7 @@ export function GbegameyPage() {
                   {openingEditable ? (
                     <td className="mono">{computed.totals.initialStock}</td>
                   ) : null}
+                  <td className="mono">{computed.totals.received}</td>
                   <td className="mono">
                     {computed.totals.initialStock + computed.totals.received}
                   </td>
