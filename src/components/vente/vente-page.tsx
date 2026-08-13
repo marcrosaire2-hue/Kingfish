@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { BrandLoader } from "@/components/brand-loader";
 import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
@@ -77,29 +79,56 @@ function formatLogTime(iso: string): string {
   }
 }
 
+/** Nom de client, description d'extra… sont saisis libres : jamais injectés
+ *  bruts dans le ticket, un « < » suffirait à en casser la mise en page. */
+function esc(value: unknown): string {
+  return String(value ?? "").replace(
+    /[&<>"']/g,
+    (c) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      })[c] as string,
+  );
+}
+
+/** Renvoie false si le navigateur a bloqué la fenêtre d'impression. */
 function printTicket(
   ticket: PosTicket,
   company: { nom?: string | null; contacts?: string | null; adresse?: string | null } | null,
-) {
+): boolean {
   const w = window.open("", "_blank", "width=360,height=640");
-  if (!w) return;
+  if (!w) return false;
+  // Chaque ligne porte le détail complet : produit, quantité, prix unitaire
+  // et montant — la facture imprimée doit se suffire à elle-même.
   const lines = ticket.lines
     .map(
       (l) =>
-        `<div class="flex"><span>${l.name}</span><span>x${l.qty}</span><span>${l.amount.toLocaleString("fr-FR")} F</span></div>`,
+        `<div class="line"><span class="nom">${esc(l.name)}</span>` +
+        `<span class="qte">${l.qty} × ${l.unitPrice.toLocaleString("fr-FR")}</span>` +
+        `<span class="mnt">${l.amount.toLocaleString("fr-FR")} F</span></div>`,
     )
     .join("");
   const headerBits = [
     company?.nom || "King Fish Manager",
     company?.contacts,
     company?.adresse,
-  ].filter(Boolean);
-  w.document.write(`<!doctype html><html><head><title>${ticket.numero}</title>
+  ]
+    .filter(Boolean)
+    .map(esc);
+  w.document.write(`<!doctype html><html><head><title>${esc(ticket.numero)}</title>
     <style>
       body{font-family:monospace;font-size:13px;padding:12px;max-width:280px;margin:0 auto}
       .center{text-align:center}.bold{font-weight:700}
       .hr{border-bottom:1px dashed #000;margin:8px 0}
       .flex{display:flex;justify-content:space-between;gap:6px;margin:2px 0}
+      .line{display:grid;grid-template-columns:1fr auto;gap:0 6px;margin:4px 0}
+      .line .nom{grid-column:1/-1;font-weight:700}
+      .line .qte{opacity:.85}
+      .line .mnt{text-align:right}
       .sub{font-size:11px;opacity:.85}
     </style></head><body>
     <div class="center bold">${headerBits[0]}</div>
@@ -107,28 +136,29 @@ function printTicket(
       .slice(1)
       .map((b) => `<div class="center sub">${b}</div>`)
       .join("")}
-    <div class="center">${ticket.numero} · ${ticket.saleType}</div>
+    <div class="center">${esc(ticket.numero)} · ${esc(ticket.saleType)}</div>
     <div class="hr"></div>
     <div class="flex"><span>Date</span><span>${new Date(ticket.at).toLocaleString("fr-FR")}</span></div>
-    ${ticket.tableLabel ? `<div class="flex"><span>Table</span><span>${ticket.tableLabel}</span></div>` : ""}
-    ${ticket.serveurNom ? `<div class="flex"><span>Serveur</span><span>${ticket.serveurNom}</span></div>` : ""}
-    ${ticket.clientNom ? `<div class="flex"><span>Client</span><span>${ticket.clientNom}</span></div>` : ""}
+    <div class="flex"><span>Enregistré par</span><span>${esc(ticket.userName)}</span></div>
+    ${ticket.clientNom ? `<div class="flex"><span>Client</span><span>${esc(ticket.clientNom)}</span></div>` : ""}
     <div class="hr"></div>${lines}<div class="hr"></div>
+    <div class="flex"><span>Sous-total</span><span>${ticket.montantBrut.toLocaleString("fr-FR")} F</span></div>
     ${ticket.reduction ? `<div class="flex"><span>Réduction</span><span>−${ticket.reduction.toLocaleString("fr-FR")} F</span></div>` : ""}
     <div class="flex bold"><span>Total</span><span>${ticket.montant.toLocaleString("fr-FR")} F</span></div>
-    <div class="flex"><span>Paiement</span><span>${ticket.paymentLabel || "—"}</span></div>
+    <div class="flex"><span>Paiement</span><span>${esc(ticket.paymentLabel) || "—"}</span></div>
     <div class="hr"></div><div class="center">Merci</div>
     </body></html>`);
   w.document.close();
   w.focus();
   w.print();
+  return true;
 }
 
-export function VentePage() {
+export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean }) {
+  const pathname = usePathname();
   const [date, setDate] = useState(() => todayIsoDate());
   const [site, setSite] = useState<VenteSite>("gbegamey");
-  const [lockedSite, setLockedSite] = useState(false);
-  const [mode, setMode] = useState<"pos" | "rapide">("pos");
+  const [allowedSites, setAllowedSites] = useState<VenteSite[]>([]);
   /** Ventes encaissées hors ligne, en attente d'envoi au serveur. */
   const [enAttente, setEnAttente] = useState(0);
   const [cat, setCat] = useState<CatKey>("plat");
@@ -139,8 +169,6 @@ export function VentePage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
   const [paymentId, setPaymentId] = useState("");
-  const [tableId, setTableId] = useState("");
-  const [serveurId, setServeurId] = useState("");
   const [clientNom, setClientNom] = useState("");
   const [reduction, setReduction] = useState("0");
   const [loading, setLoading] = useState(true);
@@ -150,11 +178,14 @@ export function VentePage() {
   const [journalOpen, setJournalOpen] = useState(false);
   const [extraDesc, setExtraDesc] = useState("");
   const [extraPrice, setExtraPrice] = useState("");
-  const [extraBusy, setExtraBusy] = useState(false);
   const [posBusy, setPosBusy] = useState(false);
   const [composerPlatId, setComposerPlatId] = useState("");
-  const [composerAccIds, setComposerAccIds] = useState<string[]>([]);
+  const [composerAccQtys, setComposerAccQtys] = useState<Record<string, number>>({});
   const [composerQty, setComposerQty] = useState(1);
+  /** Compte connecté : c'est lui qui répond de l'opération sur la facture. */
+  const [operateur, setOperateur] = useState<string | null>(null);
+  /** Facture du dernier ticket validé — générée systématiquement. */
+  const [facture, setFacture] = useState<PosTicket | null>(null);
 
   async function load(nextDate = date, nextSite = site) {
     setLoading(true);
@@ -174,7 +205,9 @@ export function VentePage() {
       if (!venteRes.ok) throw new Error(venteBody.error || "Erreur vente");
       setBoard(venteBody as Board);
       if (venteBody.site) setSite(venteBody.site as VenteSite);
-      setLockedSite(!!venteBody.lockedSite);
+      setAllowedSites(
+        (venteBody.allowedSites as VenteSite[] | undefined) ?? [],
+      );
 
       if (posRes.ok) {
         const posBody = await posRes.json();
@@ -195,7 +228,7 @@ export function VentePage() {
   useEffect(() => {
     void load(date, site);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, site]);
+  }, [date, site, pathname]);
 
   const plats = useMemo(
     () => board?.products.filter((p) => p.kind === "plat") ?? [],
@@ -237,6 +270,25 @@ export function VentePage() {
     return installerSupportHorsLigne((file) => setEnAttente(file.length));
   }, []);
 
+  // Compte connecté : affiché sur le panier et repris sur la facture, pour
+  // qu'on sache toujours qui a enregistré l'opération.
+  useEffect(() => {
+    let annule = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!annule) setOperateur(body.user?.name ?? null);
+      } catch {
+        /* le serveur renverra de toute façon le nom sur le ticket */
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, []);
+
   const composerPlat = useMemo(
     () => plats.find((p) => p.productId === composerPlatId) ?? null,
     [plats, composerPlatId],
@@ -268,38 +320,40 @@ export function VentePage() {
   useEffect(() => {
     setComposerQty(1);
     if (!composerPlatId) {
-      setComposerAccIds([]);
+      setComposerAccQtys({});
       return;
     }
     if (!platDefStatic) return;
     const allowed = new Set(platDefStatic.accompanimentIds);
-    setComposerAccIds((prev) => prev.filter((id) => allowed.has(id)));
+    setComposerAccQtys((prev) =>
+      Object.fromEntries(
+        Object.entries(prev).filter(([id]) => allowed.has(id)),
+      ),
+    );
   }, [composerPlatId, platDefStatic]);
 
   const composerTotal = useMemo(() => {
     const plat = composerPlat;
     if (!composerPlatId || !plat) return 0;
-    const selected = composerAccOptions.filter((a) =>
-      composerAccIds.includes(a.productId),
+    const accTotal = composerAccOptions.reduce(
+      (s, a) => s + accPriceFor(a) * (composerAccQtys[a.productId] ?? 0),
+      0,
     );
-    return (
-      plat.unitPrice +
-      selected.reduce((s, a) => s + accPriceFor(a), 0)
-    ) * composerQty;
+    return plat.unitPrice * composerQty + accTotal;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [composerPlat, composerPlatId, composerAccIds, composerAccOptions, composerQty]);
+  }, [composerPlat, composerPlatId, composerAccQtys, composerAccOptions, composerQty]);
 
-  function toggleComposerAcc(productId: string) {
-    setComposerAccIds((prev) =>
-      prev.includes(productId)
-        ? prev.filter((id) => id !== productId)
-        : [...prev, productId],
-    );
+  function changeComposerAccQty(productId: string, delta: number) {
+    setComposerAccQtys((prev) => {
+      const next = { ...prev, [productId]: Math.max(0, (prev[productId] ?? 0) + delta) };
+      if (next[productId] === 0) delete next[productId];
+      return next;
+    });
   }
 
   function resetComposer() {
     setComposerPlatId("");
-    setComposerAccIds([]);
+    setComposerAccQtys({});
     setComposerQty(1);
   }
 
@@ -326,10 +380,10 @@ export function VentePage() {
       );
       return;
     }
-    const accLines = composerAccIds
-      .map((id) => composerAccOptions.find((a) => a.productId === id))
-      .filter((a): a is VenteProduct => !!a);
-    for (const acc of accLines) {
+    const accLines = composerAccOptions
+      .filter((a) => (composerAccQtys[a.productId] ?? 0) > 0)
+      .map((a) => ({ acc: a, qty: composerAccQtys[a.productId] ?? 0 }));
+    for (const { acc, qty } of accLines) {
       if (
         acc.stockLeft !== null &&
         acc.stockLeft !== undefined &&
@@ -341,7 +395,7 @@ export function VentePage() {
       if (
         acc.stockLeft !== null &&
         acc.stockLeft !== undefined &&
-        composerQty > acc.stockLeft
+        qty > acc.stockLeft
       ) {
         setError(
           `Stock insuffisant : reste ${acc.stockLeft} ${acc.name}`,
@@ -350,29 +404,12 @@ export function VentePage() {
       }
     }
 
-    if (mode === "pos") {
-      addToCart(composerPlat, undefined, composerQty);
-      for (const acc of accLines) {
-        addToCart(acc, accPriceFor(acc), composerQty);
-      }
-      resetComposer();
-      setError(null);
-      return;
+    addToCart(composerPlat, undefined, composerQty);
+    for (const { acc, qty } of accLines) {
+      addToCart(acc, accPriceFor(acc), qty);
     }
-
-    setBusyKey("meal");
+    resetComposer();
     setError(null);
-    try {
-      await sell(composerPlat, composerQty);
-      for (const acc of accLines) {
-        await sell(acc, composerQty, accPriceFor(acc));
-      }
-      resetComposer();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur de vente");
-    } finally {
-      setBusyKey(null);
-    }
   }
 
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
@@ -439,14 +476,16 @@ export function VentePage() {
     }
     setPosBusy(true);
     setError(null);
+    // Référence de poste attribuée AVANT l'envoi : si la commande part mais que
+    // la réponse se perd, le rejeu portera la même référence et le serveur
+    // reconnaîtra la vente au lieu de l'encaisser deux fois.
+    const reference = `pos-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const corps = {
       action: "validate",
       date,
       site,
       saleType,
       paymentMethodId: paymentId || undefined,
-      tableId: saleType === "Sur place" ? tableId || undefined : undefined,
-      serveurId: serveurId || undefined,
       clientNom: clientNom || undefined,
       reduction: reductionN,
       lines: cart.map((l) => ({
@@ -462,13 +501,16 @@ export function VentePage() {
       try {
         res = await fetch("/api/pos", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "X-Vente-Locale": reference,
+          },
           body: JSON.stringify(corps),
         });
       } catch {
         // Réseau coupé en plein service : la vente est mise de côté et rejouée
         // au retour de la connexion, plutôt que perdue.
-        ajouterEnAttente(corps);
+        ajouterEnAttente(corps, reference);
         setEnAttente(nombreEnAttente());
         setCart([]);
         setClientNom("");
@@ -485,10 +527,10 @@ export function VentePage() {
       setReduction("0");
       setFlash(`Ticket ${body.ticket.numero} · ${formatFcfa(body.ticket.montant)}`);
       window.setTimeout(() => setFlash(null), 2000);
+      // La commande créée ouvre systématiquement sa facture : le détail complet
+      // s'affiche à l'écran, l'impression n'est qu'un geste de plus.
+      if (body.ticket) setFacture(body.ticket as PosTicket);
       await load();
-      if (body.ticket) {
-        printTicket(body.ticket as PosTicket, config?.company ?? null);
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Validation impossible");
     } finally {
@@ -531,36 +573,6 @@ export function VentePage() {
     }
   }
 
-  async function sell(product: VenteProduct, qty: number, unitPrice?: number) {
-    const key = `${product.kind}:${product.productId}:${qty}`;
-    setBusyKey(key);
-    setError(null);
-    try {
-      const res = await fetch("/api/vente", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "sell",
-          date,
-          site,
-          kind: product.kind,
-          productId: product.productId,
-          qty,
-          unitPrice,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Erreur de vente");
-      setBoard(body.board as Board);
-      setFlash(qty > 0 ? `${product.name} +${qty}` : `${product.name} ${qty}`);
-      window.setTimeout(() => setFlash(null), 1200);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur de vente");
-    } finally {
-      setBusyKey(null);
-    }
-  }
-
   async function undo(entry: VenteLogEntry) {
     setBusyKey(`undo:${entry.id}`);
     setError(null);
@@ -593,84 +605,40 @@ export function VentePage() {
       setError("Indiquez un prix en FCFA.");
       return;
     }
-    if (mode === "pos") {
-      setCart((prev) => [
-        ...prev,
-        {
-          key: `extra:${Date.now()}`,
-          kind: "extra",
-          productId: `extra-${Date.now()}`,
-          name: extraDesc.trim() || "Extra",
-          unitPrice,
-          qty: 1,
-        },
-      ]);
-      setExtraDesc("");
-      setExtraPrice("");
-      return;
-    }
-    setExtraBusy(true);
+    setCart((prev) => [
+      ...prev,
+      {
+        key: `extra:${Date.now()}`,
+        kind: "extra",
+        productId: `extra-${Date.now()}`,
+        name: extraDesc.trim() || "Extra",
+        unitPrice,
+        qty: 1,
+      },
+    ]);
+    setExtraDesc("");
+    setExtraPrice("");
     setError(null);
-    try {
-      const res = await fetch("/api/vente", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "extra",
-          date,
-          site,
-          description: extraDesc,
-          unitPrice,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Enregistrement impossible");
-      setBoard(body.board as Board);
-      setExtraDesc("");
-      setExtraPrice("");
-      setFlash(`Extra · ${formatFcfa(unitPrice)}`);
-      window.setTimeout(() => setFlash(null), 1400);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Enregistrement impossible");
-    } finally {
-      setExtraBusy(false);
-    }
   }
 
   return (
     <AppShell
       title="Vente"
-      subtitle={
-        mode === "pos"
-          ? `${siteLabel} · panier multi-articles · ticket`
-          : `${siteLabel} · mode rapide +1 / −1`
-      }
+      subtitle={`${siteLabel} · panier multi-articles · ticket`}
+      /* Poste de vente : tenu à hauteur d'écran, la page ne défile pas. */
+      mainClassName="main-vente"
     >
       <div className="vente-page">
         <ContextBar date={date} onDateChange={setDate} siteLabel={siteLabel}>
-          <div className="site-switch" role="tablist" aria-label="Mode">
-            <button
-              type="button"
-              className={`site-btn${mode === "pos" ? " is-active" : ""}`}
-              onClick={() => setMode("pos")}
-            >
-              POS
-            </button>
-            <button
-              type="button"
-              className={`site-btn${mode === "rapide" ? " is-active" : ""}`}
-              onClick={() => setMode("rapide")}
-            >
-              Rapide
-            </button>
-          </div>
           <ExportExcelButton
             onExport={() => exportVenteExcel(date, site)}
             disabled={loading}
           />
-          <Link href="/historique-ventes" className="btn btn-ghost">
-            Historique
-          </Link>
+          {canViewHistory ? (
+            <Link href="/historique-ventes" className="btn btn-ghost">
+              Historique
+            </Link>
+          ) : null}
           <button
             type="button"
             className="btn btn-ghost"
@@ -684,11 +652,11 @@ export function VentePage() {
           <div className="vente-hero-main">
             <span className="vente-hero-status">
               <span className="vente-hero-dot" aria-hidden />
-              {mode === "pos"
-                ? caisse
-                  ? "Caisse ouverte"
-                  : "Caisse fermée"
-                : "Mode rapide"}
+              {caisse
+                ? `Caisse ${siteLabel} ouverte`
+                : loading
+                  ? "Chargement de la caisse…"
+                  : `Caisse ${siteLabel} fermée`}
             </span>
             <span className="vente-hero-label">
               CA validé · {siteLabel}
@@ -711,53 +679,57 @@ export function VentePage() {
             <span className="vente-hero-meta">
               {flash
                 ? flash
-                : mode === "pos"
-                  ? caisse
-                    ? "Ajoutez au panier puis validez le ticket"
-                    : "Ouvrez la caisse pour encaisser"
-                  : "Un appui = une unité vendue"}
+                : loading
+                  ? "Chargement de la caisse…"
+                  : caisse
+                    ? `Ajoutez au panier puis validez · tiroir ouvert par ${caisse.userName}`
+                    : "Ouvrez la caisse de la zone pour encaisser"}
             </span>
           </div>
           <div className="vente-hero-side">
-            <div
-              className="site-switch site-switch-vente"
-              role="tablist"
-              aria-label="Site"
-            >
-              <button
-                type="button"
-                className={`site-btn${site === "zogbo" ? " is-active" : ""}`}
-                onClick={() => setSite("zogbo")}
-                disabled={lockedSite && site !== "zogbo"}
+              {allowedSites.length > 1 ? (
+                <div
+                  className="site-switch site-switch-vente"
+                  role="tablist"
+                  aria-label="Site"
+                >
+                  {allowedSites.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`site-btn${site === s ? " is-active" : ""}`}
+                      onClick={() => setSite(s)}
+                    >
+                      {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            {loading ? null : !caisse ? (
+              <Link
+                href={`/caisse?caisse=${site}`}
+                className="btn btn-primary vente-hero-cta"
               >
-                Zogbo
-              </button>
-              <button
-                type="button"
-                className={`site-btn${site === "gbegamey" ? " is-active" : ""}`}
-                onClick={() => setSite("gbegamey")}
-                disabled={lockedSite && site !== "gbegamey"}
-              >
-                Gbégamey
-              </button>
-            </div>
-            {mode === "pos" && !caisse ? (
-              <Link href="/caisse" className="btn btn-primary vente-hero-cta">
                 Ouvrir la caisse
               </Link>
             ) : (
-              <Link href="/caisse" className="btn btn-ghost vente-hero-cta">
+              <Link
+                href={`/caisse?caisse=${site}`}
+                className="btn btn-ghost vente-hero-cta"
+              >
                 Voir la caisse
               </Link>
             )}
           </div>
         </div>
 
-        {mode === "pos" && !caisse ? (
+        {!loading && !caisse ? (
           <p className="error-banner" role="alert">
-            Aucune caisse ouverte.{" "}
-            <Link href="/caisse">Ouvrir la caisse</Link> pour valider des
-            tickets.
+            Caisse {siteLabel} fermée.{" "}
+            <Link href={`/caisse?caisse=${site}`}>
+              Ouvrir la caisse de la zone
+            </Link>{" "}
+            pour valider des tickets.
           </p>
         ) : null}
 
@@ -790,7 +762,7 @@ export function VentePage() {
             </div>
 
             {loading && !board ? (
-              <p className="muted vente-empty">Chargement…</p>
+              <BrandLoader variant="ligne" label="Chargement du catalogue…" />
             ) : cat === "extra" ? (
               <div className="vente-extra vente-panel">
                 <header className="vente-panel-head">
@@ -803,7 +775,6 @@ export function VentePage() {
                     rows={3}
                     value={extraDesc}
                     onChange={(e) => setExtraDesc(e.target.value)}
-                    disabled={extraBusy}
                   />
                 </label>
                 <label className="vente-extra-field">
@@ -813,16 +784,15 @@ export function VentePage() {
                     inputMode="numeric"
                     value={extraPrice}
                     onChange={(e) => setExtraPrice(e.target.value)}
-                    disabled={extraBusy}
                   />
                 </label>
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={extraBusy || !extraDesc.trim()}
+                  disabled={!extraDesc.trim() || !caisse}
                   onClick={() => void submitExtra()}
                 >
-                  {mode === "pos" ? "Ajouter au panier" : "Enregistrer la vente"}
+                  Ajouter au panier
                 </button>
               </div>
             ) : cat === "plat" ? (
@@ -906,33 +876,27 @@ export function VentePage() {
                     ) : null}
                     {composerAccOptions.length > 0 ? (
                       <fieldset className="vente-acc-picker">
-                        <legend>Accompagnements (optionnel)</legend>
+                        <legend>Accompagnements (optionnel) — quantité par ligne</legend>
                         <ul className="vente-acc-list">
                           {composerAccOptions.map((a) => {
                             const out =
                               a.stockLeft !== null &&
                               a.stockLeft !== undefined &&
                               a.stockLeft <= 0;
-                            const checked = composerAccIds.includes(a.productId);
+                            const accQty = composerAccQtys[a.productId] ?? 0;
                             const accPrice = accPriceFor(a);
                             return (
                               <li key={a.productId}>
-                                <label
+                                <div
                                   className={`vente-acc-option${out ? " is-disabled" : ""}`}
                                 >
-                                  <input
-                                    type="checkbox"
-                                    checked={checked}
-                                    disabled={out}
-                                    onChange={() =>
-                                      toggleComposerAcc(a.productId)
-                                    }
-                                  />
-                                  <span>
-                                    {a.name}
-                                    {accPrice > 0
-                                      ? ` · ${formatFcfa(accPrice)}`
-                                      : ""}
+                                  <span className="vente-acc-option-name">
+                                    <span>
+                                      {a.name}
+                                      {accPrice > 0
+                                        ? ` · ${formatFcfa(accPrice)}`
+                                        : ""}
+                                    </span>
                                     {a.hint ? (
                                       <span className="vente-hint-inline">
                                         {" "}
@@ -940,7 +904,40 @@ export function VentePage() {
                                       </span>
                                     ) : null}
                                   </span>
-                                </label>
+                                  <span className="vente-acc-qty">
+                                    <button
+                                      type="button"
+                                      className="vente-minus"
+                                      aria-label={`Moins de ${a.name}`}
+                                      disabled={out || accQty <= 0 || !!busyKey}
+                                      onClick={() =>
+                                        changeComposerAccQty(a.productId, -1)
+                                      }
+                                    >
+                                      −
+                                    </button>
+                                    <span className="vente-qty mono">
+                                      {accQty}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className="vente-plus"
+                                      aria-label={`Plus de ${a.name}`}
+                                      disabled={
+                                        out ||
+                                        !!busyKey ||
+                                        (a.stockLeft !== null &&
+                                          a.stockLeft !== undefined &&
+                                          accQty >= a.stockLeft)
+                                      }
+                                      onClick={() =>
+                                        changeComposerAccQty(a.productId, 1)
+                                      }
+                                    >
+                                      +
+                                    </button>
+                                  </span>
+                                </div>
                               </li>
                             );
                           })}
@@ -958,18 +955,10 @@ export function VentePage() {
                       <button
                         type="button"
                         className="btn btn-primary"
-                        disabled={
-                          !composerPlat ||
-                          (mode === "pos" && !caisse) ||
-                          busyKey === "meal"
-                        }
+                        disabled={!composerPlat || !caisse}
                         onClick={() => void commitMeal()}
                       >
-                        {busyKey === "meal"
-                          ? "Enregistrement…"
-                          : mode === "pos"
-                            ? "Ajouter au panier"
-                            : `Enregistrer${composerQty > 1 ? ` (${composerQty} plats)` : ""}`}
+                        Ajouter au panier
                       </button>
                     </div>
                   </>
@@ -995,9 +984,6 @@ export function VentePage() {
                       p.stockLeft !== null &&
                       p.stockLeft !== undefined &&
                       p.stockLeft <= 0;
-                    const plusBusy = busyKey === `${p.kind}:${p.productId}:1`;
-                    const minusBusy =
-                      busyKey === `${p.kind}:${p.productId}:-1`;
                     return (
                       <article
                         key={`${p.kind}-${p.productId}`}
@@ -1020,42 +1006,16 @@ export function VentePage() {
                             <p className="vente-hint">{p.hint}</p>
                           ) : null}
                         </div>
-                        {mode === "pos" ? (
-                          <div className="vente-card-actions is-single">
-                            <button
-                              type="button"
-                              className="vente-plus"
-                              disabled={disabledPv || outOfStock || !caisse}
-                              onClick={() => addToCart(p)}
-                            >
-                              +
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="vente-card-actions">
-                            <button
-                              type="button"
-                              className="vente-minus"
-                              disabled={
-                                !!busyKey || p.soldToday <= 0 || disabledPv
-                              }
-                              onClick={() => void sell(p, -1)}
-                            >
-                              {minusBusy ? "…" : "−"}
-                            </button>
-                            <span className="vente-qty mono">
-                              {p.soldToday}
-                            </span>
-                            <button
-                              type="button"
-                              className="vente-plus"
-                              disabled={!!busyKey || disabledPv || outOfStock}
-                              onClick={() => void sell(p, 1)}
-                            >
-                              {plusBusy ? "…" : "+"}
-                            </button>
-                          </div>
-                        )}
+                        <div className="vente-card-actions is-single">
+                          <button
+                            type="button"
+                            className="vente-plus"
+                            disabled={disabledPv || outOfStock || !caisse}
+                            onClick={() => addToCart(p)}
+                          >
+                            +
+                          </button>
+                        </div>
                       </article>
                     );
                   })
@@ -1065,8 +1025,7 @@ export function VentePage() {
             )}
           </div>
 
-          {mode === "pos" ? (
-            <aside className="pos-cart vente-panel">
+          <aside className="pos-cart vente-panel">
               <header className="vente-panel-head">
                 <h2>Panier</h2>
                 <p>
@@ -1139,36 +1098,12 @@ export function VentePage() {
                     ))}
                   </select>
                 </label>
-                {saleType === "Sur place" ? (
-                  <label className="vente-field">
-                    <span>Table</span>
-                    <select
-                      value={tableId}
-                      onChange={(e) => setTableId(e.target.value)}
-                    >
-                      <option value="">—</option>
-                      {(config?.tables || []).map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.reference} · {t.emplacement}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-                <label className="vente-field">
-                  <span>Serveur</span>
-                  <select
-                    value={serveurId}
-                    onChange={(e) => setServeurId(e.target.value)}
-                  >
-                    <option value="">—</option>
-                    {(config?.serveurs || []).map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.nom}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                {/* Ni table ni serveur à choisir : c'est le compte connecté
+                    qui répond de l'opération, il n'y a rien à saisir. */}
+                <div className="vente-field vente-field-static">
+                  <span>Enregistré par</span>
+                  <strong>{operateur ?? "…"}</strong>
+                </div>
                 <label className="vente-field">
                   <span>Client</span>
                   <input
@@ -1188,18 +1123,20 @@ export function VentePage() {
                 </label>
               </div>
 
-              <div className="pos-total">
-                <span>Total</span>
-                <strong className="mono">{formatFcfa(cartNet)}</strong>
+              <div className="pos-cart-foot">
+                <div className="pos-total">
+                  <span>Total</span>
+                  <strong className="mono">{formatFcfa(cartNet)}</strong>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={posBusy || !cart.length || !caisse}
+                  onClick={() => void validateCart()}
+                >
+                  {posBusy ? "Validation…" : "Créer la commande"}
+                </button>
               </div>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={posBusy || !cart.length || !caisse}
-                onClick={() => void validateCart()}
-              >
-                {posBusy ? "Validation…" : "Créer la commande"}
-              </button>
 
               {tickets.length > 0 ? (
                 <div className="pos-tickets">
@@ -1231,11 +1168,9 @@ export function VentePage() {
                               <button
                                 type="button"
                                 className="btn-link"
-                                onClick={() =>
-                                  printTicket(t, config?.company ?? null)
-                                }
+                                onClick={() => setFacture(t)}
                               >
-                                Imprimer
+                                Facture
                               </button>
                               <button
                                 type="button"
@@ -1251,15 +1186,137 @@ export function VentePage() {
                       </li>
                     ))}
                   </ul>
-                  <Link href="/historique-ventes" className="vente-hist-link">
-                    Voir tout l’historique des ventes
-                  </Link>
+                  {canViewHistory ? (
+                    <Link href="/historique-ventes" className="vente-hist-link">
+                      Voir tout l’historique des ventes
+                    </Link>
+                  ) : null}
                 </div>
               ) : null}
-            </aside>
-          ) : null}
+          </aside>
         </div>
       </div>
+
+      {/* Opération en cours : le logo occupe l'écran et absorbe les clics,
+          le temps que le serveur réponde. */}
+      {posBusy ? <BrandLoader variant="voile" label="Enregistrement de la commande…" /> : null}
+
+      {/* Facture de la commande : générée à chaque validation, elle porte le
+          détail complet de la transaction avant toute impression. */}
+      {facture ? (
+        <div
+          className="facture-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Facture ${facture.numero}`}
+        >
+          <div className="facture-card">
+            <header className="facture-head">
+              <div>
+                <h2>Facture {facture.numero}</h2>
+                <p className="muted">
+                  {formatLogTime(facture.at)} · {facture.saleType} ·{" "}
+                  {facture.site === "zogbo" ? "Zogbo" : "Gbégamey"}
+                </p>
+              </div>
+              <strong className="facture-total mono">
+                {formatFcfa(facture.montant)}
+              </strong>
+            </header>
+
+            <dl className="facture-meta">
+              <div>
+                <dt>Enregistré par</dt>
+                <dd>{facture.userName}</dd>
+              </div>
+              <div>
+                <dt>Paiement</dt>
+                <dd>{facture.paymentLabel || "—"}</dd>
+              </div>
+              <div>
+                <dt>Client</dt>
+                <dd>{facture.clientNom || "—"}</dd>
+              </div>
+              <div>
+                <dt>Statut</dt>
+                <dd>{facture.statut === "valide" ? "Validée" : "Annulée"}</dd>
+              </div>
+            </dl>
+
+            <div className="facture-lignes-scroll">
+              <table className="data-table facture-lignes">
+                <thead>
+                  <tr>
+                    <th>Produit</th>
+                    <th className="col-num">Qté</th>
+                    <th className="col-money">P.U.</th>
+                    <th className="col-money">Montant</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {facture.lines.map((l, i) => (
+                    <tr key={`${l.productId}-${i}`}>
+                      <td>{l.name}</td>
+                      <td className="col-num mono">{l.qty}</td>
+                      <td className="col-money mono">
+                        {formatFcfa(l.unitPrice)}
+                      </td>
+                      <td className="col-money mono">{formatFcfa(l.amount)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <th colSpan={3}>Sous-total</th>
+                    <td className="col-money mono">
+                      {formatFcfa(facture.montantBrut)}
+                    </td>
+                  </tr>
+                  {facture.reduction ? (
+                    <tr>
+                      <th colSpan={3}>Réduction</th>
+                      <td className="col-money mono">
+                        −{formatFcfa(facture.reduction)}
+                      </td>
+                    </tr>
+                  ) : null}
+                  <tr className="facture-total-row">
+                    <th colSpan={3}>Total</th>
+                    <td className="col-money mono">
+                      {formatFcfa(facture.montant)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            <div className="facture-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setFacture(null)}
+              >
+                Fermer
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  // Déclenchée par le clic : la fenêtre d'impression ne peut
+                  // plus être bloquée comme elle l'était en automatique.
+                  if (!printTicket(facture, config?.company ?? null)) {
+                    setError(
+                      "Impression bloquée par le navigateur — autorisez les fenêtres pop-up pour ce site.",
+                    );
+                  }
+                }}
+              >
+                Imprimer la facture
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <RegistreDrawer
         open={journalOpen}
@@ -1300,9 +1357,11 @@ export function VentePage() {
         ) : (
           <p className="muted">Aucune vente.</p>
         )}
-        <Link href="/historique-ventes" className="vente-hist-link">
-          Voir l’historique des ventes
-        </Link>
+        {canViewHistory ? (
+            <Link href="/historique-ventes" className="vente-hist-link">
+              Voir l’historique des ventes
+            </Link>
+          ) : null}
       </RegistreDrawer>
     </AppShell>
   );

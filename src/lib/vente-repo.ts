@@ -923,7 +923,10 @@ export async function recordVente(input: {
   board: Awaited<ReturnType<typeof getVenteBoard>>;
 }> {
   const qty = input.qty ?? 1;
-  if (!Number.isFinite(qty) || qty <= 0) {
+  // Une quantité négative est une correction de saisie (bouton « − » du mode
+  // rapide) : elle reprend le stock via applySoldDelta, dont le filtre
+  // interdit de faire descendre le vendu sous zéro.
+  if (!Number.isFinite(qty) || qty === 0) {
     throw new Error("Quantité invalide");
   }
   if (!isValidDate(input.date)) throw new Error("Date invalide");
@@ -1093,6 +1096,8 @@ export async function recordExtraVente(input: {
   site: VenteSite;
   description: string;
   unitPrice: number;
+  /** Unités facturées — une ligne de panier POS peut en porter plusieurs. */
+  qty?: number;
   actor?: VenteActor | null;
 }): Promise<{
   entry: VenteLogEntry;
@@ -1110,6 +1115,10 @@ export async function recordExtraVente(input: {
   if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
     throw new Error("Prix invalide (montant en FCFA requis).");
   }
+  const qty = Math.round(Number(input.qty ?? 1));
+  if (!Number.isFinite(qty) || qty <= 0) {
+    throw new Error("Quantité invalide");
+  }
 
   const at = new Date().toISOString();
   const productId = newId("extra");
@@ -1121,10 +1130,10 @@ export async function recordExtraVente(input: {
     kind: "extra",
     productId,
     name: description,
-    qty: 1,
+    qty,
     unitPrice,
     costPrice: 0,
-    amount: unitPrice,
+    amount: qty * unitPrice,
     at,
     cancelledAt: null,
     baseProductId: null,
@@ -1141,9 +1150,9 @@ export async function recordExtraVente(input: {
     kind: "extra",
     productId,
     name: description,
-    qty: 1,
+    qty,
     unitPrice,
-    amount: unitPrice,
+    amount: qty * unitPrice,
     at,
   };
 

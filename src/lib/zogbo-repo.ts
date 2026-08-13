@@ -211,7 +211,9 @@ function zogboDocNeedsStockHeal(doc: ZogboDoc): boolean {
   if (doc.source !== "aquapro-opening") return false;
   const observations = [...lines, ...acc].map((l) => l.observations ?? "");
   return observations.every(
-    (o) => o === "" || o.startsWith("Ouverture AquaPro"),
+    // « Ouverture » couvre les anciennes notes (« Ouverture AquaPro… ») et
+    // les nouvelles (« Ouverture (…) »).
+    (o) => o === "" || o.startsWith("Ouverture"),
   );
 }
 

@@ -28,6 +28,7 @@ import {
   movementTypeLabel,
   todayIsoDate,
 } from "@/lib/zogbo-calc";
+import { BrandLoader } from "@/components/brand-loader";
 
 type Payload = {
   day: ZogboDay;
@@ -538,8 +539,8 @@ export function ZogboPage() {
               <tbody>
                 {loading || !computed ? (
                   <tr>
-                    <td colSpan={7} className="muted">
-                      Chargement…
+                    <td colSpan={7}>
+                      <BrandLoader variant="ligne" label="Chargement…" />
                     </td>
                   </tr>
                 ) : computed.lines.length === 0 ? (

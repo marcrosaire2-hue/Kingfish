@@ -591,7 +591,24 @@ export type PosConfig = {
 
 export type CaisseStatut = "ouverte" | "fermee";
 
-export type CaisseMouvementKind = "depense" | "recette";
+/**
+ * Les caisses du réseau : le coffre central et une caisse par zone. Une caisse
+ * n'appartient plus à un compte — c'est un tiroir du restaurant, ouvert par
+ * quelqu'un et partagé par toute la zone.
+ */
+export type CaisseKey = "centrale" | "zogbo" | "gbegamey";
+
+/**
+ * Un versement déplace de l'argent d'une caisse à l'autre : il sort d'un côté,
+ * entre de l'autre. Ce n'est ni une dépense ni une recette — le compte de
+ * résultat ne doit jamais le voir, sans quoi verser la recette au coffre
+ * apparaîtrait comme une charge.
+ */
+export type CaisseMouvementKind =
+  | "depense"
+  | "recette"
+  | "versement-sortie"
+  | "versement-entree";
 
 export type CaisseMouvement = {
   id: string;
@@ -601,12 +618,22 @@ export type CaisseMouvement = {
   beneficiaire: string;
   montant: number;
   at: string;
+  /** Qui a saisi — la caisse étant partagée, c'est la seule traçabilité. */
+  actorId?: string | null;
+  actorName?: string | null;
+  /** Versement : identifiant commun aux deux jambes, et caisse en face. */
+  transfertId?: string | null;
+  contrepartie?: CaisseKey | null;
 };
 
 export type CaisseSession = {
   id: string;
+  /** Caisse concernée — l'identité stable, indépendante de la session. */
+  caisse: CaisseKey;
   date: string;
-  site: VenteSite;
+  /** Zone servie ; `null` pour la caisse centrale, qui ne vend pas. */
+  site: VenteSite | null;
+  /** Compte qui a ouvert la session. */
   userId: string;
   userName: string;
   statut: CaisseStatut;
@@ -614,12 +641,25 @@ export type CaisseSession = {
   totalVente: number;
   totalDepense: number;
   totalRecette: number;
+  /** Versé à une autre caisse (sort du tiroir, hors charges). */
+  totalVersementSorti: number;
+  /** Reçu d'une autre caisse (entre au tiroir, hors produits). */
+  totalVersementRecu: number;
   soldePhysique: number | null;
   soldeFermeture: number | null;
   commentaire: string | null;
   openedAt: string;
   closedAt: string | null;
+  closedById: string | null;
+  closedByName: string | null;
   updatedAt: string | null;
+};
+
+/** Vue d'ensemble des trois caisses — bandeau de consolidation. */
+export type CaisseOverviewItem = {
+  caisse: CaisseKey;
+  session: CaisseSession | null;
+  soldeTheorique: number;
 };
 
 export type PosTicketLine = {

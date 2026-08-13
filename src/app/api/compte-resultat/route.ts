@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authErrorResponse, requireUser } from "@/lib/api-auth";
+import { authErrorResponse, requireAdmin } from "@/lib/api-auth";
 import { resolveUserSiteScopeFromUser } from "@/lib/auth-types";
 import {
   getCompteResultatDay,
@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireAdmin();
     // Étanchéité des zones : un compte rattaché à un point ne voit que le
     // résultat de ce point, jamais celui de l'autre.
     const scopeSite = resolveUserSiteScopeFromUser(user);

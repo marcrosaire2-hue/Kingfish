@@ -3,7 +3,6 @@ export type GuideSlug =
   | "vente"
   | "caisse"
   | "appro"
-  | "matieres"
   | "reglages"
   | "parametres"
   | "zogbo"
@@ -45,7 +44,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Configurer avant de vendre",
-        body: "Allez dans Paramètres (rôle admin). Choisissez le point Zogbo ou Gbégamey, puis renseignez les listes et les prix. Sans prix corrects, les montants et la vente rapide seront faux.",
+        body: "Allez dans Paramètres (rôle admin). Choisissez le point Zogbo ou Gbégamey, puis renseignez les listes et les prix. Sans prix corrects, les montants des tickets seront faux.",
       },
       {
         title: "Saisir la production du jour à Zogbo",
@@ -76,19 +75,15 @@ export const GUIDES: Guide[] = [
     space: "Vente",
     href: "/vente",
     summary:
-      "Mode POS (panier multi-lignes + ticket) ou Mode rapide (+1 / −1). Les inventaires se mettent à jour automatiquement.",
+      "Panier multi-lignes puis ticket : toute vente passe par la caisse de la zone. Les inventaires se mettent à jour automatiquement.",
     steps: [
       {
         title: "Ouvrir la caisse (Gbégamey)",
         body: "Avant de valider un ticket POS à Gbégamey, ouvrez une session sur la page Caisse. Une bannière vous y renvoie si besoin.",
       },
       {
-        title: "Mode POS",
-        body: "Ajoutez des produits au panier, choisissez le type de vente (Sur place ou Rapido), le paiement, éventuellement table / serveur / client / réduction, puis Créer commande.",
-      },
-      {
-        title: "Mode rapide",
-        body: "Basculez en Mode rapide pour le comportement +1 / −1 par produit, comme avant.",
+        title: "Composer la vente",
+        body: "Ajoutez des produits au panier, choisissez le type de vente (Sur place ou Rapido), le paiement, éventuellement table / serveur / client / réduction, puis Créer commande. Le ticket crédite la caisse de la zone : c'est le seul chemin d'encaissement.",
       },
       {
         title: "Choisir le site",
@@ -121,7 +116,7 @@ export const GUIDES: Guide[] = [
     ],
     tips: [
       "Préférez la page Vente pendant le service ; l’inventaire sert surtout au contrôle et aux écarts.",
-      "Le CA du jour compte uniquement les ventes Validé (comme AquaPro).",
+      "Le CA du jour compte uniquement les ventes Validé.",
       "Les ventes combos / boissons sont comptées dans le point du site choisi.",
     ],
   },
@@ -275,7 +270,7 @@ export const GUIDES: Guide[] = [
     space: "Historique ventes",
     href: "/historique-ventes",
     summary:
-      "Tous les tickets King Fish et AquaPro : filtres période, site, statut, source, serveur, paiement et recherche.",
+      "Tous les tickets (King Fish et importés) : filtres période, site, statut, source, serveur, paiement et recherche.",
     steps: [
       {
         title: "Choisir la période",
@@ -283,11 +278,11 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Filtrer le CA",
-        body: "Par défaut Statut = Validé (comme AquaPro). Passez à Tous / Annulé / En cours pour l’audit. Le montant affiché ne compte que les tickets Validé.",
+        body: "Par défaut Statut = Validé. Passez à Tous / Annulé / En cours pour l’audit. Le montant affiché ne compte que les tickets Validé.",
       },
       {
         title: "Site, source, serveur, paiement",
-        body: "Isolez Zogbo ou Gbégamey, King Fish ou AquaPro, un serveur ou un mode de paiement. Les listes Serveur / Paiement viennent des tickets de la période.",
+        body: "Isolez Zogbo ou Gbégamey, King Fish ou importés, un serveur ou un mode de paiement. Les listes Serveur / Paiement viennent des tickets de la période.",
       },
       {
         title: "Recherche et détail",
@@ -391,45 +386,31 @@ export const GUIDES: Guide[] = [
   },
   {
     slug: "appro",
-    title: "Guide Appro",
-    space: "Appro",
+    title: "Guide Achats",
+    space: "Achats",
     href: "/appro",
     summary:
-      "Enregistrer les entrées de matières premières (achats), annulables comme les achats boissons.",
+      "Dépenses du site avec explication (caisse du site), entrées de stock matières et comptage journalier.",
     steps: [
       {
-        title: "Choisir le jour",
-        body: "Sélectionnez la date du jour d’approvisionnement.",
+        title: "Choisir le jour et le site",
+        body: "Sélectionnez la date puis le site (Zogbo ou Gbégamey) : chaque zone garde sa propre caisse.",
       },
       {
-        title: "Saisir un achat",
-        body: "Pour chaque matière, indiquez la quantité reçue puis validez. Le mouvement apparaît dans le registre et augmente le stock.",
+        title: "Saisir une dépense",
+        body: "Onglet Dépenses : expliquez la dépense (achat riz, gaz, transport…), le montant et éventuellement le bénéficiaire. La dépense est enregistrée à la caisse du site, qui doit être ouverte.",
+      },
+      {
+        title: "Saisir un achat de stock",
+        body: "Onglet Stock : pour chaque matière, indiquez la quantité reçue puis validez. Le mouvement apparaît dans le registre et augmente le stock.",
+      },
+      {
+        title: "Matières du jour",
+        body: "Onglet Matières : stock initial + achats − conso, comptage physique (report du lendemain) et alertes de seuil, puis Enregistrer.",
       },
       {
         title: "Annuler une erreur",
         body: "Annulez un mouvement du registre pour remettre le stock comme avant (le mouvement reste barré).",
-      },
-    ],
-  },
-  {
-    slug: "matieres",
-    title: "Guide Matières",
-    space: "Matières",
-    href: "/matieres",
-    summary:
-      "Suivre le stock matières, le comptage physique et les alertes de seuil.",
-    steps: [
-      {
-        title: "Lire le stock",
-        body: "Stock = stock initial + achats − consommations. Le report du jour précédent sert d’ouverture.",
-      },
-      {
-        title: "Comptage",
-        body: "Saisissez le compté physique puis Enregistrer. Ce chiffre sert de report pour le lendemain.",
-      },
-      {
-        title: "Seuils",
-        body: "Les matières sous le seuil (défini dans Paramètres) apparaissent en alerte « au seuil ».",
       },
     ],
   },
@@ -495,7 +476,7 @@ export const GUIDES: Guide[] = [
       },
       {
         title: "Comprendre les autres rôles",
-        body: "Vendeur : Vente + Caisse + historique ventes. Cuisine : inventaire du site, Appro, Matières. Gérant : ops + synthèse selon son site.",
+        body: "Vendeur : Vente + Caisse + historique ventes. Cuisine : inventaire du site, Achats (dépenses, stock, matières). Gérant : ops + synthèse selon son site.",
       },
       {
         title: "Créer un admin de zone",
@@ -530,8 +511,7 @@ export function guideSlugForPath(pathname: string): GuideSlug {
   if (pathname.startsWith("/vente")) return "vente";
   if (pathname.startsWith("/caisse")) return "caisse";
   if (pathname.startsWith("/appro")) return "appro";
-  if (pathname.startsWith("/matieres")) return "matieres";
-  if (pathname.startsWith("/reglages")) return "reglages";
+    if (pathname.startsWith("/reglages")) return "reglages";
   if (pathname.startsWith("/parametres")) return "parametres";
   if (pathname.startsWith("/zogbo")) return "zogbo";
   if (pathname.startsWith("/gbegamey")) return "gbegamey";

@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     if (!canUseSite(user.site, site)) {
       return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
     }
-    const ctx = await getPosContext({ date, site, userId: user.id });
+    const ctx = await getPosContext({ date, site });
     return NextResponse.json({
       ...ctx,
       lockedSite: user.site !== "tous",

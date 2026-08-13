@@ -1,5 +1,5 @@
-import { ApproPage } from "@/components/appro/appro-page";
+import { AchatsPage } from "@/components/achats/achats-page";
 
 export default function Page() {
-  return <ApproPage />;
+  return <AchatsPage />;
 }

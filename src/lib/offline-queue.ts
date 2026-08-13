@@ -68,9 +68,17 @@ export function surChangement(ecouteur: Ecouteur): () => void {
   return () => ecouteurs.delete(ecouteur);
 }
 
-export function ajouterEnAttente(corps: unknown): VenteEnAttente {
+/**
+ * `reference` : identifiant déjà envoyé au serveur lors de la tentative en
+ * ligne. Le réutiliser garantit qu'une vente partie mais dont la réponse s'est
+ * perdue sera reconnue au rejeu, au lieu d'être encaissée une seconde fois.
+ */
+export function ajouterEnAttente(
+  corps: unknown,
+  reference?: string,
+): VenteEnAttente {
   const entree: VenteEnAttente = {
-    id: `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: reference || `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     corps,
     creeA: new Date().toISOString(),
     tentatives: 0,

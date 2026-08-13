@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { BrandLoader } from "@/components/brand-loader";
 import { ContextBar } from "@/components/context-bar";
 import {
   CHART_COLORS,
@@ -17,6 +18,7 @@ import { formatFcfa } from "@/lib/format";
 import { APP_SITES_LABEL } from "@/lib/brand";
 import { exportSyntheseExcel } from "@/lib/page-exports";
 import { emptyCharges } from "@/lib/synthese-calc";
+import type { EpuiseRow } from "@/lib/stock-repo";
 import type {
   DayCharges,
   DayPoint,
@@ -71,6 +73,9 @@ export function SynthesePage() {
   const [month, setMonth] = useState(() => currentMonth());
   const [year, setYear] = useState(() => String(new Date().getFullYear()));
 
+  /** Produits épuisés du jour (vue journalière uniquement). */
+  const [epuises, setEpuises] = useState<EpuiseRow[]>([]);
+
   const [day, setDay] = useState<DayPoint | null>(null);
   const [monthData, setMonthData] = useState<MonthPoint | null>(null);
   const [yearData, setYearData] = useState<YearPoint | null>(null);
@@ -88,6 +93,12 @@ export function SynthesePage() {
     nActif: number;
     nAnnule: number;
   } | null>(null);
+  const [shiftTotals, setShiftTotals] = useState<{
+    jour: number;
+    nuit: number;
+    aucune: number;
+  } | null>(null);
+  const [role, setRole] = useState<string | null>(null);
   const [caCumuls, setCaCumuls] = useState<{
     jour: number;
     mois: number;
@@ -103,6 +114,9 @@ export function SynthesePage() {
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
+  const isGeneral = role !== null && role !== "admin";
+  const viewMode = isGeneral ? "day" : view;
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -110,9 +124,9 @@ export function SynthesePage() {
       setError(null);
       try {
         const qs =
-          view === "day"
+          viewMode === "day"
             ? `view=day&date=${encodeURIComponent(date)}`
-            : view === "month"
+            : viewMode === "month"
               ? `view=month&month=${encodeURIComponent(month)}`
               : `view=year&year=${encodeURIComponent(year)}`;
 
@@ -156,21 +170,32 @@ export function SynthesePage() {
             total: number;
           } | null) ?? null,
         );
+        setShiftTotals(
+          (body.shiftTotals as {
+            jour: number;
+            nuit: number;
+            aucune: number;
+          } | null) ?? null,
+        );
+        setRole((body.role as string | null) ?? null);
 
-        if (view === "day") {
+        if (viewMode === "day") {
           setDay(body.day as DayPoint);
           setChargesDraft((body.day as DayPoint).charges);
           setDirtyCharges(false);
+          setEpuises((body.epuises as EpuiseRow[] | undefined) ?? []);
           setMonthData(null);
           setYearData(null);
-        } else if (view === "month") {
+        } else if (viewMode === "month") {
           setMonthData(body.month as MonthPoint);
           setDay(null);
           setYearData(null);
+          setEpuises([]);
         } else {
           setYearData(body.year as YearPoint);
           setDay(null);
           setMonthData(null);
+          setEpuises([]);
         }
       } catch (e) {
         if (!cancelled) {
@@ -183,7 +208,7 @@ export function SynthesePage() {
     return () => {
       cancelled = true;
     };
-  }, [view, date, month, year]);
+  }, [viewMode, view, date, month, year]);
 
   const dayResultat = useMemo(() => {
     if (!day) return null;
@@ -221,7 +246,7 @@ export function SynthesePage() {
   }
 
   function handlePeriodChange(next: string) {
-    if (view === "day") {
+    if (viewMode === "day") {
       if (
         dirtyCharges &&
         !window.confirm("Charges non enregistrées. Changer de jour ?")
@@ -229,7 +254,7 @@ export function SynthesePage() {
         return;
       }
       setDate(next);
-    } else if (view === "month") {
+    } else if (viewMode === "month") {
       setMonth(next);
     } else {
       setYear(next);
@@ -242,7 +267,7 @@ export function SynthesePage() {
       subtitle={`Vue d’ensemble ${APP_SITES_LABEL} — CA final Validé (hors annulées / en cours), mix, charges et résultat en FCFA.`}
     >
       <div className="section-tabs" role="tablist" aria-label="Période">
-        {(
+        {isGeneral ? null : (
           [
             ["day", "Journalier"],
             ["month", "Mensuel"],
@@ -263,15 +288,15 @@ export function SynthesePage() {
       </div>
 
       <ContextBar
-        date={view === "day" ? date : undefined}
+        date={viewMode === "day" ? date : undefined}
         onDateChange={
-          view === "day" ? (v) => handlePeriodChange(v) : undefined
+          viewMode === "day" ? (v) => handlePeriodChange(v) : undefined
         }
       >
         <ExportExcelButton
           onExport={() =>
             exportSyntheseExcel({
-              view,
+              view: viewMode,
               date,
               month,
               year,
@@ -279,7 +304,7 @@ export function SynthesePage() {
           }
           disabled={loading}
         />
-        {view === "month" ? (
+        {viewMode === "month" ? (
           <label className="date-field date-field-pill">
             <span>Mois</span>
             <input
@@ -289,7 +314,7 @@ export function SynthesePage() {
             />
           </label>
         ) : null}
-        {view === "year" ? (
+        {viewMode === "year" ? (
           <label className="date-field date-field-pill">
             <span>Année</span>
             <input
@@ -301,7 +326,7 @@ export function SynthesePage() {
             />
           </label>
         ) : null}
-        {view === "day" ? (
+        {viewMode === "day" && !isGeneral ? (
           <button
             type="button"
             className={`btn btn-primary${savedFlash && !dirtyCharges ? " btn-saved" : ""}`}
@@ -349,41 +374,56 @@ export function SynthesePage() {
             <strong className="dash-ca-final-value mono">
               {formatFcfa(
                 cancelNotice?.caActif ??
-                  (view === "day"
+                  (viewMode === "day"
                     ? caCumuls.jour
-                    : view === "month"
+                    : viewMode === "month"
                       ? caCumuls.mois
                       : caCumuls.total),
               )}
             </strong>
             <span className="dash-ca-final-hint">
-              {view === "day"
-                ? "Jour sélectionné · Validé (comme AquaPro)"
-                : view === "month"
-                  ? "Mois sélectionné · Validé (comme AquaPro)"
-                  : "Année / historique · Validé (comme AquaPro)"}
+              {viewMode === "day"
+                ? "Jour sélectionné · Validé"
+                : viewMode === "month"
+                  ? "Mois sélectionné · Validé"
+                  : "Année / historique · Validé"}
             </span>
           </div>
-          <div className="dash-ca-final-side">
-            <div>
-              <span>Jour</span>
-              <strong className="mono">{formatFcfa(caCumuls.jour)}</strong>
+          {/* Vue générale : la journée, rien d'autre. Afficher les cumuls
+              mois et historique contredirait le retrait des onglets de
+              période. */}
+          {isGeneral ? null : (
+            <div className="dash-ca-final-side">
+              <div>
+                <span>Jour</span>
+                <strong className="mono">{formatFcfa(caCumuls.jour)}</strong>
+              </div>
+              <div>
+                <span>Mois</span>
+                <strong className="mono">{formatFcfa(caCumuls.mois)}</strong>
+              </div>
+              <div>
+                <span>Total</span>
+                <strong className="mono">{formatFcfa(caCumuls.total)}</strong>
+              </div>
             </div>
-            <div>
-              <span>Mois</span>
-              <strong className="mono">{formatFcfa(caCumuls.mois)}</strong>
-            </div>
-            <div>
-              <span>Total</span>
-              <strong className="mono">{formatFcfa(caCumuls.total)}</strong>
-            </div>
-          </div>
+          )}
         </section>
       ) : null}
 
-      {loading ? <p className="muted">Chargement du tableau de bord…</p> : null}
+      {loading ? (
+        <BrandLoader variant="ligne" label="Chargement du tableau de bord…" />
+      ) : null}
 
-      {!loading && view === "day" && day ? (
+      {!loading && isGeneral && day ? (
+        <GeneralDayDashboard
+          day={day}
+          ranking={ranking}
+          shiftTotals={shiftTotals}
+        />
+      ) : null}
+
+      {!loading && !isGeneral && viewMode === "day" && day ? (
         <DayDashboard
           day={day}
           ranking={ranking}
@@ -396,7 +436,7 @@ export function SynthesePage() {
         />
       ) : null}
 
-      {!loading && view === "month" && monthData ? (
+      {!loading && !isGeneral && viewMode === "month" && monthData ? (
         <MonthDashboard
           data={monthData}
           ranking={ranking}
@@ -407,7 +447,7 @@ export function SynthesePage() {
         />
       ) : null}
 
-      {!loading && view === "year" && yearData ? (
+      {!loading && !isGeneral && viewMode === "year" && yearData ? (
         <YearDashboard
           data={yearData}
           ranking={ranking}
@@ -441,6 +481,152 @@ function KpiGrid({
           <span className="dash-kpi-value mono">{it.value}</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+/** Vue d’ensemble pour gérants et équipiers : résumé des ventes du jour,
+ * matin comme soir, sans charges ni résultat ni périodes mensuelles. */
+function GeneralDayDashboard({
+  day,
+  ranking,
+  shiftTotals,
+}: {
+  day: DayPoint;
+  ranking: ProductRankingData;
+  shiftTotals: { jour: number; nuit: number; aucune: number } | null;
+}) {
+  const mixSlices = [
+    {
+      key: "plats",
+      label: "Plats",
+      value: day.caZogboPlats + day.caGbegameyPlats,
+      color: CHART_COLORS.plats,
+    },
+    {
+      key: "combos",
+      label: "Combos",
+      value: day.caCombos,
+      color: CHART_COLORS.combos,
+    },
+    {
+      key: "boissons",
+      label: "Boissons",
+      value: day.caBoissons,
+      color: CHART_COLORS.boissons,
+    },
+    {
+      key: "extra",
+      label: "Extra",
+      value: day.caExtra,
+      color: CHART_COLORS.extra,
+    },
+  ].filter((s) => s.value > 0);
+
+  const sites = [
+    {
+      key: "zogbo",
+      label: "Zogbo",
+      value: day.caZogbo,
+      color: CHART_COLORS.zogbo,
+    },
+    {
+      key: "gbegamey",
+      label: "Gbégamey",
+      value: day.caGbegamey,
+      color: CHART_COLORS.gbegamey,
+    },
+  ];
+
+  return (
+    <div className="dash">
+      <p className="section-hint">
+        <strong>{formatDisplayDate(day.date)}</strong>
+        {" · "}
+        Résumé des ventes de la journée, matin comme soir · FCFA
+      </p>
+
+      <KpiGrid
+        items={[
+          {
+            label: "CA de la journée",
+            value: formatFcfa(day.caTotal),
+            tone: "accent",
+          },
+          {
+            label: "Matin (équipe jour)",
+            value: formatFcfa(shiftTotals?.jour ?? 0),
+          },
+          {
+            label: "Soir (équipe nuit)",
+            value: formatFcfa(shiftTotals?.nuit ?? 0),
+          },
+          // Ventes sans équipe identifiée (reprises de carnet, imports) :
+          // affichées dès qu'il y en a, sinon matin + soir ne redonneraient
+          // pas le total et le résumé mentirait par omission.
+          ...(shiftTotals && shiftTotals.aucune > 0
+            ? [
+                {
+                  label: "Hors équipe",
+                  value: formatFcfa(shiftTotals.aucune),
+                },
+              ]
+            : []),
+          { label: "Zogbo", value: formatFcfa(day.caZogbo) },
+          { label: "Gbégamey", value: formatFcfa(day.caGbegamey) },
+        ]}
+      />
+
+      <div className="dash-grid">
+        <section className="panel dash-card">
+          <h2 className="panel-title">Mix des ventes (FCFA)</h2>
+          {mixSlices.length ? (
+            <DonutChart
+              slices={mixSlices}
+              centerLabel="CA"
+              centerValue={
+                day.caTotal >= 1000
+                  ? `${Math.round(day.caTotal / 1000)}k`
+                  : String(day.caTotal)
+              }
+            />
+          ) : (
+            <p className="muted">Aucune vente enregistrée ce jour.</p>
+          )}
+        </section>
+
+        <section className="panel dash-card">
+          <h2 className="panel-title">Points de vente</h2>
+          <HorizontalBars rows={sites} />
+          <div className="dash-breakdown">
+            <p>
+              <strong>Zogbo</strong> — plats {formatFcfa(day.caZogboPlats)} ·
+              combos {formatFcfa(day.caCombosZogbo)} · boissons{" "}
+              {formatFcfa(day.caBoissonsZogbo)} · extra{" "}
+              {formatFcfa(day.caExtraZogbo)}
+            </p>
+            <p>
+              <strong>Gbégamey</strong> — plats{" "}
+              {formatFcfa(day.caGbegameyPlats)} · combos{" "}
+              {formatFcfa(day.caCombosGbegamey)} · boissons{" "}
+              {formatFcfa(day.caBoissonsGbegamey)} · extra{" "}
+              {formatFcfa(day.caExtraGbegamey)}
+            </p>
+          </div>
+        </section>
+      </div>
+
+      <section className="panel dash-card dash-card-wide">
+        <h2 className="panel-title">Ventes du jour</h2>
+        <ProductRanking
+          best={ranking.best}
+          worst={ranking.worst}
+          sites={ranking.sites}
+          plats={ranking.plats}
+          accompagnements={ranking.accompagnements}
+          boissons={ranking.boissons}
+        />
+      </section>
     </div>
   );
 }

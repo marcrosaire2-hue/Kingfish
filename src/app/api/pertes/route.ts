@@ -29,7 +29,9 @@ export async function GET(request: Request) {
       // Un compte rattaché à un site ne voit que les pertes de son site.
       site: scope === "tous" ? "all" : scope,
     });
-    return NextResponse.json({ date, pertes, motifs: PERTE_MOTIF_LABELS });
+    // `site` = périmètre réel du compte (« tous » ou sa zone) : le front
+    // verrouille la page sur cette zone, sans sélecteur de site.
+    return NextResponse.json({ date, pertes, motifs: PERTE_MOTIF_LABELS, site: scope });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     reportError("GET /api/pertes", error);

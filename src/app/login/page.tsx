@@ -1,9 +1,10 @@
 import { Suspense } from "react";
 import { LoginPage } from "@/components/login/login-page";
+import { BrandLoader } from "@/components/brand-loader";
 
 export default function Page() {
   return (
-    <Suspense fallback={<p className="muted" style={{ padding: 24 }}>Chargement…</p>}>
+    <Suspense fallback={<BrandLoader label="Chargement…" />}>
       <LoginPage />
     </Suspense>
   );

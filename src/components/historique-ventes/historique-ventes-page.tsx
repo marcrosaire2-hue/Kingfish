@@ -8,6 +8,7 @@ import { formatFcfa } from "@/lib/format";
 import { exportHistoriqueVentesExcel } from "@/lib/page-exports";
 import type { VenteHistoryTicket } from "@/lib/ventes-history-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { BrandLoader } from "@/components/brand-loader";
 
 type SiteFilter = "all" | "zogbo" | "gbegamey";
 type StatutFilter = "all" | "valide" | "annule" | "encours";
@@ -108,7 +109,7 @@ export function HistoriqueVentesPage() {
   return (
     <AppShell
       title="Historique des ventes"
-      subtitle="Tickets POS, journal (carnets / devis / caisse) et AquaPro — CA = Validé uniquement."
+      subtitle="Tickets POS, journal (carnets / devis / caisse) et importés — CA = Validé uniquement."
       actions={
         <>
           <ExportExcelButton
@@ -194,7 +195,7 @@ export function HistoriqueVentesPage() {
           >
             <option value="all">Toutes</option>
             <option value="kingfish">King Fish</option>
-            <option value="aquapro">AquaPro</option>
+            <option value="aquapro">Importé</option>
           </select>
         </label>
         <label className="date-field">
@@ -271,7 +272,7 @@ export function HistoriqueVentesPage() {
         </p>
       ) : null}
 
-      {loading ? <p className="muted">Chargement…</p> : null}
+      {loading ? <BrandLoader variant="ligne" label="Chargement des ventes…" /> : null}
 
       {!loading && !tickets.length ? (
         <p className="muted">Aucun ticket pour ces filtres.</p>
@@ -319,7 +320,7 @@ export function HistoriqueVentesPage() {
                         <span
                           className={`hist-badge hist-badge-${t.source === "aquapro" ? "transfert" : "vente"}`}
                         >
-                          {t.source === "aquapro" ? "AquaPro" : "KF"}
+                          {t.source === "aquapro" ? "Importé" : "KF"}
                         </span>
                       </td>
                       <td className="mono col-money">{formatFcfa(t.montant)}</td>

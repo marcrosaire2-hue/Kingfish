@@ -17,6 +17,7 @@ import type {
   VenteLogEntry,
   VenteSite,
 } from "@/lib/types";
+import { BrandLoader } from "@/components/brand-loader";
 
 type Payload = {
   day: BoissonsDay;
@@ -322,9 +323,9 @@ export function ZoneBoissonsPanel({
           <tbody>
             {loading || !computed ? (
               <tr>
-                <td colSpan={5} className="muted">
-                  Chargement…
-                </td>
+                <td colSpan={5}>
+                      <BrandLoader variant="ligne" label="Chargement…" />
+                    </td>
               </tr>
             ) : computed.lines.length === 0 ? (
               <tr>

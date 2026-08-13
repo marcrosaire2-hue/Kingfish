@@ -17,6 +17,8 @@ import {
   resolvePeriod,
   saveDayCharges,
 } from "@/lib/synthese-repo";
+import { sumCaByShift } from "@/lib/vente-repo";
+import { getEpuises } from "@/lib/stock-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import { logActivity } from "@/lib/log-activity";
 
@@ -41,18 +43,24 @@ export async function GET(request: Request) {
       const date = period.date!;
       const match: Record<string, unknown> = { date };
       if (scopeSite) match.site = scopeSite;
-      const [day, ranking, cancelNotice, caCumuls] = await Promise.all([
-        getDayPoint(date, scopeSite),
-        getProductRanking(match),
-        getVenteCancelNotice(match),
-        getCaCumuls(date, scopeSite),
-      ]);
+      const [day, ranking, cancelNotice, caCumuls, shiftTotals, epuises] =
+        await Promise.all([
+          getDayPoint(date, scopeSite),
+          getProductRanking(match),
+          getVenteCancelNotice(match),
+          getCaCumuls(date, scopeSite),
+          sumCaByShift(date, scopeSite ?? "all"),
+          getEpuises({ date, scopeSite }),
+        ]);
       return NextResponse.json({
         view: "day",
         day,
         ranking,
         cancelNotice,
         caCumuls,
+        shiftTotals,
+        epuises,
+        role: user.role,
         scopeSite,
         lockedSite: user.site !== "tous",
       });
@@ -78,6 +86,7 @@ export async function GET(request: Request) {
           ...caCumuls,
           mois: cancelNotice.caActif,
         },
+        role: user.role,
         scopeSite,
         lockedSite: user.site !== "tous",
       });
@@ -103,6 +112,7 @@ export async function GET(request: Request) {
         ...caCumuls,
         total: cancelNotice.caActif,
       },
+      role: user.role,
       scopeSite,
       lockedSite: user.site !== "tous",
     });

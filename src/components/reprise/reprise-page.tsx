@@ -17,6 +17,7 @@ import type {
   RepriseVenteZogboExistante,
   RepriseVenteZogboLine,
 } from "@/lib/reprise-repo";
+import { BrandLoader } from "@/components/brand-loader";
 
 type Zone = "journal" | "zogbo" | "gbegamey" | "boissons" | "combos";
 
@@ -63,7 +64,7 @@ const ZOGBO_REPRISE_FROM = "2026-08-07";
 
 const SOURCE_LABELS: Record<string, string> = {
   reprise: "Reprise d’historique",
-  aquapro: "AquaPro",
+  aquapro: "Importé",
   "inventaire-marco": "Inventaire Excel",
   "carnet-zogbo": "Carnet manuscrit",
   caisse: "Caisse de l’application",
@@ -371,7 +372,7 @@ export function ReprisePage() {
         <h2 className="panel-title">Enregistrement historique Zogbo</h2>
         <p className="ui-info">
           Ajoutez ou corrigez les ventes et le stock sans effacer le carnet,
-          AquaPro ni la caisse déjà enregistrés. Dans{" "}
+          les ventes importées ni la caisse déjà enregistrées. Dans{" "}
           <strong>Journal ventes</strong>, saisissez vos lignes (nom du plat,
           combo, boisson, quantité, prix). Les ventes déjà présentes restent
           visibles en lecture seule.
@@ -459,7 +460,7 @@ export function ReprisePage() {
         ))}
       </div>
 
-      {loading ? <p className="muted">Chargement…</p> : null}
+      {loading ? <BrandLoader variant="ligne" label="Chargement de la reprise…" /> : null}
 
       {!loading && data && zone === "journal" ? (
         <section className="panel panel-wide">
@@ -624,7 +625,7 @@ export function ReprisePage() {
                 Ventes déjà enregistrées (conservées)
               </h3>
               <p className="ui-info">
-                Carnet, AquaPro, caisse… — lecture seule, jamais effacées par
+                Carnet, importés, caisse… — lecture seule, jamais effacées par
                 l&apos;enregistrement Reprise.
               </p>
               <div className="table-scroll">

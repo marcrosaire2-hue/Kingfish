@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -59,16 +60,9 @@ const NAV_ITEMS: {
   },
   {
     href: "/appro",
-    label: "Appro",
+    label: "Achats",
     key: "appro",
     mark: "A",
-    group: "ops",
-  },
-  {
-    href: "/matieres",
-    label: "Matières",
-    key: "matieres",
-    mark: "M",
     group: "ops",
   },
   {
@@ -145,6 +139,21 @@ const NAV_ITEMS: {
     groupLabel: "Compte",
   },
 ];
+
+/**
+ * Repère d'attente sur le lien cliqué. `useLinkStatus` doit vivre dans un
+ * descendant du `Link` : l'élément est toujours rendu, à taille fixe, et
+ * seule son opacité change — sinon le menu se décalerait à chaque clic.
+ */
+function NavPending() {
+  const { pending } = useLinkStatus();
+  return (
+    <span
+      aria-hidden
+      className={`nav-pending${pending ? " is-pending" : ""}`}
+    />
+  );
+}
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -277,6 +286,7 @@ export function AppShell({
                     {item.mark}
                   </span>
                   <span className="side-nav-label">{item.label}</span>
+                  <NavPending />
                 </Link>
               </div>
             );

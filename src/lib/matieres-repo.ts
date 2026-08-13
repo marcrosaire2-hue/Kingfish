@@ -95,7 +95,7 @@ export async function getMatieresDayPayload(
         ...l,
         counted: leftovers.has(l.productId) ? leftovers.get(l.productId)! : null,
         observations: leftovers.has(l.productId)
-          ? "Ouverture AquaPro (stock final)"
+          ? "Ouverture (stock final)"
           : "",
       }));
       await db.collection<MatieresDoc>("matieres_jours").updateOne(

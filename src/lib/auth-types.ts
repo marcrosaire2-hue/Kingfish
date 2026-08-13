@@ -30,9 +30,26 @@ export function isShift(value: unknown): value is UserShift {
   return SHIFTS.includes(value as UserShift);
 }
 
+/**
+ * Équipes écrites par les imports de carnets, qui parlent du service en
+ * clair. « matin » et « soir » désignent les mêmes équipes que « jour » et
+ * « nuit » : sans cette table, ces ventes tombaient en « hors équipe » et le
+ * résumé du jour affichait matin et soir à zéro.
+ */
+const ALIAS_SHIFT: Record<string, UserShift> = {
+  matin: "jour",
+  midi: "jour",
+  soir: "nuit",
+  nuit: "nuit",
+};
+
 /** Équipe retenue, en tolérant un compte antérieur à cette notion. */
-export function effectiveShift(shift: UserShift | undefined | null): UserShift {
-  return isShift(shift) ? shift : "aucune";
+export function effectiveShift(
+  shift: UserShift | string | undefined | null,
+): UserShift {
+  if (isShift(shift)) return shift;
+  const alias = typeof shift === "string" ? ALIAS_SHIFT[shift.trim().toLowerCase()] : undefined;
+  return alias ?? "aucune";
 }
 
 export type AppUser = {
@@ -203,8 +220,8 @@ export type NavKey =
   | "guide";
 
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
-  vendeur: ["synthese", "vente", "caisse", "historique-ventes", "equipes", "guide"],
-  cuisine: ["synthese", "zogbo", "appro", "matieres", "pertes", "guide"],
+  vendeur: ["synthese", "vente", "caisse"],
+  cuisine: ["synthese", "zogbo", "appro", "pertes"],
   // Union des deux rôles précédents, sans rien y ajouter.
   equipier: [
     "synthese",
@@ -212,29 +229,17 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "caisse",
     "zogbo",
     "appro",
-    "matieres",
     "pertes",
-    "historique-ventes",
-    "equipes",
-    "guide",
   ],
   gerant: [
     "synthese",
-    "compte-resultat",
     "vente",
     "caisse",
     "zogbo",
     "gbegamey",
     "appro",
-    "matieres",
     "pertes",
-    "historique-ventes",
-    "equipes",
-    "controle",
     "stock",
-    "historique",
-    "reglages",
-    "guide",
   ],
   admin: [
     "synthese",
@@ -245,8 +250,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "zogbo",
     "gbegamey",
     "appro",
-    "matieres",
-    "pertes",
+        "pertes",
     "reglages",
     "historique-ventes",
     "equipes",
@@ -265,11 +269,15 @@ export function sitesForRole(role: UserRole): UserSite[] {
   if (role === "vendeur" || role === "cuisine" || role === "equipier") {
     return ["zogbo", "gbegamey"];
   }
+  if (role === "gerant") {
+    // Le gérant est rattaché à UNE zone : il ne voit jamais l'autre.
+    return ["zogbo", "gbegamey"];
+  }
   return ["zogbo", "gbegamey", "tous"];
 }
 
 export function defaultSiteForRole(role: UserRole): UserSite {
-  if (role === "admin" || role === "gerant") return "tous";
+  if (role === "admin") return "tous";
   return "gbegamey";
 }
 
@@ -281,10 +289,13 @@ export function assertValidRoleSite(role: UserRole, site: UserSite): void {
   }
 }
 
-/** Corrige les anciens comptes vendeur/cuisine encore en « tous ». */
+/** Corrige les anciens comptes encore en « tous » : une zone unique fait foi. */
 export function effectiveSite(role: UserRole, site: UserSite): UserSite {
   if (
-    (role === "vendeur" || role === "cuisine" || role === "equipier") &&
+    (role === "vendeur" ||
+      role === "cuisine" ||
+      role === "equipier" ||
+      role === "gerant") &&
     site === "tous"
   ) {
     return "gbegamey";
@@ -328,7 +339,13 @@ export function canAccessPath(
   if (pathname.startsWith("/admin")) return allowed.includes("admin");
   if (pathname.startsWith("/vente")) return allowed.includes("vente");
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");
-  if (pathname.startsWith("/appro")) return allowed.includes("appro");
+  if (
+    pathname.startsWith("/appro") ||
+    pathname.startsWith("/achats") ||
+    pathname.startsWith("/matieres")
+  ) {
+    return allowed.includes("appro");
+  }
   if (pathname.startsWith("/matieres")) return allowed.includes("matieres");
   if (pathname.startsWith("/pertes")) return allowed.includes("pertes");
   if (pathname.startsWith("/reglages")) return allowed.includes("reglages");

@@ -224,8 +224,138 @@ async function main() {
   if (docs.length) await col.insertMany(docs);
   if (ticketDocs.length) await ticketsCol.insertMany(ticketDocs);
 
+  // Recalcule les compteurs journaliers depuis ventes_log (source de vérité) :
+  // ventes du jour / restes sur la page vente Gbégamey et boissons vendues.
+  const gbegameyCol = db.collection("gbegamey_jours");
+  const boissonsCol = db.collection("boissons_jours");
+  const dates = [...new Set(docs.map((d) => d.date))];
+  let countersUpdated = 0;
+  for (const date of dates) {
+    const rows = await db
+      .collection("ventes_log")
+      .aggregate([
+        {
+          $match: {
+            date,
+            site: SITE,
+            cancelledAt: null,
+            caExcluded: { $ne: true },
+          },
+        },
+        {
+          $group: {
+            _id: "$productId",
+            qty: { $sum: "$qty" },
+            kinds: { $addToSet: "$kind" },
+          },
+        },
+      ])
+      .toArray();
+    const platSold = new Map();
+    const boissonSold = new Map();
+    for (const r of rows) {
+      if (r.kinds.includes("boisson")) boissonSold.set(r._id, r.qty);
+      else platSold.set(r._id, r.qty);
+    }
+
+    const day = await gbegameyCol.findOne({ _id: date });
+    if (day) {
+      let changed = false;
+      for (const l of day.transferLines || []) {
+        const v = platSold.get(l.productId);
+        if (v !== undefined && l.sold !== v) {
+          l.sold = v;
+          changed = true;
+        }
+      }
+      for (const l of day.localLines || []) {
+        const v = platSold.get(l.productId);
+        if (v !== undefined && l.sold !== v) {
+          l.sold = v;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await gbegameyCol.updateOne(
+          { _id: day._id },
+          { $set: { transferLines: day.transferLines, localLines: day.localLines } },
+        );
+        countersUpdated++;
+      }
+    }
+
+    const bday = await boissonsCol.findOne({ _id: date });
+    if (bday) {
+      let changed = false;
+      for (const l of bday.lines || []) {
+        const v = boissonSold.get(l.productId);
+        if (v !== undefined && l.soldGbegamey !== v) {
+          l.soldGbegamey = v;
+          changed = true;
+        }
+      }
+      if (changed) {
+        await boissonsCol.updateOne(
+          { _id: bday._id },
+          { $set: { lines: bday.lines } },
+        );
+        countersUpdated++;
+      }
+    }
+  }
+  if (dates.length) {
+    console.log("Compteurs journaliers resynchronisés", { dates: dates.length, countersUpdated });
+  }
+
   const active = docs.filter((d) => !d.cancelledAt && !d.caExcluded);
   const ca = active.reduce((s, d) => s + d.amount, 0);
+
+  // Crédit des ventes AquaPro validées aux caisses de zone : la caisse doit
+  // refléter toutes les ventes du jour, pas seulement celles du POS interne.
+  // Idempotent grâce au marqueur caisseVentesCredit (session → montant).
+  const importCol = db.collection("aquapro_import");
+  const sessionsCol = db.collection("caisses_sessions");
+  const importDoc = await importCol.findOne({ _id: "latest" });
+  const previousCredits = importDoc?.caisseVentesCredit ?? {};
+  const nextCredits = {};
+  let caisseCredits = 0;
+  for (const date of dates) {
+    const activeDate = active.filter((d) => d.date === date);
+    const total = activeDate.reduce((s, d) => s + d.amount, 0);
+    if (!total) continue;
+    const session = await sessionsCol.findOne({
+      date,
+      statut: "ouverte",
+      $or: [
+        { caisse: SITE },
+        { caisse: { $exists: false }, site: SITE },
+      ],
+    });
+    if (!session) continue;
+    const sessionId = session._id.toHexString();
+    const previous = previousCredits[sessionId] ?? 0;
+    if (previous !== total) {
+      await sessionsCol.updateOne(
+        { _id: session._id },
+        {
+          $inc: { totalVente: total - previous },
+          $set: { updatedAt: new Date().toISOString() },
+        },
+      );
+      console.log("Caisse créditée", { date, sessionId, total, previous });
+      caisseCredits++;
+    }
+    nextCredits[sessionId] = total;
+  }
+  if (Object.keys(nextCredits).length > 0) {
+    await importCol.updateOne(
+      { _id: "latest" },
+      { $set: { caisseVentesCredit: nextCredits } },
+    );
+    console.log("Crédit caisse resynchronisé", { sessions: Object.keys(nextCredits).length, caisseCredits });
+  } else if (caisseCredits === 0) {
+    console.log("Crédit caisse : aucune session ouverte sur les dates importées");
+  }
 
   await db.collection("aquapro_import").updateOne(
     { _id: "latest" },

@@ -50,6 +50,14 @@ describe("file d'attente", () => {
     const b = ajouterEnAttente({ n: 2 });
     expect(a.id).not.toBe(b.id);
   });
+
+  it("reprend la référence déjà envoyée au serveur", () => {
+    // Vente partie mais réponse perdue : le rejeu doit porter la référence de
+    // la tentative en ligne, sinon le serveur crée un second ticket.
+    const entree = ajouterEnAttente({ n: 1 }, "pos-1700000000000-abc123");
+    expect(entree.id).toBe("pos-1700000000000-abc123");
+    expect(fileEnAttente()[0]!.id).toBe("pos-1700000000000-abc123");
+  });
 });
 
 describe("synchronisation", () => {

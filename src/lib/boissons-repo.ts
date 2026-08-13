@@ -90,7 +90,7 @@ export async function getBoissonsDayPayload(
         ...l,
         counted: leftovers.has(l.productId) ? leftovers.get(l.productId)! : null,
         observations: leftovers.has(l.productId)
-          ? "Ouverture AquaPro (dernier inventaire)"
+          ? "Ouverture (dernier inventaire)"
           : "",
       }));
       await db.collection<BoissonsDoc>("boissons_jours").updateOne(

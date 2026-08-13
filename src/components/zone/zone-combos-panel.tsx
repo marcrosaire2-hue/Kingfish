@@ -17,6 +17,7 @@ import type {
   VenteLogEntry,
   VenteSite,
 } from "@/lib/types";
+import { BrandLoader } from "@/components/brand-loader";
 
 type Payload = {
   day: CombosDay;
@@ -343,9 +344,9 @@ export function ZoneCombosPanel({
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={7} className="muted">
-                    Chargement…
-                  </td>
+                  <td colSpan={7}>
+                      <BrandLoader variant="ligne" label="Chargement…" />
+                    </td>
                 </tr>
               ) : computed.lines.length === 0 ? (
                 <tr>
@@ -518,9 +519,9 @@ export function ZoneCombosPanel({
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={6} className="muted">
-                    Chargement…
-                  </td>
+                  <td colSpan={6}>
+                      <BrandLoader variant="ligne" label="Chargement…" />
+                    </td>
                 </tr>
               ) : computed.lines.length === 0 ? (
                 <tr>

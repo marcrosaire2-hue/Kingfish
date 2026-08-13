@@ -12,6 +12,7 @@ import type {
 import { formatFcfa } from "@/lib/format";
 import { exportControleExcel } from "@/lib/page-exports";
 import { formatDisplayDate, shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
+import { BrandLoader } from "@/components/brand-loader";
 
 function monthStartIso(d = todayIsoDate()): string {
   return `${d.slice(0, 7)}-01`;
@@ -19,7 +20,7 @@ function monthStartIso(d = todayIsoDate()): string {
 
 const SOURCE_LABELS: Record<string, string> = {
   caisse: "Caisse",
-  aquapro: "AquaPro",
+  aquapro: "Importé",
   "carnet-zogbo": "Carnet Zogbo",
   reprise: "Reprise historique",
   "inventaire-marco": "Inventaire",
@@ -81,7 +82,9 @@ function zoneLink(row: OpeningRow, date: string): string | null {
   if (row.zone.startsWith("gbegamey")) return `/gbegamey?date=${date}`;
   if (row.zone === "combos") return `/combos?date=${date}`;
   if (row.zone === "boissons") return `/boissons?date=${date}`;
-  if (row.zone === "matieres") return `/matieres?date=${date}`;
+  // Le comptage détaillé (seuils, compté, observations) vivait dans l'onglet
+  // Matières, supprimé : la même matière se gère désormais depuis Stock.
+  if (row.zone === "matieres") return `/appro?tab=stock&date=${date}`;
   return null;
 }
 
@@ -222,7 +225,7 @@ export function ControlePage() {
         </section>
 
         {loading && (
-          <p className="text-sm text-stone-500">Chargement…</p>
+          <BrandLoader variant="ligne" label="Chargement du contrôle…" />
         )}
         {error && (
           <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">

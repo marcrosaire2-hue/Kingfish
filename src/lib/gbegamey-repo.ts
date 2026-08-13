@@ -149,7 +149,9 @@ function isPureAquaproProjection(doc: GbegameyDoc): boolean {
     ...(doc.localLines ?? []),
   ].map((l) => l.observations ?? "");
   return observations.every(
-    (o) => o === "" || o.startsWith("Ouverture AquaPro"),
+    // « Ouverture » couvre les anciennes notes (« Ouverture AquaPro… ») et
+    // les nouvelles (« Ouverture (…) »).
+    (o) => o === "" || o.startsWith("Ouverture"),
   );
 }
 

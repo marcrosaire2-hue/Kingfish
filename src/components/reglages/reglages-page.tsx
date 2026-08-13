@@ -13,6 +13,7 @@ import type {
   PosServeur,
   PosTable,
 } from "@/lib/types";
+import { BrandLoader } from "@/components/brand-loader";
 
 type Tab =
   | "tables"
@@ -261,7 +262,7 @@ export function ReglagesPage() {
       {tab === "compte" ? (
         <PasswordEditor />
       ) : loading || !data ? (
-        <p className="muted">Chargement…</p>
+        <BrandLoader variant="ligne" label="Chargement des réglages…" />
       ) : tab === "tables" ? (
         <TablesEditor
           rows={data.tables}

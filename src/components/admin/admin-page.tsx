@@ -21,6 +21,7 @@ import {
   type UserSite,
 } from "@/lib/auth-types";
 import { exportAdminUsersExcel } from "@/lib/page-exports";
+import { BrandLoader } from "@/components/brand-loader";
 
 const ALL_ROLES: UserRole[] = [
   "equipier",
@@ -517,9 +518,7 @@ export function AdminPage() {
             : ""}
         </h2>
         {loading ? (
-          <p className="muted" style={{ padding: "0.75rem 0.85rem" }}>
-            Chargement…
-          </p>
+          <BrandLoader variant="ligne" label="Chargement des comptes…" />
         ) : (
           <table className="data-table">
             <thead>

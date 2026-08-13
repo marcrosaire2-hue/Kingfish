@@ -429,7 +429,7 @@ export function exportEquipesExcel(input: {
 
 const CONTROLE_SOURCE_LABELS: Record<string, string> = {
   caisse: "Caisse",
-  aquapro: "AquaPro",
+  aquapro: "Importé",
   "carnet-zogbo": "Carnet Zogbo",
   reprise: "Reprise historique",
   "inventaire-marco": "Inventaire",
@@ -739,7 +739,7 @@ const STATUT_LABEL: Record<string, string> = {
 
 const SOURCE_LABEL: Record<string, string> = {
   kingfish: "King Fish",
-  aquapro: "AquaPro",
+  aquapro: "Importé",
   all: "Toutes",
 };
 

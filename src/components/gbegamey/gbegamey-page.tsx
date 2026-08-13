@@ -23,6 +23,7 @@ import type {
   LocalDish,
 } from "@/lib/types";
 import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
+import { BrandLoader } from "@/components/brand-loader";
 
 type Payload = {
   day: GbegameyDay;
@@ -400,8 +401,8 @@ export function GbegameyPage() {
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={openingEditable ? 7 : 6} className="muted">
-                    Chargement…
+                  <td colSpan={openingEditable ? 7 : 6}>
+                    <BrandLoader variant="ligne" label="Chargement…" />
                   </td>
                 </tr>
               ) : computed.transfers.length === 0 ? (
@@ -549,8 +550,8 @@ export function GbegameyPage() {
             <tbody>
               {loading || !computed ? (
                 <tr>
-                  <td colSpan={openingEditable ? 7 : 6} className="muted">
-                    Chargement…
+                  <td colSpan={openingEditable ? 7 : 6}>
+                    <BrandLoader variant="ligne" label="Chargement…" />
                   </td>
                 </tr>
               ) : computed.locals.length === 0 ? (

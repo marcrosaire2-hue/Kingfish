@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authErrorResponse, requireUser } from "@/lib/api-auth";
+import { authErrorResponse, requireAdmin } from "@/lib/api-auth";
 import { canUseSite } from "@/lib/auth-types";
 import type { VenteSite } from "@/lib/types";
 import { sumCaByShiftRange } from "@/lib/vente-repo";
@@ -17,7 +17,7 @@ function isValidDate(date: string): boolean {
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireAdmin();
     const { searchParams } = new URL(request.url);
     const from = searchParams.get("from") || monthStart();
     const to = searchParams.get("to") || todayIsoDate();

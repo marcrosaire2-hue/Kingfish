@@ -7,6 +7,7 @@ import { ExportExcelButton } from "@/components/export-excel-button";
 import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
 import { exportStockExcel } from "@/lib/page-exports";
 import type { StockPayload, StockRow, StockZone } from "@/lib/stock-repo";
+import { BrandLoader } from "@/components/brand-loader";
 
 function zoneLink(row: StockRow, date: string): string | null {
   if (row.zone.startsWith("zogbo")) return `/zogbo?date=${date}`;
@@ -142,7 +143,7 @@ export function StockPage() {
         ) : null}
 
         {loading ? (
-          <p className="text-sm text-stone-500">Chargement…</p>
+          <BrandLoader variant="ligne" label="Chargement du stock…" />
         ) : data ? (
           <>
             <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

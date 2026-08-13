@@ -55,6 +55,47 @@ export type StockPayload = {
   };
 };
 
+export type EpuiseRow = {
+  zone: StockZone;
+  zoneLabel: string;
+  productId: string;
+  name: string;
+  kind: "plat" | "local";
+  restant: number;
+};
+
+/**
+ * Produits épuisés pour une journée : plus rien à vendre en fin de journée
+ * (stockVendable nul à Zogbo, reste théorique nul partout ailleurs).
+ * Le catalogue complet est requis (onlyActive=false) : un produit à zéro
+ * n'a par définition aucune ligne « active » à signaler.
+ */
+export async function getEpuises(input: {
+  date: string;
+  scopeSite?: VenteSite | null;
+}): Promise<EpuiseRow[]> {
+  const { rows } = await getStockPayload({
+    date: input.date,
+    scopeSite: input.scopeSite,
+    onlyActive: false,
+  });
+  return rows
+    .filter((r) => (r.stockVendable ?? r.stockFinal) <= 0)
+    .map((r) => ({
+      zone: r.zone,
+      zoneLabel: r.zoneLabel,
+      productId: r.productId,
+      name: r.name,
+      kind: r.kind,
+      restant: r.stockVendable ?? r.stockFinal,
+    }))
+    .sort(
+      (a, b) =>
+        a.zoneLabel.localeCompare(b.zoneLabel, "fr") ||
+        a.name.localeCompare(b.name, "fr"),
+    );
+}
+
 function isValidDate(date: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(date);
 }

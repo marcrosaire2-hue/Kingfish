@@ -1,7 +1,7 @@
 import { ObjectId } from "mongodb";
 import { effectiveShift } from "@/lib/auth-types";
 import {
-  getActiveCaisse,
+  getActiveCaisseForSite,
   getCaisseById,
   addCaisseVenteAmount,
 } from "@/lib/caisse-repo";
@@ -126,9 +126,11 @@ export async function validatePosTicket(input: {
     username: input.user.username,
     shift: input.user.shift,
   };
-  const caisse = await getActiveCaisse(input.user.id, input.site);
+  // La caisse est celle de la zone, pas celle du vendeur : tout ce qui est
+  // encaissé sur le point de vente tombe dans le même tiroir.
+  const caisse = await getActiveCaisseForSite(input.site);
   if (!caisse) {
-    throw new Error("Ouvrez une caisse avant de valider une commande.");
+    throw new Error("Ouvrez la caisse de la zone avant de valider une commande.");
   }
 
   const config = await getPosConfig();
@@ -144,8 +146,32 @@ export async function validatePosTicket(input: {
 
   const saleType = input.saleType || "Sur place";
 
+  const reductionRaw = Math.round(Number(input.reduction) || 0);
+  // Réduction = argent qui sort de la caisse : réservée au gérant et à
+  // l'administrateur. Contrôlé AVANT la moindre écriture — refuser plus tard
+  // laisserait des lignes vendues (stock déduit, CA gonflé) sans ticket.
+  if (reductionRaw > 0 && !["gerant", "admin"].includes(input.user.role)) {
+    throw new Error("Réduction réservée au gérant ou à l'administrateur.");
+  }
+
   const createdLogIds: string[] = [];
   const ticketLines: PosTicketLine[] = [];
+
+  /** Reprend les lignes déjà vendues quand le ticket n'aboutit pas. */
+  async function reprendreLignes() {
+    for (const id of [...createdLogIds].reverse()) {
+      try {
+        await undoVente({
+          id,
+          date: input.date,
+          site: input.site,
+          actor,
+        });
+      } catch {
+        /* best effort rollback */
+      }
+    }
+  }
 
   try {
     for (const line of input.lines) {
@@ -158,6 +184,7 @@ export async function validatePosTicket(input: {
           site: input.site,
           description: line.name || line.productId || "Extra",
           unitPrice: Math.round(Number(line.unitPrice) || 0),
+          qty,
           actor,
         });
         createdLogIds.push(result.entry.id);
@@ -165,7 +192,7 @@ export async function validatePosTicket(input: {
           kind: "extra",
           productId: result.entry.productId,
           name: result.entry.name,
-          qty: 1,
+          qty: result.entry.qty,
           unitPrice: result.entry.unitPrice,
           amount: result.entry.amount,
           venteLogId: result.entry.id,
@@ -193,70 +220,67 @@ export async function validatePosTicket(input: {
       }
     }
   } catch (error) {
-    for (const id of createdLogIds.reverse()) {
-      try {
-        await undoVente({
-          id,
-          date: input.date,
-          site: input.site,
-          actor,
-        });
-      } catch {
-        /* best effort rollback */
-      }
-    }
+    await reprendreLignes();
     throw error;
   }
 
   if (!ticketLines.length) throw new Error("Aucune ligne valide");
 
   const montantBrut = ticketLines.reduce((s, l) => s + l.amount, 0);
-  const reductionRaw = Math.round(Number(input.reduction) || 0);
-  let reduction = 0;
-  if (reductionRaw > 0) {
-    // Réduction = argent qui sort de la caisse : réservée au gérant et à
-    // l'administrateur, jamais au vendeur.
-    if (!["gerant", "admin"].includes(input.user.role)) {
-      throw new Error("Réduction réservée au gérant ou à l'administrateur.");
-    }
-    reduction = Math.min(montantBrut, reductionRaw);
-  }
+  const reduction = reductionRaw > 0 ? Math.min(montantBrut, reductionRaw) : 0;
   const montant = montantBrut - reduction;
   const now = new Date().toISOString();
-  const numero = await nextNumero(input.date);
 
-  const doc: TicketDoc = {
-    _id: new ObjectId(),
-    numero,
-    date: input.date,
-    site: input.site,
-    statut: "valide",
-    saleType,
-    caisseId: caisse.id,
-    paymentMethodId: payment?.id ?? null,
-    paymentLabel: payment?.libelle ?? null,
-    tableId: table?.id ?? null,
-    tableLabel: table
-      ? `${table.reference} · ${table.emplacement}`
-      : null,
-    serveurId: serveur?.id ?? null,
-    serveurNom: serveur?.nom ?? null,
-    clientNom: input.clientNom?.trim() || null,
-    reduction,
-    lines: ticketLines,
-    montantBrut,
-    montant,
-    userId: input.user.id,
-    userName: input.user.name,
-    shift: effectiveShift(input.user.shift),
-    at: now,
-    cancelledAt: null,
-    clientRef: input.clientRef ?? null,
-  };
-
+  // Le ticket lui-même : tant qu'il n'est pas écrit et la caisse créditée, les
+  // lignes vendues n'ont aucune commande en face — le moindre échec ici doit
+  // les reprendre, sinon le stock et le CA du jour partent en vrille.
   const db = await getDb();
-  await db.collection<TicketDoc>("pos_tickets").insertOne(doc);
-  await addCaisseVenteAmount(caisse.id, montant);
+  let doc: TicketDoc | null = null;
+  try {
+    doc = {
+      _id: new ObjectId(),
+      numero: await nextNumero(input.date),
+      date: input.date,
+      site: input.site,
+      statut: "valide",
+      saleType,
+      caisseId: caisse.id,
+      paymentMethodId: payment?.id ?? null,
+      paymentLabel: payment?.libelle ?? null,
+      tableId: table?.id ?? null,
+      tableLabel: table
+        ? `${table.reference} · ${table.emplacement}`
+        : null,
+      serveurId: serveur?.id ?? null,
+      serveurNom: serveur?.nom ?? null,
+      clientNom: input.clientNom?.trim() || null,
+      reduction,
+      lines: ticketLines,
+      montantBrut,
+      montant,
+      userId: input.user.id,
+      userName: input.user.name,
+      shift: effectiveShift(input.user.shift),
+      at: now,
+      cancelledAt: null,
+      clientRef: input.clientRef ?? null,
+    };
+
+    await db.collection<TicketDoc>("pos_tickets").insertOne(doc);
+    await addCaisseVenteAmount(caisse.id, montant);
+  } catch (error) {
+    if (doc) {
+      try {
+        await db
+          .collection<TicketDoc>("pos_tickets")
+          .deleteOne({ _id: doc._id });
+      } catch {
+        /* best effort rollback */
+      }
+    }
+    await reprendreLignes();
+    throw error;
+  }
 
   const board = await getVenteBoard(input.date, input.site);
   return { ticket: toTicket(doc), board, caisseId: caisse.id };
@@ -342,11 +366,10 @@ export async function cancelPosTicket(input: {
 export async function getPosContext(input: {
   date: string;
   site: VenteSite;
-  userId: string;
 }) {
   const [config, caisse, tickets, board] = await Promise.all([
     getPosConfig(),
-    getActiveCaisse(input.userId, input.site),
+    getActiveCaisseForSite(input.site),
     listTickets({ date: input.date, site: input.site }),
     getVenteBoard(input.date, input.site),
   ]);

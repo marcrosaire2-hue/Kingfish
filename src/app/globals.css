@@ -209,6 +209,168 @@ select {
   padding: 0.3rem;
 }
 
+/* ---------- Logo animé ---------- */
+
+/* Souffle discret du logo en permanence (barre latérale, mobile, connexion). */
+.brand-logo,
+.brand-logo-sm,
+.login-logo {
+  animation: kf-logo-breathe 3.2s ease-in-out infinite;
+}
+
+@keyframes kf-logo-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 4px 12px color-mix(in srgb, #000 14%, transparent));
+  }
+  50% {
+    transform: scale(1.045);
+    filter: drop-shadow(
+      0 4px 18px color-mix(in srgb, var(--accent) 45%, transparent)
+    );
+  }
+}
+
+/* ---------- Écran de transition (loading.tsx) ---------- */
+
+.route-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(
+      120% 90% at 50% 0%,
+      color-mix(in srgb, var(--brand, #005098) 10%, transparent),
+      transparent 60%
+    ),
+    var(--surface);
+  animation: kf-route-fade 0.18s ease;
+}
+
+@keyframes kf-route-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.route-loader-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  text-align: center;
+}
+
+.route-loader-logo-wrap {
+  position: relative;
+  width: 6.6rem;
+  height: 6.6rem;
+  display: grid;
+  place-items: center;
+  margin-bottom: 0.5rem;
+}
+
+/* Anneau doré en rotation — repris de la couronne du logo. */
+.route-loader-logo-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  padding: 3px;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--accent, #f0b018) 80%, transparent),
+    transparent 28%,
+    color-mix(in srgb, var(--accent, #f0b018) 25%, transparent) 55%,
+    transparent 78%,
+    color-mix(in srgb, var(--accent, #f0b018) 80%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: kf-ring-spin 1.6s linear infinite;
+}
+
+@keyframes kf-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.route-loader-logo {
+  width: 5.25rem;
+  height: 5.25rem;
+  object-fit: contain;
+  border-radius: 18px;
+  background: #ffffff;
+  padding: 0.3rem;
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 20%, transparent);
+  animation: kf-logo-breathe 1.8s ease-in-out infinite;
+}
+
+.route-loader-name {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.route-loader-tag {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--ink) 55%, transparent);
+}
+
+.route-loader-bar {
+  width: 11rem;
+  height: 4px;
+  margin-top: 1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 10%, transparent);
+  overflow: hidden;
+}
+
+.route-loader-bar-fill {
+  display: block;
+  height: 100%;
+  width: 36%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--brand, #005098), var(--accent, #f0b018));
+  animation: kf-progress-slide 1.15s ease-in-out infinite;
+}
+
+@keyframes kf-progress-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.route-loader-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: color-mix(in srgb, var(--ink) 45%, transparent);
+}
+
 .brand-name {
   margin: 0;
   font-weight: 800;
@@ -1186,12 +1348,15 @@ select {
   gap: 1rem;
 }
 
+/* Écran de vente : chaque pixel pris par le bandeau est un produit de moins
+   sous les yeux du caissier. En-tête, barre de contexte et bandeau mangeaient
+   déjà la moitié d'un écran de 900 px. */
 .vente-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.9fr);
-  gap: 1.15rem;
-  padding: 1.2rem 1.3rem;
-  border-radius: 20px;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 0.8fr);
+  gap: 1rem;
+  padding: 0.9rem 1.15rem;
+  border-radius: 18px;
   background: linear-gradient(135deg, var(--sidebar-mid) 0%, var(--sidebar) 100%);
   color: #ffffff;
   box-shadow: 0 14px 34px color-mix(in srgb, var(--sidebar) 26%, transparent);
@@ -1247,32 +1412,32 @@ select {
 }
 
 .vente-hero-label {
-  margin-top: 0.45rem;
-  font-size: 0.78rem;
+  margin-top: 0.2rem;
+  font-size: 0.72rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: color-mix(in srgb, #fff 70%, transparent);
 }
 
 .vente-hero-value {
-  font-size: clamp(1.85rem, 3vw, 2.45rem);
+  font-size: clamp(1.5rem, 2.2vw, 1.95rem);
   font-weight: 800;
   letter-spacing: -0.02em;
   line-height: 1.05;
 }
 
 .vente-hero-meta {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: color-mix(in srgb, #fff 70%, transparent);
 }
 
 .vente-hero-side {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.5rem;
   justify-content: center;
-  padding: 0.85rem;
-  border-radius: 16px;
+  padding: 0.6rem;
+  border-radius: 14px;
   background: color-mix(in srgb, #fff 10%, transparent);
   border: 1px solid color-mix(in srgb, #fff 14%, transparent);
 }
@@ -1302,9 +1467,11 @@ select {
 
 .vente-workspace {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.9fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.9fr);
   gap: 1.1rem;
-  align-items: stretch;
+  /* `stretch` étirait le panier à la hauteur du catalogue : ses enfants,
+     comprimés, finissaient par s'écraser. Chaque colonne prend sa hauteur. */
+  align-items: start;
 }
 
 .vente-page:has(.vente-workspace > .vente-catalog:only-child) .vente-workspace,
@@ -1398,28 +1565,50 @@ select {
   padding: 0 0.25rem;
 }
 
+/* Dix-neuf accompagnements en colonne unique, c'était 10 rem de défilement
+   pour une case à cocher. En grille, tout tient sous les yeux. */
 .vente-acc-list {
   list-style: none;
   margin: 0.5rem 0 0;
   padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  max-height: 10rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: 0.35rem 0.9rem;
+  max-height: 15rem;
   overflow-y: auto;
 }
 
 .vente-acc-option {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 0.5rem;
   font-size: 0.88rem;
-  cursor: pointer;
 }
 
 .vente-acc-option.is-disabled {
   opacity: 0.45;
-  cursor: not-allowed;
+}
+
+.vente-acc-option-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vente-acc-qty {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.vente-acc-qty .vente-plus,
+.vente-acc-qty .vente-minus {
+  height: 2.2rem;
+  width: 2.3rem;
+  border-radius: 10px;
+  font-size: 1.15rem;
 }
 
 .vente-meal-actions {
@@ -1494,10 +1683,13 @@ select {
   align-items: start;
 }
 
+/* Tuiles produit : 350 px de haut et 3 par rangée ne montraient qu'une
+   rangée et demie d'un catalogue de 24 boissons. La vignette redevient un
+   bandeau, le reste garde ses tailles tactiles. */
 .vente-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
-  gap: 0.95rem;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.8rem;
 }
 
 .vente-empty {
@@ -1510,10 +1702,10 @@ select {
   background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
   border-radius: calc(var(--radius) + 4px);
-  padding: 0.95rem;
+  padding: 0.8rem;
   display: flex;
   flex-direction: column;
-  gap: 0.7rem;
+  gap: 0.55rem;
   min-height: 0;
   box-shadow: var(--shadow-sm);
   transition:
@@ -1537,9 +1729,9 @@ select {
 .vente-card-media {
   display: grid;
   place-items: center;
-  aspect-ratio: 1.15;
+  height: 4.4rem;
   width: 100%;
-  border-radius: 14px;
+  border-radius: 12px;
   background:
     radial-gradient(
       circle at 30% 25%,
@@ -1580,6 +1772,13 @@ select {
   height: 4.25rem;
 }
 
+/* Dans une tuile, la vignette est décorative : elle ne prend pas la place
+   du nom, du prix et du bouton. */
+.vente-card .product-icon-lg {
+  width: 3rem;
+  height: 3rem;
+}
+
 .product-icon-drink {
   color: #1f6f8b;
 }
@@ -1605,8 +1804,8 @@ select {
 .vente-card-body {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  min-height: 3.4rem;
+  gap: 0.15rem;
+  min-height: 2.6rem;
 }
 
 .vente-card h3 {
@@ -1627,6 +1826,16 @@ select {
   margin: 0.1rem 0 0;
   font-size: 0.72rem;
   color: var(--ink-soft);
+}
+
+/* « Reste 48 bt (4 cas.) · 12 bt/cas. » sur trois lignes allongeait toutes
+   les tuiles ; l'essentiel tient en deux. */
+.vente-card .vente-hint {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .vente-card-actions {
@@ -4236,6 +4445,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  /* Le libellé (nature, bénéficiaire, auteur) peut être long : c'est lui qui
+     se réduit et passe à la ligne, jamais le montant. */
+  min-width: 0;
+}
+
+.caisse-mouvements li > span {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .caisse-history-scroll {
@@ -4258,9 +4475,70 @@ body {
   color: #14532d;
 }
 
+/* Sélecteur des trois caisses : centrale + une par zone */
+.caisse-switch .site-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* Bandeau de consolidation — le réseau d'un coup d'œil */
+.caisse-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.caisse-overview-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.caisse-overview-card:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.caisse-overview-card.is-active {
+  border-color: color-mix(in srgb, var(--accent) 70%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.caisse-overview-card strong {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.caisse-overview-card.is-open strong {
+  color: #1f7a3f;
+}
+
+.caisse-overview-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.caisse-overview-card .muted {
+  font-size: 0.78rem;
+}
+
 @media (max-width: 900px) {
   .caisse-hero,
   .caisse-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .caisse-overview {
     grid-template-columns: 1fr;
   }
 }
@@ -4306,6 +4584,7 @@ body {
     max-width: 100%;
     min-width: 0;
   }
+
 }
 .pos-cart {
   position: sticky;
@@ -4315,7 +4594,15 @@ body {
   gap: 0.75rem;
   max-height: calc(100vh - 1.5rem);
   overflow: auto;
+  /* Le total et la validation restent au contact du bas du panier. */
+  padding-bottom: 0;
 }
+
+/*
+ * Un seul ascenseur : celui du panier. Les listes imbriquées qui défilaient
+ * chacune de leur côté se réduisaient à zéro dès que la colonne manquait de
+ * place — le caissier lisait « 5 articles » au-dessus d'une liste vide.
+ */
 .pos-cart-list {
   list-style: none;
   margin: 0;
@@ -4323,20 +4610,88 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  max-height: 40vh;
-  overflow: auto;
+  flex: 0 0 auto;
+  min-height: 3rem;
 }
+/* Une ligne de panier tenait sur deux étages et 116 px de haut : trois
+   articles remplissaient la colonne. Nom à gauche, pas de quantité à droite. */
 .pos-cart-list li {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid color-mix(in srgb, var(--border, #ddd) 80%, transparent);
 }
+
+.pos-cart-list li > div:first-child {
+  min-width: 0;
+}
+
+.pos-cart-list li strong {
+  display: block;
+  font-size: 0.92rem;
+  line-height: 1.25;
+}
+
+.pos-cart-list .vente-card-actions {
+  margin-top: 0;
+  grid-template-columns: repeat(3, auto);
+  gap: 0.3rem;
+}
+
+.pos-cart-list .vente-plus,
+.pos-cart-list .vente-minus {
+  height: 2.25rem;
+  width: 2.25rem;
+  border-radius: 10px;
+  font-size: 1.2rem;
+}
+
+.pos-cart-list .vente-qty {
+  font-size: 1.05rem;
+  min-width: 1.7rem;
+}
+/* Six champs empilés repoussaient la validation hors de l'écran : deux
+   colonnes les ramènent à trois rangées. */
 .pos-meta {
   display: grid;
-  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.65rem;
+  flex: 0 0 auto;
 }
+
+.pos-meta > label:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+@media (max-width: 1200px) {
+  .pos-meta {
+    grid-template-columns: 1fr;
+  }
+}
+
+/*
+ * Pied de panier collant : sur un poste de vente, « Créer la commande » ne
+ * doit jamais demander de faire défiler quoi que ce soit.
+ */
+.pos-cart-foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  flex: 0 0 auto;
+  margin-top: auto;
+  padding: 0.7rem 0 0.15rem;
+  /* Fond plein : au-dessus d'une liste qui défile, un dégradé laissait lire
+     les champs au travers du total. */
+  background: var(--surface);
+  border-top: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
 .pos-total {
   display: flex;
   justify-content: space-between;
@@ -4344,8 +4699,22 @@ body {
   font-size: 1.1rem;
   font-weight: 700;
 }
+
+.pos-total strong {
+  font-size: 1.4rem;
+  color: var(--accent-ink);
+}
+
+.pos-cart-foot .btn-primary {
+  width: 100%;
+  justify-content: center;
+  min-height: 3rem;
+  font-size: 1rem;
+}
+
 .pos-tickets {
   margin-top: 0.5rem;
+  flex: 0 0 auto;
 }
 
 /* Appro / matières */
@@ -4748,8 +5117,17 @@ html.nav-open body {
     -webkit-overflow-scrolling: touch;
   }
 
+  /* La feuille du panier défile déjà : un second ascenseur sur la liste la
+     ferait déborder sous les champs (elle n'a plus d'`overflow` propre). */
   .pos-cart-list {
-    max-height: 28vh;
+    max-height: none;
+  }
+
+  /* Le pied descend jusqu'au bord de la feuille : sans cela, un bandeau de
+     champ défilait dans le rembourrage, sous le bouton de validation. */
+  .pos-cart-foot {
+    bottom: calc(-0.85rem - env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(0.85rem + env(safe-area-inset-bottom, 0px));
   }
 
   .pos-meta select,
@@ -4870,6 +5248,16 @@ html.nav-open body {
   .nav-toggle-bars::before,
   .nav-toggle-bars::after {
     transition: none !important;
+  }
+
+  .brand-logo,
+  .brand-logo-sm,
+  .login-logo,
+  .route-loader-logo,
+  .route-loader-logo-wrap::before,
+  .route-loader-bar-fill,
+  .route-loader {
+    animation: none !important;
   }
 }
 
@@ -5305,4 +5693,499 @@ html.nav-open body {
   height: 16px;
   accent-color: var(--accent, #c8102e);
   cursor: pointer;
+}
+
+/* ————————————————————————————————————————————————————————————————
+   Écran de vente en plein écran : la page ne défile plus.
+
+   Un poste de vente se tient à hauteur d'écran — le caissier ne fait pas
+   défiler la page pour retrouver son panier. La colonne principale est
+   bornée à la hauteur de la fenêtre ; seuls le catalogue et le panier
+   défilent, chacun chez soi. En dessous de 900 px (mobile, tablette en
+   portrait) on garde le défilement naturel et la feuille de panier collée
+   en bas : y enfermer la page se battrait avec le clavier virtuel.
+   Placé en fin de feuille : ces règles doivent l'emporter sur les
+   déclarations de base de `.pos-cart` et de `.vente-workspace`.
+   ———————————————————————————————————————————————————————————————— */
+@media (min-width: 901px) {
+  .main-vente {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  .main-vente .page-header {
+    flex-shrink: 0;
+    padding-top: 1.15rem;
+    padding-bottom: 0.55rem;
+  }
+
+  /* Le sous-titre répète ce que le bandeau dit déjà (zone, état de la
+     caisse) et le sélecteur POS/Rapide est sous les yeux : en hauteur
+     fixe, ces 30 px valent mieux au catalogue. */
+  .main-vente .page-subtitle {
+    display: none;
+  }
+
+  .main-vente .vente-panel {
+    padding: 0.85rem 1rem 0.95rem;
+  }
+
+  .main-vente .page-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    padding-bottom: 1rem;
+    gap: 0.75rem;
+  }
+
+  .main-vente .vente-page {
+    flex: 1;
+    min-height: 0;
+    gap: 0.7rem;
+  }
+
+  .main-vente .context-bar,
+  .main-vente .vente-hero,
+  .main-vente .error-banner {
+    flex-shrink: 0;
+  }
+
+  /* La barre passait sur deux lignes et coûtait 158 px. La zone et la devise
+     sont déjà lisibles dans le bandeau juste en dessous (sélecteur de site,
+     montants libellés en FCFA) : les retirer la ramène sur une ligne. */
+  .main-vente .context-bar {
+    gap: 0.5rem 0.75rem;
+    margin-bottom: 0;
+  }
+
+  .main-vente .context-pill-site,
+  .main-vente .context-pill-currency {
+    display: none;
+  }
+
+  /* Les deux colonnes occupent toute la hauteur restante. */
+  .main-vente .vente-workspace {
+    flex: 1;
+    min-height: 0;
+    align-items: stretch;
+  }
+
+  .main-vente .vente-catalog {
+    min-height: 0;
+    overflow-y: auto;
+    /* de quoi loger l'ascenseur sans coller aux cartes */
+    padding-right: 0.4rem;
+  }
+
+  /* Les onglets restent en vue pendant que les produits défilent. */
+  .main-vente .vente-cats {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--paper);
+    padding-bottom: 0.35rem;
+  }
+
+  /* Le panier n'a plus besoin d'être collant : il occupe déjà sa colonne
+     de haut en bas. Ses enfants ne se compriment pas — c'est lui qui
+     défile, le pied de validation restant à son bord inférieur. */
+  .main-vente .pos-cart {
+    position: static;
+    max-height: 100%;
+    min-height: 0;
+    overflow: auto;
+  }
+
+  .main-vente .pos-cart > * {
+    flex-shrink: 0;
+  }
+
+  /* Composeur plat + accompagnements : le panneau tient dans la colonne et
+     seule la liste des accompagnements défile, pour que le total et le
+     bouton « Ajouter au panier » restent sous les yeux. */
+  .main-vente .vente-meal-composer {
+    /* occupe la colonne : c'est la liste d'accompagnements qui absorbe
+       la hauteur disponible, pas le vide sous le panneau */
+    flex: 1 1 auto;
+    max-height: 100%;
+    min-height: 0;
+    margin-bottom: 0;
+  }
+
+  .main-vente .vente-meal-composer > *:not(.vente-acc-picker) {
+    flex-shrink: 0;
+  }
+
+  /* Consigne lue une fois pour toutes par un vendeur quotidien : en hauteur
+     fixe, ces trois lignes valent mieux en accompagnements visibles. */
+  .main-vente .vente-meal-composer .vente-panel-head p {
+    display: none;
+  }
+
+  .main-vente .vente-acc-picker {
+    margin: 0.5rem 0 0;
+  }
+
+  .main-vente .vente-acc-picker {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .main-vente .vente-acc-list {
+    flex: 1 1 auto;
+    min-height: 3.5rem;
+    max-height: none;
+  }
+
+  /* Pas de `margin-top: auto` ici : une marge automatique absorbe l'espace
+     libre avant tout `flex-grow`, et la liste d'accompagnements restait à sa
+     hauteur minimale. C'est la liste qui pousse les actions vers le bas. */
+}
+
+/* Écrans courts (portables 720–800 px) : l'entête, le bandeau et les
+   vignettes se resserrent, sinon la zone de travail tombe sous une seule
+   rangée de produits. Rien n'est retiré — tout est rapproché. */
+@media (min-width: 901px) and (max-height: 820px) {
+  .main-vente .page-header {
+    padding-top: 0.65rem;
+    padding-bottom: 0.3rem;
+  }
+
+  .main-vente .page-header h1 {
+    font-size: 1.35rem;
+  }
+
+  .main-vente .page-body {
+    gap: 0.55rem;
+    padding-bottom: 0.7rem;
+  }
+
+  .main-vente .vente-page {
+    gap: 0.5rem;
+  }
+
+  .main-vente .vente-hero {
+    padding: 0.65rem 0.95rem;
+    gap: 0.75rem;
+  }
+
+  .main-vente .vente-hero-value {
+    font-size: 1.45rem;
+  }
+
+  .main-vente .vente-hero-label {
+    margin-top: 0.1rem;
+  }
+
+  .main-vente .vente-card-media {
+    height: 3.4rem;
+  }
+
+  .main-vente .vente-card .product-icon-lg {
+    width: 2.4rem;
+    height: 2.4rem;
+  }
+
+  .main-vente .vente-card .vente-hint {
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+}
+
+/* ————————————————————————————————————————————————————————————————
+   Facture de commande — générée à chaque validation, imprimable ensuite.
+   ———————————————————————————————————————————————————————————————— */
+.vente-field-static {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.vente-field-static > span {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.vente-field-static > strong {
+  min-height: 2.4rem;
+  display: flex;
+  align-items: center;
+  padding: 0 0.65rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--line) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  font-size: 0.92rem;
+}
+
+.facture-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: color-mix(in srgb, var(--ink) 45%, transparent);
+  backdrop-filter: blur(3px);
+}
+
+.facture-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  width: min(38rem, 100%);
+  /* Sans cela, la taille minimale automatique de l'élément de grille est
+     celle du tableau : la carte débordait de l'écran sur mobile. */
+  min-width: 0;
+  max-height: min(90vh, 44rem);
+  padding: 1.2rem 1.3rem 1.3rem;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 24px 60px color-mix(in srgb, var(--ink) 32%, transparent);
+}
+
+.facture-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.facture-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+}
+
+.facture-head p {
+  margin: 0.2rem 0 0;
+  font-size: 0.85rem;
+}
+
+.facture-total {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: var(--accent-ink);
+  white-space: nowrap;
+}
+
+.facture-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 0.6rem 1rem;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--line) 18%, transparent);
+}
+
+.facture-meta div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.facture-meta dt {
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.facture-meta dd {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.92rem;
+  overflow-wrap: anywhere;
+}
+
+/* La liste des lignes défile : une commande de vingt articles ne doit pas
+   pousser le bouton d'impression hors de l'écran. */
+.facture-lignes-scroll {
+  min-height: 0;
+  min-width: 0;
+  /* Le tableau garde ses colonnes lisibles et défile de lui-même sur un
+     écran étroit, plutôt que d'élargir la facture. */
+  overflow: auto;
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  border-radius: 14px;
+}
+
+.facture-lignes {
+  margin: 0;
+}
+
+/* Un montant ne se coupe pas en deux : « 1 500 » au-dessus de « FCFA »
+   se lit mal et fausse la comparaison entre les lignes. */
+.facture-lignes .col-money,
+.facture-lignes .col-num {
+  white-space: nowrap;
+}
+
+.facture-lignes td:first-child {
+  min-width: 9rem;
+}
+
+.facture-lignes tfoot th {
+  text-align: right;
+  font-weight: 600;
+}
+
+.facture-lignes tfoot .facture-total-row th,
+.facture-lignes tfoot .facture-total-row td {
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--accent-ink);
+}
+
+.facture-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.facture-actions .btn {
+  min-height: 2.9rem;
+}
+
+@media (max-width: 560px) {
+  /* Le numéro de facture garde sa ligne, le total passe dessous. */
+  .facture-head {
+    flex-wrap: wrap;
+  }
+
+  .facture-total {
+    font-size: 1.3rem;
+  }
+
+  .facture-actions {
+    flex-direction: column-reverse;
+  }
+
+  .facture-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ————————————————————————————————————————————————————————————————
+   Attente à la marque — logo du restaurant pendant les chargements.
+   Un « Chargement… » nu laissait croire à un blocage ; le logo qui pulse
+   dit que l'application travaille.
+   ———————————————————————————————————————————————————————————————— */
+.brand-loader {
+  display: grid;
+  place-items: center;
+  padding: 3rem 1rem;
+  min-height: 45vh;
+  width: 100%;
+}
+
+.brand-loader-ligne {
+  min-height: 0;
+  padding: 1.5rem 1rem;
+}
+
+/* Opération en cours : couvre l'écran et absorbe les clics, pour qu'une
+   commande ne parte pas deux fois pendant l'attente. */
+.brand-loader-voile {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--paper) 78%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.brand-loader-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.brand-loader-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 5.6rem;
+  height: 5.6rem;
+}
+
+/* Anneau qui tourne autour du logo : le mouvement vient de l'anneau, le
+   logo ne fait que respirer — un logo qui tourne serait illisible. */
+.brand-loader-mark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid color-mix(in srgb, var(--accent) 22%, transparent);
+  border-top-color: var(--accent);
+  animation: brand-loader-tourne 0.9s linear infinite;
+}
+
+.brand-loader-logo {
+  width: 4.1rem;
+  height: 4.1rem;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--ink) 18%, transparent);
+  animation: brand-loader-respire 1.6s ease-in-out infinite;
+}
+
+.brand-loader-label {
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+@keyframes brand-loader-tourne {
+  to {
+    transform: rotate(1turn);
+  }
+}
+
+@keyframes brand-loader-respire {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.93);
+  }
+}
+
+/* Lien de navigation en cours d'ouverture : repère discret et de taille
+   fixe, pour ne pas décaler le menu (recommandation de `useLinkStatus`). */
+.side-nav-link .nav-pending {
+  margin-left: auto;
+  width: 0.85rem;
+  height: 0.85rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, currentColor 35%, transparent);
+  border-top-color: currentColor;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.side-nav-link .nav-pending.is-pending {
+  opacity: 1;
+  animation: brand-loader-tourne 0.7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-loader-mark::after,
+  .brand-loader-logo,
+  .side-nav-link .nav-pending.is-pending {
+    animation: none;
+  }
 }

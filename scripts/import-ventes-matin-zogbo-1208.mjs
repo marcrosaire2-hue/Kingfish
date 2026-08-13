@@ -169,6 +169,42 @@ async function main() {
 
   // Volontairement : aucune écriture dans boissons_jours / zogbo_jours.
 
+  // Crédit de la caisse Zogbo : la caisse doit refléter toutes les ventes du
+  // jour, y compris celles saisies depuis la feuille papier. Idempotent via
+  // le marqueur caisse_ventes_credits (source + date + session).
+  const credit = await (async () => {
+    const total = ventes.reduce((s, d) => s + d.amount, 0);
+    if (!total) return 0;
+    const session = await db.collection("caisses_sessions").findOne({
+      date: DATE,
+      statut: "ouverte",
+      $or: [{ caisse: SITE }, { caisse: { $exists: false }, site: SITE }],
+    });
+    if (!session) return 0;
+    const sessionId = session._id.toHexString();
+    const marker = await db
+      .collection("caisse_ventes_credits")
+      .findOne({ source: SOURCE, date: DATE, sessionId });
+    const previous = marker?.total ?? 0;
+    if (previous === total) return 0;
+    await db.collection("caisses_sessions").updateOne(
+      { _id: session._id },
+      {
+        $inc: { totalVente: total - previous },
+        $set: { updatedAt: new Date().toISOString() },
+      },
+    );
+    await db.collection("caisse_ventes_credits").updateOne(
+      { source: SOURCE, date: DATE, sessionId },
+      { $set: { total } },
+      { upsert: true },
+    );
+    return 1;
+  })();
+  if (credit) {
+    console.log("Caisse créditée", { date: DATE, site: SITE, ca });
+  }
+
   console.log(
     JSON.stringify(
       {

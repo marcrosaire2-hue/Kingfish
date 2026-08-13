@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { formatFcfa } from "@/lib/format";
 import type { VenteLogEntry, VentesDaySummary } from "@/lib/types";
+import { BrandLoader } from "@/components/brand-loader";
 
 const KIND_LABELS: Record<string, string> = {
   plat: "Plat",
@@ -15,7 +16,7 @@ const KIND_LABELS: Record<string, string> = {
 
 const SOURCE_LABELS: Record<string, string> = {
   caisse: "Caisse",
-  aquapro: "AquaPro",
+  aquapro: "Importé",
   "carnet-zogbo": "Carnet",
   reprise: "Reprise",
   "inventaire-marco": "Inventaire",
@@ -176,9 +177,9 @@ export function ZoneVentesPanel({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="muted">
-                  Chargement…
-                </td>
+                <td colSpan={7}>
+                      <BrandLoader variant="ligne" label="Chargement…" />
+                    </td>
               </tr>
             ) : ventes.length === 0 ? (
               <tr>

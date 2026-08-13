@@ -16,6 +16,7 @@ import type {
   VenteSite,
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { BrandLoader } from "@/components/brand-loader";
 
 type Famille = { key: PerteKind; label: string };
 
@@ -34,6 +35,8 @@ type Candidat = { productId: string; name: string; stock: number | null };
 export function PertesPage() {
   const [date, setDate] = useState(() => todayIsoDate());
   const [site, setSite] = useState<VenteSite>("gbegamey");
+  /** Périmètre du compte (« tous » = les deux sites ; sinon sa zone unique). */
+  const [userSite, setUserSite] = useState<VenteSite | "tous" | null>(null);
   const [famille, setFamille] = useState<PerteKind>("plat");
 
   const [produits, setProduits] = useState<VenteProduct[]>([]);
@@ -55,8 +58,12 @@ export function PertesPage() {
       cache: "no-store",
     });
     if (!res.ok) return;
-    const body = (await res.json()) as { pertes: PerteEntry[] };
+    const body = (await res.json()) as {
+      pertes: PerteEntry[];
+      site?: VenteSite | "tous";
+    };
     setPertes(body.pertes ?? []);
+    setUserSite(body.site ?? "tous");
   }, []);
 
   const charger = useCallback(
@@ -64,9 +71,32 @@ export function PertesPage() {
       setLoading(true);
       setError(null);
       try {
+        // Le journal renvoie le périmètre réel du compte. Compte rattaché à
+        // une zone : le point est verrouillé sur cette zone, jamais sur ce
+        // que l'utilisateur tenterait de choisir.
+        const journalRes = await fetch(
+          `/api/pertes?date=${encodeURIComponent(jour)}`,
+          { cache: "no-store" },
+        );
+        if (journalRes.ok) {
+          const journal = (await journalRes.json()) as {
+            pertes: PerteEntry[];
+            site?: VenteSite | "tous";
+          };
+          setPertes(journal.pertes ?? []);
+          const scope = journal.site ?? "tous";
+          setUserSite(scope);
+          if (scope === "zogbo" || scope === "gbegamey") {
+            setSite(scope);
+          }
+        }
+        const effectivePoint: VenteSite =
+          userSite === "zogbo" || userSite === "gbegamey"
+            ? userSite
+            : point;
         const [vente, mat] = await Promise.all([
           fetch(
-            `/api/vente?date=${encodeURIComponent(jour)}&site=${point}`,
+            `/api/vente?date=${encodeURIComponent(jour)}&site=${effectivePoint}`,
             { cache: "no-store" },
           ),
           fetch(`/api/matieres?date=${encodeURIComponent(jour)}`, {
@@ -99,12 +129,12 @@ export function PertesPage() {
         setLoading(false);
       }
     },
-    [chargerJournal],
+    [chargerJournal, userSite],
   );
 
   useEffect(() => {
     void charger(date, site);
-  }, [date, site, charger]);
+  }, [date, site, userSite, charger]);
 
   /** Produits déclarables dans la famille choisie, avec leur reste. */
   const candidats = useMemo<Candidat[]>(() => {
@@ -201,22 +231,24 @@ export function PertesPage() {
         onDateChange={setDate}
         siteLabel={site === "zogbo" ? "Zogbo" : "Gbégamey"}
       >
-        <div className="site-switch" role="tablist" aria-label="Point de vente">
-          <button
-            type="button"
-            className={`site-btn${site === "zogbo" ? " is-active" : ""}`}
-            onClick={() => setSite("zogbo")}
-          >
-            Zogbo
-          </button>
-          <button
-            type="button"
-            className={`site-btn${site === "gbegamey" ? " is-active" : ""}`}
-            onClick={() => setSite("gbegamey")}
-          >
-            Gbégamey
-          </button>
-        </div>
+        {userSite === "tous" ? (
+          <div className="site-switch" role="tablist" aria-label="Point de vente">
+            <button
+              type="button"
+              className={`site-btn${site === "zogbo" ? " is-active" : ""}`}
+              onClick={() => setSite("zogbo")}
+            >
+              Zogbo
+            </button>
+            <button
+              type="button"
+              className={`site-btn${site === "gbegamey" ? " is-active" : ""}`}
+              onClick={() => setSite("gbegamey")}
+            >
+              Gbégamey
+            </button>
+          </div>
+        ) : null}
       </ContextBar>
 
       {error ? (
@@ -326,7 +358,7 @@ export function PertesPage() {
           ) : null}
         </h2>
         {loading ? (
-          <p className="muted">Chargement…</p>
+          <BrandLoader variant="ligne" label="Chargement des pertes…" />
         ) : pertes.length === 0 ? (
           <p className="muted">Aucune perte déclarée ce jour.</p>
         ) : (

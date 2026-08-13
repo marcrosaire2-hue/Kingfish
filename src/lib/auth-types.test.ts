@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canAccessPath,
+  defaultSiteForRole,
   effectiveSite,
   navForUser,
   sitesForRole,
@@ -35,6 +36,10 @@ describe("rôle Vente & Cuisine", () => {
       "/reglages",
       "/admin",
       "/historique",
+      "/controle",
+      "/stock",
+      "/guide",
+      "/historique-ventes",
     ]) {
       expect(canAccessPath("equipier", chemin, "gbegamey")).toBe(false);
     }
@@ -45,9 +50,9 @@ describe("rôle Vente & Cuisine", () => {
       "/vente",
       "/caisse",
       "/appro",
+      "/achats",
       "/matieres",
       "/pertes",
-      "/historique-ventes",
     ]) {
       expect(canAccessPath("equipier", chemin, "gbegamey")).toBe(true);
     }
@@ -55,6 +60,7 @@ describe("rôle Vente & Cuisine", () => {
 
   it("est rattaché à une seule zone, jamais aux deux", () => {
     expect(sitesForRole("equipier")).toEqual(["zogbo", "gbegamey"]);
+    expect(defaultSiteForRole("equipier")).toBe("gbegamey");
     // Un compte hérité marqué « tous » est ramené à une zone unique.
     expect(effectiveSite("equipier", "tous")).toBe("gbegamey");
   });
@@ -76,15 +82,25 @@ describe("étanchéité des zones", () => {
     expect(canAccessPath("gerant", "/gbegamey", "gbegamey")).toBe(true);
   });
 
-  it("un gérant multi-zones garde les deux", () => {
-    expect(canAccessPath("gerant", "/zogbo", "tous")).toBe(true);
-    expect(canAccessPath("gerant", "/gbegamey", "tous")).toBe(true);
+  it("le gérant est lui aussi rattaché à une seule zone", () => {
+    expect(sitesForRole("gerant")).toEqual(["zogbo", "gbegamey"]);
+    expect(defaultSiteForRole("gerant")).toBe("gbegamey");
+    // Un gérant hérité marqué « tous » est ramené à une zone unique.
+    expect(effectiveSite("gerant", "tous")).toBe("gbegamey");
+    expect(canAccessPath("gerant", "/zogbo", "tous")).toBe(false);
+    expect(canAccessPath("gerant", "/zogbo", "gbegamey")).toBe(false);
+    expect(canAccessPath("gerant", "/gbegamey", "gbegamey")).toBe(true);
   });
 
   it("le menu d'un équipier ne montre que sa zone", () => {
     const menu = navForUser("equipier", "zogbo");
     expect(menu).toContain("zogbo");
     expect(menu).not.toContain("gbegamey");
+  });
+
+  it("le gérant accède au stock sans quitter sa zone", () => {
+    expect(canAccessPath("gerant", "/stock", "zogbo")).toBe(true);
+    expect(navForUser("gerant", "zogbo")).toContain("stock");
   });
 });
 

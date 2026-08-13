@@ -8,6 +8,7 @@ import { formatFcfa } from "@/lib/format";
 import { exportEquipesExcel } from "@/lib/page-exports";
 import type { ShiftDayRow } from "@/lib/vente-repo";
 import { formatDisplayDate, shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
+import { BrandLoader } from "@/components/brand-loader";
 
 type SiteFilter = "all" | "zogbo" | "gbegamey";
 
@@ -240,7 +241,7 @@ export function EquipesPage() {
       ) : null}
 
       {loading ? (
-        <p className="muted">Chargement…</p>
+        <BrandLoader variant="ligne" label="Chargement des équipes…" />
       ) : (
         <section className="panel">
           <h2 className="panel-title">Détail jour par jour</h2>

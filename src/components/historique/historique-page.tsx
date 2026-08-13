@@ -13,6 +13,7 @@ import {
 } from "@/lib/historique-types";
 import { exportHistoriqueExcel } from "@/lib/page-exports";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { BrandLoader } from "@/components/brand-loader";
 
 type SiteFilter = "all" | "zogbo" | "gbegamey";
 type KindFilter = HistoriqueKind | "all";
@@ -242,9 +243,9 @@ export function HistoriquePage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="muted">
-                  Chargement…
-                </td>
+                <td colSpan={7}>
+                      <BrandLoader variant="ligne" label="Chargement…" />
+                    </td>
               </tr>
             ) : events.length === 0 ? (
               <tr>

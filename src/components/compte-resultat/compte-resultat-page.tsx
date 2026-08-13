@@ -13,6 +13,7 @@ import { formatFcfa } from "@/lib/format";
 import { emptyCharges } from "@/lib/synthese-calc";
 import type { DayCharges, DayPoint, MonthPoint, YearPoint } from "@/lib/types";
 import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
+import { BrandLoader } from "@/components/brand-loader";
 
 type ViewKey = "day" | "month" | "year";
 
@@ -373,7 +374,7 @@ export function CompteResultatPage() {
       {error ? <p className="error-banner">{error}</p> : null}
 
       {loading || !statement || !payload ? (
-        <p className="muted">Chargement…</p>
+        <BrandLoader variant="ligne" label="Chargement du compte de résultat…" />
       ) : (
         <div className="pnl-layout">
           <section className="panel pnl-statement">
