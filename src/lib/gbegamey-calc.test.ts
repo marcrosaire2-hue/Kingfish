@@ -45,15 +45,28 @@ describe("computeTransferLine", () => {
     expect(c.theoreticalRemaining).toBe(12);
   });
 
-  it("le reçu constaté prend le dessus sur l'envoi déclaré", () => {
-    // Zogbo déclare 10 envoyés, Gbégamey n'en constate que 8 : 2 perdus.
+  it("un constaté n'est qu'un contrôle : l'envoi déclaré alimente toujours le stock", () => {
+    // Zogbo déclare 10 envoyés, Gbégamey n'en constate que 8 : l'écart est
+    // signalé, mais le stock reste alimenté par l'envoi (init + 10).
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 8 }),
       10,
       1000,
     );
-    expect(c.theoreticalRemaining).toBe(8);
+    expect(c.theoreticalRemaining).toBe(10);
     expect(c.transportVariance).toBe(2);
+  });
+
+  it("un nouvel envoi après un constaté s'additionne quand même au stock", () => {
+    // Constaté 15 puis Zogbo envoie 5 de plus : le stock suit l'envoi (20),
+    // l'ancien constaté ne fige pas la somme.
+    const c = computeTransferLine(
+      transfert({ initialStock: 0, received: 15, sold: 4 }),
+      20,
+      1000,
+    );
+    expect(c.available).toBe(20);
+    expect(c.theoreticalRemaining).toBe(16);
   });
 
   it("ne signale aucun écart de transport quand rien n'est vérifié", () => {

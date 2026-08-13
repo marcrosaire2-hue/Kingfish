@@ -141,8 +141,10 @@ export function computeTransferLine(
 ): GbegameyTransferComputed {
   const normalized = normalizeTransferLine(line);
 
-  // Tant que la réception n’est pas vérifiée, on retient ce que Zogbo a
-  // déclaré : la marchandise reste vendable sans geste supplémentaire.
+  // Le reçu constaté (si saisi) sert uniquement à mesurer l'écart de
+  // transport. Le stock, lui, est TOUJOURS alimenté par l'envoi déclaré de
+  // Zogbo : un nouvel envoi s'additionne à l'ancien stock (et les ventes le
+  // décrementent) même si un constaté plus ancien existe.
   const receivedFromZogbo = normalized.received ?? sentFromZogbo;
   const transportVariance =
     normalized.received === null ? null : sentFromZogbo - normalized.received;
@@ -151,7 +153,7 @@ export function computeTransferLine(
   const available =
     counted !== null
       ? Math.max(0, counted)
-      : normalized.initialStock + receivedFromZogbo;
+      : normalized.initialStock + sentFromZogbo;
   // Le comptage saisi devient le stock initial du jour : la vérité physique
   // remplace init.+reçu dès qu'elle est saisie. Les ventes et pertes le
   // décrementent ensuite.
