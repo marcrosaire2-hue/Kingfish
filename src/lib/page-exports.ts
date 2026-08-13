@@ -973,6 +973,9 @@ export function exportCaisseExcel(input: {
     "Montant (FCFA)": m.montant,
     Acteur: m.actorName ?? "",
     Contrepartie: m.contrepartie ? CAISSE_LABELS[m.contrepartie] : "",
+    Statut: m.cancelledAt
+      ? `Annulé par ${m.cancelledByName ?? "—"}`
+      : "Actif",
   }));
 
   const sheets: ExcelSheet[] = [
@@ -989,9 +992,12 @@ export function exportCaisseExcel(input: {
       rows: historiqueRows,
     },
     {
+      // Pas de total automatique ici : la colonne Montant mélange dépenses,
+      // recettes et mouvements annulés (visibles pour l'audit) — un total de
+      // colonne brut serait trompeur. Les totaux fiables sont sur
+      // « Historique », déjà nets des annulations (soldes de session).
       name: "Journal en cours",
       subtitle: `${label} · ${input.date}`,
-      totals: ["Montant (FCFA)"],
       rows: mouvementRows,
     },
   ];

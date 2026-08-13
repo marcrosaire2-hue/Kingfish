@@ -74,6 +74,9 @@ export function toMouvement(doc: MouvementDoc): CaisseMouvement {
     actorName: doc.actorName ?? null,
     transfertId: doc.transfertId ?? null,
     contrepartie: doc.contrepartie ?? null,
+    cancelledAt: doc.cancelledAt ?? null,
+    cancelledById: doc.cancelledById ?? null,
+    cancelledByName: doc.cancelledByName ?? null,
   };
 }
 
@@ -361,6 +364,9 @@ export async function addCaisseMouvement(input: {
     actorName: input.user.name,
     transfertId: null,
     contrepartie: null,
+    cancelledAt: null,
+    cancelledById: null,
+    cancelledByName: null,
   };
   const db = await getDb();
   await db.collection<MouvementDoc>("caisse_mouvements").insertOne(mDoc);
@@ -374,6 +380,65 @@ export async function addCaisseMouvement(input: {
   const updated = await getCaisseById(input.caisseId);
   if (!updated) throw new Error("Caisse introuvable");
   return { session: updated, mouvement: toMouvement(mDoc) };
+}
+
+/**
+ * Annule une dépense ou une recette : le mouvement reste au journal, barré,
+ * et le total de la session (théorique) reprend le montant, comme les
+ * annulations de vente ou de perte ailleurs dans l'app. Réservée aux
+ * dépenses/recettes — un versement se corrige par un versement en sens
+ * inverse, jamais par annulation (il touche deux caisses).
+ */
+export async function cancelCaisseMouvement(input: {
+  mouvementId: string;
+  user: SessionUser;
+}): Promise<{ session: CaisseSession; mouvement: CaisseMouvement }> {
+  if (!ObjectId.isValid(input.mouvementId)) throw new Error("Mouvement introuvable");
+  const db = await getDb();
+  const mDoc = await db
+    .collection<MouvementDoc>("caisse_mouvements")
+    .findOne({ _id: new ObjectId(input.mouvementId), cancelledAt: null });
+  if (!mDoc) throw new Error("Mouvement introuvable ou déjà annulé");
+  if (mDoc.kind !== "depense" && mDoc.kind !== "recette") {
+    throw new Error("Seules les dépenses et recettes peuvent être annulées.");
+  }
+
+  const session = await getCaisseById(mDoc.caisseId);
+  if (!session) throw new Error("Caisse introuvable");
+  assertAcces(input.user, session.caisse);
+  if (session.statut !== "ouverte") {
+    throw new Error("Impossible d’annuler un mouvement sur une caisse fermée");
+  }
+
+  const now = new Date().toISOString();
+  await db.collection<MouvementDoc>("caisse_mouvements").updateOne(
+    { _id: mDoc._id },
+    {
+      $set: {
+        cancelledAt: now,
+        cancelledById: input.user.id,
+        cancelledByName: input.user.name,
+      },
+    },
+  );
+
+  const field = mDoc.kind === "depense" ? "totalDepense" : "totalRecette";
+  await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+    { _id: new ObjectId(mDoc.caisseId) },
+    { $inc: { [field]: -mDoc.montant }, $set: { updatedAt: now } },
+  );
+
+  const updated = await getCaisseById(mDoc.caisseId);
+  if (!updated) throw new Error("Caisse introuvable");
+  return {
+    session: updated,
+    mouvement: toMouvement({
+      ...mDoc,
+      cancelledAt: now,
+      cancelledById: input.user.id,
+      cancelledByName: input.user.name,
+    }),
+  };
 }
 
 /**

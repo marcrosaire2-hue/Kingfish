@@ -243,7 +243,7 @@ export type GbegameyDay = {
 export type GbegameyTransferComputed = GbegameyTransferLine & {
   /** Ce que Zogbo a déclaré envoyer */
   sentFromZogbo: number;
-  /** Ce qui est retenu pour le stock : le constaté s'il existe, sinon l'envoyé */
+  /** Ce qui entre en stock : toujours l'envoi déclaré (le constaté ne sert qu'à l'écart) */
   receivedFromZogbo: number;
   /** Envoyé − constaté : la perte sur le trajet (null si non vérifié) */
   transportVariance: number | null;
@@ -655,6 +655,10 @@ export type CaisseMouvement = {
   /** Versement : identifiant commun aux deux jambes, et caisse en face. */
   transfertId?: string | null;
   contrepartie?: CaisseKey | null;
+  /** Annulation : le mouvement reste au journal, barré ; le total repris. */
+  cancelledAt?: string | null;
+  cancelledById?: string | null;
+  cancelledByName?: string | null;
 };
 
 export type CaisseSession = {

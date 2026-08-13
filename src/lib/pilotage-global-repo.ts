@@ -298,8 +298,12 @@ export async function getPilotageGlobal(input: {
         .find({ date: { $gte: from, $lte: to } })
         .toArray(),
       // Filtré ensuite par session : `caisse_mouvements` ne porte ni date ni
-      // site en propre, seulement `caisseId`.
-      db.collection<MouvementDoc>("caisse_mouvements").find({}).toArray(),
+      // site en propre, seulement `caisseId`. Les mouvements annulés (T9) sont
+      // exclus, comme les pertes annulées ci-dessous.
+      db
+        .collection<MouvementDoc>("caisse_mouvements")
+        .find({ cancelledAt: null })
+        .toArray(),
       db
         .collection<PerteDoc>("pertes")
         .find({

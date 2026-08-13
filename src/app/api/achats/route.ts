@@ -70,7 +70,9 @@ export async function GET(request: Request) {
       listDepensesByCaisse({ caisse, date }),
       getOpenCaisse(caisse),
     ]);
-    const total = depenses.reduce((s, d) => s + d.mouvement.montant, 0);
+    const total = depenses
+      .filter((d) => !d.mouvement.cancelledAt)
+      .reduce((s, d) => s + d.mouvement.montant, 0);
 
     return NextResponse.json({
       date,
@@ -171,7 +173,9 @@ export async function POST(request: Request) {
     });
 
     const depenses = await listDepensesByCaisse({ caisse, date });
-    const totalDepenses = depenses.reduce((s, d) => s + d.mouvement.montant, 0);
+    const totalDepenses = depenses
+      .filter((d) => !d.mouvement.cancelledAt)
+      .reduce((s, d) => s + d.mouvement.montant, 0);
 
     return NextResponse.json({
       mouvement: result.mouvement,

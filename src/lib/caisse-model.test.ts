@@ -63,6 +63,24 @@ describe("solde théorique", () => {
     });
     expect(soldeTheorique(ancienne)).toBe(15_000);
   });
+
+  it("l'annulation d'une dépense ramène le théorique à l'état d'avant (T9)", () => {
+    // cancelCaisseMouvement décremente totalDepense du montant annulé : le
+    // théorique doit donc retrouver exactement sa valeur d'avant la dépense.
+    const avant = session({ totalVente: 50_000, totalDepense: 0 });
+    const apresDepense = session({ totalVente: 50_000, totalDepense: 7_000 });
+    const apresAnnulation = session({ totalVente: 50_000, totalDepense: 0 });
+    expect(soldeTheorique(apresDepense)).toBe(soldeTheorique(avant) - 7_000);
+    expect(soldeTheorique(apresAnnulation)).toBe(soldeTheorique(avant));
+  });
+
+  it("l'annulation d'une recette retire ce qu'elle avait ajouté (T9)", () => {
+    const avant = session({ totalVente: 50_000, totalRecette: 0 });
+    const apresRecette = session({ totalVente: 50_000, totalRecette: 3_000 });
+    const apresAnnulation = session({ totalVente: 50_000, totalRecette: 0 });
+    expect(soldeTheorique(apresRecette)).toBe(soldeTheorique(avant) + 3_000);
+    expect(soldeTheorique(apresAnnulation)).toBe(soldeTheorique(avant));
+  });
 });
 
 describe("accès aux caisses", () => {

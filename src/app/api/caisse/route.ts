@@ -10,6 +10,7 @@ import {
 import { logActivity } from "@/lib/log-activity";
 import {
   addCaisseMouvement,
+  cancelCaisseMouvement,
   closeCaisse,
   getActiveCaisse,
   getCaisseDetail,
@@ -88,7 +89,8 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as {
-      action?: "open" | "close" | "mouvement" | "versement";
+      action?: "open" | "close" | "mouvement" | "versement" | "annuler-mouvement";
+      mouvementId?: string;
       date?: string;
       caisse?: CaisseKey;
       toCaisse?: CaisseKey;
@@ -177,6 +179,32 @@ export async function POST(request: Request) {
         date: todayIsoDate(),
         site: result.session.site ?? "tous",
         amount: body.kind === "depense" ? -montant : montant,
+      });
+      return NextResponse.json(result);
+    }
+
+    if (body.action === "annuler-mouvement") {
+      if (!body.mouvementId) {
+        return NextResponse.json(
+          { error: "mouvementId requis" },
+          { status: 400 },
+        );
+      }
+      const result = await cancelCaisseMouvement({
+        mouvementId: body.mouvementId,
+        user,
+      });
+      await logActivity({
+        user,
+        kind: "caisse",
+        title: `Annulation ${result.mouvement.kind === "depense" ? "dépense" : "recette"} · ${result.mouvement.nature}`,
+        detail: CAISSE_LABELS[result.session.caisse],
+        date: result.session.date,
+        site: result.session.site ?? "tous",
+        amount:
+          result.mouvement.kind === "depense"
+            ? result.mouvement.montant
+            : -result.mouvement.montant,
       });
       return NextResponse.json(result);
     }

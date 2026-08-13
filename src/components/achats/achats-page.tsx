@@ -300,6 +300,9 @@ export function AchatsPage() {
                   Explication: d.mouvement.nature,
                   Bénéficiaire: d.mouvement.beneficiaire || "",
                   Montant: d.mouvement.montant,
+                  Statut: d.mouvement.cancelledAt
+                    ? `Annulée par ${d.mouvement.cancelledByName ?? "—"}`
+                    : "Active",
                 })),
               },
             ]);
@@ -425,7 +428,10 @@ export function AchatsPage() {
               ) : (
                 <ul className="vente-log">
                   {data.depenses.map((d) => (
-                    <li key={d.mouvement.id}>
+                    <li
+                      key={d.mouvement.id}
+                      className={d.mouvement.cancelledAt ? "is-cancelled" : undefined}
+                    >
                       <div>
                         <strong>{formatFcfa(d.mouvement.montant)}</strong>
                         {" · "}
@@ -436,6 +442,9 @@ export function AchatsPage() {
                         <div className="vente-log-time muted">
                           {formatTime(d.mouvement.at)}
                           {d.sessionUserName ? ` · par ${d.sessionUserName}` : ""}
+                          {d.mouvement.cancelledAt
+                            ? ` · annulée par ${d.mouvement.cancelledByName ?? "—"}`
+                            : ""}
                         </div>
                       </div>
                     </li>

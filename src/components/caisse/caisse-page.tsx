@@ -221,6 +221,20 @@ export function CaissePage() {
     }
   }
 
+  async function annulerMouvement(m: CaisseMouvement) {
+    if (
+      !window.confirm(
+        `Annuler ce mouvement ?\n\n${MOUVEMENT_LABELS[m.kind]} · ${formatFcfa(m.montant)}\nLe solde théorique reprend ce montant.`,
+      )
+    ) {
+      return;
+    }
+    await post(
+      { action: "annuler-mouvement", mouvementId: m.id },
+      "Échec de l’annulation",
+    );
+  }
+
   const active = board?.active ?? null;
   const theoActive = active ? theo(active) : 0;
   // La caisse affichée est celle résolue par le serveur ; tant qu'aucune
@@ -630,7 +644,10 @@ export function CaissePage() {
                   ) : (
                     <ul className="caisse-mouvements">
                       {detail.mouvements.map((m) => (
-                        <li key={m.id}>
+                        <li
+                          key={m.id}
+                          className={m.cancelledAt ? "is-cancelled" : undefined}
+                        >
                           <div>
                             <strong>{MOUVEMENT_LABELS[m.kind]}</strong>
                             <span className="muted">
@@ -639,6 +656,9 @@ export function CaissePage() {
                                 ? ` · ${m.beneficiaire}`
                                 : ""}
                               {m.actorName ? ` · ${m.actorName}` : ""}
+                              {m.cancelledAt
+                                ? ` · annulé par ${m.cancelledByName ?? "—"}`
+                                : ""}
                             </span>
                           </div>
                           <span
@@ -647,6 +667,17 @@ export function CaissePage() {
                             {sortDuTiroir(m.kind) ? "−" : "+"}
                             {formatFcfa(m.montant)}
                           </span>
+                          {!m.cancelledAt &&
+                          (m.kind === "depense" || m.kind === "recette") ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              disabled={busy}
+                              onClick={() => void annulerMouvement(m)}
+                            >
+                              Annuler
+                            </button>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

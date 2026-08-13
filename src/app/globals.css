@@ -4488,6 +4488,15 @@ body {
   white-space: nowrap;
 }
 
+.caisse-mouvements li.is-cancelled {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+
+.caisse-mouvements li > button {
+  flex-shrink: 0;
+}
+
 .caisse-history-scroll {
   overflow: auto;
 }
