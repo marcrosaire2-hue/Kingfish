@@ -8,6 +8,7 @@ import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
 import { QtyInput } from "@/components/qty-input";
 import { ZoneBoissonsPanel } from "@/components/zone/zone-boissons-panel";
+import { ZoneVentesPanel } from "@/components/zone/zone-ventes-panel";
 import { formatFcfa, formatUpdatedAt } from "@/lib/format";
 import {
   computeGbegameyDay,
@@ -20,6 +21,8 @@ import type {
   GbegameyLocalLine,
   GbegameyTransferLine,
   LocalDish,
+  VenteLogEntry,
+  VentesDaySummary,
 } from "@/lib/types";
 import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
 import { BrandLoader } from "@/components/brand-loader";
@@ -31,12 +34,14 @@ type Payload = {
   sentByProductId: Record<string, number>;
   openingEditable: boolean;
   caJournal?: number;
+  ventes?: VenteLogEntry[];
+  ventesSummary?: VentesDaySummary;
 };
 
-type SectionKey = "transfer" | "local" | "boissons";
+type SectionKey = "transfer" | "local" | "boissons" | "ventes";
 
 function parseSection(raw: string | null): SectionKey {
-  if (raw === "local" || raw === "boissons") return raw;
+  if (raw === "local" || raw === "boissons" || raw === "ventes") return raw;
   return "transfer";
 }
 
@@ -56,6 +61,10 @@ export function GbegameyPage() {
   /** Première mise en service : le stock de départ se saisit à la main. */
   const [openingEditable, setOpeningEditable] = useState(false);
   const [caJournal, setCaJournal] = useState(0);
+  const [ventes, setVentes] = useState<VenteLogEntry[]>([]);
+  const [ventesSummary, setVentesSummary] = useState<VentesDaySummary | null>(
+    null,
+  );
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -103,6 +112,8 @@ export function GbegameyPage() {
           setCaJournal(Number(body.caJournal) || 0);
           setSentByProductId(body.sentByProductId);
           setOpeningEditable(!!body.openingEditable);
+          setVentes(body.ventes ?? []);
+          setVentesSummary(body.ventesSummary ?? null);
           setDirty(false);
         }
       } catch (e) {
@@ -114,6 +125,8 @@ export function GbegameyPage() {
           setSentByProductId({});
           setOpeningEditable(false);
           setCaJournal(0);
+          setVentes([]);
+          setVentesSummary(null);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -251,10 +264,30 @@ export function GbegameyPage() {
         >
           Boissons
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={section === "ventes"}
+          className={`section-tab${section === "ventes" ? " is-active" : ""}`}
+          onClick={() => setSection("ventes")}
+        >
+          Ventes
+          {ventesSummary?.lignes ? (
+            <span className="section-count">{ventesSummary.lignes}</span>
+          ) : null}
+        </button>
       </div>
 
       {section === "boissons" ? (
         <ZoneBoissonsPanel date={date} site="gbegamey" />
+      ) : null}
+      {section === "ventes" ? (
+        <ZoneVentesPanel
+          date={date}
+          ventes={ventes}
+          summary={ventesSummary}
+          loading={loading}
+        />
       ) : null}
 
       {platsSection ? (
