@@ -1247,6 +1247,28 @@ select {
   max-width: 100%;
 }
 
+.libre-buy {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0 0.85rem 0.25rem;
+}
+
+.libre-buy .input-text {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.libre-buy .input-num {
+  width: 5.5rem;
+}
+
+.libre-hint {
+  padding: 0 0.85rem 0.75rem;
+  font-size: 0.85rem;
+}
+
 .btn-link {
   border: none;
   background: transparent;

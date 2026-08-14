@@ -753,7 +753,8 @@ export type MatieresLine = {
 export type MatieresMovement = {
   id: string;
   at: string;
-  type: "purchase";
+  /** "purchase" : matière du catalogue · "autre" : saisie libre */
+  type: "purchase" | "autre";
   productId: ProductId;
   name: string;
   qty: number;

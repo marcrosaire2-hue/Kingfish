@@ -8,6 +8,7 @@ import {
   getActiveCaisseForSite,
 } from "@/lib/caisse-repo";
 import {
+  applyMatieresOtherPurchase,
   applyMatieresPurchase,
   cancelMatieresMovement,
   getMatieresDayPayload,
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
       action?: string;
       date?: string;
       productId?: string;
+      name?: string;
       qty?: number;
       unitPrice?: number;
       movementId?: string;
@@ -147,14 +149,25 @@ export async function POST(request: Request) {
           (f) => f.id === body.fournisseurId,
         )
       : null;
-    const payload = await applyMatieresPurchase({
-      date: body.date,
-      productId: body.productId,
-      qty: Number(body.qty),
-      unitPrice: body.unitPrice,
-      fournisseurId: fournisseur?.id ?? null,
-      fournisseurNom: fournisseur?.nom ?? null,
-    });
+    // Achat hors catalogue : le nom est écrit à la main, sans ligne de stock.
+    const payload =
+      body.productId === "autre"
+        ? await applyMatieresOtherPurchase({
+            date: body.date,
+            name: String(body.name ?? ""),
+            qty: Number(body.qty),
+            unitPrice: body.unitPrice,
+            fournisseurId: fournisseur?.id ?? null,
+            fournisseurNom: fournisseur?.nom ?? null,
+          })
+        : await applyMatieresPurchase({
+            date: body.date,
+            productId: body.productId,
+            qty: Number(body.qty),
+            unitPrice: body.unitPrice,
+            fournisseurId: fournisseur?.id ?? null,
+            fournisseurNom: fournisseur?.nom ?? null,
+          });
 
     // Dépense de trésorerie auto-générée : le stock et la caisse se
     // recoupent. Caisse fermée, l'achat reste valable mais sans dépense
@@ -194,8 +207,11 @@ export async function POST(request: Request) {
     await logActivity({
       user,
       kind: "matieres",
-      title: "Achat matières",
-      detail: `Produit ${body.productId} · +${Number(body.qty)}`,
+      title: body.productId === "autre" ? "Achat libre" : "Achat matières",
+      detail:
+        body.productId === "autre"
+          ? `${body.name} · +${Number(body.qty)}`
+          : `Produit ${body.productId} · +${Number(body.qty)}`,
       date: body.date,
       site: "zogbo",
       amount: montant > 0 ? montant : null,

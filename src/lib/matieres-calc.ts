@@ -47,13 +47,15 @@ export function normalizeMatieresMovement(
   return {
     id: m.id,
     at: m.at || new Date().toISOString(),
-    type: "purchase",
+    type: m.type === "autre" ? "autre" : "purchase",
     productId: m.productId,
     name: String(m.name ?? ""),
     qty: Math.max(0, Number(m.qty) || 0),
     unitPrice: Math.max(0, Number(m.unitPrice) || 0),
     stockAfter: Math.max(0, Number(m.stockAfter) || 0),
     cancelledAt: m.cancelledAt ?? null,
+    fournisseurId: m.fournisseurId ?? null,
+    fournisseurNom: m.fournisseurNom ?? null,
     depenseId: m.depenseId ?? null,
   };
 }
@@ -162,6 +164,59 @@ export function applyMatieresPurchaseToState(
   };
 }
 
+/**
+ * Achat saisi à la main, hors catalogue des matières : le nom est libre, la
+ * quantité et le prix sont obligatoires. Aucune ligne de stock n'est touchée
+ * (ces achats n'ont pas de matière au compteur) — ils restent au registre et
+ * à l'historique, et le fournisseur/la dépense caisse se comportent comme les
+ * autres achats.
+ */
+export function applyMatieresOtherPurchaseToState(
+  lines: MatieresLine[],
+  movements: MatieresMovement[],
+  input: {
+    name: string;
+    qty: number;
+    unitPrice?: number;
+    fournisseurId?: string | null;
+    fournisseurNom?: string | null;
+  },
+): {
+  lines: MatieresLine[];
+  movements: MatieresMovement[];
+  movement: MatieresMovement;
+} {
+  const name = String(input.name ?? "").trim();
+  if (name.length < 2) throw new Error("Nom du produit obligatoire");
+
+  const qty = Math.max(0, Number(input.qty) || 0);
+  if (qty <= 0) throw new Error("Quantité invalide");
+
+  const unitPrice = Math.max(0, Number(input.unitPrice) || 0);
+  if (unitPrice <= 0) throw new Error("Prix d'achat obligatoire");
+
+  const movement: MatieresMovement = {
+    id: newId("mmvt"),
+    at: new Date().toISOString(),
+    type: "autre",
+    productId: "autre",
+    name,
+    qty,
+    unitPrice,
+    stockAfter: 0,
+    cancelledAt: null,
+    fournisseurId: input.fournisseurId ?? null,
+    fournisseurNom: input.fournisseurNom ?? null,
+    depenseId: null,
+  };
+
+  return {
+    lines: lines.map((l) => normalizeMatieresLine(l)),
+    movements: [movement, ...movements],
+    movement,
+  };
+}
+
 export function cancelMatieresMovementInState(
   lines: MatieresLine[],
   movements: MatieresMovement[],
@@ -173,17 +228,23 @@ export function cancelMatieresMovementInState(
   const m = movements.find((x) => x.id === movementId);
   if (!m || m.cancelledAt) throw new Error("Mouvement introuvable ou déjà annulé");
 
-  const idx = lines.findIndex((l) => l.productId === m.productId);
-  if (idx < 0) throw new Error("Matière introuvable");
-
-  const line = normalizeMatieresLine(lines[idx]!);
-  const purchases = Math.max(0, line.purchases - m.qty);
-  const nextLine = { ...line, purchases };
+  // Achat libre : aucune ligne de stock à reprendre.
+  let linesOut: MatieresLine[];
+  if (m.type === "autre") {
+    linesOut = lines.map((l) => normalizeMatieresLine(l));
+  } else {
+    const idx = lines.findIndex((l) => l.productId === m.productId);
+    if (idx < 0) throw new Error("Matière introuvable");
+    const line = normalizeMatieresLine(lines[idx]!);
+    const purchases = Math.max(0, line.purchases - m.qty);
+    const nextLine = { ...line, purchases };
+    linesOut = lines.map((l, i) =>
+      i === idx ? nextLine : normalizeMatieresLine(l),
+    );
+  }
 
   return {
-    lines: lines.map((l, i) =>
-      i === idx ? nextLine : normalizeMatieresLine(l),
-    ),
+    lines: linesOut,
     movements: movements.map((x) =>
       x.id === movementId
         ? { ...x, cancelledAt: new Date().toISOString() }

@@ -32,8 +32,19 @@ type DraftRow = {
   fournisseurId: string;
 };
 
+type DraftLibre = {
+  name: string;
+  qty: string;
+  price: string;
+  fournisseurId: string;
+};
+
 function emptyDraft(): DraftRow {
   return { qty: "", price: "", fournisseurId: "" };
+}
+
+function emptyDraftLibre(): DraftLibre {
+  return { name: "", qty: "", price: "", fournisseurId: "" };
 }
 
 function formatTime(iso: string): string {
@@ -59,6 +70,8 @@ export function AchatsPage() {
   const [day, setDay] = useState<MatieresDay | null>(null);
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [draftBuy, setDraftBuy] = useState<Record<string, DraftRow>>({});
+  const [draftLibre, setDraftLibre] = useState<DraftLibre>(() => emptyDraftLibre());
+  const [busyLibre, setBusyLibre] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [search, setSearch] = useState("");
@@ -212,6 +225,54 @@ export function AchatsPage() {
     }
   }
 
+  async function submitPurchaseLibre(row: DraftLibre) {
+    const name = row.name.trim();
+    const qty = Number(String(row.qty).replace(",", ".")) || 0;
+    const price = Number(String(row.price).replace(",", ".")) || 0;
+    if (name.length < 2) {
+      setError("Saisissez le nom du produit acheté.");
+      return;
+    }
+    if (qty <= 0 || price <= 0) {
+      setError("Quantité et prix unitaire obligatoires pour un achat libre.");
+      return;
+    }
+    setBusyLibre(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/matieres", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date,
+          productId: "autre",
+          name,
+          qty,
+          unitPrice: price,
+          fournisseurId: row.fournisseurId || undefined,
+        }),
+      });
+      const body = (await res.json()) as StockPayload & { error?: string };
+      if (!res.ok) throw new Error(body.error || "Erreur");
+      setDay(body.day);
+      setMaterials(body.materials);
+      setDraftLibre(emptyDraftLibre());
+      if (body.depense) {
+        setFlash(
+          `Achat libre enregistré — dépense de ${formatFcfa(body.depense.montant)} créée à la caisse.`,
+        );
+      } else {
+        setFlash("Achat libre enregistré — caisse fermée : aucune dépense liée.");
+      }
+      reloadHistorique();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setBusyLibre(false);
+    }
+  }
+
   function reloadHistorique() {
     void (async () => {
       try {
@@ -314,6 +375,79 @@ export function AchatsPage() {
         </p>
       ) : (
         <>
+          <section className="panel">
+            <h2 className="panel-title">Achat libre (hors liste)</h2>
+            <div className="libre-buy">
+              <input
+                type="text"
+                className="input-text"
+                placeholder="Nom du produit…"
+                value={draftLibre.name}
+                onChange={(e) =>
+                  setDraftLibre((d) => ({ ...d, name: e.target.value }))
+                }
+                aria-label="Nom du produit acheté"
+              />
+              <input
+                type="number"
+                min={0}
+                step="any"
+                className="input-num"
+                placeholder="Qté"
+                value={draftLibre.qty}
+                onChange={(e) =>
+                  setDraftLibre((d) => ({ ...d, qty: e.target.value }))
+                }
+                aria-label="Quantité achetée"
+              />
+              <input
+                type="number"
+                min={0}
+                step="any"
+                className="input-num"
+                placeholder="Prix / u"
+                value={draftLibre.price}
+                onChange={(e) =>
+                  setDraftLibre((d) => ({ ...d, price: e.target.value }))
+                }
+                aria-label="Prix unitaire"
+              />
+              {fournisseurs.length > 0 ? (
+                <select
+                  className="input-select"
+                  value={draftLibre.fournisseurId}
+                  onChange={(e) =>
+                    setDraftLibre((d) => ({
+                      ...d,
+                      fournisseurId: e.target.value,
+                    }))
+                  }
+                  aria-label="Fournisseur"
+                >
+                  <option value="">Fournisseur…</option>
+                  {fournisseurs.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nom}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={busyLibre}
+                onClick={() => void submitPurchaseLibre(draftLibre)}
+              >
+                + Achat libre
+              </button>
+            </div>
+            <p className="muted libre-hint">
+              Pour un produit absent de la liste ci-dessous : écrivez ce que
+              vous achetez, la quantité et le prix. L&apos;achat sera enregistré
+              au registre du jour sans toucher au compteur de stock.
+            </p>
+          </section>
+
           <div className="vente-field" style={{ maxWidth: "24rem" }}>
             <label htmlFor="recherche-matiere">Rechercher une matière</label>
             <input

@@ -2,6 +2,7 @@ import { assertDayOpen, updateDayDocument } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import {
+  applyMatieresOtherPurchaseToState,
   applyMatieresPurchaseToState,
   cancelMatieresMovementInState,
   createEmptyMatieresDay,
@@ -265,10 +266,65 @@ export async function applyMatieresPurchase(input: {
 }
 
 /**
- * Rattache une dépense de caisse auto-générée à un achat : le mouvement de
- * stock porte le lien pour que l'annulation de l'achat puisse aussi annuler
- * la dépense, et que le pilotage ne compte pas deux fois la sortie.
+ * Achat saisi librement, hors catalogue : le nom écrit par l'utilisateur fait
+ * foi, sans ligne de stock. Valeur et fournisseur identiques aux autres
+ * achats — le registre, l'historique et le pilotage les traitent pareil.
  */
+export async function applyMatieresOtherPurchase(input: {
+  date: string;
+  name: string;
+  qty: number;
+  unitPrice?: number;
+  fournisseurId?: string | null;
+  fournisseurNom?: string | null;
+}): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
+  if (!isValidDate(input.date)) throw new Error("Date invalide");
+  const payload = await getMatieresDayPayload(input.date);
+  assertDayOpen(
+    payload.day.status,
+    "Journée clôturée : achat matière impossible.",
+  );
+  const applied = applyMatieresOtherPurchaseToState(
+    payload.day.lines,
+    payload.day.movements ?? [],
+    {
+      name: input.name,
+      qty: input.qty,
+      unitPrice: input.unitPrice ?? 0,
+      fournisseurId: input.fournisseurId,
+      fournisseurNom: input.fournisseurNom,
+    },
+  );
+
+  const db = await getDb();
+  const updatedAt = new Date().toISOString();
+  const status = payload.day.status;
+  await db.collection<MatieresDoc>("matieres_jours").updateOne(
+    { _id: input.date },
+    {
+      $set: {
+        status,
+        lines: applied.lines,
+        movements: applied.movements,
+        updatedAt,
+      },
+      $setOnInsert: { _id: input.date },
+    },
+    { upsert: true },
+  );
+
+  return {
+    day: {
+      date: input.date,
+      status,
+      lines: syncMatieresLines(applied.lines, payload.materials),
+      movements: applied.movements,
+      updatedAt,
+    },
+    materials: payload.materials,
+    movement: applied.movement,
+  };
+}
 export async function linkMatieresMovementDepense(input: {
   date: string;
   movementId: string;
