@@ -1208,6 +1208,45 @@ select {
   font-weight: 700;
 }
 
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding-right: 0.85rem;
+}
+
+.panel-head .panel-title {
+  margin-right: 0;
+}
+
+.history-day + .history-day {
+  margin-top: 0.75rem;
+}
+
+.history-day-title {
+  margin: 0.5rem 0.85rem 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+
+.inline-buy-achats {
+  flex-wrap: wrap;
+}
+
+.inline-buy-achats .input-num {
+  width: 4.5rem;
+}
+
+.inline-buy-achats .input-select {
+  width: 9rem;
+  max-width: 100%;
+}
+
 .btn-link {
   border: none;
   background: transparent;

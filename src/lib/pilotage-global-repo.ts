@@ -61,6 +61,8 @@ type MouvementStockDoc = {
   cancelledAt: string | null;
   fournisseurId?: string | null;
   fournisseurNom?: string | null;
+  /** Dépense de caisse auto-générée : la sortie est portée par le journal caisse. */
+  depenseId?: string | null;
 };
 
 type LigneAccompagnementDoc = {
@@ -437,9 +439,11 @@ export async function getPilotageGlobal(input: {
   }
 
   // ——— Achats : mouvements structurés de matières ——————————————————
+  // Les achats doublés d'une dépense de caisse auto-générée (depenseId) sont
+  // portés par le journal caisse : ne pas compter la sortie deux fois.
   for (const doc of matieresDocs) {
     for (const m of doc.movements ?? []) {
-      if (m.cancelledAt) continue;
+      if (m.cancelledAt || m.depenseId) continue;
       rows.push({
         id: `achat-${m.id}`,
         date: doc._id,

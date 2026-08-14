@@ -11,41 +11,30 @@ import {
 import { formatFcfa } from "@/lib/format";
 import { computeMatieresDay } from "@/lib/matieres-calc";
 import type {
-  CaisseKey,
-  CaisseMouvement,
   Fournisseur,
   MatieresDay,
   MatieresMovement,
   RawMaterial,
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
-import { CAISSE_LABELS, CAISSE_SHORT_LABELS } from "@/lib/caisse-model";
 import { BrandLoader } from "@/components/brand-loader";
-
-type TabKey = "depenses" | "stock";
-
-type DepenseRow = {
-  sessionId: string;
-  sessionDate: string;
-  sessionUserName: string | null;
-  mouvement: CaisseMouvement;
-};
-
-type AchatsPayload = {
-  date: string;
-  caisse: CaisseKey;
-  depenses: DepenseRow[];
-  total: number;
-  caisseOpen: boolean;
-  activeDate: string | null;
-  allowedCaisses: CaisseKey[];
-  defaultCaisse: CaisseKey;
-};
 
 type StockPayload = {
   day: MatieresDay;
   materials: RawMaterial[];
+  depense?: { id: string; montant: number } | null;
+  depenseWarning?: string | null;
 };
+
+type DraftRow = {
+  qty: string;
+  price: string;
+  fournisseurId: string;
+};
+
+function emptyDraft(): DraftRow {
+  return { qty: "", price: "", fournisseurId: "" };
+}
 
 function formatTime(iso: string): string {
   try {
@@ -59,66 +48,27 @@ function formatTime(iso: string): string {
   }
 }
 
+function addDays(iso: string, days: number): string {
+  const d = new Date(`${iso}T12:00:00`);
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
 export function AchatsPage() {
-  const [tab, setTab] = useState<TabKey>("depenses");
   const [date, setDate] = useState(() => todayIsoDate());
-  const [caisse, setCaisse] = useState<CaisseKey>("zogbo");
-  const [allowed, setAllowed] = useState<CaisseKey[]>([]);
-  const [data, setData] = useState<AchatsPayload | null>(null);
-  const [caisseOpen, setCaisseOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Saisie d'une dépense
-  const [nature, setNature] = useState("");
-  const [beneficiaire, setBeneficiaire] = useState("");
-  const [montant, setMontant] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [flash, setFlash] = useState<string | null>(null);
-
-  // Onglet Stock (ancienne page Appro) : entrées de stock matières.
   const [day, setDay] = useState<MatieresDay | null>(null);
   const [materials, setMaterials] = useState<RawMaterial[]>([]);
-  const [draftBuy, setDraftBuy] = useState<Record<string, string>>({});
+  const [draftBuy, setDraftBuy] = useState<Record<string, DraftRow>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
-  const [fournisseurId, setFournisseurId] = useState("");
-
-  // Ouverture directe de l'onglet Stock (ex. depuis Contrôle).
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("tab") === "stock") {
-      const timer = window.setTimeout(() => setTab("stock"), 0);
-      return () => window.clearTimeout(timer);
-    }
-  }, []);
-
-  async function loadDepenses(nextCaisse: CaisseKey, nextDate: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/achats?caisse=${encodeURIComponent(nextCaisse)}&date=${encodeURIComponent(nextDate)}`,
-        { cache: "no-store" },
-      );
-      const body = (await res.json()) as AchatsPayload & { error?: string };
-      if (!res.ok) throw new Error(body.error || "Erreur");
-      setData(body);
-      setCaisse(body.caisse);
-      setCaisseOpen(body.caisseOpen);
-      setAllowed(body.allowedCaisses ?? []);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-      setData(null);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => void loadDepenses(caisse, date), 0);
-    return () => window.clearTimeout(timer);
-  }, [caisse, date]);
+  const [search, setSearch] = useState("");
+  const [historique, setHistorique] = useState<
+    Array<{ date: string; movement: MatieresMovement }>
+  >([]);
+  const [historiqueRange, setHistoriqueRange] = useState(7);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   async function loadStock(nextDate = date) {
     setLoading(true);
@@ -142,13 +92,10 @@ export function AchatsPage() {
   }
 
   useEffect(() => {
-    let timer = 0;
-    if (tab === "stock") {
-      timer = window.setTimeout(() => void loadStock(date), 0);
-    }
+    const timer = window.setTimeout(() => void loadStock(date), 0);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, date]);
+  }, [date]);
 
   // Fournisseurs proposés à la saisie : gérés dans Réglages.
   useEffect(() => {
@@ -168,55 +115,71 @@ export function AchatsPage() {
     };
   }, []);
 
+  // Historique multi-jours : mouvements aplatis sur la plage choisie.
+  useEffect(() => {
+    let annule = false;
+    void (async () => {
+      try {
+        const from = addDays(todayIsoDate(), -(historiqueRange - 1));
+        const res = await fetch(
+          `/api/matieres?from=${encodeURIComponent(from)}&to=${encodeURIComponent(todayIsoDate())}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          historique?: Array<{ date: string; movement: MatieresMovement }>;
+        };
+        if (!annule) setHistorique(body.historique ?? []);
+      } catch {
+        /* silencieux : le registre du jour reste consultable */
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, [historiqueRange]);
+
   const computed = useMemo(() => {
     if (!day) return null;
     return computeMatieresDay(day, materials);
   }, [day, materials]);
 
-  const totalDepenses = data?.total ?? 0;
+  const filteredLines = useMemo(() => {
+    if (!computed) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return computed.lines;
+    return computed.lines.filter((l) =>
+      l.name.toLowerCase().includes(q),
+    );
+  }, [computed, search]);
 
-  async function submitDepense() {
-    const montantOk = Math.round(Number(montant.replace(",", "."))) || 0;
-    if (montantOk <= 0 || nature.trim().length < 2) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/achats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "depense",
-          caisse,
-          date,
-          nature: nature.trim(),
-          beneficiaire: beneficiaire.trim() || undefined,
-          montant: montantOk,
-        }),
-      });
-      const body = (await res.json()) as (
-        | AchatsPayload
-        | { error?: string }
-      );
-      if (!res.ok) throw new Error((body as { error?: string }).error || "Erreur");
-      const payload = body as AchatsPayload;
-      if (payload.depenses) setData(payload);
-      setNature("");
-      setBeneficiaire("");
-      setMontant("");
-      setFlash(`${formatFcfa(montantOk)} enregistrés à la ${CAISSE_LABELS[caisse].toLowerCase()}`);
-      window.setTimeout(() => setFlash(null), 2600);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    } finally {
-      setSaving(false);
-    }
+  function patchDraft(productId: string, patch: Partial<DraftRow>) {
+    setDraftBuy((d) => {
+      const row = d[productId] ?? emptyDraft();
+      return { ...d, [productId]: { ...row, ...patch } };
+    });
   }
 
-  async function submitPurchase(productId: string, raw: string) {
-    const qty = Number(String(raw).replace(",", ".")) || 0;
+  async function submitPurchase(
+    productId: string,
+    fallbackPrice: number,
+    row: DraftRow,
+  ) {
+    const qty = Number(String(row.qty).replace(",", ".")) || 0;
     if (qty <= 0) return;
+    const price =
+      Number(String(row.price).replace(",", ".")) ||
+      Number(fallbackPrice) ||
+      0;
+    if (price <= 0) {
+      setError(
+        `Prix d'achat obligatoire pour cet achat : saisissez le prix unitaire.`,
+      );
+      return;
+    }
     setBusyId(`buy-${productId}`);
     setError(null);
+    setFlash(null);
     try {
       const res = await fetch("/api/matieres", {
         method: "POST",
@@ -225,14 +188,23 @@ export function AchatsPage() {
           date,
           productId,
           qty,
-          fournisseurId: fournisseurId || undefined,
+          unitPrice: price,
+          fournisseurId: row.fournisseurId || undefined,
         }),
       });
       const body = (await res.json()) as StockPayload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur");
       setDay(body.day);
       setMaterials(body.materials);
-      setDraftBuy((d) => ({ ...d, [productId]: "" }));
+      setDraftBuy((d) => ({ ...d, [productId]: emptyDraft() }));
+      if (body.depense) {
+        setFlash(
+          `Achat enregistré — dépense de ${formatFcfa(body.depense.montant)} créée à la caisse.`,
+        );
+      } else {
+        setFlash("Achat enregistré — caisse fermée : aucune dépense liée.");
+      }
+      reloadHistorique();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -240,26 +212,51 @@ export function AchatsPage() {
     }
   }
 
-  async function cancelMovement(m: MatieresMovement) {
+  function reloadHistorique() {
+    void (async () => {
+      try {
+        const from = addDays(todayIsoDate(), -(historiqueRange - 1));
+        const res = await fetch(
+          `/api/matieres?from=${encodeURIComponent(from)}&to=${encodeURIComponent(todayIsoDate())}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          historique?: Array<{ date: string; movement: MatieresMovement }>;
+        };
+        setHistorique(body.historique ?? []);
+      } catch {
+        /* silencieux */
+      }
+    })();
+  }
+
+  async function cancelMovement(m: MatieresMovement, dayDate: string) {
     if (!window.confirm(`Annuler cet achat de stock ?\n\n+${m.qty} × ${m.name}`)) {
       return;
     }
     setBusyId(`cancel-${m.id}`);
     setError(null);
+    setFlash(null);
     try {
       const res = await fetch("/api/matieres", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "cancel",
-          date,
+          date: dayDate,
           movementId: m.id,
         }),
       });
       const body = (await res.json()) as StockPayload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur");
-      setDay(body.day);
-      setMaterials(body.materials);
+      if (dayDate === date) {
+        setDay(body.day);
+        setMaterials(body.materials);
+      }
+      if (body.depenseWarning) setFlash(body.depenseWarning);
+      else setFlash("Achat annulé.");
+      reloadHistorique();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -267,42 +264,35 @@ export function AchatsPage() {
     }
   }
 
+  // Groupes de l'historique par jour, du plus récent au plus ancien.
+  const historyByDay = useMemo(() => {
+    const groups = new Map<string, Array<{ movement: MatieresMovement }>>();
+    for (const { date: d, movement } of historique) {
+      const list = groups.get(d) ?? [];
+      list.push({ movement });
+      groups.set(d, list);
+    }
+    return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  }, [historique]);
+
   return (
     <AppShell
       title="Achats"
-      subtitle="Dépenses du site avec explication + entrées de stock matières"
+      subtitle="Entrées de stock matières"
       actions={
         <ExportExcelButton
-          disabled={loading || !data}
+          disabled={loading || !computed}
           onExport={() => {
-            if (tab === "stock") {
-              if (!computed) return Promise.resolve();
-              downloadExcel(excelFilename("achats-stock", date), [
-                {
-                  name: "Stock",
-                  rows: computed.lines.map((l) => ({
-                    Matière: l.name,
-                    Unité: l.unit,
-                    Initial: l.initialStock,
-                    Achats: l.purchases,
-                    Stock: l.stock,
-                  })),
-                },
-              ]);
-              return Promise.resolve();
-            }
-            if (!data) return Promise.resolve();
-            downloadExcel(excelFilename("achats", date), [
+            if (!computed) return Promise.resolve();
+            downloadExcel(excelFilename("achats-stock", date), [
               {
-                name: "Dépenses",
-                rows: data.depenses.map((d) => ({
-                  Heure: formatTime(d.mouvement.at),
-                  Explication: d.mouvement.nature,
-                  Bénéficiaire: d.mouvement.beneficiaire || "",
-                  Montant: d.mouvement.montant,
-                  Statut: d.mouvement.cancelledAt
-                    ? `Annulée par ${d.mouvement.cancelledByName ?? "—"}`
-                    : "Active",
+                name: "Stock",
+                rows: computed.lines.map((l) => ({
+                  Matière: l.name,
+                  Unité: l.unit,
+                  Initial: l.initialStock,
+                  Achats: l.purchases,
+                  Stock: l.stock,
                 })),
               },
             ]);
@@ -311,150 +301,12 @@ export function AchatsPage() {
         />
       }
     >
-      <ContextBar
-        date={date}
-        onDateChange={setDate}
-        siteLabel={CAISSE_SHORT_LABELS[caisse]}
-      >
-        {allowed.length > 1 ? (
-          <div className="site-switch caisse-switch" role="tablist" aria-label="Caisse">
-            {allowed.map((c) => (
-              <button
-                key={c}
-                type="button"
-                role="tab"
-                aria-selected={caisse === c}
-                className={`site-btn${caisse === c ? " is-active" : ""}`}
-                onClick={() => setCaisse(c)}
-              >
-                {CAISSE_SHORT_LABELS[c]}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </ContextBar>
-
-      <div className="section-tabs" role="tablist" aria-label="Saisie">
-        {(
-          [
-            ["depenses", "Dépenses"],
-            ["stock", "Stock"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            className={`section-tab${tab === key ? " is-active" : ""}`}
-            onClick={() => setTab(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <ContextBar date={date} onDateChange={setDate} />
 
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
-      {flash ? (
-        <p className="ui-info" role="status">
-          <span className="ui-info-mark" aria-hidden>
-            i
-          </span>
-          {flash}
-        </p>
-      ) : null}
+      {flash ? <p className="ui-info" role="status">{flash}</p> : null}
 
-      {tab === "depenses" ? (
-        loading || !data ? (
-          <BrandLoader variant="ligne" label="Chargement des achats…" />
-        ) : (
-          <div className="dash">
-            <section className="panel">
-              <h2 className="panel-title">Nouvelle dépense — {CAISSE_LABELS[caisse]}</h2>
-              {!caisseOpen ? (
-                <p className="warn-inline">
-                  Caisse du site fermée : ouvrez-la depuis l’écran Caisse pour
-                  enregistrer une dépense.
-                </p>
-              ) : null}
-              <div className="caisse-form-grid">
-                <label className="caisse-field">
-                  <span>Explication (obligatoire)</span>
-                  <input
-                    value={nature}
-                    onChange={(e) => setNature(e.target.value)}
-                    placeholder="Ex. achat riz, gaz, transport, électricité…"
-                  />
-                </label>
-                <label className="caisse-field">
-                  <span>Montant (FCFA)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={montant}
-                    onChange={(e) => setMontant(e.target.value)}
-                  />
-                </label>
-                <label className="caisse-field">
-                  <span>Bénéficiaire / fournisseur (facultatif)</span>
-                  <input
-                    value={beneficiaire}
-                    onChange={(e) => setBeneficiaire(e.target.value)}
-                    placeholder="Ex. marché Dantokpa"
-                  />
-                </label>
-              </div>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={
-                  saving ||
-                  !caisseOpen ||
-                  nature.trim().length < 2 ||
-                  (Number(montant.replace(",", ".")) || 0) <= 0
-                }
-                onClick={() => void submitDepense()}
-              >
-                {saving ? "Enregistrement…" : "Enregistrer la dépense"}
-              </button>
-            </section>
-
-            <section className="panel">
-              <h2 className="panel-title">
-                Dépenses du jour · {formatFcfa(totalDepenses)}
-              </h2>
-              {data.depenses.length === 0 ? (
-                <p className="muted">Aucune dépense ce jour sur la {CAISSE_LABELS[caisse].toLowerCase()}.</p>
-              ) : (
-                <ul className="vente-log">
-                  {data.depenses.map((d) => (
-                    <li
-                      key={d.mouvement.id}
-                      className={d.mouvement.cancelledAt ? "is-cancelled" : undefined}
-                    >
-                      <div>
-                        <strong>{formatFcfa(d.mouvement.montant)}</strong>
-                        {" · "}
-                        {d.mouvement.nature}
-                        {d.mouvement.beneficiaire ? (
-                          <span className="muted"> — {d.mouvement.beneficiaire}</span>
-                        ) : null}
-                        <div className="vente-log-time muted">
-                          {formatTime(d.mouvement.at)}
-                          {d.sessionUserName ? ` · par ${d.sessionUserName}` : ""}
-                          {d.mouvement.cancelledAt
-                            ? ` · annulée par ${d.mouvement.cancelledByName ?? "—"}`
-                            : ""}
-                        </div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </div>
-        )
-      ) : loading || !day || !computed ? (
+      {loading || !day || !computed ? (
         <BrandLoader variant="ligne" label="Chargement des achats…" />
       ) : materials.length === 0 ? (
         <p className="ui-info">
@@ -462,27 +314,16 @@ export function AchatsPage() {
         </p>
       ) : (
         <>
-          {fournisseurs.length > 0 ? (
-            <div className="ui-info" role="note">
-              <span className="ui-info-mark" aria-hidden>
-                i
-              </span>
-              <label className="vente-field">
-                <span>Fournisseur des achats saisis</span>
-                <select
-                  value={fournisseurId}
-                  onChange={(e) => setFournisseurId(e.target.value)}
-                >
-                  <option value="">— non précisé</option>
-                  {fournisseurs.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nom}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          ) : null}
+          <div className="vente-field" style={{ maxWidth: "24rem" }}>
+            <label htmlFor="recherche-matiere">Rechercher une matière</label>
+            <input
+              id="recherche-matiere"
+              type="search"
+              placeholder="Nom de la matière…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
 
           <section className="panel">
             <table className="data-table">
@@ -495,60 +336,103 @@ export function AchatsPage() {
                 </tr>
               </thead>
               <tbody>
-                {computed.lines.map((line) => (
-                  <tr key={line.productId}>
-                    <td>
-                      <strong>{line.name}</strong>
-                      {line.unit ? (
-                        <span className="muted"> · {line.unit}</span>
-                      ) : null}
-                      {line.stock <= 0 ? (
-                        <span className="vente-out-badge vente-out-badge-inline">
-                          ÉPUISÉ
-                        </span>
-                      ) : line.belowThreshold ? (
-                        <span className="vente-low-badge vente-low-badge-inline">
-                          Bientôt épuisé
-                        </span>
-                      ) : null}
-                    </td>
-                    <td className="col-num mono">{line.stock}</td>
-                    <td className="col-num mono">{line.purchases}</td>
-                    <td>
-                      <div className="inline-buy">
-                        <input
-                          type="number"
-                          min={0}
-                          step="any"
-                          className="input-num"
-                          value={draftBuy[line.productId] ?? ""}
-                          onChange={(e) =>
-                            setDraftBuy((d) => ({
-                              ...d,
-                              [line.productId]: e.target.value,
-                            }))
-                          }
-                          aria-label={`Achat ${line.name}`}
-                        />
-                        <button
-                          type="button"
-                          className="btn btn-primary"
-                          disabled={busyId === `buy-${line.productId}`}
-                          onClick={() =>
-                            void submitPurchase(
-                              line.productId,
-                              draftBuy[line.productId] ?? "",
-                            )
-                          }
-                        >
-                          + Achat
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                {filteredLines.map((line) => {
+                  const mat = materials.find(
+                    (m) => m.id === line.productId,
+                  );
+                  const row = draftBuy[line.productId] ?? emptyDraft();
+                  return (
+                    <tr key={line.productId}>
+                      <td>
+                        <strong>{line.name}</strong>
+                        {line.unit ? (
+                          <span className="muted"> · {line.unit}</span>
+                        ) : null}
+                        {line.stock <= 0 ? (
+                          <span className="vente-out-badge vente-out-badge-inline">
+                            ÉPUISÉ
+                          </span>
+                        ) : line.belowThreshold ? (
+                          <span className="vente-low-badge vente-low-badge-inline">
+                            Bientôt épuisé
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="col-num mono">{line.stock}</td>
+                      <td className="col-num mono">{line.purchases}</td>
+                      <td>
+                        <div className="inline-buy inline-buy-achats">
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            className="input-num"
+                            placeholder="Qté"
+                            value={row.qty}
+                            onChange={(e) =>
+                              patchDraft(line.productId, { qty: e.target.value })
+                            }
+                            aria-label={`Quantité à acheter ${line.name}`}
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            className="input-num"
+                            placeholder={
+                              mat?.purchasePrice
+                                ? `Prix (${mat.purchasePrice})`
+                                : "Prix / u"
+                            }
+                            value={row.price}
+                            onChange={(e) =>
+                              patchDraft(line.productId, { price: e.target.value })
+                            }
+                            aria-label={`Prix d'achat unitaire ${line.name}`}
+                          />
+                          {fournisseurs.length > 0 ? (
+                            <select
+                              className="input-select"
+                              value={row.fournisseurId}
+                              onChange={(e) =>
+                                patchDraft(line.productId, {
+                                  fournisseurId: e.target.value,
+                                })
+                              }
+                              aria-label={`Fournisseur ${line.name}`}
+                            >
+                              <option value="">Fournisseur…</option>
+                              {fournisseurs.map((f) => (
+                                <option key={f.id} value={f.id}>
+                                  {f.nom}
+                                </option>
+                              ))}
+                            </select>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={busyId === `buy-${line.productId}`}
+                            onClick={() =>
+                              void submitPurchase(
+                                line.productId,
+                                mat?.purchasePrice ?? 0,
+                                row,
+                              )
+                            }
+                          >
+                            + Achat
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
+            {filteredLines.length === 0 ? (
+              <p className="muted">Aucune matière ne correspond à « {search} ».</p>
+            ) : null}
           </section>
 
           <section className="panel">
@@ -575,6 +459,7 @@ export function AchatsPage() {
                       <div className="vente-log-time muted">
                         {formatTime(m.at)}
                         {m.fournisseurNom ? ` · ${m.fournisseurNom}` : ""}
+                        {m.depenseId ? " · dépense liée" : ""}
                         {m.cancelledAt ? " · annulé" : ""}
                       </div>
                     </div>
@@ -583,7 +468,7 @@ export function AchatsPage() {
                         type="button"
                         className="btn btn-ghost"
                         disabled={busyId === `cancel-${m.id}`}
-                        onClick={() => void cancelMovement(m)}
+                        onClick={() => void cancelMovement(m, date)}
                       >
                         Annuler
                       </button>
@@ -593,9 +478,72 @@ export function AchatsPage() {
               </ul>
             )}
           </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h2 className="panel-title">Historique des achats</h2>
+              <select
+                className="input-select"
+                value={historiqueRange}
+                onChange={(e) => setHistoriqueRange(Number(e.target.value))}
+                aria-label="Plage de l'historique"
+              >
+                <option value={7}>7 derniers jours</option>
+                <option value={30}>30 derniers jours</option>
+                <option value={90}>90 derniers jours</option>
+              </select>
+            </div>
+            {historique.length === 0 ? (
+              <p className="muted">
+                Aucun achat sur cette période.
+              </p>
+            ) : (
+              historyByDay.map(([d, entries]) => (
+                <div key={d} className="history-day">
+                  <h3 className="history-day-title">{d}</h3>
+                  <ul className="vente-log">
+                    {entries.map(({ movement: m }) => (
+                      <li
+                        key={m.id}
+                        className={m.cancelledAt ? "is-cancelled" : undefined}
+                      >
+                        <div>
+                          <strong>
+                            +{m.qty} × {m.name}
+                          </strong>
+                          {m.unitPrice > 0 ? (
+                            <span className="muted">
+                              {" "}
+                              ({formatFcfa(m.unitPrice)} / u —{" "}
+                              {formatFcfa(m.qty * m.unitPrice)})
+                            </span>
+                          ) : null}
+                          <div className="vente-log-time muted">
+                            {formatTime(m.at)}
+                            {m.fournisseurNom ? ` · ${m.fournisseurNom}` : ""}
+                            {m.depenseId ? " · dépense liée" : ""}
+                            {m.cancelledAt ? " · annulé" : ""}
+                          </div>
+                        </div>
+                        {!m.cancelledAt ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            disabled={busyId === `cancel-${m.id}`}
+                            onClick={() => void cancelMovement(m, d)}
+                          >
+                            Annuler
+                          </button>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            )}
+          </section>
         </>
       )}
-
     </AppShell>
   );
 }

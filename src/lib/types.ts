@@ -763,6 +763,8 @@ export type MatieresMovement = {
   /** Fournisseur de cet achat — permet de comparer les prix dans le temps */
   fournisseurId?: string | null;
   fournisseurNom?: string | null;
+  /** Dépense de trésorerie auto-générée à la caisse lors de l'achat. */
+  depenseId?: string | null;
 };
 
 export type MatieresDay = {

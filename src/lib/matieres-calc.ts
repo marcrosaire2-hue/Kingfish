@@ -54,6 +54,7 @@ export function normalizeMatieresMovement(
     unitPrice: Math.max(0, Number(m.unitPrice) || 0),
     stockAfter: Math.max(0, Number(m.stockAfter) || 0),
     cancelledAt: m.cancelledAt ?? null,
+    depenseId: m.depenseId ?? null,
   };
 }
 
@@ -126,6 +127,8 @@ export function applyMatieresPurchaseToState(
 } {
   const qty = Math.max(0, Number(input.qty) || 0);
   if (qty <= 0) throw new Error("Quantité invalide");
+  const unitPrice = Math.max(0, Number(input.unitPrice) || 0);
+  if (unitPrice <= 0) throw new Error("Prix d'achat obligatoire");
 
   const idx = lines.findIndex((l) => l.productId === input.productId);
   if (idx < 0) throw new Error("Matière introuvable");
@@ -142,11 +145,12 @@ export function applyMatieresPurchaseToState(
     productId: line.productId,
     name: line.name,
     qty,
-    unitPrice: Math.max(0, Number(input.unitPrice) || 0),
+    unitPrice,
     stockAfter,
     cancelledAt: null,
     fournisseurId: input.fournisseurId ?? null,
     fournisseurNom: input.fournisseurNom ?? null,
+    depenseId: null,
   };
 
   return {

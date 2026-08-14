@@ -33,6 +33,7 @@ describe("applyMatieresPurchaseToState", () => {
     const { movement } = applyMatieresPurchaseToState([ligne()], [], {
       productId: "mat-riz",
       qty: 10,
+      unitPrice: 700,
       fournisseurId: "frn-1",
       fournisseurNom: "Marché Dantokpa",
     });
@@ -44,9 +45,19 @@ describe("applyMatieresPurchaseToState", () => {
     const { movement } = applyMatieresPurchaseToState([ligne()], [], {
       productId: "mat-riz",
       qty: 5,
+      unitPrice: 700,
     });
     expect(movement.fournisseurId).toBeNull();
     expect(movement.fournisseurNom).toBeNull();
+  });
+
+  it("refuse un achat sans prix unitaire", () => {
+    expect(() =>
+      applyMatieresPurchaseToState([ligne()], [], {
+        productId: "mat-riz",
+        qty: 5,
+      }),
+    ).toThrow(/Prix d'achat obligatoire/);
   });
 
   it("refuse une quantité nulle ou négative", () => {
@@ -55,6 +66,7 @@ describe("applyMatieresPurchaseToState", () => {
         applyMatieresPurchaseToState([ligne()], [], {
           productId: "mat-riz",
           qty,
+          unitPrice: 700,
         }),
       ).toThrow(/Quantité invalide/);
     }
@@ -65,6 +77,7 @@ describe("applyMatieresPurchaseToState", () => {
       applyMatieresPurchaseToState([ligne()], [], {
         productId: "inconnu",
         qty: 5,
+        unitPrice: 700,
       }),
     ).toThrow(/introuvable/);
   });
@@ -73,10 +86,12 @@ describe("applyMatieresPurchaseToState", () => {
     const un = applyMatieresPurchaseToState([ligne()], [], {
       productId: "mat-riz",
       qty: 5,
+      unitPrice: 700,
     });
     const deux = applyMatieresPurchaseToState(un.lines, un.movements, {
       productId: "mat-riz",
       qty: 7,
+      unitPrice: 700,
     });
     expect(deux.movements[0]!.qty).toBe(7);
     expect(deux.lines[0]!.purchases).toBe(12);

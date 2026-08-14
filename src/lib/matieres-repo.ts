@@ -218,13 +218,17 @@ export async function applyMatieresPurchase(input: {
     "Journée clôturée : achat matière impossible.",
   );
   const mat = payload.materials.find((m) => m.id === input.productId);
+  const unitPrice = input.unitPrice ?? mat?.purchasePrice ?? 0;
+  if (unitPrice <= 0) {
+    throw new Error("Prix d'achat obligatoire : saisissez le prix unitaire.");
+  }
   const applied = applyMatieresPurchaseToState(
     payload.day.lines,
     payload.day.movements ?? [],
     {
       productId: input.productId,
       qty: input.qty,
-      unitPrice: input.unitPrice ?? mat?.purchasePrice ?? 0,
+      unitPrice,
       fournisseurId: input.fournisseurId,
       fournisseurNom: input.fournisseurNom,
     },
@@ -258,6 +262,51 @@ export async function applyMatieresPurchase(input: {
     materials: payload.materials,
     movement: applied.movement,
   };
+}
+
+/**
+ * Rattache une dépense de caisse auto-générée à un achat : le mouvement de
+ * stock porte le lien pour que l'annulation de l'achat puisse aussi annuler
+ * la dépense, et que le pilotage ne compte pas deux fois la sortie.
+ */
+export async function linkMatieresMovementDepense(input: {
+  date: string;
+  movementId: string;
+  depenseId: string;
+}): Promise<void> {
+  const db = await getDb();
+  await db.collection<MatieresDoc>("matieres_jours").updateOne(
+    { _id: input.date, "movements.id": input.movementId },
+    { $set: { "movements.$.depenseId": input.depenseId } },
+  );
+}
+
+/**
+ * Historique multi-jours des achats de stock : les mouvements vivent dans les
+ * documents journaliers, cette lecture les aplatit avec leur jour pour la vue
+ * d'historique sans rien déplacer.
+ */
+export async function listMatieresMovements(input: {
+  dateFrom: string;
+  dateTo: string;
+}): Promise<Array<{ date: string; movement: MatieresMovement }>> {
+  if (!isValidDate(input.dateFrom) || !isValidDate(input.dateTo)) {
+    throw new Error("Date invalide (attendu YYYY-MM-DD)");
+  }
+  const db = await getDb();
+  const docs = await db
+    .collection<MatieresDoc>("matieres_jours")
+    .find({ _id: { $gte: input.dateFrom, $lte: input.dateTo } })
+    .sort({ _id: 1 })
+    .toArray();
+  const out: Array<{ date: string; movement: MatieresMovement }> = [];
+  for (const doc of docs) {
+    for (const m of doc.movements ?? []) {
+      const movement = normalizeMatieresMovement(m);
+      if (movement) out.push({ date: doc._id, movement });
+    }
+  }
+  return out.sort((a, b) => b.movement.at.localeCompare(a.movement.at));
 }
 
 export async function cancelMatieresMovement(input: {
