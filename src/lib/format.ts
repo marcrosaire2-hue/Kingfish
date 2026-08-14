@@ -1,8 +1,11 @@
+/** Instance réutilisée : créée une seule fois, pas par appel. */
+const CURRENCY_FORMAT = new Intl.NumberFormat("fr-FR");
+
 export function formatFcfa(value: number | null | undefined): string {
   if (value === null || value === undefined || Number.isNaN(value)) {
     return "—";
   }
-  return `${new Intl.NumberFormat("fr-FR").format(value)} FCFA`;
+  return `${CURRENCY_FORMAT.format(value)} FCFA`;
 }
 
 export function parseMoneyInput(raw: string): number | null {

@@ -269,6 +269,21 @@ export function PertesPage() {
       ) : null}
       {flash ? <p className="login-hint">{flash}</p> : null}
 
+      <div className="dash-kpi-grid pertes-kpi-grid">
+        <div
+          className={`dash-kpi${coutDuJour > 0 ? " dash-kpi-warn" : ""}`}
+        >
+          <span className="dash-kpi-label">Pertes du jour</span>
+          <span className="dash-kpi-value">{formatFcfa(coutDuJour)}</span>
+        </div>
+        <div className="dash-kpi">
+          <span className="dash-kpi-label">Déclarations</span>
+          <span className="dash-kpi-value">
+            {pertes.filter((p) => !p.cancelledAt).length}
+          </span>
+        </div>
+      </div>
+
       <div className="section-tabs" role="tablist" aria-label="Famille">
         {FAMILLES.filter((f) => !(f.key === "local" && site === "zogbo")).map(
           (f) => (

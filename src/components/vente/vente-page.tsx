@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
@@ -67,13 +67,17 @@ const CAT_LABELS: Record<CatKey, string> = {
 
 const SALE_TYPES: SaleType[] = ["Sur place", "Rapido"];
 
+/** Instance unique : construire un Intl.DateTimeFormat par ligne de journal
+ *  et à chaque render coûtait cher sur mobile. */
+const LOG_TIME_FORMAT = new Intl.DateTimeFormat("fr-FR", {
+  dateStyle: "short",
+  timeStyle: "medium",
+  timeZone: "Africa/Porto-Novo",
+});
+
 function formatLogTime(iso: string): string {
   try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      dateStyle: "short",
-      timeStyle: "medium",
-      timeZone: "Africa/Porto-Novo",
-    }).format(new Date(iso));
+    return LOG_TIME_FORMAT.format(new Date(iso));
   } catch {
     return iso;
   }
@@ -153,6 +157,387 @@ function printTicket(
   w.print();
   return true;
 }
+
+/* ---------------------------------------------------------------- *
+ * Sous-composants mémoïsés : une frappe dans les champs du panier ne
+ * re-rend plus la grille produit ni les listes, sur mobile c'est ce
+ * qui faisait saccader le défilement.
+ * ---------------------------------------------------------------- */
+
+type ProductGridProps = {
+  products: VenteProduct[];
+  caisse: CaisseSession | null;
+  onAdd: (product: VenteProduct) => void;
+};
+
+const ProductGrid = memo(function ProductGrid({
+  products,
+  caisse,
+  onAdd,
+}: ProductGridProps) {
+  if (products.length === 0) {
+    return <p className="muted vente-empty">Aucun produit.</p>;
+  }
+  return (
+    <div className="vente-grid">
+      {products.map((p) => {
+        const disabledPv = p.kind === "boisson" && p.unitPrice <= 0;
+        // Accompagnements toujours vendables, même à stock nul.
+        const outOfStock =
+          p.kind !== "local" &&
+          p.stockLeft !== null &&
+          p.stockLeft !== undefined &&
+          p.stockLeft <= 0;
+        return (
+          <article
+            key={`${p.kind}-${p.productId}`}
+            className={`vente-card${disabledPv || outOfStock ? " is-disabled" : ""}${
+              p.lowStock && !outOfStock ? " is-low" : ""
+            }`}
+          >
+            <div className="vente-card-media" aria-hidden>
+              <ProductIcon kind={p.kind} name={p.name} size="lg" />
+              {outOfStock ? (
+                <span className="vente-out-badge">ÉPUISÉ</span>
+              ) : p.lowStock && !outOfStock ? (
+                <span className="vente-low-badge">
+                  Bientôt épuisé
+                </span>
+              ) : null}
+            </div>
+            <div className="vente-card-body">
+              <h3>{p.name}</h3>
+              <span className="vente-price mono">
+                {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
+              </span>
+              {p.hint ? (
+                <p className="vente-hint">{p.hint}</p>
+              ) : null}
+            </div>
+            <div className="vente-card-actions is-single">
+              <button
+                type="button"
+                className="vente-plus"
+                disabled={disabledPv || outOfStock || !caisse}
+                onClick={() => onAdd(p)}
+              >
+                +
+              </button>
+            </div>
+          </article>
+        );
+      })}
+    </div>
+  );
+});
+
+type MealComposerProps = {
+  plats: VenteProduct[];
+  caisse: CaisseSession | null;
+  busyKey: string | null;
+  composerPlatId: string;
+  composerPlat: VenteProduct | null;
+  composerQty: number;
+  composerAccOptions: VenteProduct[];
+  composerAccQtys: Record<string, number>;
+  composerTotal: number;
+  onSelectPlat: (id: string) => void;
+  onQtyChange: (delta: number) => void;
+  onAccQtyChange: (productId: string, delta: number) => void;
+  onCommit: () => void;
+  accPriceFor: (acc: VenteProduct) => number;
+};
+
+const MealComposer = memo(function MealComposer({
+  plats,
+  caisse,
+  busyKey,
+  composerPlatId,
+  composerPlat,
+  composerQty,
+  composerAccOptions,
+  composerAccQtys,
+  composerTotal,
+  onSelectPlat,
+  onQtyChange,
+  onAccQtyChange,
+  onCommit,
+  accPriceFor,
+}: MealComposerProps) {
+  return (
+    <section className="vente-meal-composer vente-panel">
+      <header className="vente-panel-head">
+        <h2>Vente plat + accompagnements</h2>
+        <p>
+          Choisissez le plat, puis les accompagnements souhaités
+          (optionnels). Chaque ligne part séparément au panier.
+        </p>
+      </header>
+      {plats.length === 0 ? (
+        <p className="muted vente-empty">Aucun plat au catalogue.</p>
+      ) : (
+        <>
+          <div className="vente-meal-plat-row">
+            <label className="vente-field vente-field-plat">
+              <span>Plat</span>
+              <select
+                value={composerPlatId}
+                onChange={(e) => onSelectPlat(e.target.value)}
+              >
+                <option value="">— Choisir —</option>
+                {plats.map((p) => {
+                  const platEpuise =
+                    p.stockLeft !== null &&
+                    p.stockLeft !== undefined &&
+                    p.stockLeft <= 0;
+                  return (
+                    <option
+                      key={p.productId}
+                      value={p.productId}
+                      disabled={platEpuise}
+                    >
+                      {p.name}
+                      {platEpuise ? " · ÉPUISÉ" : ""}
+                      {p.unitPrice > 0
+                        ? ` · ${formatFcfa(p.unitPrice)}`
+                        : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+            <div className="vente-meal-qty">
+              <span className="vente-qty-label">Qté</span>
+              <div className="vente-meal-qty-stepper">
+                <button
+                  type="button"
+                  className="vente-minus"
+                  aria-label="Moins de plats"
+                  disabled={
+                    !composerPlat ||
+                    composerQty <= 1 ||
+                    !!busyKey
+                  }
+                  onClick={() => onQtyChange(-1)}
+                >
+                  −
+                </button>
+                <span className="vente-qty mono">{composerQty}</span>
+                <button
+                  type="button"
+                  className="vente-plus"
+                  aria-label="Plus de plats"
+                  disabled={
+                    !composerPlat ||
+                    !!busyKey ||
+                    (composerPlat.stockLeft !== null &&
+                      composerPlat.stockLeft !== undefined &&
+                      composerQty >= composerPlat.stockLeft)
+                  }
+                  onClick={() => onQtyChange(1)}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+          {composerPlat?.hint ? (
+            <p className="vente-hint">{composerPlat.hint}</p>
+          ) : null}
+          {composerAccOptions.length > 0 ? (
+            <fieldset className="vente-acc-picker">
+              <legend>Accompagnements (optionnel) — quantité par ligne</legend>
+              <ul className="vente-acc-list">
+                {composerAccOptions.map((a) => {
+                  const accQty = composerAccQtys[a.productId] ?? 0;
+                  const accPrice = accPriceFor(a);
+                  return (
+                    <li key={a.productId}>
+                      <div className="vente-acc-option">
+                        <span className="vente-acc-option-name">
+                          <span>
+                            {a.name}
+                            {accPrice > 0
+                              ? ` · ${formatFcfa(accPrice)}`
+                              : ""}
+                          </span>
+                          {a.hint ? (
+                            <span className="vente-hint-inline">
+                              {" "}
+                              · {a.hint}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="vente-acc-qty">
+                          <button
+                            type="button"
+                            className="vente-minus"
+                            aria-label={`Moins de ${a.name}`}
+                            disabled={accQty <= 0 || !!busyKey}
+                            onClick={() =>
+                              onAccQtyChange(a.productId, -1)
+                            }
+                          >
+                            −
+                          </button>
+                          <span className="vente-qty mono">
+                            {accQty}
+                          </span>
+                          <button
+                            type="button"
+                            className="vente-plus"
+                            aria-label={`Plus de ${a.name}`}
+                            disabled={!!busyKey}
+                            onClick={() =>
+                              onAccQtyChange(a.productId, 1)
+                            }
+                          >
+                            +
+                          </button>
+                        </span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </fieldset>
+          ) : (
+            <p className="muted vente-acc-empty">
+              Aucun accompagnement — Paramètres → Accompagnements.
+            </p>
+          )}
+          <div className="vente-meal-actions">
+            <span className="vente-meal-total mono">
+              {composerPlat ? formatFcfa(composerTotal) : "—"}
+            </span>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!composerPlat || !caisse}
+              onClick={() => onCommit()}
+            >
+              Ajouter au panier
+            </button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+});
+
+type CartLinesProps = {
+  cart: CartLine[];
+  onChangeQty: (key: string, delta: number) => void;
+};
+
+const CartLines = memo(function CartLines({
+  cart,
+  onChangeQty,
+}: CartLinesProps) {
+  return (
+    <ul className="pos-cart-list">
+      {cart.map((l) => (
+        <li key={l.key}>
+          <div>
+            <strong>{l.name}</strong>
+            <div className="muted mono">
+              {formatFcfa(l.unitPrice)} × {l.qty}
+            </div>
+          </div>
+          <div className="vente-card-actions">
+            <button
+              type="button"
+              className="vente-minus"
+              onClick={() => onChangeQty(l.key, -1)}
+            >
+              −
+            </button>
+            <span className="vente-qty mono">{l.qty}</span>
+            <button
+              type="button"
+              className="vente-plus"
+              onClick={() => onChangeQty(l.key, 1)}
+            >
+              +
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+});
+
+type TicketsListProps = {
+  tickets: PosTicket[];
+  busyKey: string | null;
+  canViewHistory: boolean;
+  onFacture: (ticket: PosTicket) => void;
+  onCancel: (ticket: PosTicket) => void;
+};
+
+const TicketsList = memo(function TicketsList({
+  tickets,
+  busyKey,
+  canViewHistory,
+  onFacture,
+  onCancel,
+}: TicketsListProps) {
+  return (
+    <div className="pos-tickets">
+      <h3 className="vente-tickets-title">
+        Tickets du jour · {tickets.length}
+      </h3>
+      <ul className="vente-log pos-tickets-scroll">
+        {tickets.map((t) => (
+          <li key={t.id}>
+            <div>
+              <strong>
+                {t.numero} · {t.saleType}
+              </strong>
+              <span className="muted mono">
+                {" "}
+                · {formatFcfa(t.montant)}
+              </span>
+              <div className="muted">
+                {t.statut === "valide"
+                  ? "Validé"
+                  : t.statut === "annule"
+                    ? "Annulé"
+                    : t.statut}
+              </div>
+            </div>
+            <div className="pos-ticket-actions">
+              {t.statut === "valide" ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    onClick={() => onFacture(t)}
+                  >
+                    Facture
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={!!busyKey}
+                    onClick={() => onCancel(t)}
+                  >
+                    Annuler
+                  </button>
+                </>
+              ) : null}
+            </div>
+          </li>
+        ))}
+      </ul>
+      {canViewHistory ? (
+        <Link href="/historique-ventes" className="vente-hist-link">
+          Voir tout l’historique des ventes
+        </Link>
+      ) : null}
+    </div>
+  );
+});
 
 export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean }) {
   const pathname = usePathname();
@@ -240,7 +625,10 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   }, [board]);
 
   async function load(nextDate = date, nextSite = site) {
-    setLoading(true);
+    // Rechargement silencieux quand la page affiche déjà des données : pas de
+    // gel sur un loader, les produits restent sous le doigt pendant la mise
+    // à jour. Seul le premier chargement (ou changement de jour/site) fige.
+    if (!board) setLoading(true);
     setError(null);
     try {
       const [venteRes, posRes] = await Promise.all([
@@ -364,10 +752,13 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
 
   /** Prix d'un accompagnement : grille « plat + accompagnement » si le plat
    *  est au catalogue statique, sinon son prix du jour. */
-  function accPriceFor(acc: VenteProduct): number {
-    if (!composerPlatId || !platDefStatic) return acc.unitPrice;
-    return accompanimentUnitPrice(composerPlatId, acc.productId);
-  }
+  const accPriceFor = useCallback(
+    (acc: VenteProduct): number => {
+      if (!composerPlatId || !platDefStatic) return acc.unitPrice;
+      return accompanimentUnitPrice(composerPlatId, acc.productId);
+    },
+    [composerPlatId, platDefStatic],
+  );
 
   useEffect(() => {
     setComposerQty(1);
@@ -395,21 +786,71 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [composerPlat, composerPlatId, composerAccQtys, composerAccOptions, composerQty]);
 
-  function changeComposerAccQty(productId: string, delta: number) {
+  const changeComposerAccQty = useCallback((productId: string, delta: number) => {
     setComposerAccQtys((prev) => {
       const next = { ...prev, [productId]: Math.max(0, (prev[productId] ?? 0) + delta) };
       if (next[productId] === 0) delete next[productId];
       return next;
     });
-  }
+  }, []);
 
-  function resetComposer() {
+  const changeComposerQty = useCallback(
+    (delta: number) => setComposerQty((q) => Math.max(1, q + delta)),
+    [],
+  );
+
+  const resetComposer = useCallback(() => {
     setComposerPlatId("");
     setComposerAccQtys({});
     setComposerQty(1);
-  }
+  }, []);
 
-  async function commitMeal() {
+  const addToCart = useCallback(
+    (product: VenteProduct, unitPriceOverride?: number, qty = 1) => {
+      if (product.kind === "boisson" && product.unitPrice <= 0) return;
+      // Accompagnements toujours vendables, même à stock nul.
+      if (
+        product.kind !== "local" &&
+        product.stockLeft !== null &&
+        product.stockLeft !== undefined &&
+        product.stockLeft <= 0
+      ) {
+        return;
+      }
+      const unitPrice = unitPriceOverride ?? product.unitPrice;
+      setCart((prev) => {
+        const key = `${product.kind}:${product.productId}:${unitPrice}`;
+        const existing = prev.find((l) => l.key === key);
+        if (existing) {
+          return prev.map((l) =>
+            l.key === key ? { ...l, qty: l.qty + qty } : l,
+          );
+        }
+        return [
+          ...prev,
+          {
+            key,
+            kind: product.kind,
+            productId: product.productId,
+            name: product.name,
+            unitPrice,
+            qty,
+          },
+        ];
+      });
+    },
+    [],
+  );
+
+  const changeCartQty = useCallback((key: string, delta: number) => {
+    setCart((prev) =>
+      prev
+        .map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l))
+        .filter((l) => l.qty > 0),
+    );
+  }, []);
+
+  const commitMeal = useCallback(() => {
     if (!composerPlat) {
       setError("Choisissez un plat.");
       return;
@@ -442,7 +883,15 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     }
     resetComposer();
     setError(null);
-  }
+  }, [
+    composerPlat,
+    composerQty,
+    composerAccOptions,
+    composerAccQtys,
+    addToCart,
+    accPriceFor,
+    resetComposer,
+  ]);
 
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
   const recentCount = board?.recent.length ?? 0;
@@ -453,53 +902,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   );
   const cartNet = cartTotal - reductionN;
 
-  function addToCart(
-    product: VenteProduct,
-    unitPriceOverride?: number,
-    qty = 1,
-  ) {
-    if (product.kind === "boisson" && product.unitPrice <= 0) return;
-    // Accompagnements toujours vendables, même à stock nul.
-    if (
-      product.kind !== "local" &&
-      product.stockLeft !== null &&
-      product.stockLeft !== undefined &&
-      product.stockLeft <= 0
-    ) {
-      return;
-    }
-    const unitPrice = unitPriceOverride ?? product.unitPrice;
-    setCart((prev) => {
-      const key = `${product.kind}:${product.productId}:${unitPrice}`;
-      const existing = prev.find((l) => l.key === key);
-      if (existing) {
-        return prev.map((l) =>
-          l.key === key ? { ...l, qty: l.qty + qty } : l,
-        );
-      }
-      return [
-        ...prev,
-        {
-          key,
-          kind: product.kind,
-          productId: product.productId,
-          name: product.name,
-          unitPrice,
-          qty,
-        },
-      ];
-    });
-  }
-
-  function changeCartQty(key: string, delta: number) {
-    setCart((prev) =>
-      prev
-        .map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l))
-        .filter((l) => l.qty > 0),
-    );
-  }
-
-  async function validateCart() {
+  const validateCart = useCallback(async () => {
     if (!cart.length) {
       setError("Panier vide");
       return;
@@ -562,76 +965,100 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       setFlash(`Ticket ${body.ticket.numero} · ${formatFcfa(body.ticket.montant)}`);
       window.setTimeout(() => setFlash(null), 2000);
       // La commande créée ouvre systématiquement sa facture : le détail complet
-      // s'affiche à l'écran, l'impression n'est qu'un geste de plus.
-      if (body.ticket) setFacture(body.ticket as PosTicket);
-      await load();
+      // s'affiche à l'écran, l'impression n'est qu'un geste de plus. La réponse
+      // porte déjà le board ET le ticket : la page n'est plus re-téléchargée
+      // (avant : 3 fetchs et un gel complet après chaque encaissement).
+      if (body.ticket) {
+        const ticket = body.ticket as PosTicket;
+        setFacture(ticket);
+        setTickets((prev) => [
+          ticket,
+          ...prev.filter((t) => t.id !== ticket.id),
+        ]);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Validation impossible");
     } finally {
       setPosBusy(false);
     }
-  }
+  }, [cart, caisse, date, site, saleType, paymentId, clientNom, reductionN]);
 
-  async function cancelTicket(ticket: PosTicket) {
-    if (ticket.statut !== "valide") return;
-    if (
-      !window.confirm(
-        `Annuler le ticket ${ticket.numero} (${formatFcfa(ticket.montant)}) ?`,
-      )
-    ) {
-      return;
-    }
-    setBusyKey(`ticket:${ticket.id}`);
-    setError(null);
-    try {
-      const res = await fetch("/api/pos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "cancel",
-          id: ticket.id,
-          date,
-          site,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Annulation impossible");
-      if (body.board) setBoard(body.board as Board);
-      setFlash(`Ticket ${ticket.numero} annulé`);
-      window.setTimeout(() => setFlash(null), 1600);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Annulation impossible");
-    } finally {
-      setBusyKey(null);
-    }
-  }
+  const cancelTicket = useCallback(
+    async (ticket: PosTicket) => {
+      if (ticket.statut !== "valide") return;
+      if (
+        !window.confirm(
+          `Annuler le ticket ${ticket.numero} (${formatFcfa(ticket.montant)}) ?`,
+        )
+      ) {
+        return;
+      }
+      setBusyKey(`ticket:${ticket.id}`);
+      setError(null);
+      try {
+        const res = await fetch("/api/pos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "cancel",
+            id: ticket.id,
+            date,
+            site,
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Annulation impossible");
+        if (body.board) setBoard(body.board as Board);
+        // Le board annule l'historique ; le ticket passe à « annulé » en
+        // local, sans re-télécharger la page.
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.id === ticket.id ? { ...t, statut: "annule" } : t,
+          ),
+        );
+        setFlash(`Ticket ${ticket.numero} annulé`);
+        window.setTimeout(() => setFlash(null), 1600);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Annulation impossible");
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [date, site],
+  );
 
-  async function undo(entry: VenteLogEntry) {
-    setBusyKey(`undo:${entry.id}`);
-    setError(null);
-    try {
-      const res = await fetch("/api/vente", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "undo",
-          id: entry.id,
-          date,
-          site,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Annulation impossible");
-      setBoard(body.board as Board);
-      setFlash(`Annulé : ${entry.name}`);
-      window.setTimeout(() => setFlash(null), 1200);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Annulation impossible");
-    } finally {
-      setBusyKey(null);
-    }
-  }
+  const undo = useCallback(
+    async (entry: VenteLogEntry) => {
+      setBusyKey(`undo:${entry.id}`);
+      setError(null);
+      try {
+        const res = await fetch("/api/vente", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "undo",
+            id: entry.id,
+            date,
+            site,
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Annulation impossible");
+        setBoard(body.board as Board);
+        setFlash(`Annulé : ${entry.name}`);
+        window.setTimeout(() => setFlash(null), 1200);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Annulation impossible");
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [date, site],
+  );
+
+  const openFacture = useCallback((ticket: PosTicket) => {
+    setFacture(ticket);
+  }, []);
 
   async function submitExtra() {
     const unitPrice = parseMoneyInput(extraPrice);
@@ -857,165 +1284,22 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                 </button>
               </div>
             ) : cat === "plat" ? (
-              <section className="vente-meal-composer vente-panel">
-                <header className="vente-panel-head">
-                  <h2>Vente plat + accompagnements</h2>
-                  <p>
-                    Choisissez le plat, puis les accompagnements souhaités
-                    (optionnels). Chaque ligne part séparément au panier.
-                  </p>
-                </header>
-                {plats.length === 0 ? (
-                  <p className="muted vente-empty">Aucun plat au catalogue.</p>
-                ) : (
-                  <>
-                    <div className="vente-meal-plat-row">
-                      <label className="vente-field vente-field-plat">
-                        <span>Plat</span>
-                        <select
-                          value={composerPlatId}
-                          onChange={(e) => setComposerPlatId(e.target.value)}
-                        >
-                          <option value="">— Choisir —</option>
-                          {plats.map((p) => {
-                            const platEpuise =
-                              p.stockLeft !== null &&
-                              p.stockLeft !== undefined &&
-                              p.stockLeft <= 0;
-                            return (
-                              <option
-                                key={p.productId}
-                                value={p.productId}
-                                disabled={platEpuise}
-                              >
-                                {p.name}
-                                {platEpuise ? " · ÉPUISÉ" : ""}
-                                {p.unitPrice > 0
-                                  ? ` · ${formatFcfa(p.unitPrice)}`
-                                  : ""}
-                              </option>
-                            );
-                          })}
-                        </select>
-                      </label>
-                      <div className="vente-meal-qty">
-                        <span className="vente-qty-label">Qté</span>
-                        <div className="vente-meal-qty-stepper">
-                          <button
-                            type="button"
-                            className="vente-minus"
-                            aria-label="Moins de plats"
-                            disabled={
-                              !composerPlat ||
-                              composerQty <= 1 ||
-                              !!busyKey
-                            }
-                            onClick={() =>
-                              setComposerQty((q) => Math.max(1, q - 1))
-                            }
-                          >
-                            −
-                          </button>
-                          <span className="vente-qty mono">{composerQty}</span>
-                          <button
-                            type="button"
-                            className="vente-plus"
-                            aria-label="Plus de plats"
-                            disabled={
-                              !composerPlat ||
-                              !!busyKey ||
-                              (composerPlat.stockLeft !== null &&
-                                composerPlat.stockLeft !== undefined &&
-                                composerQty >= composerPlat.stockLeft)
-                            }
-                            onClick={() => setComposerQty((q) => q + 1)}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                    {composerPlat?.hint ? (
-                      <p className="vente-hint">{composerPlat.hint}</p>
-                    ) : null}
-                    {composerAccOptions.length > 0 ? (
-                      <fieldset className="vente-acc-picker">
-                        <legend>Accompagnements (optionnel) — quantité par ligne</legend>
-                        <ul className="vente-acc-list">
-                          {composerAccOptions.map((a) => {
-                            const accQty = composerAccQtys[a.productId] ?? 0;
-                            const accPrice = accPriceFor(a);
-                            return (
-                              <li key={a.productId}>
-                                <div className="vente-acc-option">
-                                  <span className="vente-acc-option-name">
-                                    <span>
-                                      {a.name}
-                                      {accPrice > 0
-                                        ? ` · ${formatFcfa(accPrice)}`
-                                        : ""}
-                                    </span>
-                                    {a.hint ? (
-                                      <span className="vente-hint-inline">
-                                        {" "}
-                                        · {a.hint}
-                                      </span>
-                                    ) : null}
-                                  </span>
-                                  <span className="vente-acc-qty">
-                                    <button
-                                      type="button"
-                                      className="vente-minus"
-                                      aria-label={`Moins de ${a.name}`}
-                                      disabled={accQty <= 0 || !!busyKey}
-                                      onClick={() =>
-                                        changeComposerAccQty(a.productId, -1)
-                                      }
-                                    >
-                                      −
-                                    </button>
-                                    <span className="vente-qty mono">
-                                      {accQty}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      className="vente-plus"
-                                      aria-label={`Plus de ${a.name}`}
-                                      disabled={!!busyKey}
-                                      onClick={() =>
-                                        changeComposerAccQty(a.productId, 1)
-                                      }
-                                    >
-                                      +
-                                    </button>
-                                  </span>
-                                </div>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </fieldset>
-                    ) : (
-                      <p className="muted vente-acc-empty">
-                        Aucun accompagnement — Paramètres → Accompagnements.
-                      </p>
-                    )}
-                    <div className="vente-meal-actions">
-                      <span className="vente-meal-total mono">
-                        {composerPlat ? formatFcfa(composerTotal) : "—"}
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        disabled={!composerPlat || !caisse}
-                        onClick={() => void commitMeal()}
-                      >
-                        Ajouter au panier
-                      </button>
-                    </div>
-                  </>
-                )}
-              </section>
+              <MealComposer
+                plats={plats}
+                caisse={caisse}
+                busyKey={busyKey}
+                composerPlatId={composerPlatId}
+                composerPlat={composerPlat}
+                composerQty={composerQty}
+                composerAccOptions={composerAccOptions}
+                composerAccQtys={composerAccQtys}
+                composerTotal={composerTotal}
+                onSelectPlat={setComposerPlatId}
+                onQtyChange={changeComposerQty}
+                onAccQtyChange={changeComposerAccQty}
+                onCommit={commitMeal}
+                accPriceFor={accPriceFor}
+              />
             ) : (
               <>
                 {cat === "accompagnement" && accompagnements.length > 0 ? (
@@ -1025,65 +1309,18 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   </p>
                 ) : null}
 
-                <div className="vente-grid">
-                {products.length === 0 ? (
-                  <p className="muted vente-empty">Aucun produit.</p>
-                ) : (
-                  products.map((p) => {
-                    const disabledPv =
-                      p.kind === "boisson" && p.unitPrice <= 0;
-                    // Accompagnements toujours vendables, même à stock nul.
-                    const outOfStock =
-                      p.kind !== "local" &&
-                      p.stockLeft !== null &&
-                      p.stockLeft !== undefined &&
-                      p.stockLeft <= 0;
-                    return (
-                      <article
-                        key={`${p.kind}-${p.productId}`}
-                        className={`vente-card${disabledPv || outOfStock ? " is-disabled" : ""}${
-                          p.lowStock && !outOfStock ? " is-low" : ""
-                        }`}
-                      >
-                        <div className="vente-card-media" aria-hidden>
-                          <ProductIcon kind={p.kind} name={p.name} size="lg" />
-                          {outOfStock ? (
-                            <span className="vente-out-badge">ÉPUISÉ</span>
-                          ) : p.lowStock && !outOfStock ? (
-                            <span className="vente-low-badge">
-                              Bientôt épuisé
-                            </span>
-                          ) : null}
-                        </div>
-                        <div className="vente-card-body">
-                          <h3>{p.name}</h3>
-                          <span className="vente-price mono">
-                            {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
-                          </span>
-                          {p.hint ? (
-                            <p className="vente-hint">{p.hint}</p>
-                          ) : null}
-                        </div>
-                        <div className="vente-card-actions is-single">
-                          <button
-                            type="button"
-                            className="vente-plus"
-                            disabled={disabledPv || outOfStock || !caisse}
-                            onClick={() => addToCart(p)}
-                          >
-                            +
-                          </button>
-                        </div>
-                      </article>
-                    );
-                  })
-                )}
-              </div>
+                <ProductGrid
+                  products={products}
+                  caisse={caisse}
+                  onAdd={addToCart}
+                />
               </>
             )}
           </div>
 
-          <aside className="pos-cart vente-panel">
+          <aside
+            className={`pos-cart vente-panel${cart.length === 0 ? " is-empty" : ""}`}
+          >
               <header className="vente-panel-head">
                 <h2>Panier</h2>
                 <p>
@@ -1098,35 +1335,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   Le panier apparaîtra ici.
                 </p>
               ) : (
-                <ul className="pos-cart-list">
-                  {cart.map((l) => (
-                    <li key={l.key}>
-                      <div>
-                        <strong>{l.name}</strong>
-                        <div className="muted mono">
-                          {formatFcfa(l.unitPrice)} × {l.qty}
-                        </div>
-                      </div>
-                      <div className="vente-card-actions">
-                        <button
-                          type="button"
-                          className="vente-minus"
-                          onClick={() => changeCartQty(l.key, -1)}
-                        >
-                          −
-                        </button>
-                        <span className="vente-qty mono">{l.qty}</span>
-                        <button
-                          type="button"
-                          className="vente-plus"
-                          onClick={() => changeCartQty(l.key, 1)}
-                        >
-                          +
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                <CartLines cart={cart} onChangeQty={changeCartQty} />
               )}
 
               <div className="pos-meta">
@@ -1197,59 +1406,13 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
               </div>
 
               {tickets.length > 0 ? (
-                <div className="pos-tickets">
-                  <h3 className="vente-tickets-title">
-                    Tickets du jour · {tickets.length}
-                  </h3>
-                  <ul className="vente-log pos-tickets-scroll">
-                    {tickets.map((t) => (
-                      <li key={t.id}>
-                        <div>
-                          <strong>
-                            {t.numero} · {t.saleType}
-                          </strong>
-                          <span className="muted mono">
-                            {" "}
-                            · {formatFcfa(t.montant)}
-                          </span>
-                          <div className="muted">
-                            {t.statut === "valide"
-                              ? "Validé"
-                              : t.statut === "annule"
-                                ? "Annulé"
-                                : t.statut}
-                          </div>
-                        </div>
-                        <div className="pos-ticket-actions">
-                          {t.statut === "valide" ? (
-                            <>
-                              <button
-                                type="button"
-                                className="btn-link"
-                                onClick={() => setFacture(t)}
-                              >
-                                Facture
-                              </button>
-                              <button
-                                type="button"
-                                className="btn-link"
-                                disabled={!!busyKey}
-                                onClick={() => void cancelTicket(t)}
-                              >
-                                Annuler
-                              </button>
-                            </>
-                          ) : null}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                  {canViewHistory ? (
-                    <Link href="/historique-ventes" className="vente-hist-link">
-                      Voir tout l’historique des ventes
-                    </Link>
-                  ) : null}
-                </div>
+                <TicketsList
+                  tickets={tickets}
+                  busyKey={busyKey}
+                  canViewHistory={canViewHistory}
+                  onFacture={openFacture}
+                  onCancel={cancelTicket}
+                />
               ) : null}
           </aside>
         </div>

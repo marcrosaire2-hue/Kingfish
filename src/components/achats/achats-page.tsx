@@ -367,6 +367,33 @@ export function AchatsPage() {
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       {flash ? <p className="ui-info" role="status">{flash}</p> : null}
 
+      {!loading && computed ? (
+        <div className="dash-kpi-grid achats-kpi-grid">
+          <div className="dash-kpi dash-kpi-accent">
+            <span className="dash-kpi-label">Achats du jour</span>
+            <span className="dash-kpi-value">
+              {formatFcfa(
+                (day?.movements ?? [])
+                  .filter((m) => !m.cancelledAt)
+                  .reduce((s, m) => s + m.qty * m.unitPrice, 0),
+              )}
+            </span>
+          </div>
+          <div className="dash-kpi">
+            <span className="dash-kpi-label">Achats enregistrés</span>
+            <span className="dash-kpi-value">
+              {(day?.movements ?? []).filter((m) => !m.cancelledAt).length}
+            </span>
+          </div>
+          <div
+            className={`dash-kpi${computed.alerts.length > 0 ? " dash-kpi-warn" : ""}`}
+          >
+            <span className="dash-kpi-label">Alertes stock</span>
+            <span className="dash-kpi-value">{computed.alerts.length}</span>
+          </div>
+        </div>
+      ) : null}
+
       {loading || !day || !computed ? (
         <BrandLoader variant="ligne" label="Chargement des achats…" />
       ) : materials.length === 0 ? (

@@ -197,7 +197,8 @@ async function loadVenteTotals(
 }
 
 type ProductAgg = {
-  _id: { productId: string; name: string; kind: string };
+  _id: { productId: string; kind: string };
+  name: string;
   qty: number;
   ca: number;
 };
@@ -225,11 +226,14 @@ export async function getProductRanking(
         { $match: caActifMatch({ ...match, qty: { $gt: 0 } }) },
         {
           $group: {
+            // Groupé par identité produit, pas par libellé : un même produit
+            // enregistré sous deux orthographes (imports, renommage) sortait
+            // deux fois du classement et doublait les clés React.
             _id: {
               productId: "$productId",
-              name: "$name",
               kind: "$kind",
             },
+            name: { $first: "$name" },
             qty: { $sum: "$qty" },
             ca: { $sum: "$amount" },
           },
@@ -255,7 +259,7 @@ export async function getProductRanking(
 
   const all: ProductRank[] = productRows.map((r) => ({
     productId: String(r._id.productId ?? ""),
-    name: String(r._id.name || "Sans nom"),
+    name: String(r.name || "Sans nom"),
     kind: String(r._id.kind || "extra"),
     qty: Number(r.qty) || 0,
     ca: Number(r.ca) || 0,

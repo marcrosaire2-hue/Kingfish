@@ -11,12 +11,10 @@ import type {
   PosConfig,
   PosPaymentMethod,
   PosServeur,
-  PosTable,
 } from "@/lib/types";
 import { BrandLoader } from "@/components/brand-loader";
 
 type Tab =
-  | "tables"
   | "paiements"
   | "serveurs"
   | "fournisseurs"
@@ -24,7 +22,6 @@ type Tab =
   | "compte";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "tables", label: "Tables" },
   { key: "paiements", label: "Paiements" },
   { key: "serveurs", label: "Serveurs" },
   { key: "fournisseurs", label: "Fournisseurs" },
@@ -121,7 +118,7 @@ function PasswordEditor() {
 }
 
 export function ReglagesPage() {
-  const [tab, setTab] = useState<Tab>("tables");
+  const [tab, setTab] = useState<Tab>("paiements");
   const [data, setData] = useState<PosConfig | null>(null);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -193,7 +190,7 @@ export function ReglagesPage() {
   return (
     <AppShell
       title="Réglages POS"
-      subtitle="Tables, paiements, serveurs et fiche entreprise"
+      subtitle="Paiements, serveurs, fournisseurs et fiche entreprise"
       actions={
         <>
           <ExportExcelButton
@@ -201,14 +198,6 @@ export function ReglagesPage() {
             onExport={() => {
               if (!data) return;
               downloadExcel(excelFilename("reglages-pos"), [
-                {
-                  name: "Tables",
-                  rows: data.tables.map((t) => ({
-                    Id: t.id,
-                    Référence: t.reference,
-                    Emplacement: t.emplacement,
-                  })),
-                },
                 {
                   name: "Paiements",
                   rows: data.paymentMethods.map((p) => ({
@@ -263,11 +252,6 @@ export function ReglagesPage() {
         <PasswordEditor />
       ) : loading || !data ? (
         <BrandLoader variant="ligne" label="Chargement des réglages…" />
-      ) : tab === "tables" ? (
-        <TablesEditor
-          rows={data.tables}
-          onChange={(tables) => update({ ...data, tables })}
-        />
       ) : tab === "paiements" ? (
         <PaymentsEditor
           rows={data.paymentMethods}
@@ -343,92 +327,6 @@ export function ReglagesPage() {
         </section>
       )}
     </AppShell>
-  );
-}
-
-function TablesEditor({
-  rows,
-  onChange,
-}: {
-  rows: PosTable[];
-  onChange: (rows: PosTable[]) => void;
-}) {
-  return (
-    <section className="panel">
-      <table className="data-table">
-        <thead>
-          <tr>
-            <th>Référence</th>
-            <th>Emplacement</th>
-            <th className="col-actions">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
-              <td>
-                <input
-                  className="name-input"
-                  value={row.reference}
-                  onChange={(e) =>
-                    onChange(
-                      rows.map((r) =>
-                        r.id === row.id
-                          ? { ...r, reference: e.target.value }
-                          : r,
-                      ),
-                    )
-                  }
-                />
-              </td>
-              <td>
-                <input
-                  className="name-input"
-                  value={row.emplacement}
-                  onChange={(e) =>
-                    onChange(
-                      rows.map((r) =>
-                        r.id === row.id
-                          ? { ...r, emplacement: e.target.value }
-                          : r,
-                      ),
-                    )
-                  }
-                />
-              </td>
-              <td className="col-actions">
-                <button
-                  type="button"
-                  className="btn-icon"
-                  aria-label={`Supprimer ${row.reference}`}
-                  onClick={() => onChange(rows.filter((r) => r.id !== row.id))}
-                >
-                  ×
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <button
-        type="button"
-        className="btn btn-add"
-        onClick={() =>
-          onChange([
-            ...rows,
-            {
-              id: newId("table"),
-              reference: `T${rows.length + 1}`,
-              emplacement: "",
-            },
-          ])
-        }
-      >
-        + Ajouter une table
-      </button>
-    </section>
   );
 }
 

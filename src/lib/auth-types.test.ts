@@ -38,8 +38,8 @@ describe("rôle Vente & Cuisine", () => {
       "/historique",
       "/controle",
       "/stock",
-      "/guide",
       "/historique-ventes",
+      "/journal-stock",
     ]) {
       expect(canAccessPath("equipier", chemin, "gbegamey")).toBe(false);
     }

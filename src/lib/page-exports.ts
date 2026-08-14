@@ -5,6 +5,11 @@ import {
   excelFilename,
   type ExcelSheet,
 } from "@/lib/export-excel";
+import type {
+  JournalBalanceRow,
+  JournalRow,
+  JournalTotals,
+} from "@/lib/journal-stock-repo";
 import {
   computeTransferLine,
   computeLocalLine,
@@ -1081,3 +1086,92 @@ export function exportAdminUsersExcel(
     },
   ]);
 }
+
+/** Journal des mouvements de stock — détail complet + solde par produit. */
+export function exportJournalStockExcel(input: {
+  rows: JournalRow[];
+  balance: JournalBalanceRow[];
+  totals: JournalTotals;
+  from: string | null;
+  to: string | null;
+  site: string;
+  type: string;
+}): void {
+  const typeLabel = (t: string) =>
+    ({ vente: "Vente", achat: "Achat", perte: "Perte", reception: "Réception" })[t] ?? t;
+  const periode =
+    input.from && input.to
+      ? `du ${input.from} au ${input.to}`
+      : input.from
+        ? `depuis le ${input.from}`
+        : input.to
+          ? `jusqu'au ${input.to}`
+          : "depuis le début";
+  const zone = siteLabel(input.site === "tous" ? "tous" : input.site);
+  const typeFiltre = input.type === "tous" ? "Tous" : typeLabel(input.type);
+  const titre = `${zone} · ${typeFiltre} · ${periode}`;
+
+  downloadExcel(excelFilename("journal-stock"), [
+    {
+      name: "Synthèse",
+      subtitle: titre,
+      rows: [
+        {
+          Lignes: input.totals.count,
+          "Qté entrées": input.totals.qtyEntrees,
+          "Qté sorties": input.totals.qtySorties,
+          "Montant (FCFA)": input.totals.montant,
+          "Ventes — lignes": input.totals.byType.vente.count,
+          "Ventes — qté": input.totals.byType.vente.qty,
+          "Ventes — CA (FCFA)": input.totals.byType.vente.montant,
+          "Achats — lignes": input.totals.byType.achat.count,
+          "Achats — qté": input.totals.byType.achat.qty,
+          "Achats — coût (FCFA)": input.totals.byType.achat.montant,
+          "Pertes — lignes": input.totals.byType.perte.count,
+          "Pertes — qté": input.totals.byType.perte.qty,
+          "Pertes — coût (FCFA)": input.totals.byType.perte.montant,
+          "Réceptions — lignes": input.totals.byType.reception.count,
+          "Réceptions — qté": input.totals.byType.reception.qty,
+        },
+      ],
+    },
+    {
+      name: "Mouvements",
+      subtitle: titre,
+      totals: ["Montant (FCFA)"],
+      rows: input.rows.map((r) => ({
+        Date: r.date,
+        Heure: heureLisible(r.at),
+        Zone: siteLabel(r.site),
+        Type: typeLabel(r.type),
+        Famille: kindLabel(r.kind),
+        Produit: r.name,
+        "Qté (entrée + / sortie −)": r.direction > 0 ? r.qty : -r.qty,
+        "Prix unitaire (FCFA)": r.unitPrice,
+        "Montant (FCFA)": r.montant,
+        Statut: r.annule ? "Annulé" : "Validé",
+        Détail: r.detail,
+        Équipe: r.equipe ?? "",
+        Acteur: r.acteur ?? "",
+      })),
+    },
+    {
+      name: "Solde par produit",
+      subtitle: `${titre} — hors mouvements annulés`,
+      totals: ["Montant (FCFA)"],
+      rows: input.balance.map((b) => ({
+        Zone: siteLabel(b.site),
+        Famille: kindLabel(b.kind),
+        Produit: b.name,
+        Entrées: b.entrees,
+        Sorties: b.sorties,
+        Solde: b.solde,
+        "Montant (FCFA)": b.montant,
+      })),
+    },
+  ]);
+}
+
+export type JournalStockRow = JournalRow;
+export type JournalStockBalanceRow = JournalBalanceRow;
+export type JournalStockTotals = JournalTotals;

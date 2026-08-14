@@ -60,7 +60,10 @@ function RankList({
   return (
     <ol className="rank-list">
       {rows.map((row, i) => (
-        <li key={`${mode}-${row.productId}-${row.kind}`} className="rank-row">
+        <li
+          key={`${mode}-${row.productId}-${row.kind}-${i}`}
+          className="rank-row"
+        >
           <span
             className={
               mode === "best"

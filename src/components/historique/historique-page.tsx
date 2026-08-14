@@ -121,7 +121,6 @@ export function HistoriquePage() {
     <AppShell
       title="Registre"
       subtitle="Tous les mouvements liés au compte qui les a effectués : ventes, caisse, POS, stocks, paramètres."
-      mainClassName="main-bg-registre"
       actions={
         <>
           <ExportExcelButton

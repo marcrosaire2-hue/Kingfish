@@ -10,7 +10,6 @@ import {
   type SessionUser,
 } from "@/lib/auth-types";
 import { APP_LOGO, APP_NAME, APP_SHORT, APP_TAGLINE } from "@/lib/brand";
-import { guideSlugForPath } from "@/lib/guides";
 
 const NAV_ITEMS: {
   href: string;
@@ -116,28 +115,20 @@ const NAV_ITEMS: {
     group: "pilot",
   },
   {
-    href: "/reprise",
-    label: "Reprise historique",
-    key: "reprise",
-    mark: "←",
-    group: "pilot",
-  },
-  {
     href: "/pilotage-global",
     label: "Pilotage global",
     key: "pilotage-global",
     mark: "◎",
     group: "pilot",
   },
-  { href: "/guide", label: "Guides", key: "guide", mark: "?", group: "pilot" },
   {
-    href: "/admin",
-    label: "Admin",
-    key: "admin",
-    mark: "A",
-    group: "admin",
-    groupLabel: "Compte",
+    href: "/journal-stock",
+    label: "Journal stock",
+    key: "journal-stock",
+    mark: "J",
+    group: "pilot",
   },
+  { href: "/admin", label: "Admin", key: "admin", mark: "A", group: "admin", groupLabel: "Compte" },
 ];
 
 /**
@@ -179,13 +170,6 @@ export function AppShell({
   const [user, setUser] = useState<SessionUser | null>(null);
   const [nav, setNav] = useState<NavKey[] | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-
-  const spaceGuideHref = useMemo(() => {
-    const slug = guideSlugForPath(pathname);
-    return `/guide/${slug}`;
-  }, [pathname]);
-
-  const onGuideArea = pathname.startsWith("/guide");
 
   useEffect(() => {
     let cancelled = false;
@@ -358,15 +342,6 @@ export function AppShell({
             {subtitle ? <p className="page-subtitle">{subtitle}</p> : null}
           </div>
           <div className="page-actions">
-            {!onGuideArea ? (
-              <Link
-                href={spaceGuideHref}
-                className="btn btn-guide"
-                title="Ouvrir le guide de cet espace"
-              >
-                Guide
-              </Link>
-            ) : null}
             {actions}
           </div>
         </header>

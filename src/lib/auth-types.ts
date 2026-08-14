@@ -216,9 +216,8 @@ export type NavKey =
   | "controle"
   | "stock"
   | "admin"
-  | "reprise"
-  | "pilotage-global"
-  | "guide";
+  | "journal-stock"
+  | "pilotage-global";
 
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
   vendeur: ["synthese", "vente", "caisse"],
@@ -262,12 +261,12 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "stock",
     "historique",
     "admin",
-    // Écriture directe des compteurs de stock et de ventes : administration seule.
-    "reprise",
+    // Journal complet des mouvements de stock (ventes, achats, pertes,
+    // réceptions) avec export détaillé : audit réservé à l'administration.
+    "journal-stock",
     // Vue consolidée de tout le réseau, coffre central compris : même
     // périmètre que Compte de résultat et Registre, administration seule.
     "pilotage-global",
-    "guide",
   ],
 };
 
@@ -379,11 +378,12 @@ export function canAccessPath(
     return allowed.includes("stock");
   }
   if (pathname.startsWith("/historique")) return allowed.includes("historique");
-  if (pathname.startsWith("/reprise")) return allowed.includes("reprise");
   if (pathname.startsWith("/pilotage-global")) {
     return allowed.includes("pilotage-global");
   }
-  if (pathname.startsWith("/guide")) return allowed.includes("guide");
+  if (pathname.startsWith("/journal-stock")) {
+    return allowed.includes("journal-stock");
+  }
   if (pathname === "/" || pathname === "") {
     return allowed.includes("synthese");
   }

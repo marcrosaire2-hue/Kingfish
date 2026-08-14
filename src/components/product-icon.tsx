@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import type { VenteKind } from "@/lib/types";
 
 export type ProductIconKey =
@@ -179,7 +179,9 @@ const ICONS: Record<ProductIconKey, () => ReactNode> = {
   drink: IconDrink,
 };
 
-export function ProductIcon({
+/** Mémoïsé : les 40 tuiles du catalogue ne recalculent plus leurs icônes
+ *  (normalisation de nom + regex) à chaque frappe dans les champs du panier. */
+export const ProductIcon = memo(function ProductIcon({
   kind,
   name,
   className = "",
@@ -201,4 +203,4 @@ export function ProductIcon({
       <Glyph />
     </span>
   );
-}
+});
