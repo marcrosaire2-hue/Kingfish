@@ -1991,312 +1991,215 @@ select {
   border-color: var(--accent) !important;
 }
 
+/* Page de connexion : photo plein écran, aucun conteneur — logo rond centré,
+   champs en pilules translucides, gros bouton arrondi. */
 .login-screen {
   --login-navy-deep: #04142a;
   --login-navy: #0b2748;
-  --login-navy-soft: color-mix(in srgb, #0b2748 55%, #123a66);
-  --login-field-bg: color-mix(in srgb, #0e2c52 88%, #123a66);
-  --login-line: color-mix(in srgb, #ffffff 16%, transparent);
-  --login-line-strong: color-mix(in srgb, #ffffff 28%, transparent);
   --login-gold: var(--accent);
   --login-gold-soft: #ffc62a;
-  --login-text: #f3f7fc;
-  --login-text-soft: #b8c5d6;
+  --login-text: #ffffff;
+  --login-text-soft: color-mix(in srgb, #ffffff 72%, transparent);
+  --login-glass: color-mix(in srgb, #ffffff 13%, transparent);
+  --login-glass-strong: color-mix(in srgb, #ffffff 20%, transparent);
+  --login-line: color-mix(in srgb, #ffffff 28%, transparent);
   position: relative;
-  height: 100vh;
-  height: 100dvh;
+  /* min-height : la page défile au lieu de se rogner quand l'écran est
+     trop court (clavier ouvert, paysage). */
+  min-height: 100vh;
+  min-height: 100dvh;
   width: 100%;
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-content: center;
   padding:
-    max(1rem, env(safe-area-inset-top, 0px))
-    max(1rem, env(safe-area-inset-right, 0px))
-    max(1rem, env(safe-area-inset-bottom, 0px))
-    max(1rem, env(safe-area-inset-left, 0px));
+    calc(clamp(1.25rem, 5vh, 3rem) + env(safe-area-inset-top, 0px))
+    max(1.25rem, env(safe-area-inset-right, 0px))
+    calc(clamp(1.25rem, 5vh, 3rem) + env(safe-area-inset-bottom, 0px))
+    max(1.25rem, env(safe-area-inset-left, 0px));
   background-color: var(--login-navy-deep);
+  /* Voile sombre sur la photo : le texte blanc doit rester lisible quelle
+     que soit la zone de l'image. */
   background-image:
     linear-gradient(
-      165deg,
-      color-mix(in srgb, var(--login-navy) 78%, transparent) 0%,
-      color-mix(in srgb, var(--login-navy-deep) 82%, transparent) 55%,
-      color-mix(in srgb, var(--login-navy-deep) 94%, transparent) 100%
+      180deg,
+      color-mix(in srgb, var(--login-navy-deep) 72%, transparent) 0%,
+      color-mix(in srgb, var(--login-navy) 58%, transparent) 45%,
+      color-mix(in srgb, var(--login-navy-deep) 80%, transparent) 100%
     ),
     url("/bg-login.jpg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  align-content: center;
-  overflow: hidden;
+  color: var(--login-text);
   isolation: isolate;
-  gap: clamp(0.85rem, 3vh, 2rem);
 }
 
-/* Halos décoratifs — technologie/performance, jamais au-dessus du texte. */
-.login-glow {
-  position: absolute;
-  z-index: -1;
-  border-radius: 50%;
-  filter: blur(60px);
-  pointer-events: none;
-}
-
-.login-glow-a {
-  width: 26rem;
-  height: 26rem;
-  top: -8rem;
-  left: -6rem;
-  background: radial-gradient(circle, color-mix(in srgb, #2a9dff 30%, transparent) 0%, transparent 70%);
-}
-
-.login-glow-b {
-  width: 22rem;
-  height: 22rem;
-  bottom: -9rem;
-  right: -7rem;
-  background: radial-gradient(circle, color-mix(in srgb, var(--login-gold) 22%, transparent) 0%, transparent 70%);
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .login-glow {
-    animation: login-glow-pulse 7s ease-in-out infinite;
-  }
-  .login-glow-b {
-    animation-delay: -3.2s;
-  }
-}
-
-@keyframes login-glow-pulse {
-  0%, 100% { transform: scale(1); opacity: 0.85; }
-  50% { transform: scale(1.12); opacity: 1; }
-}
-
-.login-card {
+.login-shell {
   position: relative;
-  width: min(100%, 440px);
-  background: color-mix(in srgb, var(--login-navy) 82%, transparent);
-  border: 1px solid var(--login-line);
-  border-radius: 26px;
-  padding: clamp(1.35rem, 5vh, 2.35rem) clamp(1.15rem, 4vw, 2rem) clamp(1.1rem, 4vh, 1.75rem);
   display: flex;
   flex-direction: column;
-  gap: clamp(0.6rem, 2.2vh, 1.05rem);
-  max-height: 100%;
-  overflow-y: auto;
-  box-shadow:
-    0 1px 0 color-mix(in srgb, #ffffff 10%, transparent) inset,
-    0 30px 70px color-mix(in srgb, #000 55%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--login-gold) 10%, transparent);
-  backdrop-filter: blur(18px) saturate(1.15);
-  -webkit-backdrop-filter: blur(18px) saturate(1.15);
-  color: var(--login-text);
+  align-items: center;
+  width: min(100%, 23rem);
+  gap: clamp(1.4rem, 5vh, 2.4rem);
+  text-align: center;
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .login-card {
-    animation: login-card-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
-  }
   .login-brand,
-  .login-field,
-  .login-submit,
-  .login-divider,
+  .login-form,
   .login-foot {
-    animation: login-rise-in 0.5s ease both;
+    animation: login-rise-in 0.55s ease both;
   }
-  .login-field:nth-of-type(1) { animation-delay: 0.08s; }
-  .login-field:nth-of-type(2) { animation-delay: 0.14s; }
-  .login-submit { animation-delay: 0.2s; }
-  .login-divider { animation-delay: 0.24s; }
-  .login-foot { animation-delay: 0.28s; }
-}
-
-@keyframes login-card-in {
-  from { opacity: 0; transform: translateY(16px) scale(0.98); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  .login-form { animation-delay: 0.1s; }
+  .login-foot { animation-delay: 0.18s; }
 }
 
 @keyframes login-rise-in {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Marque centrée : sur un téléphone tenu à une main, le regard tombe au milieu. */
+/* Marque : logo rond dans un disque translucide, nom en dessous. */
 .login-brand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
-  gap: 0.1rem;
-  margin-bottom: 0.35rem;
+  gap: 0.9rem;
 }
 
 .login-logo-ring {
-  position: relative;
-  margin-bottom: 0.7rem;
+  display: grid;
+  place-items: center;
+  width: clamp(7rem, 30vw, 8.5rem);
+  height: clamp(7rem, 30vw, 8.5rem);
   border-radius: 50%;
+  background: var(--login-glass);
+  border: 1px solid var(--login-line);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.login-logo-ring::before {
-  content: "";
-  position: absolute;
-  inset: -10px;
-  border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--login-gold) 45%, transparent) 0%, transparent 72%);
-}
-
+/* Le logo est un JPEG opaque : on le pose sur un disque blanc, sinon ses
+   coins clairs trancheraient sur le disque translucide. */
 .login-logo {
-  position: relative;
-  width: 5.5rem;
-  height: 5.5rem;
+  width: 76%;
+  height: 76%;
   object-fit: contain;
   border-radius: 50%;
   background: #ffffff;
-  padding: 0.55rem;
+  padding: 0.45rem;
   display: block;
-  /* Anneau doré repris de la couronne du logo */
-  box-shadow:
-    0 0 0 2.5px var(--login-gold),
-    0 10px 26px color-mix(in srgb, #000 45%, transparent);
+  box-shadow: 0 8px 20px color-mix(in srgb, #000 35%, transparent);
 }
 
-.login-brand h1 {
+.login-appname {
   margin: 0;
-  font-size: 1.56rem;
-  font-weight: 800;
-  letter-spacing: -0.015em;
-  color: #ffffff;
+  display: flex;
+  align-items: baseline;
+  gap: 0.22em;
+  font-size: clamp(1.15rem, 4.5vw, 1.4rem);
+  letter-spacing: -0.01em;
+  color: var(--login-text);
 }
 
-.login-tagline {
-  margin: 0.2rem 0 0;
-  color: var(--login-text-soft);
-  font-size: 0.9rem;
-  font-weight: 600;
+.login-appname strong {
+  font-weight: 800;
+}
+
+.login-appname span {
+  font-weight: 400;
+  color: color-mix(in srgb, #ffffff 88%, transparent);
 }
 
 .login-sites {
-  margin: 0.6rem 0 0;
+  margin: 0;
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.3rem;
   font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.13em;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--login-gold-soft);
-  background: color-mix(in srgb, #2a7ec8 22%, transparent);
-  border: 1px solid color-mix(in srgb, var(--login-gold) 30%, transparent);
-  border-radius: 999px;
-  padding: 0.35rem 0.85rem 0.35rem 0.7rem;
 }
 
 .login-sites svg {
-  width: 0.95rem;
-  height: 0.95rem;
+  width: 0.9rem;
+  height: 0.9rem;
   flex: 0 0 auto;
 }
 
-.login-error {
+/* Formulaire : pilules translucides, texte centré, sans étiquette visible. */
+.login-form {
   display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  margin: 0;
-  padding: 0.7rem 0.85rem;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--danger) 18%, var(--login-navy));
-  border: 1px solid color-mix(in srgb, var(--danger) 45%, transparent);
-  color: #ffd7d3;
-  font-size: 0.87rem;
-  font-weight: 600;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.85rem;
+  width: 100%;
 }
 
-.login-error-mark {
-  flex: 0 0 auto;
-  width: 1.25rem;
-  height: 1.25rem;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: var(--danger);
-  color: #ffffff;
-  font-size: 0.8rem;
-  font-weight: 800;
+.login-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .login-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--login-text-soft);
-}
-
-.login-input-shell {
   position: relative;
   display: flex;
-  align-items: center;
-}
-
-.login-input-icon {
-  position: absolute;
-  left: 0.9rem;
-  display: grid;
-  place-items: center;
-  color: var(--login-text-soft);
-  pointer-events: none;
-}
-
-.login-input-icon svg {
-  width: 1.15rem;
-  height: 1.15rem;
 }
 
 .login-field input {
   width: 100%;
   border: 1px solid var(--login-line);
-  border-radius: 13px;
-  padding: 0.65rem 0.9rem 0.65rem 2.7rem;
-  background: var(--login-field-bg);
+  border-radius: 999px;
+  /* Padding symétrique : le texte saisi reste centré même avec l'œil à droite. */
+  padding: 0 3.25rem;
+  background: var(--login-glass);
   color: var(--login-text);
-  font-weight: 600;
+  text-align: center;
+  font-weight: 500;
   /* 16px minimum : en dessous, iOS zoome la page au focus. */
   font-size: max(16px, 1rem);
-  letter-spacing: normal;
-  text-transform: none;
-  min-height: 3.1rem;
+  min-height: 3.4rem;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
 .login-field input::placeholder {
-  color: color-mix(in srgb, var(--login-text-soft) 80%, transparent);
+  color: var(--login-text-soft);
+  font-weight: 500;
+  opacity: 1;
 }
 
 .login-field input:focus {
   outline: none;
-  background: color-mix(in srgb, var(--login-field-bg) 80%, #123a66);
+  background: var(--login-glass-strong);
   border-color: var(--login-gold);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--login-gold) 25%, transparent);
-}
-
-.login-password input {
-  padding-right: 3.1rem;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--login-gold) 22%, transparent);
 }
 
 .login-reveal {
   position: absolute;
   top: 50%;
-  right: 0.3rem;
+  right: 0.35rem;
   transform: translateY(-50%);
-  width: 2.85rem;
-  height: 2.85rem;
+  width: 2.7rem;
+  height: 2.7rem;
   min-width: 44px;
   min-height: 44px;
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 10px;
+  border-radius: 50%;
   background: transparent;
   color: var(--login-text-soft);
   cursor: pointer;
@@ -2304,32 +2207,32 @@ select {
 }
 
 .login-reveal svg {
-  width: 1.3rem;
-  height: 1.3rem;
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 .login-reveal:hover,
 .login-reveal[aria-pressed="true"] {
   color: var(--login-gold-soft);
-  background: color-mix(in srgb, #ffffff 10%, transparent);
+  background: color-mix(in srgb, #ffffff 12%, transparent);
 }
 
 .login-submit {
   width: 100%;
-  margin-top: 0.4rem;
-  min-height: 3.4rem;
-  padding: 0.8rem 1.1rem;
-  font-size: max(16px, 1.04rem);
+  margin-top: 0.55rem;
+  min-height: 3.5rem;
+  padding: 0.8rem 1.25rem;
+  font-size: max(16px, 1.02rem);
   font-weight: 800;
   border: none;
-  border-radius: 14px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
   color: var(--login-navy-deep);
   background: linear-gradient(180deg, var(--login-gold-soft) 0%, var(--login-gold) 100%);
-  box-shadow: 0 12px 26px color-mix(in srgb, var(--login-gold) 40%, transparent);
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--login-gold) 38%, transparent);
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.12s ease;
 }
@@ -2341,7 +2244,7 @@ select {
 
 .login-submit:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 16px 32px color-mix(in srgb, var(--login-gold) 50%, transparent);
+  box-shadow: 0 18px 36px color-mix(in srgb, var(--login-gold) 48%, transparent);
   filter: brightness(1.04);
 }
 
@@ -2350,7 +2253,7 @@ select {
 }
 
 .login-submit:disabled {
-  opacity: 0.75;
+  opacity: 0.78;
   cursor: default;
 }
 
@@ -2362,24 +2265,34 @@ select {
   to { transform: rotate(360deg); }
 }
 
-.login-divider {
+.login-error {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  margin: 0.15rem 0;
-  color: var(--login-text-soft);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
+  justify-content: center;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.7rem 1rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--danger) 42%, transparent);
+  border: 1px solid color-mix(in srgb, var(--danger) 60%, transparent);
+  color: #ffe6e3;
+  font-size: 0.85rem;
+  font-weight: 600;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
-.login-divider::before,
-.login-divider::after {
-  content: "";
-  flex: 1 1 auto;
-  height: 1px;
-  background: var(--login-line);
+.login-error-mark {
+  flex: 0 0 auto;
+  width: 1.2rem;
+  height: 1.2rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #ffffff;
+  color: var(--danger);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .login-foot {
@@ -2388,8 +2301,7 @@ select {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
-  text-align: center;
-  font-size: 0.76rem;
+  font-size: 0.78rem;
   font-weight: 600;
   color: var(--login-text-soft);
 }
@@ -2410,97 +2322,48 @@ select {
   font-weight: 600;
 }
 
-/* Bandeau de garanties, sous la carte */
-.login-trust {
-  position: relative;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  gap: 0.5rem;
-  width: min(100%, 560px);
-}
-
-.login-trust li {
-  flex: 1 1 0;
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  padding: 0.7rem 0.8rem;
-  border-radius: 14px;
-  background: color-mix(in srgb, #ffffff 6%, transparent);
-  border: 1px solid var(--login-line);
-  color: var(--login-text);
-  backdrop-filter: blur(8px);
-}
-
-.login-trust li svg {
-  width: 1.3rem;
-  height: 1.3rem;
-  flex: 0 0 auto;
-  color: var(--login-gold-soft);
-}
-
-.login-trust li span {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.login-trust li strong {
-  font-size: 0.78rem;
-  font-weight: 800;
-}
-
-.login-trust li em {
-  font-style: normal;
-  font-size: 0.68rem;
-  color: var(--login-text-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-@media (max-width: 720px) {
-  /* Sur mobile, le bandeau de garanties encombre plus qu'il n'informe :
-     la carte doit rester seule au centre de l'écran. */
-  .login-trust {
-    display: none;
+/* Écran étroit : on resserre le disque du logo. */
+@media (max-width: 359px) {
+  .login-logo-ring {
+    width: 6rem;
+    height: 6rem;
   }
-  .login-glow {
-    opacity: 0.6;
+  .login-shell {
+    gap: 1.2rem;
   }
 }
 
-/* Hauteur réduite (clavier ouvert, téléphone en paysage) : la page ne doit
-   jamais défiler — le bandeau de garanties cède la place en premier, la
-   marque se resserre ensuite. */
+/* Écran court (paysage, clavier ouvert) : le décor cède la place avant que
+   la page ne défile. */
 @media (max-height: 700px) {
-  .login-trust {
-    display: none;
+  .login-shell {
+    gap: 1rem;
   }
-  .login-screen {
+  .login-logo-ring {
+    width: 5.5rem;
+    height: 5.5rem;
+  }
+  .login-brand {
     gap: 0.6rem;
   }
 }
 
 @media (max-height: 560px) {
+  .login-sites,
+  .login-foot {
+    display: none;
+  }
   .login-logo-ring {
-    margin-bottom: 0.3rem;
+    width: 4.5rem;
+    height: 4.5rem;
   }
-  .login-logo {
-    width: 3.6rem;
-    height: 3.6rem;
-  }
-  .login-brand h1 {
-    font-size: 1.25rem;
-  }
-  .login-tagline,
-  .login-sites {
-    display: none;
-  }
-  .login-divider {
-    display: none;
+}
+
+/* Grand écran : même colonne centrée, simplement plus généreuse — la photo
+   reste plein cadre derrière. */
+@media (min-width: 900px) {
+  .login-shell {
+    width: min(100%, 25rem);
   }
 }
 
@@ -5327,7 +5190,6 @@ html.nav-open body {
   .hist-ventes-filters .date-field input,
   .hist-ventes-filters .date-field select,
   .hist-ventes-filters .select-input,
-  .login-field input,
   .vente-field input,
   .vente-field select,
   .qty-input,
@@ -5347,24 +5209,6 @@ html.nav-open body {
   .hist-filters label.date-field:has(input[type="search"]),
   .hist-ventes-filters label.date-field:has(input[type="search"]) {
     grid-column: 1 / -1;
-  }
-
-  .login-card {
-    width: min(100%, 420px);
-    padding: 1.75rem 1.35rem 1.4rem;
-    border-radius: 22px;
-  }
-
-  .login-field input {
-    min-height: 3.1rem;
-    /* Ne jamais repasser sous 16px : iOS zoomerait au focus. */
-    font-size: max(16px, 1rem);
-  }
-
-  .login-submit {
-    min-height: 3.35rem;
-    width: 100%;
-    font-size: max(16px, 1.05rem);
   }
 
   .caisse-form-grid {

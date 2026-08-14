@@ -213,7 +213,6 @@ export type NavKey =
   | "historique"
   | "historique-ventes"
   | "equipes"
-  | "controle"
   | "stock"
   | "admin"
   | "journal-stock"
@@ -257,7 +256,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "reglages",
     "historique-ventes",
     "equipes",
-    "controle",
     "stock",
     "historique",
     "admin",
@@ -370,9 +368,6 @@ export function canAccessPath(
   }
   if (pathname.startsWith("/equipes")) {
     return allowed.includes("equipes");
-  }
-  if (pathname.startsWith("/controle")) {
-    return allowed.includes("controle");
   }
   if (pathname.startsWith("/stock")) {
     return allowed.includes("stock");

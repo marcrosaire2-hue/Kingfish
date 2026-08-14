@@ -80,13 +80,6 @@ const NAV_ITEMS: {
     group: "pilot",
   },
   {
-    href: "/controle",
-    label: "Contrôle",
-    key: "controle",
-    mark: "K",
-    group: "pilot",
-  },
-  {
     href: "/stock",
     label: "Stock",
     key: "stock",

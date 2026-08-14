@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { APP_LOGO, APP_NAME, APP_SITES_LABEL, APP_TAGLINE } from "@/lib/brand";
+import { APP_LOGO, APP_NAME, APP_SITES_LABEL } from "@/lib/brand";
 
 function EyeIcon({ open }: { open: boolean }) {
   return (
@@ -32,21 +32,6 @@ function EyeIcon({ open }: { open: boolean }) {
           strokeLinecap="round"
         />
       )}
-    </svg>
-  );
-}
-
-function UserIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-      <circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
-      <path
-        d="M4.5 20c1.2-4 4-6 7.5-6s6.3 2 7.5 6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
     </svg>
   );
 }
@@ -91,21 +76,6 @@ function PinIcon() {
   );
 }
 
-function ArrowIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-      <path
-        d="M4 12h15.5M13.5 6l6 6-6 6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
 function Spinner() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden focusable="false" className="login-spinner">
@@ -129,70 +99,10 @@ function Spinner() {
   );
 }
 
-function ShieldIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-      <path
-        d="M12 3.5 19 6v5.5c0 4.6-3 7.6-7 9-4-1.4-7-4.4-7-9V6l7-2.5Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <path
-        d="m9 12 2.1 2.1L15.5 10"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function TrendIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-      <path
-        d="M4 16l5-5 4 4 7-8"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        d="M15 7h5v5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-function DatabaseIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-      <ellipse cx="12" cy="6" rx="7" ry="2.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path
-        d="M5 6v12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6V6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-      <path
-        d="M5 12c0 1.4 3.1 2.6 7 2.6s7-1.2 7-2.6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-      />
-    </svg>
-  );
-}
+/* Le dernier mot du nom passe en graisse légère (« King Fish Manager »). */
+const NAME_WORDS = APP_NAME.trim().split(" ");
+const NAME_HEAD = NAME_WORDS.slice(0, -1).join(" ");
+const NAME_TAIL = NAME_WORDS.length > 1 ? NAME_WORDS[NAME_WORDS.length - 1] : "";
 
 export function LoginPage() {
   const router = useRouter();
@@ -231,12 +141,9 @@ export function LoginPage() {
 
   return (
     <div className="login-screen">
-      <div className="login-glow login-glow-a" aria-hidden />
-      <div className="login-glow login-glow-b" aria-hidden />
-
-      <form className="login-card" onSubmit={onSubmit}>
+      <div className="login-shell">
         <div className="login-brand">
-          <div className="login-logo-ring">
+          <span className="login-logo-ring">
             <img
               src={APP_LOGO}
               alt=""
@@ -244,32 +151,32 @@ export function LoginPage() {
               width={96}
               height={96}
             />
-          </div>
-          <h1>{APP_NAME}</h1>
-          <p className="login-tagline">{APP_TAGLINE}</p>
+          </span>
+          <p className="login-appname">
+            <strong>{NAME_HEAD}</strong>
+            {NAME_TAIL ? <span>{NAME_TAIL}</span> : null}
+          </p>
           <p className="login-sites">
             <PinIcon />
             {APP_SITES_LABEL}
           </p>
         </div>
 
-        {error ? (
-          <p className="login-error" role="alert">
-            <span className="login-error-mark" aria-hidden>
-              !
-            </span>
-            {error}
-          </p>
-        ) : null}
+        <form className="login-form" onSubmit={onSubmit}>
+          {error ? (
+            <p className="login-error" role="alert">
+              <span className="login-error-mark" aria-hidden>
+                !
+              </span>
+              {error}
+            </p>
+          ) : null}
 
-        <label className="login-field">
-          <span>Identifiant</span>
-          <span className="login-input-shell">
-            <span className="login-input-icon" aria-hidden>
-              <UserIcon />
-            </span>
+          <label className="login-field">
+            <span className="login-label">Identifiant</span>
             <input
               name="username"
+              placeholder="Identifiant"
               autoComplete="username"
               autoCapitalize="none"
               autoCorrect="off"
@@ -280,18 +187,14 @@ export function LoginPage() {
               onChange={(e) => setUsername(e.target.value)}
               required
             />
-          </span>
-        </label>
+          </label>
 
-        <label className="login-field">
-          <span>Mot de passe</span>
-          <span className="login-input-shell login-password">
-            <span className="login-input-icon" aria-hidden>
-              <LockIcon />
-            </span>
+          <label className="login-field login-password">
+            <span className="login-label">Mot de passe</span>
             <input
               name="password"
               type={showPassword ? "text" : "password"}
+              placeholder="Mot de passe"
               autoComplete="current-password"
               autoCapitalize="none"
               autoCorrect="off"
@@ -314,60 +217,25 @@ export function LoginPage() {
             >
               <EyeIcon open={showPassword} />
             </button>
-          </span>
-        </label>
+          </label>
 
-        <button
-          type="submit"
-          className="btn login-submit"
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <Spinner />
-              Connexion en cours…
-            </>
-          ) : (
-            <>
-              Se connecter
-              <ArrowIcon />
-            </>
-          )}
-        </button>
-
-        <div className="login-divider" role="separator">
-          <span>ou</span>
-        </div>
+          <button type="submit" className="btn login-submit" disabled={loading}>
+            {loading ? (
+              <>
+                <Spinner />
+                Connexion en cours…
+              </>
+            ) : (
+              "Se connecter"
+            )}
+          </button>
+        </form>
 
         <p className="login-foot">
           <LockIcon />
           Accès réservé au personnel
         </p>
-      </form>
-
-      <ul className="login-trust" aria-label="Garanties">
-        <li>
-          <ShieldIcon />
-          <span>
-            <strong>Sécurisé</strong>
-            <em>Connexion protégée</em>
-          </span>
-        </li>
-        <li>
-          <TrendIcon />
-          <span>
-            <strong>Performance</strong>
-            <em>Indicateurs en temps réel</em>
-          </span>
-        </li>
-        <li>
-          <DatabaseIcon />
-          <span>
-            <strong>Fiabilité</strong>
-            <em>Données synchronisées</em>
-          </span>
-        </li>
-      </ul>
+      </div>
     </div>
   );
 }

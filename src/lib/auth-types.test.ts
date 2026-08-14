@@ -36,7 +36,6 @@ describe("rôle Vente & Cuisine", () => {
       "/reglages",
       "/admin",
       "/historique",
-      "/controle",
       "/stock",
       "/historique-ventes",
       "/journal-stock",
