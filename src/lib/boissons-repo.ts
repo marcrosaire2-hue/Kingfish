@@ -98,8 +98,13 @@ export async function getBoissonsDayPayload(
         );
         return {
           ...l,
+          // Une bouteille ne se compte pas en fractions : le report casiers →
+          // bouteilles est arrondi à l'unité. Sans cet arrondi, le résidu de la
+          // conversion (casiers stockés à 2 décimales) réapparaissait tel quel
+          // dans le comptage d'ouverture — « 1.92 bt » — et se reproduisait
+          // à l'identique chaque jour.
           counted: leftovers.has(l.productId)
-            ? Math.round((leftovers.get(l.productId)! * upc) * 100) / 100
+            ? Math.max(0, Math.round(leftovers.get(l.productId)! * upc))
             : null,
           observations: leftovers.has(l.productId)
             ? "Ouverture (dernier inventaire)"

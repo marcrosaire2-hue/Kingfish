@@ -90,10 +90,12 @@ export function normalizeBoissonsLine(line: LegacyBoissonsLine): BoissonsLine {
     ),
     soldGbegamey: Math.max(0, Number(line.soldGbegamey) || 0),
     pertes: Math.max(0, Number(line.pertes) || 0),
+    // Le comptage est un nombre de bouteilles : toujours un entier, quelle que
+    // soit la provenance (saisie, report de la veille, import AquaPro).
     counted:
       line.counted === null || line.counted === undefined
         ? null
-        : Math.max(0, Number(line.counted) || 0),
+        : Math.max(0, Math.round(Number(line.counted) || 0)),
     observations: String(line.observations ?? ""),
   };
 }

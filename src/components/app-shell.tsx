@@ -73,10 +73,10 @@ const NAV_ITEMS: {
     groupLabel: "Pilotage",
   },
   {
-    href: "/equipes",
-    label: "Équipes",
-    key: "equipes",
-    mark: "E",
+    href: "/journal-ventes",
+    label: "Journal ventes",
+    key: "journal-ventes",
+    mark: "J",
     group: "pilot",
   },
   {

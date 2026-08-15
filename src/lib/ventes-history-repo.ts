@@ -294,11 +294,32 @@ export async function listVentesHistory(
     }
 
     // Journal King Fish (ventes_log) : carnets, devis, ventes caisse…
+    // Les lignes des tickets POS sont aussi écrites dans ventes_log (avec un
+    // venteLogId dans le ticket) : les exclure, sinon chaque vente POS est
+    // comptée deux fois — une fois comme ticket POS, une fois comme journal.
+    const posLogIds = await db
+      .collection("pos_tickets")
+      .aggregate<{ _id: string }>([
+        { $match: kfFilter },
+        { $unwind: { path: "$lines", preserveNullAndEmptyArrays: false } },
+        { $match: { "lines.venteLogId": { $ne: null } } },
+        { $group: { _id: "$lines.venteLogId" } },
+      ])
+      .toArray();
+
     const vlFilter: Record<string, unknown> = {
       ...dateMatch,
       caExcluded: { $ne: true },
     };
     if (site !== "all") vlFilter.site = site;
+    if (posLogIds.length > 0) {
+      vlFilter._id = {
+        $nin: posLogIds
+          .map((r) => r._id)
+          .filter(Boolean)
+          .map((id) => new ObjectId(id)),
+      };
+    }
 
     const vlDocs = (await db
       .collection("ventes_log")
@@ -420,6 +441,104 @@ export async function listVentesHistory(
       paiements: [...paiements].sort((a, b) => a.localeCompare(b, "fr")),
     },
   };
+}
+
+export type JournalVenteLine = {
+  at: string;
+  date: string;
+  numero: string;
+  site: VenteSite | "gbegamey";
+  statut: "valide" | "annule" | "encours";
+  statutLabel: string;
+  source: "kingfish" | "aquapro";
+  typeVente: string;
+  serveur: string | null;
+  paiement: string | null;
+  client: string | null;
+  table: string | null;
+  produit: string;
+  qty: number;
+  unitPrice: number;
+  montant: number;
+};
+
+export type JournalVenteDay = {
+  date: string;
+  lines: JournalVenteLine[];
+  nbTickets: number;
+  nbLignes: number;
+  montant: number;
+};
+
+export type JournalVenteResult = {
+  days: JournalVenteDay[];
+  totals: {
+    count: number;
+    montant: number;
+    valide: number;
+    annule: number;
+    encours: number;
+  };
+};
+
+/**
+ * Journal des ventes détaillé : une ligne par produit vendu, groupée par
+ * jour. Réutilise la synthèse de tickets puis aplatit les lignes.
+ */
+export async function listJournalVentes(
+  filters: Omit<VenteHistoryFilters, "limit"> & { limit?: number | "all" },
+): Promise<JournalVenteResult> {
+  const result = await listVentesHistory({ ...filters, limit: "all" });
+
+  const byDay = new Map<string, JournalVenteDay>();
+  for (const t of result.tickets) {
+    if (!t.lines.length) continue;
+    let day = byDay.get(t.date);
+    if (!day) {
+      day = { date: t.date, lines: [], nbTickets: 0, nbLignes: 0, montant: 0 };
+      byDay.set(t.date, day);
+    }
+    day.nbTickets += 1;
+    for (const l of t.lines) {
+      day.lines.push({
+        at: t.at,
+        date: t.date,
+        numero: t.numero,
+        site: t.site,
+        statut: t.statut,
+        statutLabel: t.statutLabel,
+        source: t.source,
+        typeVente: t.typeVente,
+        serveur: t.serveur,
+        paiement: t.paiement,
+        client: t.client,
+        table: t.table,
+        produit: l.name,
+        qty: l.qty,
+        unitPrice: l.unitPrice,
+        montant: l.amount,
+      });
+      day.nbLignes += 1;
+      if (t.statut === "valide") day.montant += l.amount;
+    }
+  }
+
+  const days = [...byDay.values()].sort((a, b) =>
+    a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
+  );
+
+  const totals = { count: 0, montant: 0, valide: 0, annule: 0, encours: 0 };
+  for (const d of days) {
+    totals.count += d.nbTickets;
+    totals.montant += d.montant;
+  }
+  for (const t of result.tickets) {
+    if (t.statut === "valide") totals.valide += 1;
+    else if (t.statut === "annule") totals.annule += 1;
+    else totals.encours += 1;
+  }
+
+  return { days, totals };
 }
 
 export async function getVenteHistoryTicket(

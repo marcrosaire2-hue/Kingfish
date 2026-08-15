@@ -161,6 +161,31 @@ describe("normalizeBoissonsLine", () => {
     expect(l.purchases).toBe(0);
     expect(l.soldZogbo).toBe(0);
   });
+
+  it("ramène un comptage à virgule à un nombre entier de bouteilles", () => {
+    // Résidu de conversion casiers → bouteilles trouvé en base (« 1.92 bt ») :
+    // une bouteille ne se compte pas en fractions.
+    expect(normalizeBoissonsLine(ligne({ counted: 1.92 })).counted).toBe(2);
+    expect(normalizeBoissonsLine(ligne({ counted: 23.04 })).counted).toBe(23);
+    expect(normalizeBoissonsLine(ligne({ counted: 0 })).counted).toBe(0);
+    expect(normalizeBoissonsLine(ligne({ counted: null })).counted).toBeNull();
+  });
+
+  it("le report d'un jour sur l'autre ne fabrique plus de décimales", () => {
+    // Le report sort en casiers arrondis à 2 décimales ; reconverti en
+    // bouteilles il doit retomber sur un entier, jour après jour.
+    const upc = 12;
+    const veille = ligne({ counted: 23 });
+    const casiers = leftoverFromBoissonsLines(
+      [veille],
+      [boisson({ unitsPerCasier: upc })],
+    ).get("drink-beaufort")!;
+    const ouverture = normalizeBoissonsLine(
+      ligne({ counted: Math.round(casiers * upc) }),
+    );
+    expect(Number.isInteger(ouverture.counted!)).toBe(true);
+    expect(ouverture.counted).toBe(23);
+  });
 });
 
 describe("formatCasiers", () => {

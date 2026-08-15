@@ -212,7 +212,7 @@ export type NavKey =
   | "compte-resultat"
   | "historique"
   | "historique-ventes"
-  | "equipes"
+  | "journal-ventes"
   | "stock"
   | "admin"
   | "journal-stock"
@@ -242,6 +242,8 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     // L'historique des ventes de SA zone : le filtre Site est verrouillé
     // sur sa zone (jamais celle d'à côté).
     "historique-ventes",
+    // Journal détaillé des ventes de sa zone, jour par jour.
+    "journal-ventes",
   ],
   admin: [
     "synthese",
@@ -255,7 +257,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
         "pertes",
     "reglages",
     "historique-ventes",
-    "equipes",
+    "journal-ventes",
     "stock",
     "historique",
     "admin",
@@ -366,8 +368,8 @@ export function canAccessPath(
   if (pathname.startsWith("/historique-ventes")) {
     return allowed.includes("historique-ventes");
   }
-  if (pathname.startsWith("/equipes")) {
-    return allowed.includes("equipes");
+  if (pathname.startsWith("/journal-ventes")) {
+    return allowed.includes("journal-ventes");
   }
   if (pathname.startsWith("/stock")) {
     return allowed.includes("stock");

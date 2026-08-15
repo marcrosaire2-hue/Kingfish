@@ -3031,6 +3031,41 @@ select {
   white-space: nowrap;
 }
 
+/* Journal des ventes détaillé — blocs par jour */
+.jv-day {
+  margin-bottom: 1.25rem;
+}
+
+.jv-day-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.95rem 1.1rem 0.2rem;
+}
+
+.jv-day-head .panel-title {
+  margin: 0;
+}
+
+.jv-day-head-count {
+  display: inline-block;
+  margin-left: 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.jv-day-total {
+  font-size: 1.05rem;
+}
+
+.jv-table td,
+.jv-table th {
+  white-space: nowrap;
+}
+
 .journal-qty {
   font-weight: 700;
 }

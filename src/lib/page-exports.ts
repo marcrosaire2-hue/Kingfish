@@ -378,68 +378,6 @@ export async function exportVenteExcel(
   downloadExcel(excelFilename("vente", date, site), sheets);
 }
 
-/** Répartition équipes — tableau jour / nuit sur une période */
-export function exportEquipesExcel(input: {
-  from: string;
-  to: string;
-  site: "all" | VenteSite;
-  days: Array<{
-    date: string;
-    jour: number;
-    nuit: number;
-    aucune: number;
-    total: number;
-  }>;
-  totals: { jour: number; nuit: number; aucune: number; total: number };
-}): void {
-  const showAucune = input.totals.aucune > 0;
-  const pct = (part: number, whole: number) =>
-    whole > 0 ? Math.round((part / whole) * 100) : "";
-
-  const sheets: ExcelSheet[] = [
-    {
-      name: "Jours",
-      subtitle: `${siteLabel(input.site)} · ${input.from} → ${input.to}`,
-      totals: ["Total (FCFA)"],
-      rows: input.days
-        .filter((d) => d.total > 0)
-        .map((d) => ({
-          Date: d.date,
-          "CA jour (FCFA)": d.jour,
-          "CA nuit (FCFA)": d.nuit,
-          ...(showAucune ? { "CA hors équipe (FCFA)": d.aucune } : {}),
-          "Total (FCFA)": d.total,
-          "% jour": pct(d.jour, d.total),
-          "% nuit": pct(d.nuit, d.total),
-        })),
-    },
-    {
-      name: "Synthèse",
-      subtitle: `${siteLabel(input.site)} · ${input.from} → ${input.to}`,
-      rows: [
-        {
-          Du: input.from,
-          Au: input.to,
-          Zone: siteLabel(input.site),
-          "CA équipe jour (FCFA)": input.totals.jour,
-          "CA équipe nuit (FCFA)": input.totals.nuit,
-          ...(showAucune
-            ? { "CA hors équipe (FCFA)": input.totals.aucune }
-            : {}),
-          "CA total (FCFA)": input.totals.total,
-          "% jour": pct(input.totals.jour, input.totals.total),
-          "% nuit": pct(input.totals.nuit, input.totals.total),
-        },
-      ],
-    },
-  ];
-
-  downloadExcel(
-    excelFilename("equipes", `${input.from}_${input.to}`, input.site),
-    sheets,
-  );
-}
-
 /** Stock final par zone (plats + accompagnements). */
 export function exportStockExcel(
   data: import("@/lib/stock-repo").StockPayload,
@@ -1007,6 +945,74 @@ export function exportAdminUsersExcel(
       })),
     },
   ]);
+}
+
+/** Journal des ventes détaillé — une feuille Excel par jour de la période. */
+export function exportJournalVentesExcel(input: {
+  days: Array<{
+    date: string;
+    lines: Array<{
+      at: string;
+      numero: string;
+      site: string;
+      statut: string;
+      statutLabel: string;
+      source: string;
+      typeVente: string;
+      serveur: string | null;
+      paiement: string | null;
+      client: string | null;
+      table: string | null;
+      produit: string;
+      qty: number;
+      unitPrice: number;
+      montant: number;
+    }>;
+    nbTickets: number;
+    nbLignes: number;
+    montant: number;
+  }>;
+  totals: { count: number; montant: number; valide: number; annule: number; encours: number };
+  from: string;
+  to: string;
+  site: string;
+}): void {
+  const zone = input.site === "all" ? "tous" : input.site;
+  const periode = `${siteLabel(zone)} · du ${input.from} au ${input.to}`;
+
+  const daySheets: ExcelSheet[] = input.days.map((d) => ({
+    name: `Jour ${d.date}`,
+    subtitle: `${siteLabel(zone)} · ${d.date} · ${d.nbTickets} ticket(s) · CA ${d.montant} FCFA`,
+    totals: ["Quantité", "Montant (FCFA)"],
+    rows: d.lines.map((l) => ({
+      Jour: d.date,
+      Heure: heureLisible(l.at),
+      Article: l.produit,
+      Quantité: l.qty,
+      "Montant (FCFA)": l.montant,
+      "Chiffre (FCFA)": d.montant,
+    })),
+  }));
+
+  const sheets: ExcelSheet[] = [
+    {
+      name: "Synthèse",
+      subtitle: periode,
+      totals: ["Tickets", "Lignes", "CA validé (FCFA)"],
+      rows: input.days.map((d) => ({
+        Date: d.date,
+        Tickets: d.nbTickets,
+        Lignes: d.nbLignes,
+        "CA validé (FCFA)": d.montant,
+      })),
+    },
+    ...daySheets,
+  ];
+
+  downloadExcel(
+    excelFilename("journal_ventes", input.from, input.to, zone),
+    sheets,
+  );
 }
 
 /** Journal des mouvements de stock — détail complet + solde par produit. */
