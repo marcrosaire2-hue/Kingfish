@@ -6,39 +6,43 @@ import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
-import type { Fournisseur, MatieresDay, MatieresMovement } from "@/lib/types";
+import { computeMatieresDay } from "@/lib/matieres-calc";
+import type { Fournisseur, MatieresDay, MatieresMovement, RawMaterial } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import { BrandLoader } from "@/components/brand-loader";
 import {
   MovementRow,
   addDays,
+  emptyDraft,
   emptyDraftLibre,
   movementRows,
   type DraftLibre,
+  type DraftRow,
   type StockPayload,
 } from "@/components/achats/achats-shared";
 
-/** Achats libres : tout ce qui n'est pas une matière du catalogue. */
-function isLibre(m: MatieresMovement): boolean {
-  return m.type === "autre";
+/** Achats du catalogue : tout mouvement qui n'est pas un achat libre. */
+function isCatalogue(m: MatieresMovement): boolean {
+  return m.type !== "autre";
 }
 
 /**
- * Achats libres (hors catalogue) : imprévus, divers, dépannage — un produit
- * qui n'a pas de fiche matière. Les achats de matières, eux, se saisissent
- * sur Approvisionnement, avec le catalogue et le stock. Les deux pages
- * partagent le même registre en base, filtré ici par type.
+ * Approvisionnement : le catalogue des matières, leur stock, et l'achat
+ * rattaché à une matière précise. Les achats hors catalogue (divers,
+ * imprévus) vivent sur la page Achats — les deux partagent le même registre
+ * en base, filtré ici par type pour ne montrer que ce qui touche le stock.
  */
-export function AchatsPage() {
+export function ApprovisionnementPage() {
   const [date, setDate] = useState(() => todayIsoDate());
   const [day, setDay] = useState<MatieresDay | null>(null);
-  const [draftLibre, setDraftLibre] = useState<DraftLibre>(() => emptyDraftLibre());
-  const [busyLibre, setBusyLibre] = useState(false);
+  const [materials, setMaterials] = useState<RawMaterial[]>([]);
+  const [draftBuy, setDraftBuy] = useState<Record<string, DraftRow>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   /** Achat en cours de correction — un seul à la fois, registre ou historique. */
   const [editId, setEditId] = useState<string | null>(null);
   const [draftEdit, setDraftEdit] = useState<DraftLibre>(() => emptyDraftLibre());
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
+  const [search, setSearch] = useState("");
   const [historique, setHistorique] = useState<
     Array<{ date: string; movement: MatieresMovement }>
   >([]);
@@ -60,6 +64,8 @@ export function AchatsPage() {
       const body = (await res.json()) as StockPayload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur");
       setDay(body.day);
+      setMaterials(body.materials);
+      setDraftBuy({});
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
       setDay(null);
@@ -116,29 +122,53 @@ export function AchatsPage() {
     };
   }, [historiqueRange]);
 
-  const libreMovements = useMemo(
-    () => (day?.movements ?? []).filter(isLibre),
+  const computed = useMemo(() => {
+    if (!day) return null;
+    return computeMatieresDay(day, materials);
+  }, [day, materials]);
+
+  const filteredLines = useMemo(() => {
+    if (!computed) return [];
+    const q = search.trim().toLowerCase();
+    if (!q) return computed.lines;
+    return computed.lines.filter((l) => l.name.toLowerCase().includes(q));
+  }, [computed, search]);
+
+  const catalogMovements = useMemo(
+    () => (day?.movements ?? []).filter(isCatalogue),
     [day],
   );
 
-  const libreHistorique = useMemo(
-    () => historique.filter(({ movement }) => isLibre(movement)),
+  const catalogHistorique = useMemo(
+    () => historique.filter(({ movement }) => isCatalogue(movement)),
     [historique],
   );
 
-  async function submitPurchaseLibre(row: DraftLibre) {
-    const name = row.name.trim();
+  function patchDraft(productId: string, patch: Partial<DraftRow>) {
+    setDraftBuy((d) => {
+      const row = d[productId] ?? emptyDraft();
+      return { ...d, [productId]: { ...row, ...patch } };
+    });
+  }
+
+  async function submitPurchase(
+    productId: string,
+    fallbackPrice: number,
+    row: DraftRow,
+  ) {
     const qty = Number(String(row.qty).replace(",", ".")) || 0;
-    const price = Number(String(row.price).replace(",", ".")) || 0;
-    if (name.length < 2) {
-      setError("Saisissez le nom du produit acheté.");
+    if (qty <= 0) return;
+    const price =
+      Number(String(row.price).replace(",", ".")) ||
+      Number(fallbackPrice) ||
+      0;
+    if (price <= 0) {
+      setError(
+        `Prix d'achat obligatoire pour cet achat : saisissez le prix unitaire.`,
+      );
       return;
     }
-    if (qty <= 0 || price <= 0) {
-      setError("Quantité et prix unitaire obligatoires pour un achat libre.");
-      return;
-    }
-    setBusyLibre(true);
+    setBusyId(`buy-${productId}`);
     setError(null);
     setFlash(null);
     try {
@@ -147,8 +177,7 @@ export function AchatsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date,
-          productId: "autre",
-          name,
+          productId,
           qty,
           unitPrice: price,
           fournisseurId: row.fournisseurId || undefined,
@@ -157,7 +186,8 @@ export function AchatsPage() {
       const body = (await res.json()) as StockPayload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur");
       setDay(body.day);
-      setDraftLibre(emptyDraftLibre());
+      setMaterials(body.materials);
+      setDraftBuy((d) => ({ ...d, [productId]: emptyDraft() }));
       if (body.depense) {
         setFlash(
           `Achat enregistré — dépense de ${formatFcfa(body.depense.montant)} créée à la caisse.`,
@@ -169,7 +199,7 @@ export function AchatsPage() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
-      setBusyLibre(false);
+      setBusyId(null);
     }
   }
 
@@ -224,7 +254,6 @@ export function AchatsPage() {
           movementId: m.id,
           qty,
           unitPrice: price,
-          name: draftEdit.name.trim(),
           fournisseurId: draftEdit.fournisseurId || undefined,
         }),
       });
@@ -234,7 +263,10 @@ export function AchatsPage() {
         depenseWarning?: string | null;
       };
       if (!res.ok) throw new Error(body.error || "Erreur");
-      if (dayDate === date) setDay(body.day);
+      if (dayDate === date) {
+        setDay(body.day);
+        setMaterials(body.materials);
+      }
       setEditId(null);
       if (body.depenseWarning) setFlash(body.depenseWarning);
       else if (body.depense) {
@@ -251,7 +283,7 @@ export function AchatsPage() {
   }
 
   async function cancelMovement(m: MatieresMovement, dayDate: string) {
-    if (!window.confirm(`Annuler cet achat ?\n\n+${m.qty} × ${m.name}`)) {
+    if (!window.confirm(`Annuler cet achat de stock ?\n\n+${m.qty} × ${m.name}`)) {
       return;
     }
     setBusyId(`cancel-${m.id}`);
@@ -269,7 +301,10 @@ export function AchatsPage() {
       });
       const body = (await res.json()) as StockPayload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur");
-      if (dayDate === date) setDay(body.day);
+      if (dayDate === date) {
+        setDay(body.day);
+        setMaterials(body.materials);
+      }
       if (body.depenseWarning) setFlash(body.depenseWarning);
       else setFlash("Achat annulé.");
       reloadHistorique();
@@ -283,13 +318,13 @@ export function AchatsPage() {
   // Groupes de l'historique par jour, du plus récent au plus ancien.
   const historyByDay = useMemo(() => {
     const groups = new Map<string, Array<{ movement: MatieresMovement }>>();
-    for (const { date: d, movement } of libreHistorique) {
+    for (const { date: d, movement } of catalogHistorique) {
       const list = groups.get(d) ?? [];
       list.push({ movement });
       groups.set(d, list);
     }
     return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [libreHistorique]);
+  }, [catalogHistorique]);
 
   /** Jours récents portant des achats, hors date affichée — repère quand le
    *  registre du jour est vide alors que des achats existent ailleurs. */
@@ -304,24 +339,35 @@ export function AchatsPage() {
 
   return (
     <AppShell
-      title="Achats"
-      subtitle="Achats libres, hors catalogue de matières"
+      title="Approvisionnement"
+      subtitle="Stock des matières et achats du catalogue"
       actions={
         <ExportExcelButton
-          disabled={loading}
+          disabled={loading || !computed}
           onExport={() => {
-            downloadExcel(excelFilename("achats-libres", date), [
+            if (!computed) return Promise.resolve();
+            downloadExcel(excelFilename("approvisionnement", date), [
               {
                 name: "Achats du jour",
                 subtitle: date,
-                rows: movementRows(libreMovements),
+                rows: movementRows(catalogMovements),
               },
               {
                 name: "Historique",
                 subtitle: `${historiqueRange} derniers jours`,
-                rows: libreHistorique.map(({ date: d, movement }) => ({
+                rows: catalogHistorique.map(({ date: d, movement }) => ({
                   Date: d,
                   ...movementRows([movement])[0]!,
+                })),
+              },
+              {
+                name: "Stock",
+                rows: computed.lines.map((l) => ({
+                  Matière: l.name,
+                  Unité: l.unit,
+                  Initial: l.initialStock,
+                  Achats: l.purchases,
+                  Stock: l.stock,
                 })),
               },
             ]);
@@ -335,13 +381,13 @@ export function AchatsPage() {
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       {flash ? <p className="ui-info" role="status">{flash}</p> : null}
 
-      {!loading ? (
+      {!loading && computed ? (
         <div className="dash-kpi-grid achats-kpi-grid">
           <div className="dash-kpi dash-kpi-accent">
             <span className="dash-kpi-label">Achats du jour</span>
             <span className="dash-kpi-value">
               {formatFcfa(
-                libreMovements
+                catalogMovements
                   .filter((m) => !m.cancelledAt)
                   .reduce((s, m) => s + m.qty * m.unitPrice, 0),
               )}
@@ -350,93 +396,148 @@ export function AchatsPage() {
           <div className="dash-kpi">
             <span className="dash-kpi-label">Achats enregistrés</span>
             <span className="dash-kpi-value">
-              {libreMovements.filter((m) => !m.cancelledAt).length}
+              {catalogMovements.filter((m) => !m.cancelledAt).length}
             </span>
+          </div>
+          <div
+            className={`dash-kpi${computed.alerts.length > 0 ? " dash-kpi-warn" : ""}`}
+          >
+            <span className="dash-kpi-label">Alertes stock</span>
+            <span className="dash-kpi-value">{computed.alerts.length}</span>
           </div>
         </div>
       ) : null}
 
-      {loading || !day ? (
-        <BrandLoader variant="ligne" label="Chargement des achats…" />
+      {loading || !day || !computed ? (
+        <BrandLoader variant="ligne" label="Chargement de l'approvisionnement…" />
+      ) : materials.length === 0 ? (
+        <p className="ui-info">
+          Aucune matière définie. Ajoutez-les dans Paramètres → Matières.
+        </p>
       ) : (
         <>
+          <div className="vente-field" style={{ maxWidth: "24rem" }}>
+            <label htmlFor="recherche-matiere">Rechercher une matière</label>
+            <input
+              id="recherche-matiere"
+              type="search"
+              placeholder="Nom de la matière…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
           <section className="panel">
-            <h2 className="panel-title">Nouvel achat libre</h2>
-            <div className="libre-buy">
-              <input
-                type="text"
-                className="input-text"
-                placeholder="Nom du produit…"
-                value={draftLibre.name}
-                onChange={(e) =>
-                  setDraftLibre((d) => ({ ...d, name: e.target.value }))
-                }
-                aria-label="Nom du produit acheté"
-              />
-              <input
-                type="number"
-                min={0}
-                step="any"
-                className="input-num"
-                placeholder="Qté"
-                value={draftLibre.qty}
-                onChange={(e) =>
-                  setDraftLibre((d) => ({ ...d, qty: e.target.value }))
-                }
-                aria-label="Quantité achetée"
-              />
-              <input
-                type="number"
-                min={0}
-                step="any"
-                className="input-num"
-                placeholder="Prix / u"
-                value={draftLibre.price}
-                onChange={(e) =>
-                  setDraftLibre((d) => ({ ...d, price: e.target.value }))
-                }
-                aria-label="Prix unitaire"
-              />
-              {fournisseurs.length > 0 ? (
-                <select
-                  className="input-select"
-                  value={draftLibre.fournisseurId}
-                  onChange={(e) =>
-                    setDraftLibre((d) => ({
-                      ...d,
-                      fournisseurId: e.target.value,
-                    }))
-                  }
-                  aria-label="Fournisseur"
-                >
-                  <option value="">Fournisseur…</option>
-                  {fournisseurs.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nom}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busyLibre}
-                onClick={() => void submitPurchaseLibre(draftLibre)}
-              >
-                + Achat
-              </button>
-            </div>
-            <p className="muted libre-hint">
-              Pour un produit qui n&apos;est pas une matière de stock : écrivez
-              ce que vous achetez, la quantité et le prix. L&apos;achat sera
-              enregistré au registre du jour, sans toucher au compteur de
-              stock d&apos;Approvisionnement.
-            </p>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Matière</th>
+                  <th className="col-num">Stock</th>
+                  <th className="col-num">Achats jour</th>
+                  <th>Nouvel achat</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredLines.map((line) => {
+                  const mat = materials.find((m) => m.id === line.productId);
+                  const row = draftBuy[line.productId] ?? emptyDraft();
+                  return (
+                    <tr key={line.productId}>
+                      <td>
+                        <strong>{line.name}</strong>
+                        {line.unit ? (
+                          <span className="muted"> · {line.unit}</span>
+                        ) : null}
+                        {line.stock <= 0 ? (
+                          <span className="vente-out-badge vente-out-badge-inline">
+                            ÉPUISÉ
+                          </span>
+                        ) : line.belowThreshold ? (
+                          <span className="vente-low-badge vente-low-badge-inline">
+                            Bientôt épuisé
+                          </span>
+                        ) : null}
+                      </td>
+                      <td className="col-num mono">{line.stock}</td>
+                      <td className="col-num mono">{line.purchases}</td>
+                      <td>
+                        <div className="inline-buy inline-buy-achats">
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            className="input-num"
+                            placeholder="Qté"
+                            value={row.qty}
+                            onChange={(e) =>
+                              patchDraft(line.productId, { qty: e.target.value })
+                            }
+                            aria-label={`Quantité à acheter ${line.name}`}
+                          />
+                          <input
+                            type="number"
+                            min={0}
+                            step="any"
+                            className="input-num"
+                            placeholder={
+                              mat?.purchasePrice
+                                ? `Prix (${mat.purchasePrice})`
+                                : "Prix / u"
+                            }
+                            value={row.price}
+                            onChange={(e) =>
+                              patchDraft(line.productId, { price: e.target.value })
+                            }
+                            aria-label={`Prix d'achat unitaire ${line.name}`}
+                          />
+                          {fournisseurs.length > 0 ? (
+                            <select
+                              className="input-select"
+                              value={row.fournisseurId}
+                              onChange={(e) =>
+                                patchDraft(line.productId, {
+                                  fournisseurId: e.target.value,
+                                })
+                              }
+                              aria-label={`Fournisseur ${line.name}`}
+                            >
+                              <option value="">Fournisseur…</option>
+                              {fournisseurs.map((f) => (
+                                <option key={f.id} value={f.id}>
+                                  {f.nom}
+                                </option>
+                              ))}
+                            </select>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={busyId === `buy-${line.productId}`}
+                            onClick={() =>
+                              void submitPurchase(
+                                line.productId,
+                                mat?.purchasePrice ?? 0,
+                                row,
+                              )
+                            }
+                          >
+                            + Achat
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {filteredLines.length === 0 ? (
+              <p className="muted">Aucune matière ne correspond à « {search} ».</p>
+            ) : null}
           </section>
 
           <section className="panel">
-            <h2 className="panel-title">Registre des achats</h2>
-            {libreMovements.length === 0 ? (
+            <h2 className="panel-title">Registre des achats de stock</h2>
+            {catalogMovements.length === 0 ? (
               <>
                 <p className="muted">Aucun achat saisi pour le {date}.</p>
                 {/* Un achat saisi pour une autre date n'est pas perdu : on dit
@@ -461,7 +562,7 @@ export function AchatsPage() {
               </>
             ) : (
               <ul className="vente-log">
-                {libreMovements.map((m) => (
+                {catalogMovements.map((m) => (
                   <MovementRow
                     key={m.id}
                     m={m}
@@ -497,7 +598,7 @@ export function AchatsPage() {
                 <option value={90}>90 derniers jours</option>
               </select>
             </div>
-            {libreHistorique.length === 0 ? (
+            {catalogHistorique.length === 0 ? (
               <p className="muted">Aucun achat sur cette période.</p>
             ) : (
               historyByDay.map(([d, entries]) => (

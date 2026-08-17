@@ -1,5 +1,5 @@
-import { AchatsPage } from "@/components/achats/achats-page";
+import { ApprovisionnementPage } from "@/components/achats/approvisionnement-page";
 
 export default function Page() {
-  return <AchatsPage />;
+  return <ApprovisionnementPage />;
 }

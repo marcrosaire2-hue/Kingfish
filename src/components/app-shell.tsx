@@ -52,9 +52,18 @@ const NAV_ITEMS: {
   },
   {
     href: "/appro",
-    label: "Achats",
+    label: "Approvisionnement",
     key: "appro",
     mark: "A",
+    group: "ops",
+  },
+  {
+    href: "/achats",
+    label: "Achats",
+    // Même clé que Approvisionnement : les deux pages partagent le même
+    // registre en base (matieres_jours) et donc la même permission.
+    key: "appro",
+    mark: "L",
     group: "ops",
   },
   {
