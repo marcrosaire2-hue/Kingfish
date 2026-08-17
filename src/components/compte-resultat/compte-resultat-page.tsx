@@ -40,8 +40,9 @@ type Payload = {
 };
 
 const CHARGE_FIELDS: {
-  // « pertes » est calculé depuis le journal des pertes : jamais saisi ici.
-  key: keyof Omit<DayCharges, "date" | "updatedAt" | "pertes">;
+  // « pertes » vient du journal des pertes, « achatsStock » du registre des
+  // achats : tous deux calculés, jamais saisis ici.
+  key: keyof Omit<DayCharges, "date" | "updatedAt" | "pertes" | "achatsStock">;
   label: string;
 }[] = [
   { key: "matieresPremieres", label: "Achats matières premières" },
@@ -115,6 +116,11 @@ function buildDayStatement(day: DayPoint, date: string): Statement {
       },
     ],
     charges: [
+      {
+        label: "Achats de stock (registre)",
+        amount: day.charges.achatsStock ?? 0,
+        kind: "item",
+      },
       {
         label: "Achats matières premières",
         amount: day.charges.matieresPremieres,
@@ -544,14 +550,10 @@ export function CompteResultatPage() {
                 <h3 className="panel-title">Saisie des charges</h3>
                 <div className="stack-form">
                   {CHARGE_FIELDS.map((f) => {
-                    const suggestion =
+                    const achats =
                       f.key === "matieresPremieres"
-                        ? payload.matieresPurchasesToday
-                        : undefined;
-                    const suggestionUtile =
-                      suggestion !== undefined &&
-                      suggestion > 0 &&
-                      suggestion !== chargesDraft[f.key];
+                        ? (payload.matieresPurchasesToday ?? 0)
+                        : 0;
                     return (
                       <label key={f.key}>
                         {f.label}
@@ -567,27 +569,14 @@ export function CompteResultatPage() {
                             setDirty(true);
                           }}
                         />
-                        {/* Suggestion, pas un remplacement automatique :
-                            l'onglet Achats → Stock connaît le total exact du
-                            jour, mais seul le gérant sait si ce chiffre
-                            couvre tout ce qu'il veut mettre dans ce poste. */}
-                        {suggestionUtile ? (
+                        {/* Les achats du registre pèsent déjà sur le résultat,
+                            via leur propre ligne de charge. Le rappel évite de
+                            les retaper ici, ce qui les compterait deux fois. */}
+                        {achats > 0 ? (
                           <span className="pnl-suggestion">
-                            Achats du jour (Stock) : {formatFcfa(suggestion)}
-                            <button
-                              type="button"
-                              className="btn-link"
-                              onClick={() => {
-                                setChargesDraft((c) => ({
-                                  ...c,
-                                  date,
-                                  matieresPremieres: suggestion,
-                                }));
-                                setDirty(true);
-                              }}
-                            >
-                              Utiliser
-                            </button>
+                            Achats du jour (Stock) : {formatFcfa(achats)} — déjà
+                            comptés dans les charges, ne les ressaisissez pas
+                            ici.
                           </span>
                         ) : null}
                       </label>

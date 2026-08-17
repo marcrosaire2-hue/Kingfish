@@ -3,6 +3,7 @@ import {
   applyMatieresOtherPurchaseToState,
   applyMatieresPurchaseToState,
   cancelMatieresMovementInState,
+  editMatieresMovementInState,
   normalizeMatieresMovement,
 } from "@/lib/matieres-calc";
 import type { MatieresLine } from "@/lib/types";
@@ -168,5 +169,149 @@ describe("applyMatieresOtherPurchaseToState", () => {
       premier.movement as Parameters<typeof normalizeMatieresMovement>[0],
     );
     expect(normalized?.type).toBe("autre");
+  });
+});
+
+describe("editMatieresMovementInState", () => {
+  function achat(qty = 10, unitPrice = 700) {
+    return applyMatieresPurchaseToState([ligne()], [], {
+      productId: "mat-riz",
+      qty,
+      unitPrice,
+    });
+  }
+
+  it("répercute la baisse de quantité sur les entrées du jour", () => {
+    const premier = achat(10);
+    const { lines, movement } = editMatieresMovementInState(
+      premier.lines,
+      premier.movements,
+      { movementId: premier.movement.id, qty: 7, unitPrice: 700 },
+    );
+    expect(lines[0]!.purchases).toBe(7);
+    expect(movement.qty).toBe(7);
+    expect(movement.stockAfter).toBe(7);
+  });
+
+  it("répercute la hausse de quantité", () => {
+    const premier = achat(10);
+    const { lines } = editMatieresMovementInState(
+      premier.lines,
+      premier.movements,
+      { movementId: premier.movement.id, qty: 18, unitPrice: 700 },
+    );
+    expect(lines[0]!.purchases).toBe(18);
+  });
+
+  it("corrige le prix et le fournisseur sans créer de second mouvement", () => {
+    const premier = achat(10, 700);
+    const { movements, movement } = editMatieresMovementInState(
+      premier.lines,
+      premier.movements,
+      {
+        movementId: premier.movement.id,
+        qty: 10,
+        unitPrice: 850,
+        fournisseurId: "frn-9",
+        fournisseurNom: "Nouveau dépôt",
+      },
+    );
+    expect(movements).toHaveLength(1);
+    expect(movement.id).toBe(premier.movement.id);
+    expect(movement.at).toBe(premier.movement.at);
+    expect(movement.unitPrice).toBe(850);
+    expect(movement.fournisseurNom).toBe("Nouveau dépôt");
+    expect(movement.editedAt).not.toBeNull();
+  });
+
+  it("renomme un achat hors catalogue", () => {
+    const premier = applyMatieresOtherPurchaseToState([ligne()], [], {
+      name: "Charbon",
+      qty: 4,
+      unitPrice: 1500,
+    });
+    const { lines, movement } = editMatieresMovementInState(
+      premier.lines,
+      premier.movements,
+      {
+        movementId: premier.movement.id,
+        qty: 5,
+        unitPrice: 1600,
+        name: "Sacs de charbon",
+      },
+    );
+    expect(movement.name).toBe("Sacs de charbon");
+    expect(movement.qty).toBe(5);
+    // Un achat libre ne porte aucune ligne de stock.
+    expect(lines[0]!.purchases).toBe(0);
+  });
+
+  it("corrige un achat parmi plusieurs sans toucher aux autres", () => {
+    const premier = achat(10);
+    const second = applyMatieresPurchaseToState(
+      premier.lines,
+      premier.movements,
+      { productId: "mat-riz", qty: 5, unitPrice: 700 },
+    );
+    // Entrées du jour : 15. Ramener le second achat de 5 à 1 en laisse 11.
+    const { lines, movements } = editMatieresMovementInState(
+      second.lines,
+      second.movements,
+      { movementId: second.movement.id, qty: 1, unitPrice: 700 },
+    );
+    expect(lines[0]!.purchases).toBe(11);
+    expect(movements).toHaveLength(2);
+    expect(
+      movements.find((m) => m.id === premier.movement.id)!.qty,
+    ).toBe(10);
+  });
+
+  it("refuse une correction qui rendrait les entrées du jour négatives", () => {
+    // L'achat porte 4 unités mais la ligne n'en compte plus qu'une (le reste
+    // a été repris ailleurs) : le ramener à 0,5 ferait passer les entrées
+    // sous zéro.
+    const isole = applyMatieresPurchaseToState([ligne()], [], {
+      productId: "mat-riz",
+      qty: 4,
+      unitPrice: 700,
+    });
+    expect(() =>
+      editMatieresMovementInState([ligne({ purchases: 1 })], isole.movements, {
+        movementId: isole.movement.id,
+        qty: 0.5,
+        unitPrice: 700,
+      }),
+    ).toThrow(/négatives/);
+  });
+
+  it("refuse de corriger un achat annulé, une quantité nulle ou un prix nul", () => {
+    const premier = achat(10);
+    expect(() =>
+      editMatieresMovementInState(premier.lines, premier.movements, {
+        movementId: premier.movement.id,
+        qty: 0,
+        unitPrice: 700,
+      }),
+    ).toThrow(/Quantité invalide/);
+    expect(() =>
+      editMatieresMovementInState(premier.lines, premier.movements, {
+        movementId: premier.movement.id,
+        qty: 5,
+        unitPrice: 0,
+      }),
+    ).toThrow(/Prix d'achat obligatoire/);
+
+    const annule = cancelMatieresMovementInState(
+      premier.lines,
+      premier.movements,
+      premier.movement.id,
+    );
+    expect(() =>
+      editMatieresMovementInState(annule.lines, annule.movements, {
+        movementId: premier.movement.id,
+        qty: 5,
+        unitPrice: 700,
+      }),
+    ).toThrow(/annulé/);
   });
 });

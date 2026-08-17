@@ -27,6 +27,7 @@ export function emptyCharges(date: string): DayCharges {
     carburant: 0,
     reparations: 0,
     pertes: 0,
+    achatsStock: 0,
     updatedAt: null,
   };
 }
@@ -40,7 +41,11 @@ export function chargesTotal(c: DayCharges): number {
     c.carburant +
     c.reparations +
     // Un produit gâté est une charge réelle, au même titre qu'un achat.
-    Math.max(0, Number(c.pertes) || 0)
+    Math.max(0, Number(c.pertes) || 0) +
+    // Ce qui est acheté sur la page Achats est une charge : sans cette ligne,
+    // un achat saisi ne pesait sur le résultat que si le gérant le retapait
+    // à la main dans « matières premières ».
+    Math.max(0, Number(c.achatsStock) || 0)
   );
 }
 

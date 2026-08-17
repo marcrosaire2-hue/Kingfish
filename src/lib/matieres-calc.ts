@@ -54,6 +54,7 @@ export function normalizeMatieresMovement(
     unitPrice: Math.max(0, Number(m.unitPrice) || 0),
     stockAfter: Math.max(0, Number(m.stockAfter) || 0),
     cancelledAt: m.cancelledAt ?? null,
+    editedAt: m.editedAt ?? null,
     fournisseurId: m.fournisseurId ?? null,
     fournisseurNom: m.fournisseurNom ?? null,
     depenseId: m.depenseId ?? null,
@@ -250,6 +251,91 @@ export function cancelMatieresMovementInState(
         ? { ...x, cancelledAt: new Date().toISOString() }
         : x,
     ),
+  };
+}
+
+/**
+ * Correction d'un achat déjà saisi : quantité, prix, fournisseur, et le nom
+ * pour un achat hors catalogue. La ligne garde son identité et son heure de
+ * saisie — c'est une correction, pas un nouvel achat.
+ *
+ * Le stock suit l'écart de quantité : passer 10 kg à 7 kg retire 3 kg des
+ * entrées du jour. Un achat annulé ne se corrige pas (il faut le ressaisir),
+ * et la matière d'un achat catalogue ne change pas — annuler puis ressaisir
+ * reste la voie propre pour ça.
+ */
+export function editMatieresMovementInState(
+  lines: MatieresLine[],
+  movements: MatieresMovement[],
+  input: {
+    movementId: string;
+    qty: number;
+    unitPrice: number;
+    name?: string;
+    fournisseurId?: string | null;
+    fournisseurNom?: string | null;
+  },
+): {
+  lines: MatieresLine[];
+  movements: MatieresMovement[];
+  movement: MatieresMovement;
+} {
+  const current = movements.find((x) => x.id === input.movementId);
+  if (!current) throw new Error("Mouvement introuvable");
+  if (current.cancelledAt) throw new Error("Achat annulé : correction impossible");
+
+  const qty = Math.max(0, Number(input.qty) || 0);
+  if (qty <= 0) throw new Error("Quantité invalide");
+  const unitPrice = Math.max(0, Number(input.unitPrice) || 0);
+  if (unitPrice <= 0) throw new Error("Prix d'achat obligatoire");
+
+  const previous = normalizeMatieresMovement(current)!;
+  const delta = qty - previous.qty;
+
+  let linesOut: MatieresLine[];
+  let stockAfter = previous.stockAfter;
+  let name = previous.name;
+
+  if (previous.type === "autre") {
+    // Achat libre : le nom est saisi à la main, aucune ligne de stock derrière.
+    const saisi = String(input.name ?? previous.name).trim();
+    if (saisi.length < 2) throw new Error("Nom du produit obligatoire");
+    name = saisi;
+    stockAfter = 0;
+    linesOut = lines.map((l) => normalizeMatieresLine(l));
+  } else {
+    const idx = lines.findIndex((l) => l.productId === previous.productId);
+    if (idx < 0) throw new Error("Matière introuvable");
+    const line = normalizeMatieresLine(lines[idx]!);
+    const purchases = line.purchases + delta;
+    if (purchases < 0) {
+      throw new Error(
+        "Quantité trop basse : les entrées du jour deviendraient négatives.",
+      );
+    }
+    const nextLine = { ...line, purchases };
+    stockAfter = stockOf(nextLine);
+    name = line.name;
+    linesOut = lines.map((l, i) =>
+      i === idx ? nextLine : normalizeMatieresLine(l),
+    );
+  }
+
+  const movement: MatieresMovement = {
+    ...previous,
+    name,
+    qty,
+    unitPrice,
+    stockAfter,
+    editedAt: new Date().toISOString(),
+    fournisseurId: input.fournisseurId ?? null,
+    fournisseurNom: input.fournisseurNom ?? null,
+  };
+
+  return {
+    lines: linesOut,
+    movements: movements.map((x) => (x.id === movement.id ? movement : x)),
+    movement,
   };
 }
 

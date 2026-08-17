@@ -11,6 +11,7 @@ import {
   applyMatieresOtherPurchase,
   applyMatieresPurchase,
   cancelMatieresMovement,
+  editMatieresMovement,
   getMatieresDayPayload,
   linkMatieresMovementDepense,
   listMatieresMovements,
@@ -134,6 +135,93 @@ export async function POST(request: Request) {
         site: "zogbo",
       });
       return NextResponse.json({ ...payload, depenseWarning });
+    }
+
+    if (body.action === "edit") {
+      if (!body.movementId) {
+        return NextResponse.json(
+          { error: "movementId requis." },
+          { status: 400 },
+        );
+      }
+      const fournisseur = body.fournisseurId
+        ? (await getPosConfig()).fournisseurs.find(
+            (f) => f.id === body.fournisseurId,
+          )
+        : null;
+      const payload = await editMatieresMovement({
+        date: body.date,
+        movementId: body.movementId,
+        qty: Number(body.qty),
+        unitPrice: Number(body.unitPrice),
+        name: body.name,
+        fournisseurId: fournisseur?.id ?? null,
+        fournisseurNom: fournisseur?.nom ?? null,
+      });
+
+      // La dépense de caisse doit suivre le montant corrigé. Faute de
+      // modification en place à la caisse, on barre l'ancienne et on en pose
+      // une neuve : le journal montre la correction au lieu de la masquer.
+      const montant = Math.round(
+        payload.movement.qty * payload.movement.unitPrice,
+      );
+      let depense: { id: string; montant: number } | null = null;
+      let depenseWarning: string | null = null;
+      const ancienneDepenseId = payload.movement.depenseId ?? null;
+      if (ancienneDepenseId) {
+        try {
+          await cancelCaisseMouvement({
+            mouvementId: ancienneDepenseId,
+            user,
+          });
+        } catch (e) {
+          depenseWarning =
+            e instanceof Error
+              ? `Achat corrigé, mais dépense liée non reprise : ${e.message}`
+              : "Achat corrigé, mais dépense liée non reprise.";
+        }
+      }
+      if (!depenseWarning && montant > 0) {
+        try {
+          const site: "zogbo" | "gbegamey" =
+            user.site === "gbegamey" ? "gbegamey" : "zogbo";
+          const session = await getActiveCaisseForSite(site);
+          if (session) {
+            const res = await addCaisseMouvement({
+              caisseId: session.id,
+              user,
+              kind: "depense",
+              nature: `Achat stock · ${payload.movement.name} +${payload.movement.qty}`,
+              beneficiaire:
+                payload.movement.fournisseurNom ?? "Fournisseur non précisé",
+              montant,
+            });
+            depense = { id: res.mouvement.id, montant };
+            await linkMatieresMovementDepense({
+              date: body.date,
+              movementId: payload.movement.id,
+              depenseId: res.mouvement.id,
+            });
+            payload.movement.depenseId = res.mouvement.id;
+          }
+        } catch {
+          // Caisse fermée ou inaccessible : la correction du stock reste
+          // acquise, la dépense est signalée à l'écran.
+          depenseWarning =
+            "Achat corrigé, mais dépense de caisse non régénérée (caisse fermée).";
+        }
+      }
+
+      await logActivity({
+        user,
+        kind: "matieres",
+        title: "Correction achat matières",
+        detail: `${payload.movement.name} · ${payload.movement.qty} × ${payload.movement.unitPrice}`,
+        date: body.date,
+        site: "zogbo",
+        amount: montant > 0 ? montant : null,
+      });
+      return NextResponse.json({ ...payload, depense, depenseWarning });
     }
 
     if (!body.productId || body.qty == null) {

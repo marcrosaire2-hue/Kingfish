@@ -31,6 +31,22 @@ describe("chargesTotal", () => {
     expect(chargesTotal({ ...base, pertes: -500 })).toBe(0);
   });
 
+  it("compte les achats du registre comme une charge", () => {
+    // Un achat saisi sur la page Achats pèse sur le résultat sans que le
+    // gérant ait à le retaper dans « matières premières ».
+    const base = emptyCharges("2026-08-12");
+    expect(chargesTotal({ ...base, achatsStock: 113850 })).toBe(113850);
+    expect(
+      chargesTotal({ ...base, matieresPremieres: 10000, achatsStock: 5000 }),
+    ).toBe(15000);
+  });
+
+  it("ignore un total d'achats absent ou aberrant", () => {
+    const base = emptyCharges("2026-08-12");
+    expect(chargesTotal({ ...base, achatsStock: undefined })).toBe(0);
+    expect(chargesTotal({ ...base, achatsStock: -500 })).toBe(0);
+  });
+
   it("une journée vierge ne coûte rien", () => {
     expect(chargesTotal(emptyCharges("2026-08-12"))).toBe(0);
   });

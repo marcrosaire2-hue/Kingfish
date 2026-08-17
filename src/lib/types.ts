@@ -289,6 +289,14 @@ export type DayCharges = {
    * aux déclarations.
    */
   pertes?: number;
+  /**
+   * Achats enregistrés sur la page Achats (catalogue et hors catalogue),
+   * valorisés qté × prix. Calculé depuis le registre des achats, jamais saisi
+   * ici : ce qui est acheté est une charge, et une annulation doit se voir
+   * tout de suite au résultat. Le poste « matières premières » reste saisi à
+   * la main pour ce qui ne passe pas par la page Achats.
+   */
+  achatsStock?: number;
   updatedAt: string | null;
 };
 
@@ -761,6 +769,8 @@ export type MatieresMovement = {
   unitPrice: number;
   stockAfter: number;
   cancelledAt: string | null;
+  /** Dernière correction de la ligne — l'achat garde son heure de saisie. */
+  editedAt?: string | null;
   /** Fournisseur de cet achat — permet de comparer les prix dans le temps */
   fournisseurId?: string | null;
   fournisseurNom?: string | null;

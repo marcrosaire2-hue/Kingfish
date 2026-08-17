@@ -7,6 +7,7 @@ import type {
   DayCharges,
   DayPoint,
   GbegameyDay,
+  MatieresMovement,
   MonthPoint,
   ProductRank,
   ProductRanking,
@@ -107,6 +108,39 @@ async function withPertes(
   for (const [date, cout] of Object.entries(parJour) as [string, number][]) {
     const existante = charges.get(date) ?? emptyCharges(date);
     charges.set(date, { ...existante, pertes: cout });
+  }
+  return charges;
+}
+
+/**
+ * Injecte les achats enregistrés (page Achats) dans les charges du jour. Même
+ * principe que les pertes : le registre fait foi, rien n'est recopié dans
+ * charges_jours, et annuler un achat allège le résultat immédiatement.
+ *
+ * La zone ne filtre pas : les achats de stock sont saisis pour la maison, sans
+ * distinction Zogbo / Gbégamey — les rattacher à une zone donnerait un
+ * résultat faux dès qu'on filtre par site.
+ */
+async function withAchatsStock(
+  charges: Map<string, DayCharges>,
+  start: string,
+  end: string,
+): Promise<Map<string, DayCharges>> {
+  const db = await getDb();
+  const docs = await db
+    .collection<{ _id: string; movements?: MatieresMovement[] }>("matieres_jours")
+    .find({ _id: { $gte: start, $lte: end } })
+    .toArray();
+  for (const doc of docs) {
+    const total = (doc.movements ?? [])
+      .filter((m) => !m.cancelledAt)
+      .reduce(
+        (s, m) => s + (Number(m.qty) || 0) * (Number(m.unitPrice) || 0),
+        0,
+      );
+    if (total <= 0) continue;
+    const existante = charges.get(doc._id) ?? emptyCharges(doc._id);
+    charges.set(doc._id, { ...existante, achatsStock: total });
   }
   return charges;
 }
@@ -444,11 +478,15 @@ async function loadMaps(
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     combos: new Map(combosDocs.map((d) => [d._id, toCombos(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: await withPertes(
-      new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+    charges: await withAchatsStock(
+      await withPertes(
+        new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+        dates[0]!,
+        dates[dates.length - 1]!,
+        scopeSite,
+      ),
       dates[0]!,
       dates[dates.length - 1]!,
-      scopeSite,
     ),
     ventes,
   };
@@ -491,11 +529,15 @@ async function loadRange(
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     combos: new Map(combosDocs.map((d) => [d._id, toCombos(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: await withPertes(
-      new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+    charges: await withAchatsStock(
+      await withPertes(
+        new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+        start,
+        end,
+        scopeSite,
+      ),
       start,
       end,
-      scopeSite,
     ),
     ventes,
   };

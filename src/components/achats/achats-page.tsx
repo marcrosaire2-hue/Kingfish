@@ -60,6 +60,158 @@ function formatTime(iso: string): string {
 }
 
 /**
+ * Une ligne du registre : affichage, ou formulaire de correction quand la
+ * ligne est en édition. Le registre du jour et l'historique partagent la même
+ * ligne — corriger un achat de la veille doit se faire au même endroit qu'on
+ * le lit.
+ */
+function MovementRow({
+  m,
+  dayDate,
+  fournisseurs,
+  busyId,
+  editing,
+  draftEdit,
+  onDraftChange,
+  onStartEdit,
+  onStopEdit,
+  onSubmitEdit,
+  onCancelMovement,
+  showAmount = false,
+}: {
+  m: MatieresMovement;
+  dayDate: string;
+  fournisseurs: Fournisseur[];
+  busyId: string | null;
+  editing: boolean;
+  draftEdit: DraftLibre;
+  onDraftChange: (patch: Partial<DraftLibre>) => void;
+  onStartEdit: (m: MatieresMovement) => void;
+  onStopEdit: () => void;
+  onSubmitEdit: (m: MatieresMovement, dayDate: string) => void;
+  onCancelMovement: (m: MatieresMovement, dayDate: string) => void;
+  showAmount?: boolean;
+}) {
+  const busy = busyId === `edit-${m.id}` || busyId === `cancel-${m.id}`;
+
+  if (editing) {
+    return (
+      <li className="achat-edit-row">
+        <div className="achat-edit-form">
+          {m.type === "autre" ? (
+            <label className="vente-field">
+              <span>Produit</span>
+              <input
+                value={draftEdit.name}
+                onChange={(e) => onDraftChange({ name: e.target.value })}
+                placeholder="Nom du produit"
+              />
+            </label>
+          ) : (
+            <div className="vente-field vente-field-static">
+              <span>Matière</span>
+              <strong>{m.name}</strong>
+            </div>
+          )}
+          <label className="vente-field">
+            <span>Quantité</span>
+            <input
+              inputMode="decimal"
+              value={draftEdit.qty}
+              onChange={(e) => onDraftChange({ qty: e.target.value })}
+            />
+          </label>
+          <label className="vente-field">
+            <span>Prix unitaire</span>
+            <input
+              inputMode="decimal"
+              value={draftEdit.price}
+              onChange={(e) => onDraftChange({ price: e.target.value })}
+            />
+          </label>
+          <label className="vente-field">
+            <span>Fournisseur</span>
+            <select
+              value={draftEdit.fournisseurId}
+              onChange={(e) => onDraftChange({ fournisseurId: e.target.value })}
+            >
+              <option value="">Fournisseur…</option>
+              {fournisseurs.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nom}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <div className="achat-edit-actions">
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={busy}
+            onClick={() => onSubmitEdit(m, dayDate)}
+          >
+            {busy ? "…" : "Enregistrer"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={busy}
+            onClick={onStopEdit}
+          >
+            Abandonner
+          </button>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className={m.cancelledAt ? "is-cancelled" : undefined}>
+      <div>
+        <strong>
+          +{m.qty} × {m.name}
+        </strong>
+        {m.unitPrice > 0 ? (
+          <span className="muted">
+            {" "}
+            ({formatFcfa(m.unitPrice)} / u
+            {showAmount ? ` — ${formatFcfa(m.qty * m.unitPrice)}` : ""})
+          </span>
+        ) : null}
+        <div className="vente-log-time muted">
+          {formatTime(m.at)}
+          {m.fournisseurNom ? ` · ${m.fournisseurNom}` : ""}
+          {m.depenseId ? " · dépense liée" : ""}
+          {m.editedAt ? " · corrigé" : ""}
+          {m.cancelledAt ? " · annulé" : ""}
+        </div>
+      </div>
+      {!m.cancelledAt ? (
+        <div className="achat-row-actions">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={busy}
+            onClick={() => onStartEdit(m)}
+          >
+            Modifier
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={busy}
+            onClick={() => onCancelMovement(m, dayDate)}
+          >
+            Annuler
+          </button>
+        </div>
+      ) : null}
+    </li>
+  );
+}
+
+/**
  * Achats saisis, mis à plat pour Excel. Les achats annulés restent listés :
  * un registre qui efface ses lignes ne se contrôle pas — la colonne Statut
  * les distingue.
@@ -75,7 +227,7 @@ function movementRows(
     Quantité: m.qty,
     "PU (FCFA)": m.unitPrice,
     "Montant (FCFA)": m.qty * m.unitPrice,
-    Statut: m.cancelledAt ? "Annulé" : "Validé",
+    Statut: m.cancelledAt ? "Annulé" : m.editedAt ? "Corrigé" : "Validé",
   }));
 }
 
@@ -93,12 +245,17 @@ export function AchatsPage() {
   const [draftLibre, setDraftLibre] = useState<DraftLibre>(() => emptyDraftLibre());
   const [busyLibre, setBusyLibre] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  /** Achat en cours de correction — un seul à la fois, registre ou historique. */
+  const [editId, setEditId] = useState<string | null>(null);
+  const [draftEdit, setDraftEdit] = useState<DraftLibre>(() => emptyDraftLibre());
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [search, setSearch] = useState("");
   const [historique, setHistorique] = useState<
     Array<{ date: string; movement: MatieresMovement }>
   >([]);
-  const [historiqueRange, setHistoriqueRange] = useState(7);
+  // 30 jours par défaut : sur 7 jours, un achat saisi pour une date un peu
+  // ancienne sortait de la plage et semblait perdu.
+  const [historiqueRange, setHistoriqueRange] = useState(30);
   const [flash, setFlash] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -312,6 +469,67 @@ export function AchatsPage() {
     })();
   }
 
+  function startEdit(m: MatieresMovement) {
+    setError(null);
+    setFlash(null);
+    setEditId(m.id);
+    setDraftEdit({
+      name: m.name,
+      qty: String(m.qty),
+      price: String(m.unitPrice),
+      fournisseurId: m.fournisseurId ?? "",
+    });
+  }
+
+  async function submitEdit(m: MatieresMovement, dayDate: string) {
+    const qty = Number(draftEdit.qty.replace(",", "."));
+    const price = Number(draftEdit.price.replace(",", "."));
+    if (!(qty > 0) || !(price > 0)) {
+      setError("Quantité et prix unitaire obligatoires.");
+      return;
+    }
+    setBusyId(`edit-${m.id}`);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/matieres", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "edit",
+          date: dayDate,
+          movementId: m.id,
+          qty,
+          unitPrice: price,
+          name: m.type === "autre" ? draftEdit.name.trim() : undefined,
+          fournisseurId: draftEdit.fournisseurId || undefined,
+        }),
+      });
+      const body = (await res.json()) as StockPayload & {
+        error?: string;
+        depense?: { id: string; montant: number } | null;
+        depenseWarning?: string | null;
+      };
+      if (!res.ok) throw new Error(body.error || "Erreur");
+      if (dayDate === date) {
+        setDay(body.day);
+        setMaterials(body.materials);
+      }
+      setEditId(null);
+      if (body.depenseWarning) setFlash(body.depenseWarning);
+      else if (body.depense) {
+        setFlash(
+          `Achat corrigé — dépense de caisse ramenée à ${formatFcfa(body.depense.montant)}.`,
+        );
+      } else setFlash("Achat corrigé.");
+      reloadHistorique();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function cancelMovement(m: MatieresMovement, dayDate: string) {
     if (!window.confirm(`Annuler cet achat de stock ?\n\n+${m.qty} × ${m.name}`)) {
       return;
@@ -355,6 +573,17 @@ export function AchatsPage() {
     }
     return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
   }, [historique]);
+
+  /** Jours récents portant des achats, hors date affichée — repère quand le
+   *  registre du jour est vide alors que des achats existent ailleurs. */
+  const derniersJoursAvecAchats = useMemo(
+    () =>
+      historyByDay
+        .filter(([d]) => d !== date)
+        .slice(0, 4)
+        .map(([d, entries]) => [d, entries.length] as const),
+    [historyByDay, date],
+  );
 
   return (
     <AppShell
@@ -636,42 +865,47 @@ export function AchatsPage() {
           <section className="panel">
             <h2 className="panel-title">Registre des achats de stock</h2>
             {(day.movements ?? []).length === 0 ? (
-              <p className="muted">Aucun mouvement aujourd’hui.</p>
+              <>
+                <p className="muted">Aucun achat saisi pour le {date}.</p>
+                {/* Un achat saisi pour une autre date n'est pas perdu : on dit
+                    où il est, au lieu de laisser un registre vide. */}
+                {derniersJoursAvecAchats.length > 0 ? (
+                  <p className="ui-info">
+                    Derniers achats enregistrés :{" "}
+                    {derniersJoursAvecAchats.map(([d, n], i) => (
+                      <span key={d}>
+                        {i > 0 ? " · " : ""}
+                        <button
+                          type="button"
+                          className="link-button"
+                          onClick={() => setDate(d)}
+                        >
+                          {d} ({n})
+                        </button>
+                      </span>
+                    ))}
+                  </p>
+                ) : null}
+              </>
             ) : (
               <ul className="vente-log">
                 {(day.movements ?? []).map((m) => (
-                  <li
+                  <MovementRow
                     key={m.id}
-                    className={m.cancelledAt ? "is-cancelled" : undefined}
-                  >
-                    <div>
-                      <strong>
-                        +{m.qty} × {m.name}
-                      </strong>
-                      {m.unitPrice > 0 ? (
-                        <span className="muted">
-                          {" "}
-                          ({formatFcfa(m.unitPrice)} / u)
-                        </span>
-                      ) : null}
-                      <div className="vente-log-time muted">
-                        {formatTime(m.at)}
-                        {m.fournisseurNom ? ` · ${m.fournisseurNom}` : ""}
-                        {m.depenseId ? " · dépense liée" : ""}
-                        {m.cancelledAt ? " · annulé" : ""}
-                      </div>
-                    </div>
-                    {!m.cancelledAt ? (
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        disabled={busyId === `cancel-${m.id}`}
-                        onClick={() => void cancelMovement(m, date)}
-                      >
-                        Annuler
-                      </button>
-                    ) : null}
-                  </li>
+                    m={m}
+                    dayDate={date}
+                    fournisseurs={fournisseurs}
+                    busyId={busyId}
+                    editing={editId === m.id}
+                    draftEdit={draftEdit}
+                    onDraftChange={(patch) =>
+                      setDraftEdit((d) => ({ ...d, ...patch }))
+                    }
+                    onStartEdit={startEdit}
+                    onStopEdit={() => setEditId(null)}
+                    onSubmitEdit={(mv, d) => void submitEdit(mv, d)}
+                    onCancelMovement={(mv, d) => void cancelMovement(mv, d)}
+                  />
                 ))}
               </ul>
             )}
@@ -701,39 +935,23 @@ export function AchatsPage() {
                   <h3 className="history-day-title">{d}</h3>
                   <ul className="vente-log">
                     {entries.map(({ movement: m }) => (
-                      <li
+                      <MovementRow
                         key={m.id}
-                        className={m.cancelledAt ? "is-cancelled" : undefined}
-                      >
-                        <div>
-                          <strong>
-                            +{m.qty} × {m.name}
-                          </strong>
-                          {m.unitPrice > 0 ? (
-                            <span className="muted">
-                              {" "}
-                              ({formatFcfa(m.unitPrice)} / u —{" "}
-                              {formatFcfa(m.qty * m.unitPrice)})
-                            </span>
-                          ) : null}
-                          <div className="vente-log-time muted">
-                            {formatTime(m.at)}
-                            {m.fournisseurNom ? ` · ${m.fournisseurNom}` : ""}
-                            {m.depenseId ? " · dépense liée" : ""}
-                            {m.cancelledAt ? " · annulé" : ""}
-                          </div>
-                        </div>
-                        {!m.cancelledAt ? (
-                          <button
-                            type="button"
-                            className="btn btn-ghost"
-                            disabled={busyId === `cancel-${m.id}`}
-                            onClick={() => void cancelMovement(m, d)}
-                          >
-                            Annuler
-                          </button>
-                        ) : null}
-                      </li>
+                        m={m}
+                        dayDate={d}
+                        fournisseurs={fournisseurs}
+                        busyId={busyId}
+                        editing={editId === m.id}
+                        draftEdit={draftEdit}
+                        onDraftChange={(patch) =>
+                          setDraftEdit((dr) => ({ ...dr, ...patch }))
+                        }
+                        onStartEdit={startEdit}
+                        onStopEdit={() => setEditId(null)}
+                        onSubmitEdit={(mv, dd) => void submitEdit(mv, dd)}
+                        onCancelMovement={(mv, dd) => void cancelMovement(mv, dd)}
+                        showAmount
+                      />
                     ))}
                   </ul>
                 </div>

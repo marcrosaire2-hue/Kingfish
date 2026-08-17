@@ -6,6 +6,7 @@ import {
   applyMatieresPurchaseToState,
   cancelMatieresMovementInState,
   createEmptyMatieresDay,
+  editMatieresMovementInState,
   leftoverFromMatieresLines,
   normalizeMatieresLine,
   normalizeMatieresMovement,
@@ -405,5 +406,65 @@ export async function cancelMatieresMovement(input: {
       updatedAt,
     },
     materials: payload.materials,
+  };
+}
+
+/**
+ * Correction d'un achat déjà enregistré. Le mouvement garde son identité :
+ * l'historique montre la ligne corrigée, pas une seconde ligne concurrente.
+ */
+export async function editMatieresMovement(input: {
+  date: string;
+  movementId: string;
+  qty: number;
+  unitPrice: number;
+  name?: string;
+  fournisseurId?: string | null;
+  fournisseurNom?: string | null;
+}): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
+  if (!isValidDate(input.date)) throw new Error("Date invalide");
+  const payload = await getMatieresDayPayload(input.date);
+  assertDayOpen(
+    payload.day.status,
+    "Journée clôturée : correction d'achat impossible.",
+  );
+  const applied = editMatieresMovementInState(
+    payload.day.lines,
+    payload.day.movements ?? [],
+    {
+      movementId: input.movementId,
+      qty: input.qty,
+      unitPrice: input.unitPrice,
+      name: input.name,
+      fournisseurId: input.fournisseurId,
+      fournisseurNom: input.fournisseurNom,
+    },
+  );
+
+  const db = await getDb();
+  const updatedAt = new Date().toISOString();
+  const status = payload.day.status;
+  await db.collection<MatieresDoc>("matieres_jours").updateOne(
+    { _id: input.date },
+    {
+      $set: {
+        status,
+        lines: applied.lines,
+        movements: applied.movements,
+        updatedAt,
+      },
+    },
+  );
+
+  return {
+    day: {
+      date: input.date,
+      status,
+      lines: syncMatieresLines(applied.lines, payload.materials),
+      movements: applied.movements,
+      updatedAt,
+    },
+    materials: payload.materials,
+    movement: applied.movement,
   };
 }
