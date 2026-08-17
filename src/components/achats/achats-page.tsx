@@ -59,6 +59,26 @@ function formatTime(iso: string): string {
   }
 }
 
+/**
+ * Achats saisis, mis à plat pour Excel. Les achats annulés restent listés :
+ * un registre qui efface ses lignes ne se contrôle pas — la colonne Statut
+ * les distingue.
+ */
+function movementRows(
+  movements: MatieresMovement[],
+): Array<Record<string, string | number>> {
+  return movements.map((m) => ({
+    Heure: formatTime(m.at),
+    Produit: m.name,
+    Type: m.type === "autre" ? "Hors catalogue" : "Catalogue",
+    Fournisseur: m.fournisseurNom ?? "",
+    Quantité: m.qty,
+    "PU (FCFA)": m.unitPrice,
+    "Montant (FCFA)": m.qty * m.unitPrice,
+    Statut: m.cancelledAt ? "Annulé" : "Validé",
+  }));
+}
+
 function addDays(iso: string, days: number): string {
   const d = new Date(`${iso}T12:00:00`);
   d.setDate(d.getDate() + days);
@@ -346,6 +366,23 @@ export function AchatsPage() {
           onExport={() => {
             if (!computed) return Promise.resolve();
             downloadExcel(excelFilename("achats-stock", date), [
+              // Les achats saisis d'abord : c'est ce qu'on vient chercher dans
+              // ce fichier. La feuille Stock ne les montrait pas — un achat
+              // libre (hors catalogue) ne touche aucune ligne de stock, et un
+              // achat de catalogue s'y fondait dans un simple cumul.
+              {
+                name: "Achats du jour",
+                subtitle: date,
+                rows: movementRows(day?.movements ?? []),
+              },
+              {
+                name: "Historique",
+                subtitle: `${historiqueRange} derniers jours`,
+                rows: historique.map(({ date: d, movement }) => ({
+                  Date: d,
+                  ...movementRows([movement])[0]!,
+                })),
+              },
               {
                 name: "Stock",
                 rows: computed.lines.map((l) => ({
