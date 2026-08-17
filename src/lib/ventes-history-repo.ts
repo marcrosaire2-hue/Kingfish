@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/mongodb";
-import type { VenteSite } from "@/lib/types";
+import type { VenteKind, VenteSite } from "@/lib/types";
 import { ObjectId } from "mongodb";
 
 export type VenteHistoryStatut = "valide" | "annule" | "encours" | "all";
@@ -10,6 +10,9 @@ export type VenteHistoryLine = {
   qty: number;
   unitPrice: number;
   amount: number;
+  /** Absent pour les lignes importées (AquaPro) : aucune catégorie fiable
+   *  n'y est associée côté source. */
+  kind?: VenteKind;
 };
 
 export type VenteHistoryTicket = {
@@ -78,6 +81,7 @@ type VentesLogRow = {
   _id: ObjectId;
   date: string;
   site: VenteSite;
+  kind?: VenteKind;
   name?: string;
   qty?: number;
   unitPrice?: number;
@@ -148,6 +152,7 @@ function ticketsFromVentesLog(
       qty: Number(r.qty) || 0,
       unitPrice: Number(r.unitPrice) || 0,
       amount: Number(r.amount) || 0,
+      kind: r.kind,
     }));
     const montant = lines.reduce((s, l) => s + l.amount, 0);
     const serveur = first.actorName || null;
@@ -245,6 +250,7 @@ export async function listVentesHistory(
 
       const lines: VenteHistoryLine[] = (d.lines || []).map(
         (l: {
+          kind?: VenteKind;
           name?: string;
           qty?: number;
           unitPrice?: number;
@@ -254,6 +260,7 @@ export async function listVentesHistory(
           qty: Number(l.qty) || 0,
           unitPrice: Number(l.unitPrice) || 0,
           amount: Number(l.amount) || 0,
+          kind: l.kind,
         }),
       );
 
