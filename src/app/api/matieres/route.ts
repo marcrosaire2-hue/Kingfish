@@ -90,6 +90,7 @@ export async function POST(request: Request) {
       unitPrice?: number;
       movementId?: string;
       fournisseurId?: string;
+      newDate?: string;
     };
 
     if (!body.date) {
@@ -157,7 +158,12 @@ export async function POST(request: Request) {
         name: body.name,
         fournisseurId: fournisseur?.id ?? null,
         fournisseurNom: fournisseur?.nom ?? null,
+        newDate: body.newDate,
       });
+      // L'achat a pu changer de jour : tout ce qui suit (dépense liée,
+      // journal d'activité) doit pointer sur sa nouvelle date, pas sur celle
+      // de départ envoyée dans la requête.
+      const resolvedDate = payload.day.date;
 
       // La dépense de caisse doit suivre le montant corrigé. Faute de
       // modification en place à la caisse, on barre l'ancienne et on en pose
@@ -198,7 +204,7 @@ export async function POST(request: Request) {
             });
             depense = { id: res.mouvement.id, montant };
             await linkMatieresMovementDepense({
-              date: body.date,
+              date: resolvedDate,
               movementId: payload.movement.id,
               depenseId: res.mouvement.id,
             });
@@ -217,7 +223,7 @@ export async function POST(request: Request) {
         kind: "matieres",
         title: "Correction achat matières",
         detail: `${payload.movement.name} · ${payload.movement.qty} × ${payload.movement.unitPrice}`,
-        date: body.date,
+        date: resolvedDate,
         site: "zogbo",
         amount: montant > 0 ? montant : null,
       });

@@ -222,7 +222,7 @@ export function ApprovisionnementPage() {
     })();
   }
 
-  function startEdit(m: MatieresMovement) {
+  function startEdit(m: MatieresMovement, dayDate: string) {
     setError(null);
     setFlash(null);
     setEditId(m.id);
@@ -231,6 +231,7 @@ export function ApprovisionnementPage() {
       qty: String(m.qty),
       price: String(m.unitPrice),
       fournisseurId: m.fournisseurId ?? "",
+      date: dayDate,
     });
   }
 
@@ -350,15 +351,14 @@ export function ApprovisionnementPage() {
               {
                 name: "Achats du jour",
                 subtitle: date,
-                rows: movementRows(catalogMovements),
+                rows: movementRows(
+                  catalogMovements.map((movement) => ({ date, movement })),
+                ),
               },
               {
                 name: "Historique",
                 subtitle: `${historiqueRange} derniers jours`,
-                rows: catalogHistorique.map(({ date: d, movement }) => ({
-                  Date: d,
-                  ...movementRows([movement])[0]!,
-                })),
+                rows: movementRows(catalogHistorique),
               },
               {
                 name: "Stock",

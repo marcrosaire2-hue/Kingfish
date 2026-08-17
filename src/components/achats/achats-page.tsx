@@ -2,16 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
-import type { Fournisseur, MatieresDay, MatieresMovement } from "@/lib/types";
+import type { Fournisseur, MatieresMovement } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import { BrandLoader } from "@/components/brand-loader";
 import {
   MovementRow,
-  addDays,
   emptyDraftLibre,
   movementRows,
   type DraftLibre,
@@ -23,56 +21,64 @@ function isLibre(m: MatieresMovement): boolean {
   return m.type === "autre";
 }
 
+// Bornes larges plutôt qu'un sélecteur de plage : la page montre tous les
+// achats libres, sans notion de « jour affiché ». +1 an couvre une saisie
+// datée par erreur dans le futur sans la rendre invisible.
+const RANGE_FROM = "2020-01-01";
+
 /**
  * Achats libres (hors catalogue) : imprévus, divers, dépannage — un produit
- * qui n'a pas de fiche matière. Les achats de matières, eux, se saisissent
- * sur Approvisionnement, avec le catalogue et le stock. Les deux pages
- * partagent le même registre en base, filtré ici par type.
+ * qui n'a pas de fiche matière. Chaque achat porte sa propre date, choisie à
+ * la saisie : rien ici ne dépend d'une date de page affichée ailleurs, qui
+ * avait fait atterrir des achats sous de mauvaises dates par le passé. Les
+ * achats de matières, eux, se saisissent sur Approvisionnement.
  */
 export function AchatsPage() {
-  const [date, setDate] = useState(() => todayIsoDate());
-  const [day, setDay] = useState<MatieresDay | null>(null);
-  const [draftLibre, setDraftLibre] = useState<DraftLibre>(() => emptyDraftLibre());
-  const [busyLibre, setBusyLibre] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  /** Achat en cours de correction — un seul à la fois, registre ou historique. */
-  const [editId, setEditId] = useState<string | null>(null);
-  const [draftEdit, setDraftEdit] = useState<DraftLibre>(() => emptyDraftLibre());
-  const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
-  const [historique, setHistorique] = useState<
+  const [entries, setEntries] = useState<
     Array<{ date: string; movement: MatieresMovement }>
   >([]);
-  // 30 jours par défaut : sur 7 jours, un achat saisi pour une date un peu
-  // ancienne sortait de la plage et semblait perdu.
-  const [historiqueRange, setHistoriqueRange] = useState(30);
+  const [draftLibre, setDraftLibre] = useState<DraftLibre>(() =>
+    emptyDraftLibre(),
+  );
+  const [busyLibre, setBusyLibre] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  /** Achat en cours de correction — un seul à la fois. */
+  const [editId, setEditId] = useState<string | null>(null);
+  const [draftEdit, setDraftEdit] = useState<DraftLibre>(() =>
+    emptyDraftLibre(),
+  );
+  const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  async function loadStock(nextDate = date) {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/matieres?date=${encodeURIComponent(nextDate)}`,
-        { cache: "no-store" },
-      );
-      const body = (await res.json()) as StockPayload & { error?: string };
-      if (!res.ok) throw new Error(body.error || "Erreur");
-      setDay(body.day);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-      setDay(null);
-    } finally {
-      setLoading(false);
-    }
+  function reload() {
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const to = todayIsoDate();
+        const res = await fetch(
+          `/api/matieres?from=${encodeURIComponent(RANGE_FROM)}&to=${encodeURIComponent(to)}`,
+          { cache: "no-store" },
+        );
+        const body = (await res.json()) as {
+          historique?: Array<{ date: string; movement: MatieresMovement }>;
+          error?: string;
+        };
+        if (!res.ok) throw new Error(body.error || "Erreur");
+        setEntries((body.historique ?? []).filter(({ movement }) => isLibre(movement)));
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Erreur");
+      } finally {
+        setLoading(false);
+      }
+    })();
   }
 
   useEffect(() => {
-    const timer = window.setTimeout(() => void loadStock(date), 0);
-    return () => window.clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date]);
+    reload();
+  }, []);
 
   // Fournisseurs proposés à la saisie : gérés dans Réglages.
   useEffect(() => {
@@ -92,44 +98,20 @@ export function AchatsPage() {
     };
   }, []);
 
-  // Historique multi-jours : mouvements aplatis sur la plage choisie.
-  useEffect(() => {
-    let annule = false;
-    void (async () => {
-      try {
-        const from = addDays(todayIsoDate(), -(historiqueRange - 1));
-        const res = await fetch(
-          `/api/matieres?from=${encodeURIComponent(from)}&to=${encodeURIComponent(todayIsoDate())}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) return;
-        const body = (await res.json()) as {
-          historique?: Array<{ date: string; movement: MatieresMovement }>;
-        };
-        if (!annule) setHistorique(body.historique ?? []);
-      } catch {
-        /* silencieux : le registre du jour reste consultable */
-      }
-    })();
-    return () => {
-      annule = true;
-    };
-  }, [historiqueRange]);
-
-  const libreMovements = useMemo(
-    () => (day?.movements ?? []).filter(isLibre),
-    [day],
-  );
-
-  const libreHistorique = useMemo(
-    () => historique.filter(({ movement }) => isLibre(movement)),
-    [historique],
+  // Plus récent en premier.
+  const sorted = useMemo(
+    () => [...entries].sort((a, b) => b.date.localeCompare(a.date)),
+    [entries],
   );
 
   async function submitPurchaseLibre(row: DraftLibre) {
     const name = row.name.trim();
     const qty = Number(String(row.qty).replace(",", ".")) || 0;
     const price = Number(String(row.price).replace(",", ".")) || 0;
+    if (!row.date) {
+      setError("Choisissez la date de l'achat.");
+      return;
+    }
     if (name.length < 2) {
       setError("Saisissez le nom du produit acheté.");
       return;
@@ -146,7 +128,7 @@ export function AchatsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date,
+          date: row.date,
           productId: "autre",
           name,
           qty,
@@ -156,7 +138,6 @@ export function AchatsPage() {
       });
       const body = (await res.json()) as StockPayload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur");
-      setDay(body.day);
       setDraftLibre(emptyDraftLibre());
       if (body.depense) {
         setFlash(
@@ -165,7 +146,7 @@ export function AchatsPage() {
       } else {
         setFlash("Achat enregistré — caisse fermée : aucune dépense liée.");
       }
-      reloadHistorique();
+      reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -173,26 +154,7 @@ export function AchatsPage() {
     }
   }
 
-  function reloadHistorique() {
-    void (async () => {
-      try {
-        const from = addDays(todayIsoDate(), -(historiqueRange - 1));
-        const res = await fetch(
-          `/api/matieres?from=${encodeURIComponent(from)}&to=${encodeURIComponent(todayIsoDate())}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) return;
-        const body = (await res.json()) as {
-          historique?: Array<{ date: string; movement: MatieresMovement }>;
-        };
-        setHistorique(body.historique ?? []);
-      } catch {
-        /* silencieux */
-      }
-    })();
-  }
-
-  function startEdit(m: MatieresMovement) {
+  function startEdit(m: MatieresMovement, dayDate: string) {
     setError(null);
     setFlash(null);
     setEditId(m.id);
@@ -201,6 +163,7 @@ export function AchatsPage() {
       qty: String(m.qty),
       price: String(m.unitPrice),
       fournisseurId: m.fournisseurId ?? "",
+      date: dayDate,
     });
   }
 
@@ -209,6 +172,10 @@ export function AchatsPage() {
     const price = Number(draftEdit.price.replace(",", "."));
     if (!(qty > 0) || !(price > 0)) {
       setError("Quantité et prix unitaire obligatoires.");
+      return;
+    }
+    if (!draftEdit.date) {
+      setError("Choisissez la date de l'achat.");
       return;
     }
     setBusyId(`edit-${m.id}`);
@@ -226,6 +193,7 @@ export function AchatsPage() {
           unitPrice: price,
           name: draftEdit.name.trim(),
           fournisseurId: draftEdit.fournisseurId || undefined,
+          newDate: draftEdit.date !== dayDate ? draftEdit.date : undefined,
         }),
       });
       const body = (await res.json()) as StockPayload & {
@@ -234,7 +202,6 @@ export function AchatsPage() {
         depenseWarning?: string | null;
       };
       if (!res.ok) throw new Error(body.error || "Erreur");
-      if (dayDate === date) setDay(body.day);
       setEditId(null);
       if (body.depenseWarning) setFlash(body.depenseWarning);
       else if (body.depense) {
@@ -242,7 +209,7 @@ export function AchatsPage() {
           `Achat corrigé — dépense de caisse ramenée à ${formatFcfa(body.depense.montant)}.`,
         );
       } else setFlash("Achat corrigé.");
-      reloadHistorique();
+      reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -269,10 +236,9 @@ export function AchatsPage() {
       });
       const body = (await res.json()) as StockPayload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur");
-      if (dayDate === date) setDay(body.day);
       if (body.depenseWarning) setFlash(body.depenseWarning);
       else setFlash("Achat annulé.");
-      reloadHistorique();
+      reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -280,27 +246,10 @@ export function AchatsPage() {
     }
   }
 
-  // Groupes de l'historique par jour, du plus récent au plus ancien.
-  const historyByDay = useMemo(() => {
-    const groups = new Map<string, Array<{ movement: MatieresMovement }>>();
-    for (const { date: d, movement } of libreHistorique) {
-      const list = groups.get(d) ?? [];
-      list.push({ movement });
-      groups.set(d, list);
-    }
-    return [...groups.entries()].sort((a, b) => b[0].localeCompare(a[0]));
-  }, [libreHistorique]);
-
-  /** Jours récents portant des achats, hors date affichée — repère quand le
-   *  registre du jour est vide alors que des achats existent ailleurs. */
-  const derniersJoursAvecAchats = useMemo(
-    () =>
-      historyByDay
-        .filter(([d]) => d !== date)
-        .slice(0, 4)
-        .map(([d, entries]) => [d, entries.length] as const),
-    [historyByDay, date],
-  );
+  const totalMontant = entries
+    .filter(({ movement }) => !movement.cancelledAt)
+    .reduce((s, { movement }) => s + movement.qty * movement.unitPrice, 0);
+  const totalCount = entries.filter(({ movement }) => !movement.cancelledAt).length;
 
   return (
     <AppShell
@@ -310,19 +259,10 @@ export function AchatsPage() {
         <ExportExcelButton
           disabled={loading}
           onExport={() => {
-            downloadExcel(excelFilename("achats-libres", date), [
+            downloadExcel(excelFilename("achats-libres", todayIsoDate()), [
               {
-                name: "Achats du jour",
-                subtitle: date,
-                rows: movementRows(libreMovements),
-              },
-              {
-                name: "Historique",
-                subtitle: `${historiqueRange} derniers jours`,
-                rows: libreHistorique.map(({ date: d, movement }) => ({
-                  Date: d,
-                  ...movementRows([movement])[0]!,
-                })),
+                name: "Achats",
+                rows: movementRows(sorted),
               },
             ]);
             return Promise.resolve();
@@ -330,39 +270,39 @@ export function AchatsPage() {
         />
       }
     >
-      <ContextBar date={date} onDateChange={setDate} />
-
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       {flash ? <p className="ui-info" role="status">{flash}</p> : null}
 
       {!loading ? (
         <div className="dash-kpi-grid achats-kpi-grid">
           <div className="dash-kpi dash-kpi-accent">
-            <span className="dash-kpi-label">Achats du jour</span>
-            <span className="dash-kpi-value">
-              {formatFcfa(
-                libreMovements
-                  .filter((m) => !m.cancelledAt)
-                  .reduce((s, m) => s + m.qty * m.unitPrice, 0),
-              )}
-            </span>
+            <span className="dash-kpi-label">Total des achats</span>
+            <span className="dash-kpi-value">{formatFcfa(totalMontant)}</span>
           </div>
           <div className="dash-kpi">
             <span className="dash-kpi-label">Achats enregistrés</span>
-            <span className="dash-kpi-value">
-              {libreMovements.filter((m) => !m.cancelledAt).length}
-            </span>
+            <span className="dash-kpi-value">{totalCount}</span>
           </div>
         </div>
       ) : null}
 
-      {loading || !day ? (
+      {loading ? (
         <BrandLoader variant="ligne" label="Chargement des achats…" />
       ) : (
         <>
           <section className="panel">
             <h2 className="panel-title">Nouvel achat libre</h2>
             <div className="libre-buy">
+              <input
+                type="date"
+                className="input-text"
+                value={draftLibre.date}
+                max={todayIsoDate()}
+                onChange={(e) =>
+                  setDraftLibre((d) => ({ ...d, date: e.target.value }))
+                }
+                aria-label="Date de l'achat"
+              />
               <input
                 type="text"
                 className="input-text"
@@ -427,105 +367,40 @@ export function AchatsPage() {
               </button>
             </div>
             <p className="muted libre-hint">
-              Pour un produit qui n&apos;est pas une matière de stock : écrivez
-              ce que vous achetez, la quantité et le prix. L&apos;achat sera
-              enregistré au registre du jour, sans toucher au compteur de
-              stock d&apos;Approvisionnement.
+              Pour un produit qui n&apos;est pas une matière de stock : la
+              date à laquelle l&apos;achat a réellement eu lieu, ce que vous
+              achetez, la quantité et le prix. L&apos;achat est enregistré
+              sans toucher au compteur de stock d&apos;Approvisionnement.
             </p>
           </section>
 
           <section className="panel">
-            <h2 className="panel-title">Registre des achats</h2>
-            {libreMovements.length === 0 ? (
-              <>
-                <p className="muted">Aucun achat saisi pour le {date}.</p>
-                {/* Un achat saisi pour une autre date n'est pas perdu : on dit
-                    où il est, au lieu de laisser un registre vide. */}
-                {derniersJoursAvecAchats.length > 0 ? (
-                  <p className="ui-info">
-                    Derniers achats enregistrés :{" "}
-                    {derniersJoursAvecAchats.map(([d, n], i) => (
-                      <span key={d}>
-                        {i > 0 ? " · " : ""}
-                        <button
-                          type="button"
-                          className="link-button"
-                          onClick={() => setDate(d)}
-                        >
-                          {d} ({n})
-                        </button>
-                      </span>
-                    ))}
-                  </p>
-                ) : null}
-              </>
+            <h2 className="panel-title">Liste des achats</h2>
+            {sorted.length === 0 ? (
+              <p className="muted">Aucun achat libre enregistré.</p>
             ) : (
               <ul className="vente-log">
-                {libreMovements.map((m) => (
+                {sorted.map(({ date: d, movement: m }) => (
                   <MovementRow
                     key={m.id}
                     m={m}
-                    dayDate={date}
+                    dayDate={d}
                     fournisseurs={fournisseurs}
                     busyId={busyId}
                     editing={editId === m.id}
                     draftEdit={draftEdit}
                     onDraftChange={(patch) =>
-                      setDraftEdit((d) => ({ ...d, ...patch }))
+                      setDraftEdit((dr) => ({ ...dr, ...patch }))
                     }
                     onStartEdit={startEdit}
                     onStopEdit={() => setEditId(null)}
-                    onSubmitEdit={(mv, d) => void submitEdit(mv, d)}
-                    onCancelMovement={(mv, d) => void cancelMovement(mv, d)}
+                    onSubmitEdit={(mv, dd) => void submitEdit(mv, dd)}
+                    onCancelMovement={(mv, dd) => void cancelMovement(mv, dd)}
+                    showAmount
+                    allowDateEdit
                   />
                 ))}
               </ul>
-            )}
-          </section>
-
-          <section className="panel">
-            <div className="panel-head">
-              <h2 className="panel-title">Historique des achats</h2>
-              <select
-                className="input-select"
-                value={historiqueRange}
-                onChange={(e) => setHistoriqueRange(Number(e.target.value))}
-                aria-label="Plage de l'historique"
-              >
-                <option value={7}>7 derniers jours</option>
-                <option value={30}>30 derniers jours</option>
-                <option value={90}>90 derniers jours</option>
-              </select>
-            </div>
-            {libreHistorique.length === 0 ? (
-              <p className="muted">Aucun achat sur cette période.</p>
-            ) : (
-              historyByDay.map(([d, entries]) => (
-                <div key={d} className="history-day">
-                  <h3 className="history-day-title">{d}</h3>
-                  <ul className="vente-log">
-                    {entries.map(({ movement: m }) => (
-                      <MovementRow
-                        key={m.id}
-                        m={m}
-                        dayDate={d}
-                        fournisseurs={fournisseurs}
-                        busyId={busyId}
-                        editing={editId === m.id}
-                        draftEdit={draftEdit}
-                        onDraftChange={(patch) =>
-                          setDraftEdit((dr) => ({ ...dr, ...patch }))
-                        }
-                        onStartEdit={startEdit}
-                        onStopEdit={() => setEditId(null)}
-                        onSubmitEdit={(mv, dd) => void submitEdit(mv, dd)}
-                        onCancelMovement={(mv, dd) => void cancelMovement(mv, dd)}
-                        showAmount
-                      />
-                    ))}
-                  </ul>
-                </div>
-              ))
             )}
           </section>
         </>

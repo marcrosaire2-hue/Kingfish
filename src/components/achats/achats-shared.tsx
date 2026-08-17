@@ -2,6 +2,7 @@
 
 import { formatFcfa } from "@/lib/format";
 import type { Fournisseur, MatieresMovement } from "@/lib/types";
+import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export type StockPayload = {
   day: import("@/lib/types").MatieresDay;
@@ -21,25 +22,28 @@ export type DraftLibre = {
   qty: string;
   price: string;
   fournisseurId: string;
+  /** Date de l'achat (YYYY-MM-DD) — saisie par l'utilisateur, jamais déduite
+   *  d'une date de page affichée ailleurs à l'écran. */
+  date: string;
 };
 
 export function emptyDraft(): DraftRow {
   return { qty: "", price: "", fournisseurId: "" };
 }
 
-export function emptyDraftLibre(): DraftLibre {
-  return { name: "", qty: "", price: "", fournisseurId: "" };
+export function emptyDraftLibre(date: string = todayIsoDate()): DraftLibre {
+  return { name: "", qty: "", price: "", fournisseurId: "", date };
 }
 
-export function formatTime(iso: string): string {
+/** Date seule, sans heure — l'heure de saisie n'intéresse personne ici. */
+export function formatDateFr(dateIso: string): string {
   try {
     return new Intl.DateTimeFormat("fr-FR", {
-      dateStyle: "short",
-      timeStyle: "medium",
+      dateStyle: "medium",
       timeZone: "Africa/Porto-Novo",
-    }).format(new Date(iso));
+    }).format(new Date(`${dateIso}T12:00:00`));
   } catch {
-    return iso;
+    return dateIso;
   }
 }
 
@@ -50,15 +54,15 @@ export function addDays(iso: string, days: number): string {
 }
 
 /**
- * Mouvements mis à plat pour Excel. Les mouvements annulés restent listés :
- * un registre qui efface ses lignes ne se contrôle pas — la colonne Statut
- * les distingue.
+ * Mouvements mis à plat pour Excel, chacun avec sa date de saisie. Les
+ * mouvements annulés restent listés : un registre qui efface ses lignes ne se
+ * contrôle pas — la colonne Statut les distingue.
  */
 export function movementRows(
-  movements: MatieresMovement[],
+  entries: Array<{ date: string; movement: MatieresMovement }>,
 ): Array<Record<string, string | number>> {
-  return movements.map((m) => ({
-    Heure: formatTime(m.at),
+  return entries.map(({ date, movement: m }) => ({
+    Date: date,
     Produit: m.name,
     Fournisseur: m.fournisseurNom ?? "",
     Quantité: m.qty,
@@ -70,11 +74,13 @@ export function movementRows(
 
 /**
  * Une ligne du registre : affichage, ou formulaire de correction quand la
- * ligne est en édition. Le registre du jour et l'historique partagent la même
- * ligne — corriger un achat de la veille doit se faire au même endroit qu'on
- * le lit. Partagée entre Approvisionnement (achats catalogue) et Achats
- * (achats libres) : les deux pages listent et corrigent des mouvements de la
- * même façon, seul le filtre par type diffère.
+ * ligne est en édition. Partagée entre Approvisionnement (achats catalogue)
+ * et Achats (achats libres) : les deux pages listent et corrigent des
+ * mouvements de la même façon, seul le filtre par type diffère.
+ *
+ * `allowDateEdit` n'a de sens que pour un achat libre : un achat de
+ * catalogue touche le compteur `purchases` de sa matière pour SON jour — le
+ * déplacer casserait le stock de la journée d'origine.
  */
 export function MovementRow({
   m,
@@ -89,6 +95,7 @@ export function MovementRow({
   onSubmitEdit,
   onCancelMovement,
   showAmount = false,
+  allowDateEdit = false,
 }: {
   m: MatieresMovement;
   dayDate: string;
@@ -97,11 +104,12 @@ export function MovementRow({
   editing: boolean;
   draftEdit: DraftLibre;
   onDraftChange: (patch: Partial<DraftLibre>) => void;
-  onStartEdit: (m: MatieresMovement) => void;
+  onStartEdit: (m: MatieresMovement, dayDate: string) => void;
   onStopEdit: () => void;
   onSubmitEdit: (m: MatieresMovement, dayDate: string) => void;
   onCancelMovement: (m: MatieresMovement, dayDate: string) => void;
   showAmount?: boolean;
+  allowDateEdit?: boolean;
 }) {
   const busy = busyId === `edit-${m.id}` || busyId === `cancel-${m.id}`;
 
@@ -124,6 +132,17 @@ export function MovementRow({
               <strong>{m.name}</strong>
             </div>
           )}
+          {allowDateEdit ? (
+            <label className="vente-field">
+              <span>Date de l&apos;achat</span>
+              <input
+                type="date"
+                value={draftEdit.date}
+                max={todayIsoDate()}
+                onChange={(e) => onDraftChange({ date: e.target.value })}
+              />
+            </label>
+          ) : null}
           <label className="vente-field">
             <span>Quantité</span>
             <input
@@ -191,7 +210,7 @@ export function MovementRow({
           </span>
         ) : null}
         <div className="vente-log-time muted">
-          {formatTime(m.at)}
+          {formatDateFr(dayDate)}
           {m.fournisseurNom ? ` · ${m.fournisseurNom}` : ""}
           {m.depenseId ? " · dépense liée" : ""}
           {m.editedAt ? " · corrigé" : ""}
@@ -204,7 +223,7 @@ export function MovementRow({
             type="button"
             className="btn btn-ghost"
             disabled={busy}
-            onClick={() => onStartEdit(m)}
+            onClick={() => onStartEdit(m, dayDate)}
           >
             Modifier
           </button>

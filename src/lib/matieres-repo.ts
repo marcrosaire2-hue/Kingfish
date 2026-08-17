@@ -412,6 +412,13 @@ export async function cancelMatieresMovement(input: {
 /**
  * Correction d'un achat déjà enregistré. Le mouvement garde son identité :
  * l'historique montre la ligne corrigée, pas une seconde ligne concurrente.
+ *
+ * `newDate` déplace un achat libre vers un autre jour — utile quand la date
+ * de saisie s'est trompée. Réservé aux achats libres : un achat de catalogue
+ * touche le compteur `purchases` de sa matière, propre à son jour ; le
+ * déplacer casserait le stock de la journée d'origine. Un achat libre ne
+ * touche aucune ligne, le déplacer entre deux documents est donc sans effet
+ * de bord.
  */
 export async function editMatieresMovement(input: {
   date: string;
@@ -421,6 +428,7 @@ export async function editMatieresMovement(input: {
   name?: string;
   fournisseurId?: string | null;
   fournisseurNom?: string | null;
+  newDate?: string;
 }): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getMatieresDayPayload(input.date);
@@ -444,6 +452,56 @@ export async function editMatieresMovement(input: {
   const db = await getDb();
   const updatedAt = new Date().toISOString();
   const status = payload.day.status;
+
+  const changeDate =
+    input.newDate && input.newDate !== input.date ? input.newDate : null;
+
+  if (changeDate) {
+    if (!isValidDate(changeDate)) throw new Error("Date invalide");
+    if (applied.movement.type !== "autre") {
+      throw new Error("Seul un achat libre peut changer de date.");
+    }
+    const remainingSource = applied.movements.filter(
+      (m) => m.id !== applied.movement.id,
+    );
+    await db.collection<MatieresDoc>("matieres_jours").updateOne(
+      { _id: input.date },
+      { $set: { status, lines: applied.lines, movements: remainingSource, updatedAt } },
+    );
+
+    const target = await getMatieresDayPayload(changeDate);
+    assertDayOpen(
+      target.day.status,
+      "Journée cible clôturée : correction d'achat impossible.",
+    );
+    const targetMovements = [applied.movement, ...(target.day.movements ?? [])];
+    await db.collection<MatieresDoc>("matieres_jours").updateOne(
+      { _id: changeDate },
+      {
+        $set: {
+          status: target.day.status,
+          lines: target.day.lines,
+          movements: targetMovements,
+          updatedAt,
+        },
+        $setOnInsert: { _id: changeDate },
+      },
+      { upsert: true },
+    );
+
+    return {
+      day: {
+        date: changeDate,
+        status: target.day.status,
+        lines: syncMatieresLines(target.day.lines, target.materials),
+        movements: targetMovements,
+        updatedAt,
+      },
+      materials: target.materials,
+      movement: applied.movement,
+    };
+  }
+
   await db.collection<MatieresDoc>("matieres_jours").updateOne(
     { _id: input.date },
     {

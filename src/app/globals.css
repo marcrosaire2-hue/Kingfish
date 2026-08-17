@@ -1225,6 +1225,12 @@ select {
   width: 5.5rem;
 }
 
+/* Date de l'achat : compacte, ne doit pas s'étirer comme le champ nom. */
+.libre-buy input[type="date"] {
+  flex: 0 0 auto;
+  width: 9.5rem;
+}
+
 .libre-hint {
   padding: 0 0.85rem 0.75rem;
   font-size: 0.85rem;
