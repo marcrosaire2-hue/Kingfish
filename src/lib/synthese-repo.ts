@@ -547,6 +547,7 @@ function pointsFromDates(
   dates: string[],
   parametres: Awaited<ReturnType<typeof getParametres>>,
   maps: Maps,
+  scopeSite?: VenteSite | null,
 ): DayPoint[] {
   return dates.map((date) => {
     const revenue = computeDayRevenue({
@@ -559,6 +560,7 @@ function pointsFromDates(
       combos: maps.combos.get(date) ?? null,
       boissons: maps.boissons.get(date) ?? null,
       ventes: maps.ventes.get(date) ?? emptyVenteTotals(),
+      scopeSite,
     });
     const charges = maps.charges.get(date) ?? emptyCharges(date);
     return buildDayPoint(date, revenue, charges);
@@ -571,7 +573,7 @@ export async function getDayPoint(
 ): Promise<DayPoint> {
   const parametres = await getParametres();
   const maps = await loadMaps([date], scopeSite);
-  return pointsFromDates([date], parametres, maps)[0]!;
+  return pointsFromDates([date], parametres, maps, scopeSite)[0]!;
 }
 
 export async function getMonthPoint(
@@ -582,7 +584,7 @@ export async function getMonthPoint(
   const dates = daysInMonth(year, month);
   const parametres = await getParametres();
   const maps = await loadMaps(dates, scopeSite);
-  const days = pointsFromDates(dates, parametres, maps);
+  const days = pointsFromDates(dates, parametres, maps, scopeSite);
   return { year, month, days, totals: sumMonth(days) };
 }
 
@@ -600,7 +602,7 @@ export async function getYearPoint(
 
   for (let month = 1; month <= 12; month++) {
     const dates = daysInMonth(year, month);
-    const days = pointsFromDates(dates, parametres, maps);
+    const days = pointsFromDates(dates, parametres, maps, scopeSite);
     months.push({ year, month, days, totals: sumMonth(days) });
   }
 

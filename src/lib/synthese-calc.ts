@@ -9,6 +9,7 @@ import type {
   GbegameyDay,
   LocalDish,
   MonthPoint,
+  VenteSite,
   YearPoint,
   ZogboDay,
 } from "@/lib/types";
@@ -98,6 +99,17 @@ export function computeDayRevenue(input: {
   boissons: BoissonsDay | null;
   /** Source unique du CA — le journal des ventes */
   ventes: VenteTotals;
+  /**
+   * Compte verrouillé sur une zone : la vue ne doit rien laisser passer de
+   * l'autre zone. Plats et accompagnements vivent dans des documents séparés
+   * par zone (zogbo_jours / gbegamey_jours), déjà exclus en amont — mais
+   * boissons et combos partagent un seul document pour les deux zones, avec
+   * les deux totaux dedans. Sans ce filtre final, un compte Gbégamey voyait
+   * le CA boissons de Zogbo (chiffre réel, mais qui n'a rien à faire sur son
+   * tableau de bord) alors que ses plats Zogbo étaient déjà correctement à
+   * zéro — un mélange incohérent selon la catégorie de produit.
+   */
+  scopeSite?: VenteSite | null;
 }) {
   const {
     baseDishes,
@@ -109,6 +121,7 @@ export function computeDayRevenue(input: {
     combos,
     boissons,
     ventes,
+    scopeSite,
   } = input;
 
   /*
@@ -175,36 +188,46 @@ export function computeDayRevenue(input: {
   const varianceBoissons = boissonsTotals?.varianceCount ?? 0;
   const hasBoissonsData = !!boissons?.updatedAt;
 
-  const caCombos = caCombosZogbo + caCombosGbegamey;
-  const caBoissons = caBoissonsZogbo + caBoissonsGbegamey;
-  const caExtra = caExtraZogbo + caExtraGbegamey;
-  const caAccompagnements =
-    caAccompagnementsZogbo + caAccompagnementsGbegamey;
-  const caZogbo =
-    caZogboPlats +
-    caAccompagnementsZogbo +
-    caCombosZogbo +
-    caBoissonsZogbo +
-    caExtraZogbo;
-  const caGbegamey =
-    caGbegameyPlats +
-    caAccompagnementsGbegamey +
-    caCombosGbegamey +
-    caBoissonsGbegamey +
-    caExtraGbegamey;
+  // Compte verrouillé sur une zone : rien de l'autre zone ne doit transpirer,
+  // catégorie par catégorie. Plats/accompagnements le sont déjà de fait (leur
+  // document source est exclu en amont), mais boissons et combos vivent dans
+  // un document partagé aux deux zones — sans ce filtre, leur moitié
+  // « autre zone » restait visible alors que le reste du jour était à zéro.
+  let zPlats = caZogboPlats,
+    zAcc = caAccompagnementsZogbo,
+    zCombos = caCombosZogbo,
+    zBoissons = caBoissonsZogbo,
+    zExtra = caExtraZogbo;
+  let gPlats = caGbegameyPlats,
+    gAcc = caAccompagnementsGbegamey,
+    gCombos = caCombosGbegamey,
+    gBoissons = caBoissonsGbegamey,
+    gExtra = caExtraGbegamey;
+  if (scopeSite === "gbegamey") {
+    zPlats = zAcc = zCombos = zBoissons = zExtra = 0;
+  } else if (scopeSite === "zogbo") {
+    gPlats = gAcc = gCombos = gBoissons = gExtra = 0;
+  }
+
+  const caCombos = zCombos + gCombos;
+  const caBoissons = zBoissons + gBoissons;
+  const caExtra = zExtra + gExtra;
+  const caAccompagnements = zAcc + gAcc;
+  const caZogbo = zPlats + zAcc + zCombos + zBoissons + zExtra;
+  const caGbegamey = gPlats + gAcc + gCombos + gBoissons + gExtra;
   const caTotal = caZogbo + caGbegamey;
 
   return {
-    caZogboPlats,
-    caGbegameyPlats,
-    caAccompagnementsZogbo,
-    caAccompagnementsGbegamey,
-    caCombosZogbo,
-    caCombosGbegamey,
-    caBoissonsZogbo,
-    caBoissonsGbegamey,
-    caExtraZogbo,
-    caExtraGbegamey,
+    caZogboPlats: zPlats,
+    caGbegameyPlats: gPlats,
+    caAccompagnementsZogbo: zAcc,
+    caAccompagnementsGbegamey: gAcc,
+    caCombosZogbo: zCombos,
+    caCombosGbegamey: gCombos,
+    caBoissonsZogbo: zBoissons,
+    caBoissonsGbegamey: gBoissons,
+    caExtraZogbo: zExtra,
+    caExtraGbegamey: gExtra,
     caZogbo,
     caGbegamey,
     caAccompagnements,
