@@ -507,6 +507,7 @@ export function ZogboPage() {
       {tab === "ventes" ? (
         <ZoneVentesPanel
           date={date}
+          site="zogbo"
           ventes={ventes}
           summary={ventesSummary}
           loading={loading}

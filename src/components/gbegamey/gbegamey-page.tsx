@@ -284,6 +284,7 @@ export function GbegameyPage() {
       {section === "ventes" ? (
         <ZoneVentesPanel
           date={date}
+          site="gbegamey"
           ventes={ventes}
           summary={ventesSummary}
           loading={loading}

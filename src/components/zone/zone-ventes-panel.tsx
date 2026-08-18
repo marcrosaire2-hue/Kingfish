@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { formatFcfa } from "@/lib/format";
-import type { VenteLogEntry, VentesDaySummary } from "@/lib/types";
+import type { VenteLogEntry, VenteSite, VentesDaySummary } from "@/lib/types";
 import { BrandLoader } from "@/components/brand-loader";
 
 const KIND_LABELS: Record<string, string> = {
@@ -44,15 +44,18 @@ function formatTime(iso: string): string {
 
 export function ZoneVentesPanel({
   date,
+  site,
   ventes,
   summary,
   loading,
 }: {
   date: string;
+  site: VenteSite;
   ventes: VenteLogEntry[];
   summary: VentesDaySummary | null;
   loading: boolean;
 }) {
+  const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
   const kindRows = summary
     ? Object.entries(summary.byKind).sort((a, b) => b[1].montant - a[1].montant)
     : [];
@@ -66,7 +69,7 @@ export function ZoneVentesPanel({
     <div className="zone-panel">
       <div className="param-meta">
         <p>
-          Journal des ventes Zogbo — détail de chaque ligne enregistrée
+          Journal des ventes {siteLabel} — détail de chaque ligne enregistrée
           (carnet, caisse, import…).
         </p>
       </div>
@@ -156,7 +159,7 @@ export function ZoneVentesPanel({
         <div className="panel-head-row">
           <h3 className="panel-title">Détail des ventes</h3>
           <Link
-            href={`/historique-ventes?from=${date}&to=${date}&site=zogbo`}
+            href={`/historique-ventes?from=${date}&to=${date}&site=${site}`}
             className="btn btn-ghost"
           >
             Historique complet
