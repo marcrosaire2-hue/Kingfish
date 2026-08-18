@@ -50,13 +50,7 @@ const NAV_ITEMS: {
     mark: "G",
     group: "ops",
   },
-  {
-    href: "/appro",
-    label: "Approvisionnement",
-    key: "appro",
-    mark: "A",
-    group: "ops",
-  },
+  
   {
     href: "/achats",
     label: "Achats",
@@ -257,7 +251,7 @@ export function AppShell({
             const showDivider = prev && prev.group !== item.group;
             const showGroupLabel = !!item.groupLabel && (!prev || prev.group !== item.group);
             return (
-              <div key={item.key} className="side-nav-item-wrap">
+              <div key={item.href} className="side-nav-item-wrap">
                 {showDivider ? (
                   <div className="side-nav-divider" aria-hidden />
                 ) : null}

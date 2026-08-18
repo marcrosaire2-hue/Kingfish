@@ -2579,9 +2579,6 @@ select {
       transform 0.2s ease,
       visibility 0.2s ease;
     box-shadow: 12px 0 40px color-mix(in srgb, var(--ink) 28%, transparent);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
   }
 
   .app-shell.is-nav-open .sidebar {
