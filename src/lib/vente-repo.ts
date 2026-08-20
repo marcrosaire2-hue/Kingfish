@@ -143,6 +143,84 @@ function isLowStock(
   return stockLeft > 0 && stockLeft <= seuil;
 }
 
+/** Libellés clairs quand un plat Zogbo n'est plus / pas encore vendable. */
+function zogboPlatStatus(input: {
+  stockLeft: number;
+  prepared: number;
+  stock: number;
+  sold: number;
+}): { hint: string; blockReason: string | null } {
+  const { stockLeft, prepared, stock, sold } = input;
+  if (stockLeft > 0) {
+    return { hint: `Reste ${stockLeft}`, blockReason: null };
+  }
+  if (prepared <= 0 && stock <= 0 && sold <= 0) {
+    return {
+      hint: "Pas encore préparé à Zogbo",
+      blockReason: "Pas encore préparé",
+    };
+  }
+  if (sold > 0) {
+    return {
+      hint: `Épuisé · ${sold} vendu(s)`,
+      blockReason: "Stock épuisé",
+    };
+  }
+  return {
+    hint: "Reste 0 — préparez ou réapprovisionnez",
+    blockReason: "Stock à zéro",
+  };
+}
+
+/** Libellés clairs pour un plat reçu à Gbégamey. */
+function gbegameyPlatStatus(input: {
+  stockLeft: number;
+  sent: number;
+  initialStock: number;
+  sold: number;
+  counted: number | null;
+}): {
+  hint: string;
+  blockReason: string | null;
+  badge: "epuise" | "pas-recu";
+} {
+  const { stockLeft, sent, initialStock, sold, counted } = input;
+  if (stockLeft > 0) {
+    return {
+      hint: `Reçu ${sent} · reste ${stockLeft}`,
+      blockReason: null,
+      badge: "epuise",
+    };
+  }
+  if (counted === 0) {
+    return {
+      hint: "Inventaire saisi à 0 — corrigez le comptage sur Gbégamey",
+      blockReason: "Inventaire à 0",
+      badge: "epuise",
+    };
+  }
+  // Jamais de stock ce jour (ni report, ni envoi) : ce n'est pas une « rupture ».
+  if (sent <= 0 && initialStock <= 0 && sold <= 0) {
+    return {
+      hint: "Aucun stock reçu de Zogbo — faites un envoi depuis Zogbo",
+      blockReason: "Pas encore reçu de Zogbo",
+      badge: "pas-recu",
+    };
+  }
+  if (sold > 0) {
+    return {
+      hint: `Épuisé · ${sold} vendu(s) · reçu ${sent}`,
+      blockReason: "Stock épuisé",
+      badge: "epuise",
+    };
+  }
+  return {
+    hint: `Reçu ${sent} · reste 0 — en attente de réappro Zogbo`,
+    blockReason: "Stock à zéro",
+    badge: "epuise",
+  };
+}
+
 /**
  * Stock restant vendable d’un plat de base (Zogbo ou reçu Gbégamey).
  * `left` sert d’avertissement au client ; `maxSold` borne la vente de façon
@@ -264,7 +342,14 @@ export async function getVenteBoard(
     );
     for (const dish of parametres.baseDishes) {
       const line = zogbo.day.lines.find((l) => l.productId === dish.id);
-      const stockLeft = line ? computeZogboLine(line, 0).prevalentRemaining : 0;
+      const computed = line ? computeZogboLine(line, 0) : null;
+      const stockLeft = computed?.prevalentRemaining ?? 0;
+      const status = zogboPlatStatus({
+        stockLeft,
+        prepared: line?.prepared ?? 0,
+        stock: line?.stock ?? 0,
+        sold: line?.sold ?? 0,
+      });
       products.push({
         kind: "plat",
         productId: dish.id,
@@ -273,7 +358,8 @@ export async function getVenteBoard(
         soldToday: soldById.get(dish.id) ?? 0,
         stockLeft,
         lowStock: isLowStock(stockLeft, dish.alertThreshold),
-        hint: `Reste ${stockLeft}`,
+        hint: status.hint,
+        blockReason: status.blockReason,
       });
     }
     const accById = new Map(
@@ -305,6 +391,13 @@ export async function getVenteBoard(
         ? computeTransferLine(line, sent, dish.unitPrice)
         : null;
       const stockLeft = computed?.prevalentRemaining ?? 0;
+      const status = gbegameyPlatStatus({
+        stockLeft,
+        sent,
+        initialStock: line?.initialStock ?? 0,
+        sold: line?.sold ?? 0,
+        counted: line?.counted ?? null,
+      });
       products.push({
         kind: "plat",
         productId: dish.id,
@@ -313,7 +406,8 @@ export async function getVenteBoard(
         soldToday: line?.sold ?? 0,
         stockLeft,
         lowStock: isLowStock(stockLeft, dish.alertThreshold),
-        hint: `Reçu ${sent} · reste ${stockLeft}`,
+        hint: status.hint,
+        blockReason: status.blockReason,
       });
     }
     // Même règle qu'à Zogbo : un accompagnement jamais préparé ni compté
@@ -378,7 +472,15 @@ export async function getVenteBoard(
           ? "PV manquant"
           : untracked
             ? "Stock non inventorié"
-            : `Reste ${stockLeft} bt`,
+            : stockLeft <= 0
+              ? "Plus de stock boisson inventorié"
+              : `Reste ${stockLeft} bt`,
+      blockReason:
+        drink.salePrice === null
+          ? "Prix de vente manquant"
+          : !untracked && stockLeft <= 0
+            ? "Stock boisson épuisé"
+            : null,
     });
   }
 

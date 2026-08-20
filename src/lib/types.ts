@@ -601,6 +601,11 @@ export type VenteProduct = {
    * avant la rupture, plutôt qu’une fois le stock à zéro.
    */
   lowStock?: boolean;
+  /**
+   * Motif affiché quand le produit est grisé (pas seulement « ÉPUISÉ »).
+   * Ex. « Aucun envoi Zogbo », « Ouvrez la caisse », « PV manquant ».
+   */
+  blockReason?: string | null;
 };
 
 export type VenteLogEntry = {

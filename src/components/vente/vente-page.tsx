@@ -216,21 +216,44 @@ const ProductGrid = memo(function ProductGrid({
           p.stockLeft !== null &&
           p.stockLeft !== undefined &&
           p.stockLeft <= 0;
+        const blocked = disabledPv || outOfStock || !caisse;
+        const reason = !caisse
+          ? "Ouvrez la caisse pour vendre"
+          : disabledPv
+            ? p.blockReason || "Prix de vente manquant"
+            : outOfStock
+              ? p.blockReason || p.hint || "Stock insuffisant"
+              : null;
+        const badgeLabel =
+          outOfStock && p.blockReason?.toLowerCase().includes("pas encore reçu")
+            ? "PAS REÇU"
+            : outOfStock && p.blockReason?.toLowerCase().includes("pas encore préparé")
+              ? "À PRÉPARER"
+              : outOfStock
+                ? "ÉPUISÉ"
+                : null;
         return (
           <article
             key={`${p.kind}-${p.productId}`}
-            className={`vente-card${disabledPv || outOfStock ? " is-disabled" : ""}${
+            className={`vente-card${blocked ? " is-disabled" : ""}${
               p.lowStock && !outOfStock ? " is-low" : ""
             }`}
+            title={reason ?? p.hint ?? undefined}
           >
             <div className="vente-card-media" aria-hidden>
               <ProductIcon kind={p.kind} name={p.name} size="lg" />
-              {outOfStock ? (
-                <span className="vente-out-badge">ÉPUISÉ</span>
-              ) : p.lowStock && !outOfStock ? (
-                <span className="vente-low-badge">
-                  Bientôt épuisé
+              {badgeLabel ? (
+                <span
+                  className={`vente-out-badge${
+                    badgeLabel === "PAS REÇU" || badgeLabel === "À PRÉPARER"
+                      ? " is-wait"
+                      : ""
+                  }`}
+                >
+                  {badgeLabel}
                 </span>
+              ) : p.lowStock && !outOfStock ? (
+                <span className="vente-low-badge">Bientôt épuisé</span>
               ) : null}
             </div>
             <div className="vente-card-body">
@@ -238,7 +261,9 @@ const ProductGrid = memo(function ProductGrid({
               <span className="vente-price mono">
                 {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
               </span>
-              {p.hint ? (
+              {reason ? (
+                <p className="vente-unavailable-reason">{reason}</p>
+              ) : p.hint ? (
                 <p className="vente-hint">{p.hint}</p>
               ) : null}
             </div>
@@ -246,7 +271,10 @@ const ProductGrid = memo(function ProductGrid({
               <button
                 type="button"
                 className="vente-plus"
-                disabled={disabledPv || outOfStock || !caisse}
+                disabled={blocked}
+                aria-label={
+                  reason ? `${p.name} — ${reason}` : `Ajouter ${p.name}`
+                }
                 onClick={() => onAdd(p)}
               >
                 +
@@ -318,6 +346,9 @@ const MealComposer = memo(function MealComposer({
                     p.stockLeft !== null &&
                     p.stockLeft !== undefined &&
                     p.stockLeft <= 0;
+                  const suffix = platEpuise
+                    ? ` · ${p.blockReason || "ÉPUISÉ"}`
+                    : "";
                   return (
                     <option
                       key={p.productId}
@@ -325,7 +356,7 @@ const MealComposer = memo(function MealComposer({
                       disabled={platEpuise}
                     >
                       {p.name}
-                      {platEpuise ? " · ÉPUISÉ" : ""}
+                      {suffix}
                       {p.unitPrice > 0
                         ? ` · ${formatFcfa(p.unitPrice)}`
                         : ""}
@@ -1160,10 +1191,14 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         {ruptureCount > 0 ? (
           <div className="vente-rupture-bar" role="status">
             <strong>
-              {ruptureCount} produit{ruptureCount > 1 ? "s" : ""} épuisé
+              {ruptureCount} produit{ruptureCount > 1 ? "s" : ""} non vendable
               {ruptureCount > 1 ? "s" : ""}
             </strong>
-            <span>— vente bloquée tant que le stock n'est pas renseigné.</span>
+            <span>
+              {site === "gbegamey"
+                ? "— souvent : pas encore reçu de Zogbo, ou stock épuisé. Voyez le motif sous chaque article."
+                : "— souvent : pas encore préparé, ou stock épuisé. Voyez le motif sous chaque article."}
+            </span>
           </div>
         ) : null}
 
