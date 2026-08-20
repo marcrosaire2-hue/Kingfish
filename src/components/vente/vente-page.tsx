@@ -609,6 +609,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [board, setBoard] = useState<Board | null>(null);
   const [config, setConfig] = useState<PosConfig | null>(null);
   const [caisse, setCaisse] = useState<CaisseSession | null>(null);
+  const [openingCaisse, setOpeningCaisse] = useState(false);
   const [tickets, setTickets] = useState<PosTicket[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
@@ -724,6 +725,31 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       setError(e instanceof Error ? e.message : "Erreur de chargement");
     } finally {
       setLoading(false);
+    }
+  }
+
+  /** Ouvre la caisse de la zone sans quitter l'écran de vente. */
+  async function openCaisseHere() {
+    setOpeningCaisse(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/caisse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "open",
+          date,
+          caisse: site,
+          soldeInitial: 0,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Ouverture caisse impossible");
+      await load(date, site);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ouverture caisse impossible");
+    } finally {
+      setOpeningCaisse(false);
     }
   }
 
@@ -1260,12 +1286,16 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                 </div>
               ) : null}
             {loading ? null : !caisse ? (
-              <Link
-                href={`/caisse?caisse=${site}`}
+              <button
+                type="button"
                 className="btn btn-primary vente-hero-cta"
+                disabled={openingCaisse}
+                onClick={() => void openCaisseHere()}
               >
-                Ouvrir la caisse
-              </Link>
+                {openingCaisse
+                  ? "Ouverture…"
+                  : `Ouvrir la caisse ${siteLabel}`}
+              </button>
             ) : (
               <Link
                 href={`/caisse?caisse=${site}`}
@@ -1279,11 +1309,17 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
 
         {!loading && !caisse ? (
           <p className="error-banner" role="alert">
-            Caisse {siteLabel} fermée.{" "}
-            <Link href={`/caisse?caisse=${site}`}>
-              Ouvrir la caisse de la zone
-            </Link>{" "}
-            pour valider des tickets.
+            Caisse {siteLabel} fermée — ouvrez-la pour encaisser.{" "}
+            <button
+              type="button"
+              className="btn-link"
+              disabled={openingCaisse}
+              onClick={() => void openCaisseHere()}
+            >
+              {openingCaisse ? "Ouverture…" : "Ouvrir maintenant"}
+            </button>
+            {" · "}
+            <Link href={`/caisse?caisse=${site}`}>Fond de caisse détaillé</Link>
           </p>
         ) : null}
 
