@@ -104,10 +104,8 @@ function printTicket(
   ticket: PosTicket,
   company: { nom?: string | null; contacts?: string | null; adresse?: string | null } | null,
 ): boolean {
-  const w = window.open("", "_blank", "width=360,height=640");
+  const w = window.open("", "_blank", "width=360,height=680");
   if (!w) return false;
-  // Chaque ligne porte le détail complet : produit, quantité, prix unitaire
-  // et montant — la facture imprimée doit se suffire à elle-même.
   const lines = ticket.lines
     .map(
       (l) =>
@@ -125,15 +123,25 @@ function printTicket(
     .map(esc);
   w.document.write(`<!doctype html><html><head><title>${esc(ticket.numero)}</title>
     <style>
-      body{font-family:monospace;font-size:13px;padding:12px;max-width:280px;margin:0 auto}
+      body{font-family:monospace;font-size:12px;padding:8px;max-width:280px;margin:0 auto;line-height:1.3}
       .center{text-align:center}.bold{font-weight:700}
-      .hr{border-bottom:1px dashed #000;margin:8px 0}
-      .flex{display:flex;justify-content:space-between;gap:6px;margin:2px 0}
-      .line{display:grid;grid-template-columns:1fr auto;gap:0 6px;margin:4px 0}
-      .line .nom{grid-column:1/-1;font-weight:700}
-      .line .qte{opacity:.85}
-      .line .mnt{text-align:right}
-      .sub{font-size:11px;opacity:.85}
+      .hr{border-bottom:1px dashed #000;margin:6px 0}
+      .flex{display:flex;justify-content:space-between;gap:4px;margin:1px 0}
+      .line{display:grid;grid-template-columns:1fr auto;gap:0 4px;margin:3px 0}
+      .line .nom{grid-column:1/-1;font-weight:700;font-size:11px}
+      .line .qte{opacity:.85;font-size:10px}
+      .line .mnt{text-align:right;font-size:10px}
+      .sub{font-size:10px;opacity:.85}
+      .data-table{border-collapse:collapse;width:100%}
+      .data-table th,.data-table td{border:1px solid #ccc;padding:4px;margin:2px 0}
+      .data-table th{text-align:left;font-size:10px}
+      .data-table td{text-align:center;font-size:10px}
+      .data-table .prod{font-size:11px}
+      .data-table .qte{font-size:10px;text-align:center}
+      .data-table .puni{font-size:10px;text-align:right}
+      .data-table .mnt{font-size:10px;text-align:right}
+      .facture-lignes{bottom-margin:10px}
+      .page-break{page-break-inside:avoid}
     </style></head><body>
     <div class="center bold">${headerBits[0]}</div>
     ${headerBits
@@ -145,7 +153,27 @@ function printTicket(
     <div class="flex"><span>Date</span><span>${new Date(ticket.at).toLocaleString("fr-FR")}</span></div>
     <div class="flex"><span>Enregistré par</span><span>${esc(ticket.userName)}</span></div>
     ${ticket.clientNom ? `<div class="flex"><span>Client</span><span>${esc(ticket.clientNom)}</span></div>` : ""}
-    <div class="hr"></div>${lines}<div class="hr"></div>
+    <div class="hr"></div>
+    <div class="data-table facture-lignes">
+      <thead>
+        <tr>
+          <th>Produit</th>
+          <th className="col-num">Qté</th>
+          <th className="col-money">P.U.</th>
+          <th className="col-money">Montant</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${ticket.lines.map((l, i) => (
+          <tr key={`${l.productId}-${i}`}>
+            <td className="prod">${esc(l.name)}</td>
+            <td className="qte" align="center">${l.qty}</td>
+            <td className="puni" align="right">${l.unitPrice.toLocaleString("fr-FR")} F</td>
+            <td className="mnt" align="right">${l.amount.toLocaleString("fr-FR")} F</td>
+          </tr>
+        ))}
+      </tbody>
+    </div>
     <div class="flex"><span>Sous-total</span><span>${ticket.montantBrut.toLocaleString("fr-FR")} F</span></div>
     ${ticket.reduction ? `<div class="flex"><span>Réduction</span><span>−${ticket.reduction.toLocaleString("fr-FR")} F</span></div>` : ""}
     <div class="flex bold"><span>Total</span><span>${ticket.montant.toLocaleString("fr-FR")} F</span></div>
@@ -644,6 +672,9 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       const venteBody = await venteRes.json();
       if (!venteRes.ok) throw new Error(venteBody.error || "Erreur vente");
       setBoard(venteBody as Board);
+      if (typeof venteBody.date === "string" && venteBody.date !== nextDate) {
+        setDate(venteBody.date);
+      }
       if (venteBody.site) setSite(venteBody.site as VenteSite);
       setAllowedSites(
         (venteBody.allowedSites as VenteSite[] | undefined) ?? [],

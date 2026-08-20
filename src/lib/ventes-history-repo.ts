@@ -13,6 +13,8 @@ export type VenteHistoryLine = {
   /** Absent pour les lignes importées (AquaPro) : aucune catégorie fiable
    *  n'y est associée côté source. */
   kind?: VenteKind;
+  /** id ventes_log — présent sur les tickets King Fish pour correction. */
+  venteLogId?: string | null;
 };
 
 export type VenteHistoryTicket = {
@@ -255,12 +257,14 @@ export async function listVentesHistory(
           qty?: number;
           unitPrice?: number;
           amount?: number;
+          venteLogId?: string | null;
         }) => ({
           name: String(l.name || ""),
           qty: Number(l.qty) || 0,
           unitPrice: Number(l.unitPrice) || 0,
           amount: Number(l.amount) || 0,
           kind: l.kind,
+          venteLogId: l.venteLogId ? String(l.venteLogId) : null,
         }),
       );
 

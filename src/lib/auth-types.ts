@@ -213,6 +213,7 @@ export type NavKey =
   | "historique"
   | "historique-ventes"
   | "journal-ventes"
+  | "regularisation"
   | "stock"
   | "admin"
   | "journal-stock"
@@ -244,6 +245,8 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "historique-ventes",
     // Journal détaillé des ventes de sa zone, jour par jour.
     "journal-ventes",
+    // Saisie / correction / annulation des ventes d'un jour passé.
+    "regularisation",
   ],
   admin: [
     "synthese",
@@ -258,6 +261,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "reglages",
     "historique-ventes",
     "journal-ventes",
+    "regularisation",
     "stock",
     "historique",
     "admin",
@@ -371,6 +375,9 @@ export function canAccessPath(
   if (pathname.startsWith("/journal-ventes")) {
     return allowed.includes("journal-ventes");
   }
+  if (pathname.startsWith("/regularisation")) {
+    return allowed.includes("regularisation");
+  }
   if (pathname.startsWith("/stock")) {
     return allowed.includes("stock");
   }
@@ -397,6 +404,14 @@ export function canUseSite(
 ): boolean {
   if (userSite === "tous") return true;
   return userSite === target;
+}
+
+/**
+ * Gérant et admin : saisir / corriger / annuler des ventes sur un jour passé
+ * (y compris journée clôturée ou caisse déjà fermée).
+ */
+export function canManagePastVentes(role: UserRole): boolean {
+  return role === "gerant" || role === "admin";
 }
 
 /** Filtre Mongo / API : rien si « tous », sinon le site unique. */

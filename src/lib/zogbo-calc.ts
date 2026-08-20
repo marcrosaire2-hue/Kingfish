@@ -374,16 +374,18 @@ export function zogboDayHasCarryStock(lines: ZogboLine[]): boolean {
   return leftoverMapHasStock(leftoverFromZogboLines(lines));
 }
 
+/** Fuseau du restaurant : toute date « jour de service » s’y calcule. */
+export const BUSINESS_TIMEZONE = "Africa/Porto-Novo";
+
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
 /** Décale une date ISO de `days` jours (négatif = vers le passé). */
 export function shiftIsoDate(isoDate: string, days: number): string | null {
   const [y, m, d] = isoDate.split("-").map(Number);
   if (!y || !m || !d) return null;
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() + days);
-  const yyyy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return dt.toISOString().slice(0, 10);
 }
 
 /**
@@ -393,22 +395,39 @@ export function shiftIsoDate(isoDate: string, days: number): string | null {
 export const LEFTOVER_LOOKBACK_DAYS = 7;
 
 export function previousIsoDate(isoDate: string): string | null {
-  const [y, m, d] = isoDate.split("-").map(Number);
-  if (!y || !m || !d) return null;
-  const dt = new Date(y, m - 1, d);
-  dt.setDate(dt.getDate() - 1);
-  const yyyy = dt.getFullYear();
-  const mm = String(dt.getMonth() + 1).padStart(2, "0");
-  const dd = String(dt.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  return shiftIsoDate(isoDate, -1);
 }
 
-export function todayIsoDate(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+/** Calendrier civil au Bénin, pas celui du serveur (souvent UTC). */
+export function isoDateInTimeZone(
+  instant: Date,
+  timeZone = BUSINESS_TIMEZONE,
+): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(instant);
+}
+
+export function todayIsoDate(now = new Date()): string {
+  return isoDateInTimeZone(now);
+}
+
+/**
+ * Jour de service : tant que la caisse de la zone est ouverte, les ventes
+ * restent collées à sa date — même après minuit. Sinon, date demandée ou
+ * calendrier civil de Porto-Novo.
+ */
+export function operatingDateFromCaisse(
+  caisseDate: string | null | undefined,
+  requested: string | null | undefined,
+  today: string,
+): string {
+  if (caisseDate && ISO_DATE.test(caisseDate)) return caisseDate;
+  if (requested && ISO_DATE.test(requested)) return requested;
+  return today;
 }
 
 export function formatDisplayDate(isoDate: string): string {

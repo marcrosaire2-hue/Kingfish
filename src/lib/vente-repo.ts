@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { effectiveShift, type UserShift } from "@/lib/auth-types";
+import { adjustCaisseVenteAmount } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import { physicalBoissonsStock, DEFAULT_UNITS_PER_CASIER } from "@/lib/boissons-calc";
@@ -100,7 +101,9 @@ async function assertDayNotClosed(
   date: string,
   site: VenteSite,
   kind: VenteKind,
+  options?: { bypassClosedDay?: boolean },
 ): Promise<void> {
+  if (options?.bypassClosedDay) return;
   if (kind === "extra") return;
   let status: string | null = null;
   try {
@@ -899,6 +902,8 @@ export async function recordVente(input: {
   /** Prix unitaire figé (ex. accompagnement à 500 ou 1 000 selon le plat). */
   unitPrice?: number;
   actor?: VenteActor | null;
+  /** Gérant / admin : autorise une écriture sur une journée déjà clôturée. */
+  bypassClosedDay?: boolean;
 }): Promise<{
   entry: VenteLogEntry;
   soldToday: number;
@@ -913,7 +918,9 @@ export async function recordVente(input: {
   }
   if (!isValidDate(input.date)) throw new Error("Date invalide");
 
-  await assertDayNotClosed(input.date, input.site, input.kind);
+  await assertDayNotClosed(input.date, input.site, input.kind, {
+    bypassClosedDay: input.bypassClosedDay,
+  });
 
   // Contrôle stock + plafond atomique. « maxSold » est le vendu maximal
   // (stock − pertes) : transmis à applySoldDelta, il borne l'écriture.
@@ -1032,25 +1039,41 @@ export async function recordVente(input: {
   const at = new Date().toISOString();
   const amount = Math.abs(qty) * unitPrice;
   const db = await getDb();
-  const insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
-    _id: new ObjectId(),
-    date: input.date,
-    site: input.site,
-    kind: input.kind,
-    productId: input.productId,
-    name: result.name,
-    qty,
-    unitPrice,
-    costPrice: result.costPrice,
-    amount: qty > 0 ? amount : -amount,
-    at,
-    cancelledAt: null,
-    baseProductId: null,
-    actorId: input.actor?.id ?? null,
-    actorName: input.actor?.name ?? null,
-    actorUsername: input.actor?.username ?? null,
-    shift: effectiveShift(input.actor?.shift),
-  });
+  let insert;
+  try {
+    insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
+      _id: new ObjectId(),
+      date: input.date,
+      site: input.site,
+      kind: input.kind,
+      productId: input.productId,
+      name: result.name,
+      qty,
+      unitPrice,
+      costPrice: result.costPrice,
+      amount: qty > 0 ? amount : -amount,
+      at,
+      cancelledAt: null,
+      baseProductId: null,
+      actorId: input.actor?.id ?? null,
+      actorName: input.actor?.name ?? null,
+      actorUsername: input.actor?.username ?? null,
+      shift: effectiveShift(input.actor?.shift),
+    });
+  } catch (error) {
+    try {
+      await applySoldDelta({
+        date: input.date,
+        site: input.site,
+        kind: input.kind,
+        productId: input.productId,
+        delta: -qty,
+      });
+    } catch {
+      /* best effort : le compteur sold ne doit pas rester sans journal */
+    }
+    throw error;
+  }
 
   const entry: VenteLogEntry = {
     id: insert.insertedId.toHexString(),
@@ -1148,7 +1171,10 @@ export async function recordExtraVente(input: {
 export function assertSameTeamCancellation(input: {
   saleShift: UserShift | string | null | undefined;
   cancellerShift: UserShift | string | null | undefined;
+  /** Gérant / admin : peut annuler toute équipe. */
+  bypassTeam?: boolean;
 }): void {
+  if (input.bypassTeam) return;
   const sale = effectiveShift(input.saleShift);
   const canceller = effectiveShift(input.cancellerShift);
   if (sale === "aucune" || canceller === "aucune") return;
@@ -1165,6 +1191,8 @@ export async function undoVente(input: {
   date: string;
   site: VenteSite;
   actor?: VenteActor | null;
+  bypassClosedDay?: boolean;
+  bypassTeam?: boolean;
 }): Promise<{
   board: Awaited<ReturnType<typeof getVenteBoard>>;
   entry: { id: string; name: string; amount: number };
@@ -1181,6 +1209,7 @@ export async function undoVente(input: {
   assertSameTeamCancellation({
     saleShift: doc.shift,
     cancellerShift: input.actor?.shift,
+    bypassTeam: input.bypassTeam,
   });
 
   const marked = await db.collection<VenteLogDoc>("ventes_log").updateOne(
@@ -1210,7 +1239,9 @@ export async function undoVente(input: {
     return { board, entry };
   }
 
-  await assertDayNotClosed(doc.date, doc.site, doc.kind);
+  await assertDayNotClosed(doc.date, doc.site, doc.kind, {
+    bypassClosedDay: input.bypassClosedDay,
+  });
 
   try {
     // Le ticket est marqué annulé avant la reprise de stock : si une écriture
@@ -1240,4 +1271,167 @@ export async function undoVente(input: {
 
   const board = await getVenteBoard(input.date, input.site);
   return { board, entry };
+}
+
+/**
+ * Corrige la quantité d'une ligne de vente (gérant / admin).
+ * Met aussi à jour le ticket POS lié et le total caisse si possible.
+ */
+export async function editVenteQty(input: {
+  id: string;
+  date: string;
+  site: VenteSite;
+  qty: number;
+  actor?: VenteActor | null;
+  bypassClosedDay?: boolean;
+  bypassTeam?: boolean;
+}): Promise<{
+  board: Awaited<ReturnType<typeof getVenteBoard>>;
+  entry: VenteLogEntry;
+}> {
+  const newQty = Math.round(Number(input.qty) || 0);
+  if (!Number.isFinite(newQty) || newQty < 1) {
+    throw new Error("Quantité invalide (minimum 1). Pour supprimer, annulez la vente.");
+  }
+  if (!isValidDate(input.date)) throw new Error("Date invalide");
+
+  const db = await getDb();
+  const doc = await db.collection<VenteLogDoc>("ventes_log").findOne({
+    _id: new ObjectId(input.id),
+    date: input.date,
+    site: input.site,
+    ...ACTIVE,
+  });
+  if (!doc) throw new Error("Vente introuvable ou déjà annulée");
+
+  assertSameTeamCancellation({
+    saleShift: doc.shift,
+    cancellerShift: input.actor?.shift,
+    bypassTeam: input.bypassTeam,
+  });
+
+  const oldQty = doc.qty;
+  const delta = newQty - oldQty;
+  if (delta === 0) {
+    const board = await getVenteBoard(input.date, input.site);
+    return {
+      board,
+      entry: {
+        id: doc._id.toHexString(),
+        date: doc.date,
+        site: doc.site,
+        kind: doc.kind,
+        productId: doc.productId,
+        name: doc.name,
+        qty: doc.qty,
+        unitPrice: doc.unitPrice,
+        amount: doc.amount,
+        at: doc.at,
+      },
+    };
+  }
+
+  await assertDayNotClosed(doc.date, doc.site, doc.kind, {
+    bypassClosedDay: input.bypassClosedDay,
+  });
+
+  let maxSold: number | null = null;
+  if (delta > 0 && doc.kind === "plat") {
+    const { left, maxSold: max } = await getBaseDishStockLeft(
+      doc.date,
+      doc.site,
+      doc.productId,
+    );
+    maxSold = max;
+    if (left < delta) {
+      throw new Error(`Stock insuffisant (reste ${left})`);
+    }
+  }
+
+  if (doc.kind !== "extra") {
+    await applySoldDelta({
+      date: doc.date,
+      site: doc.site,
+      kind: doc.kind,
+      productId: doc.productId,
+      delta,
+      maxSold: delta > 0 && doc.kind === "plat" ? maxSold : null,
+    });
+  }
+
+  const amount =
+    Math.round(Number(doc.unitPrice) || 0) * newQty * (oldQty < 0 ? -1 : 1);
+
+  await db.collection<VenteLogDoc>("ventes_log").updateOne(
+    { _id: doc._id },
+    {
+      $set: {
+        qty: newQty,
+        amount: oldQty < 0 ? -Math.abs(amount) : Math.abs(amount),
+      },
+    },
+  );
+
+  // Ticket POS lié : recalcule la ligne et les totaux.
+  const ticket = await db.collection("pos_tickets").findOne({
+    site: input.site,
+    date: input.date,
+    "lines.venteLogId": input.id,
+    statut: "valide",
+  });
+  if (ticket) {
+    const lines = (
+      ticket.lines as Array<{
+        venteLogId?: string | null;
+        qty: number;
+        unitPrice: number;
+        amount: number;
+      }>
+    ).map((l) => {
+      if (l.venteLogId !== input.id) return l;
+      return {
+        ...l,
+        qty: newQty,
+        amount: Math.round(Number(l.unitPrice) || 0) * newQty,
+      };
+    });
+    const montantBrut = lines.reduce((s, l) => s + l.amount, 0);
+    const reduction = Math.min(
+      montantBrut,
+      Math.max(0, Number(ticket.reduction) || 0),
+    );
+    const montant = montantBrut - reduction;
+    const deltaTicket = montant - (Number(ticket.montant) || 0);
+    await db.collection("pos_tickets").updateOne(
+      { _id: ticket._id },
+      {
+        $set: {
+          lines,
+          montantBrut,
+          reduction,
+          montant,
+        },
+      },
+    );
+    if (ticket.caisseId && deltaTicket) {
+      await adjustCaisseVenteAmount(String(ticket.caisseId), deltaTicket);
+    }
+  }
+
+  const board = await getVenteBoard(input.date, input.site);
+  return {
+    board,
+    entry: {
+      id: doc._id.toHexString(),
+      date: doc.date,
+      site: doc.site,
+      kind: doc.kind,
+      productId: doc.productId,
+      name: doc.name,
+      qty: newQty,
+      unitPrice: doc.unitPrice,
+      amount: oldQty < 0 ? -Math.abs(amount) : Math.abs(amount),
+      at: doc.at,
+    },
+  };
 }

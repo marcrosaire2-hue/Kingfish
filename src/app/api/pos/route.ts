@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canUseSite } from "@/lib/auth-types";
+import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import {
   cancelPosTicket,
@@ -25,15 +25,20 @@ export async function GET(request: Request) {
   try {
     const user = await requireUser();
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date") || todayIsoDate();
-    const requested = (searchParams.get("site") || "gbegamey") as VenteSite;
-    const site = resolveSite(requested, user.site);
+    const requested = searchParams.get("date") || todayIsoDate();
+    const requestedSite = (searchParams.get("site") || "gbegamey") as VenteSite;
+    const site = resolveSite(requestedSite, user.site);
     if (!canUseSite(user.site, site)) {
       return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
     }
-    const ctx = await getPosContext({ date, site });
+    const ctx = await getPosContext({
+      date: requested,
+      site,
+      allowBackdate: canManagePastVentes(user.role),
+    });
     return NextResponse.json({
       ...ctx,
+      canManagePast: canManagePastVentes(user.role),
       lockedSite: user.site !== "tous",
       allowedSites:
         user.site === "tous"
@@ -74,9 +79,8 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "validate") {
-      const date = body.date || todayIsoDate();
       const result = await validatePosTicket({
-        date,
+        date: body.date || todayIsoDate(),
         site,
         user,
         saleType: body.saleType || "Sur place",
@@ -95,7 +99,7 @@ export async function POST(request: Request) {
         kind: "pos",
         title: `Ticket POS · ${result.ticket.numero}`,
         detail: `${result.ticket.lines.length} ligne(s) · ${result.ticket.saleType}`,
-        date,
+        date: result.ticket.date,
         site,
         amount: result.ticket.montant,
       });

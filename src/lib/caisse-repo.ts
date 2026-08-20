@@ -18,6 +18,7 @@ import type {
   CaisseStatut,
   VenteSite,
 } from "@/lib/types";
+import { operatingDateFromCaisse, todayIsoDate } from "@/lib/zogbo-calc";
 
 export type CaisseDoc = Omit<CaisseSession, "id"> & { _id: ObjectId };
 export type MouvementDoc = Omit<CaisseMouvement, "id"> & { _id: ObjectId };
@@ -120,6 +121,42 @@ export async function getActiveCaisseForSite(
   site: VenteSite,
 ): Promise<CaisseSession | null> {
   return getActiveCaisse(site);
+}
+
+/** Date à laquelle stock, journal et CA doivent s'écrire pour cette zone. */
+export async function resolveOperatingDate(
+  site: VenteSite,
+  requested?: string | null,
+  options?: { allowBackdate?: boolean },
+): Promise<string> {
+  const today = todayIsoDate();
+  // Correction volontaire d'un jour passé : on ne force pas la date de caisse.
+  if (
+    options?.allowBackdate &&
+    requested &&
+    /^\d{4}-\d{2}-\d{2}$/.test(requested) &&
+    requested < today
+  ) {
+    return requested;
+  }
+  const caisse = await getActiveCaisseForSite(site);
+  return operatingDateFromCaisse(caisse?.date, requested, today);
+}
+
+/** Session de caisse de la zone pour une date donnée (ouverte ou fermée). */
+export async function findCaisseSessionForSiteDate(
+  site: VenteSite,
+  date: string,
+): Promise<CaisseSession | null> {
+  if (!isValidDate(date)) return null;
+  const db = await getDb();
+  const doc = await db
+    .collection<CaisseDoc>("caisses_sessions")
+    .find({ site, date })
+    .sort({ openedAt: -1 })
+    .limit(1)
+    .next();
+  return doc ? toSession(doc) : null;
 }
 
 export async function listCaisses(input: {
@@ -583,6 +620,27 @@ export async function addCaisseVenteAmount(
   const db = await getDb();
   await db.collection<CaisseDoc>("caisses_sessions").updateOne(
     { _id: new ObjectId(caisseId), statut: "ouverte" },
+    {
+      $inc: { totalVente: delta },
+      $set: { updatedAt: new Date().toISOString() },
+    },
+  );
+}
+
+/**
+ * Ajuste le total ventes d'une session même fermée — réservé aux corrections
+ * gérant / admin sur un jour passé.
+ */
+export async function adjustCaisseVenteAmount(
+  caisseId: string,
+  amount: number,
+): Promise<void> {
+  if (!ObjectId.isValid(caisseId)) return;
+  const delta = Math.round(Number(amount) || 0);
+  if (!delta) return;
+  const db = await getDb();
+  await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+    { _id: new ObjectId(caisseId) },
     {
       $inc: { totalVente: delta },
       $set: { updatedAt: new Date().toISOString() },

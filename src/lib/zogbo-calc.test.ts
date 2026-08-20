@@ -9,6 +9,8 @@ import {
   physicalStock,
   previousIsoDate,
   shiftIsoDate,
+  todayIsoDate,
+  operatingDateFromCaisse,
   zogboDayHasCarryStock,
 } from "@/lib/zogbo-calc";
 import type { ZogboLine } from "@/lib/types";
@@ -179,6 +181,29 @@ describe("dates", () => {
 
   it("rejette une date mal formée", () => {
     expect(shiftIsoDate("pas-une-date", -1)).toBeNull();
+  });
+
+  it("todayIsoDate suit Porto-Novo, pas UTC", () => {
+    // 23:30 UTC le 18 = 00:30 le 19 à Cotonou.
+    expect(todayIsoDate(new Date("2026-08-18T23:30:00.000Z"))).toBe(
+      "2026-08-19",
+    );
+    // 22:30 UTC le 18 = 23:30 le 18 à Cotonou.
+    expect(todayIsoDate(new Date("2026-08-18T22:30:00.000Z"))).toBe(
+      "2026-08-18",
+    );
+  });
+
+  it("une caisse ouverte impose son jour de service après minuit", () => {
+    expect(
+      operatingDateFromCaisse("2026-08-18", "2026-08-19", "2026-08-19"),
+    ).toBe("2026-08-18");
+  });
+
+  it("sans caisse, la date demandée l'emporte sur le calendrier", () => {
+    expect(operatingDateFromCaisse(null, "2026-08-12", "2026-08-19")).toBe(
+      "2026-08-12",
+    );
   });
 });
 

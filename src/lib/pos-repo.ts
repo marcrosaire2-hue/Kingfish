@@ -1,14 +1,26 @@
 import { ObjectId } from "mongodb";
-import { effectiveShift } from "@/lib/auth-types";
 import {
+  canManagePastVentes,
+  effectiveShift,
+  type SessionUser,
+} from "@/lib/auth-types";
+import {
+  adjustCaisseVenteAmount,
+  addCaisseVenteAmount,
+  findCaisseSessionForSiteDate,
   getActiveCaisseForSite,
   getCaisseById,
-  addCaisseVenteAmount,
 } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getPosConfig } from "@/lib/pos-config-repo";
-import { getVenteBoard, recordExtraVente, recordVente, undoVente, assertSameTeamCancellation } from "@/lib/vente-repo";
-import type { SessionUser } from "@/lib/auth-types";
+import {
+  assertSameTeamCancellation,
+  getVenteBoard,
+  recordExtraVente,
+  recordVente,
+  undoVente,
+} from "@/lib/vente-repo";
+import { todayIsoDate } from "@/lib/zogbo-calc";
 import type {
   PosTicket,
   PosTicketLine,
@@ -144,11 +156,36 @@ export async function validatePosTicket(input: {
     username: input.user.username,
     shift: input.user.shift,
   };
-  // La caisse est celle de la zone, pas celle du vendeur : tout ce qui est
-  // encaissé sur le point de vente tombe dans le même tiroir.
-  const caisse = await getActiveCaisseForSite(input.site);
-  if (!caisse) {
-    throw new Error("Ouvrez la caisse de la zone avant de valider une commande.");
+
+  const today = todayIsoDate();
+  const isBackdate =
+    canManagePastVentes(input.user.role) &&
+    Boolean(input.date) &&
+    input.date < today;
+
+  let date: string;
+  let caisseId: string | null = null;
+  let creditCaisseOpen = false;
+  const bypassClosedDay = isBackdate;
+
+  if (isBackdate) {
+    // Correction d'un jour passé : stock + journal sur la date choisie,
+    // sans exiger la caisse ouverte aujourd'hui.
+    date = input.date;
+    const pastSession = await findCaisseSessionForSiteDate(input.site, date);
+    caisseId = pastSession?.id ?? null;
+  } else {
+    // La caisse est celle de la zone : tout l'encaissé du point tombe dedans.
+    const caisse = await getActiveCaisseForSite(input.site);
+    if (!caisse) {
+      throw new Error(
+        "Ouvrez la caisse de la zone avant de valider une commande.",
+      );
+    }
+    // Jour de service = date d'ouverture de la caisse, pas le calendrier.
+    date = caisse.date;
+    caisseId = caisse.id;
+    creditCaisseOpen = true;
   }
 
   const config = await getPosConfig();
@@ -181,9 +218,11 @@ export async function validatePosTicket(input: {
       try {
         await undoVente({
           id,
-          date: input.date,
+          date,
           site: input.site,
           actor,
+          bypassClosedDay,
+          bypassTeam: isBackdate,
         });
       } catch {
         /* best effort rollback */
@@ -198,7 +237,7 @@ export async function validatePosTicket(input: {
 
       if (line.kind === "extra") {
         const result = await recordExtraVente({
-          date: input.date,
+          date,
           site: input.site,
           description: line.name || line.productId || "Extra",
           unitPrice: Math.round(Number(line.unitPrice) || 0),
@@ -217,13 +256,14 @@ export async function validatePosTicket(input: {
         });
       } else {
         const result = await recordVente({
-          date: input.date,
+          date,
           site: input.site,
           kind: line.kind,
           productId: line.productId,
           qty,
           unitPrice: line.unitPrice,
           actor,
+          bypassClosedDay,
         });
         createdLogIds.push(result.entry.id);
         ticketLines.push({
@@ -257,12 +297,12 @@ export async function validatePosTicket(input: {
   try {
     doc = {
       _id: new ObjectId(),
-      numero: await nextNumero(input.date),
-      date: input.date,
+      numero: await nextNumero(date),
+      date,
       site: input.site,
       statut: "valide",
       saleType,
-      caisseId: caisse.id,
+      caisseId,
       paymentMethodId: payment?.id ?? null,
       paymentLabel: payment?.libelle ?? null,
       tableId: table?.id ?? null,
@@ -285,7 +325,13 @@ export async function validatePosTicket(input: {
     };
 
     await db.collection<TicketDoc>("pos_tickets").insertOne(doc);
-    await addCaisseVenteAmount(caisse.id, montant);
+    if (caisseId) {
+      if (creditCaisseOpen) {
+        await addCaisseVenteAmount(caisseId, montant);
+      } else {
+        await adjustCaisseVenteAmount(caisseId, montant);
+      }
+    }
   } catch (error) {
     if (doc) {
       try {
@@ -300,8 +346,8 @@ export async function validatePosTicket(input: {
     throw error;
   }
 
-  const board = await getVenteBoard(input.date, input.site);
-  return { ticket: toTicket(doc), board, caisseId: caisse.id };
+  const board = await getVenteBoard(date, input.site);
+  return { ticket: toTicket(doc), board, caisseId };
 }
 
 export async function cancelPosTicket(input: {
@@ -317,22 +363,21 @@ export async function cancelPosTicket(input: {
   const db = await getDb();
   const doc = await db.collection<TicketDoc>("pos_tickets").findOne({
     _id: new ObjectId(input.id),
-    date: input.date,
     site: input.site,
   });
   if (!doc) throw new Error("Ticket introuvable");
   if (doc.statut === "annule") throw new Error("Ticket déjà annulé");
 
   // Une équipe ne peut pas annuler un ticket encaissé par l'autre équipe.
+  const manager = canManagePastVentes(input.user.role);
   assertSameTeamCancellation({
     saleShift: doc.shift,
     cancellerShift: input.user.shift,
+    bypassTeam: manager,
   });
 
-  // Caisse fermée : revoir un ticket de cette caisse détournerait l'encaissé
-  // déjà contrôlé (addCaisseVenteAmount n'a aucun effet sur une caisse
-  // fermée, le stock serait pourtant remis et le CA du jour modifié).
-  if (doc.caisseId) {
+  // Caisse fermée : le gérant peut quand même corriger un jour passé.
+  if (doc.caisseId && !manager) {
     const caisse = await getCaisseById(doc.caisseId);
     if (caisse && caisse.statut !== "ouverte") {
       throw new Error("Caisse déjà clôturée : annulation impossible.");
@@ -351,9 +396,11 @@ export async function cancelPosTicket(input: {
     try {
       await undoVente({
         id: line.venteLogId,
-        date: input.date,
+        date: doc.date,
         site: input.site,
         actor,
+        bypassClosedDay: manager,
+        bypassTeam: manager,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
@@ -364,7 +411,11 @@ export async function cancelPosTicket(input: {
   }
 
   if (doc.caisseId) {
-    await addCaisseVenteAmount(doc.caisseId, -doc.montant);
+    if (manager) {
+      await adjustCaisseVenteAmount(doc.caisseId, -doc.montant);
+    } else {
+      await addCaisseVenteAmount(doc.caisseId, -doc.montant);
+    }
   }
 
   await db.collection<TicketDoc>("pos_tickets").updateOne(
@@ -380,7 +431,7 @@ export async function cancelPosTicket(input: {
     },
   );
 
-  const board = await getVenteBoard(input.date, input.site);
+  const board = await getVenteBoard(doc.date, input.site);
   return {
     board,
     ticket: { numero: doc.numero, montant: doc.montant },
@@ -390,12 +441,25 @@ export async function cancelPosTicket(input: {
 export async function getPosContext(input: {
   date: string;
   site: VenteSite;
+  allowBackdate?: boolean;
 }) {
-  const [config, caisse, tickets, board] = await Promise.all([
+  const today = todayIsoDate();
+  const caisse = await getActiveCaisseForSite(input.site);
+  const date =
+    input.allowBackdate && input.date < today
+      ? input.date
+      : (caisse?.date ?? input.date);
+  const [config, tickets, board] = await Promise.all([
     getPosConfig(),
-    getActiveCaisseForSite(input.site),
-    listTickets({ date: input.date, site: input.site }),
-    getVenteBoard(input.date, input.site),
+    listTickets({ date, site: input.site }),
+    getVenteBoard(date, input.site),
   ]);
-  return { config, caisse, tickets, board };
+  return {
+    date,
+    config,
+    caisse: input.allowBackdate && input.date < today ? null : caisse,
+    tickets,
+    board,
+    backdate: Boolean(input.allowBackdate && input.date < today),
+  };
 }

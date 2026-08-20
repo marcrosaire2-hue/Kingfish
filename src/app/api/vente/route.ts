@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canUseSite, type UserShift } from "@/lib/auth-types";
-import { reportError } from "@/lib/report-error";
 import {
+  canManagePastVentes,
+  canUseSite,
+  type UserShift,
+} from "@/lib/auth-types";
+import { reportError } from "@/lib/report-error";
+import { resolveOperatingDate } from "@/lib/caisse-repo";
+import {
+  editVenteQty,
   getVenteBoard,
   recordExtraVente,
   recordVente,
@@ -31,7 +37,6 @@ function actorOf(user: {
     id: user.id,
     name: user.name,
     username: user.username,
-    // L'équipe suit le compte : le vendeur n'a rien à saisir.
     shift: user.shift,
   };
 }
@@ -40,16 +45,20 @@ export async function GET(request: Request) {
   try {
     const user = await requireUser();
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date") || todayIsoDate();
-    const requested = (searchParams.get("site") || "zogbo") as VenteSite;
-    const site = resolveSite(requested, user.site);
+    const requested = searchParams.get("date") || todayIsoDate();
+    const requestedSite = (searchParams.get("site") || "zogbo") as VenteSite;
+    const site = resolveSite(requestedSite, user.site);
     if (!canUseSite(user.site, site)) {
       return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
     }
+    const allowBackdate = canManagePastVentes(user.role);
+    const date = await resolveOperatingDate(site, requested, { allowBackdate });
     const recentLimit = Number(searchParams.get("limit") || 40) || 40;
     const board = await getVenteBoard(date, site, { recentLimit });
     return NextResponse.json({
       ...board,
+      backdate: allowBackdate && date < todayIsoDate(),
+      canManagePast: allowBackdate,
       lockedSite: user.site !== "tous",
       allowedSites:
         user.site === "tous"
@@ -65,8 +74,9 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const actor = actorOf(user);
+    const manager = canManagePastVentes(user.role);
     const body = (await request.json()) as {
-      action?: "sell" | "undo" | "extra";
+      action?: "sell" | "undo" | "extra" | "edit";
       date?: string;
       site?: VenteSite;
       kind?: VenteKind;
@@ -94,19 +104,49 @@ export async function POST(request: Request) {
         date: body.date,
         site,
         actor,
+        bypassClosedDay: manager,
+        bypassTeam: manager,
+      });
+      return NextResponse.json(result);
+    }
+
+    if (body.action === "edit") {
+      if (!manager) {
+        return NextResponse.json(
+          { error: "Modification réservée au gérant ou à l'administrateur." },
+          { status: 403 },
+        );
+      }
+      if (!body.id || !body.date || body.qty === undefined) {
+        return NextResponse.json(
+          { error: "id, date et qty requis." },
+          { status: 400 },
+        );
+      }
+      const result = await editVenteQty({
+        id: body.id,
+        date: body.date,
+        site,
+        qty: body.qty,
+        actor,
+        bypassClosedDay: true,
+        bypassTeam: true,
       });
       return NextResponse.json(result);
     }
 
     if (body.action === "extra") {
-      if (!body.date || body.description === undefined || body.unitPrice === undefined) {
+      if (body.description === undefined || body.unitPrice === undefined) {
         return NextResponse.json(
-          { error: "date, description et unitPrice requis." },
+          { error: "description et unitPrice requis." },
           { status: 400 },
         );
       }
+      const date = await resolveOperatingDate(site, body.date, {
+        allowBackdate: manager,
+      });
       const result = await recordExtraVente({
-        date: body.date,
+        date,
         site,
         description: body.description,
         unitPrice: body.unitPrice,
@@ -115,21 +155,25 @@ export async function POST(request: Request) {
       return NextResponse.json(result);
     }
 
-    if (!body.date || !body.kind || !body.productId) {
+    if (!body.kind || !body.productId) {
       return NextResponse.json(
-        { error: "date, kind et productId requis." },
+        { error: "kind et productId requis." },
         { status: 400 },
       );
     }
 
+    const date = await resolveOperatingDate(site, body.date, {
+      allowBackdate: manager,
+    });
     const result = await recordVente({
-      date: body.date,
+      date,
       site,
       kind: body.kind,
       productId: body.productId,
       qty: body.qty ?? 1,
       unitPrice: body.unitPrice,
       actor,
+      bypassClosedDay: manager && date < todayIsoDate(),
     });
     return NextResponse.json(result);
   } catch (error) {
@@ -149,13 +193,13 @@ export async function POST(request: Request) {
         m.includes("ne sont vendus qu") ||
         m.includes("Décrivez") ||
         m.includes("Description") ||
-        m.includes("Prix invalide")
+        m.includes("Prix invalide") ||
+        m.includes("Modification réservée") ||
+        m.includes("Quantité invalide")
       ) {
-        // Refus métier attendu (stock, prix, saisie) : pas un incident.
         return NextResponse.json({ error: m }, { status: 400 });
       }
     }
-    // Tout le reste est un échec de vente : il doit laisser une trace.
     reportError("POST /api/vente", error);
     return authErrorResponse(error);
   }

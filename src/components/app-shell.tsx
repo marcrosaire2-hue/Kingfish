@@ -83,6 +83,13 @@ const NAV_ITEMS: {
     group: "pilot",
   },
   {
+    href: "/regularisation",
+    label: "Régularisation",
+    key: "regularisation",
+    mark: "±",
+    group: "pilot",
+  },
+  {
     href: "/stock",
     label: "Stock",
     key: "stock",

@@ -1,5 +1,7 @@
 "use client";
 
+import { todayIsoDate } from "@/lib/zogbo-calc";
+
 /** Barre de contexte : date optionnelle + devise FCFA + actions */
 export function ContextBar({
   date,
@@ -24,6 +26,7 @@ export function ContextBar({
               type="date"
               value={date}
               disabled={dateDisabled}
+              max={todayIsoDate()}
               onChange={(e) => onDateChange(e.target.value)}
             />
           </label>

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   canAccessPath,
+  canManagePastVentes,
   defaultSiteForRole,
   effectiveSite,
   navForUser,
@@ -172,5 +173,15 @@ describe("l'API suit les droits de l'écran", () => {
         true,
       );
     }
+  });
+
+  it("réserve la correction des ventes passées au gérant et à l'admin", () => {
+    expect(canManagePastVentes("gerant")).toBe(true);
+    expect(canManagePastVentes("admin")).toBe(true);
+    expect(canManagePastVentes("vendeur")).toBe(false);
+    expect(canManagePastVentes("equipier")).toBe(false);
+    expect(canAccessPath("gerant", "/regularisation", "zogbo")).toBe(true);
+    expect(canAccessPath("vendeur", "/regularisation", "zogbo")).toBe(false);
+    expect(navForUser("gerant", "zogbo")).toContain("regularisation");
   });
 });
