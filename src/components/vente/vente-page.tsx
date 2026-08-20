@@ -194,13 +194,13 @@ function printTicket(
 
 type ProductGridProps = {
   products: VenteProduct[];
-  caisse: CaisseSession | null;
+  canSell: boolean;
   onAdd: (product: VenteProduct) => void;
 };
 
 const ProductGrid = memo(function ProductGrid({
   products,
-  caisse,
+  canSell,
   onAdd,
 }: ProductGridProps) {
   if (products.length === 0) {
@@ -216,8 +216,8 @@ const ProductGrid = memo(function ProductGrid({
           p.stockLeft !== null &&
           p.stockLeft !== undefined &&
           p.stockLeft <= 0;
-        const blocked = disabledPv || outOfStock || !caisse;
-        const reason = !caisse
+        const blocked = disabledPv || outOfStock || !canSell;
+        const reason = !canSell
           ? "Ouvrez la caisse pour vendre"
           : disabledPv
             ? p.blockReason || "Prix de vente manquant"
@@ -289,7 +289,7 @@ const ProductGrid = memo(function ProductGrid({
 
 type MealComposerProps = {
   plats: VenteProduct[];
-  caisse: CaisseSession | null;
+  canSell: boolean;
   busyKey: string | null;
   composerPlatId: string;
   composerPlat: VenteProduct | null;
@@ -306,7 +306,7 @@ type MealComposerProps = {
 
 const MealComposer = memo(function MealComposer({
   plats,
-  caisse,
+  canSell,
   busyKey,
   composerPlatId,
   composerPlat,
@@ -472,7 +472,7 @@ const MealComposer = memo(function MealComposer({
             <button
               type="button"
               className="btn btn-primary"
-              disabled={!composerPlat || !caisse}
+              disabled={!composerPlat || !canSell}
               onClick={() => onCommit()}
             >
               Ajouter au panier
@@ -609,6 +609,8 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [board, setBoard] = useState<Board | null>(null);
   const [config, setConfig] = useState<PosConfig | null>(null);
   const [caisse, setCaisse] = useState<CaisseSession | null>(null);
+  const [caisseActive, setCaisseActive] = useState<CaisseSession | null>(null);
+  const [backdateMode, setBackdateMode] = useState(false);
   const [openingCaisse, setOpeningCaisse] = useState(false);
   const [tickets, setTickets] = useState<PosTicket[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -704,9 +706,6 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       const venteBody = await venteRes.json();
       if (!venteRes.ok) throw new Error(venteBody.error || "Erreur vente");
       setBoard(venteBody as Board);
-      if (typeof venteBody.date === "string" && venteBody.date !== nextDate) {
-        setDate(venteBody.date);
-      }
       if (venteBody.site) setSite(venteBody.site as VenteSite);
       setAllowedSites(
         (venteBody.allowedSites as VenteSite[] | undefined) ?? [],
@@ -716,10 +715,29 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         const posBody = await posRes.json();
         setConfig(posBody.config as PosConfig);
         setCaisse(posBody.caisse as CaisseSession | null);
+        setCaisseActive(
+          (posBody.caisseActive as CaisseSession | null) ??
+            (posBody.caisse as CaisseSession | null),
+        );
+        setBackdateMode(Boolean(posBody.backdate));
         setTickets((posBody.tickets as PosTicket[]) || []);
         if (!paymentId && posBody.config?.paymentMethods?.[0]?.id) {
           setPaymentId(posBody.config.paymentMethods[0].id);
         }
+        // Aligner la date sur le POS (date de caisse ou jour de correction).
+        if (typeof posBody.date === "string" && posBody.date !== nextDate) {
+          setDate(posBody.date);
+        } else if (
+          typeof venteBody.date === "string" &&
+          venteBody.date !== nextDate
+        ) {
+          setDate(venteBody.date);
+        }
+      } else if (
+        typeof venteBody.date === "string" &&
+        venteBody.date !== nextDate
+      ) {
+        setDate(venteBody.date);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
@@ -744,7 +762,17 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Ouverture caisse impossible");
+      if (!res.ok) {
+        const msg = String(body.error || "Ouverture caisse impossible");
+        // Tiroir déjà ouvert ailleurs : on se rattache au lieu d'afficher
+        // « fermée » + erreur contradictoire.
+        if (/déjà ouverte/i.test(msg)) {
+          await load(date, site);
+          setFlash(msg.replace(/\.$/, "") + " — session reprise.");
+          return;
+        }
+        throw new Error(msg);
+      }
       await load(date, site);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ouverture caisse impossible");
@@ -753,10 +781,19 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     }
   }
 
+  /** Revenir au jour de la caisse ouverte (souvent le service en cours). */
+  async function rejoindreCaisseActive() {
+    if (!caisseActive?.date) return;
+    setDate(caisseActive.date);
+  }
+
   useEffect(() => {
     void load(date, site);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, site, pathname]);
+
+  /** Encaissement possible : caisse du jour, ou correction gérant (backdate). */
+  const canSell = Boolean(caisse) || backdateMode;
 
   const plats = useMemo(
     () => board?.products.filter((p) => p.kind === "plat") ?? [],
@@ -995,8 +1032,12 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       setError("Panier vide");
       return;
     }
-    if (!caisse) {
-      setError("Ouvrez une caisse avant de valider.");
+    if (!canSell) {
+      setError(
+        backdateMode
+          ? "Correction de jour passé impossible pour le moment."
+          : "Ouvrez une caisse avant de valider.",
+      );
       return;
     }
     setPosBusy(true);
@@ -1069,7 +1110,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     } finally {
       setPosBusy(false);
     }
-  }, [cart, caisse, date, site, saleType, paymentId, clientNom, reductionN]);
+  }, [cart, canSell, backdateMode, date, site, saleType, paymentId, clientNom, reductionN]);
 
   const cancelTicket = useCallback(
     async (ticket: PosTicket) => {
@@ -1228,15 +1269,17 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
           </div>
         ) : null}
 
-        <div className={`vente-hero${caisse ? " is-ready" : " is-idle"}`}>
+        <div className={`vente-hero${canSell ? " is-ready" : " is-idle"}`}>
           <div className="vente-hero-main">
             <span className="vente-hero-status">
               <span className="vente-hero-dot" aria-hidden />
               {caisse
                 ? `Caisse ${siteLabel} ouverte`
-                : loading
-                  ? "Chargement de la caisse…"
-                  : `Caisse ${siteLabel} fermée`}
+                : backdateMode
+                  ? `Correction · ${date}`
+                  : loading
+                    ? "Chargement de la caisse…"
+                    : `Caisse ${siteLabel} fermée`}
             </span>
             <span className="vente-hero-label">
               CA validé · {siteLabel}
@@ -1263,7 +1306,11 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   ? "Chargement de la caisse…"
                   : caisse
                     ? `Ajoutez au panier puis validez · tiroir ouvert par ${caisse.userName}`
-                    : "Ouvrez la caisse de la zone pour encaisser"}
+                    : backdateMode
+                      ? "Correction de jour passé — validez sans rouvrir la caisse"
+                      : caisseActive
+                        ? `Caisse déjà ouverte le ${caisseActive.date} par ${caisseActive.userName}`
+                        : "Ouvrez la caisse de la zone pour encaisser"}
             </span>
           </div>
           <div className="vente-hero-side">
@@ -1285,7 +1332,34 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   ))}
                 </div>
               ) : null}
-            {loading ? null : !caisse ? (
+            {loading ? null : caisse ? (
+              <Link
+                href={`/caisse?caisse=${site}`}
+                className="btn btn-ghost vente-hero-cta"
+              >
+                Voir la caisse
+              </Link>
+            ) : backdateMode ? (
+              caisseActive && caisseActive.date !== date ? (
+                <button
+                  type="button"
+                  className="btn btn-primary vente-hero-cta"
+                  onClick={() => void rejoindreCaisseActive()}
+                >
+                  Rejoindre la caisse du {caisseActive.date.slice(8)}/
+                  {caisseActive.date.slice(5, 7)}
+                </button>
+              ) : null
+            ) : caisseActive ? (
+              <button
+                type="button"
+                className="btn btn-primary vente-hero-cta"
+                disabled={openingCaisse}
+                onClick={() => void openCaisseHere()}
+              >
+                {openingCaisse ? "Reprise…" : "Reprendre la caisse ouverte"}
+              </button>
+            ) : (
               <button
                 type="button"
                 className="btn btn-primary vente-hero-cta"
@@ -1296,30 +1370,66 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   ? "Ouverture…"
                   : `Ouvrir la caisse ${siteLabel}`}
               </button>
-            ) : (
-              <Link
-                href={`/caisse?caisse=${site}`}
-                className="btn btn-ghost vente-hero-cta"
-              >
-                Voir la caisse
-              </Link>
             )}
           </div>
         </div>
 
-        {!loading && !caisse ? (
+        {!loading &&
+        caisseActive &&
+        caisseActive.date < todayIsoDate() &&
+        caisse?.date === caisseActive.date ? (
+          <p className="ui-info" role="status">
+            Caisse du {caisseActive.date.slice(8)}/{caisseActive.date.slice(5, 7)}{" "}
+            encore ouverte (ouverte par {caisseActive.userName}). Pour démarrer
+            aujourd&apos;hui, fermez-la sur{" "}
+            <Link href={`/caisse?caisse=${site}`}>Caisse</Link>.
+          </p>
+        ) : null}
+
+        {!loading && !canSell && !backdateMode ? (
           <p className="error-banner" role="alert">
-            Caisse {siteLabel} fermée — ouvrez-la pour encaisser.{" "}
+            {caisseActive
+              ? `Caisse ${siteLabel} déjà ouverte par ${caisseActive.userName} (jour ${caisseActive.date}). `
+              : `Caisse ${siteLabel} fermée — ouvrez-la pour encaisser. `}
             <button
               type="button"
               className="btn-link"
               disabled={openingCaisse}
-              onClick={() => void openCaisseHere()}
+              onClick={() =>
+                caisseActive
+                  ? void rejoindreCaisseActive()
+                  : void openCaisseHere()
+              }
             >
-              {openingCaisse ? "Ouverture…" : "Ouvrir maintenant"}
+              {openingCaisse
+                ? "…"
+                : caisseActive
+                  ? "Afficher ce jour"
+                  : "Ouvrir maintenant"}
             </button>
             {" · "}
             <Link href={`/caisse?caisse=${site}`}>Fond de caisse détaillé</Link>
+          </p>
+        ) : null}
+
+        {!loading && backdateMode ? (
+          <p className="ui-info" role="status">
+            Mode correction du {date.slice(8)}/{date.slice(5, 7)} — la caisse du
+            jour n&apos;est pas requise.
+            {caisseActive ? (
+              <>
+                {" "}
+                Une caisse est ouverte le {caisseActive.date.slice(8)}/
+                {caisseActive.date.slice(5, 7)} par {caisseActive.userName}.{" "}
+                <button
+                  type="button"
+                  className="btn-link"
+                  onClick={() => void rejoindreCaisseActive()}
+                >
+                  Y revenir
+                </button>
+              </>
+            ) : null}
           </p>
         ) : null}
 
@@ -1379,7 +1489,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={!extraDesc.trim() || !caisse}
+                  disabled={!extraDesc.trim() || !canSell}
                   onClick={() => void submitExtra()}
                 >
                   Ajouter au panier
@@ -1388,7 +1498,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             ) : cat === "plat" ? (
               <MealComposer
                 plats={plats}
-                caisse={caisse}
+                canSell={canSell}
                 busyKey={busyKey}
                 composerPlatId={composerPlatId}
                 composerPlat={composerPlat}
@@ -1413,7 +1523,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
 
                 <ProductGrid
                   products={products}
-                  caisse={caisse}
+                  canSell={canSell}
                   onAdd={addToCart}
                 />
               </>
@@ -1500,7 +1610,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                 <button
                   type="button"
                   className="btn btn-primary"
-                  disabled={posBusy || !cart.length || !caisse}
+                  disabled={posBusy || !cart.length || !canSell}
                   onClick={() => void validateCart()}
                 >
                   {posBusy ? "Validation…" : "Créer la commande"}

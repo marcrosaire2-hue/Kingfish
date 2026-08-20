@@ -445,10 +445,19 @@ export async function getPosContext(input: {
 }) {
   const today = todayIsoDate();
   const caisse = await getActiveCaisseForSite(input.site);
-  const date =
-    input.allowBackdate && input.date < today
-      ? input.date
-      : (caisse?.date ?? input.date);
+  const requestedPast =
+    Boolean(input.allowBackdate) &&
+    Boolean(input.date) &&
+    input.date < today;
+  // Jour affiché : backdate volontaire, sinon date de la caisse ouverte.
+  const date = requestedPast ? input.date : (caisse?.date ?? input.date);
+  // Si le tiroir ouvert porte exactement ce jour, on l'expose toujours —
+  // même si le calendrier a avancé (ex. caisse du 18 encore ouverte le 20).
+  // Avant, le mode backdate renvoyait caisse:null → « fermée » à l'écran
+  // alors que l'ouverture échouait avec « déjà ouverte ».
+  const caisseForUi =
+    caisse && caisse.date === date ? caisse : requestedPast ? null : caisse;
+  const backdate = requestedPast && !(caisse && caisse.date === date);
   const [config, tickets, board] = await Promise.all([
     getPosConfig(),
     listTickets({ date, site: input.site }),
@@ -457,9 +466,11 @@ export async function getPosContext(input: {
   return {
     date,
     config,
-    caisse: input.allowBackdate && input.date < today ? null : caisse,
+    caisse: caisseForUi,
+    /** Session ouverte de la zone, même si le jour affiché diffère. */
+    caisseActive: caisse,
     tickets,
     board,
-    backdate: Boolean(input.allowBackdate && input.date < today),
+    backdate,
   };
 }
