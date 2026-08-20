@@ -522,22 +522,66 @@ export type MonthPoint = {
   };
 };
 
+/** Agrégat des postes de charges (période mois / année). */
+export type ChargesBreakdown = {
+  achatsStock: number;
+  matieresPremieres: number;
+  loyer: number;
+  salaires: number;
+  electricite: number;
+  carburant: number;
+  reparations: number;
+  pertes: number;
+};
+
 export type YearPoint = {
   year: number;
   months: {
     month: number;
     caTotal: number;
     caCombos: number;
+    caPlatsZogbo: number;
+    caPlatsGbegamey: number;
+    caAccompagnementsZogbo: number;
+    caAccompagnementsGbegamey: number;
+    caBoissonsZogbo: number;
+    caBoissonsGbegamey: number;
+    caExtraZogbo: number;
+    caExtraGbegamey: number;
+    charges: ChargesBreakdown;
     chargesTotal: number;
     resultat: number;
     daysWithData: number;
   }[];
   totals: {
-    caTotal: number;
+    caPlatsZogbo: number;
+    caPlatsGbegamey: number;
+    caAccompagnementsZogbo: number;
+    caAccompagnementsGbegamey: number;
+    caBoissonsZogbo: number;
+    caBoissonsGbegamey: number;
+    caExtraZogbo: number;
+    caExtraGbegamey: number;
+    caZogbo: number;
+    caGbegamey: number;
     caCombos: number;
+    caBoissons: number;
+    caTotal: number;
+    charges: ChargesBreakdown;
     chargesTotal: number;
     resultat: number;
   };
+};
+
+/** Ligne produit détaillée pour le compte de résultat (qté + CA). */
+export type CompteResultatDetailLine = {
+  site: string;
+  kind: string;
+  productId: string;
+  name: string;
+  qty: number;
+  amount: number;
+  tickets: number;
 };
 
 export type VenteSite = "zogbo" | "gbegamey";

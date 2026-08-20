@@ -6,14 +6,16 @@ import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { PriceInput } from "@/components/parametres/price-input";
 import { CAISSE_LABELS, CAISSES } from "@/lib/caisse-model";
-import {
-  downloadExcel,
-  excelFilename,
-} from "@/lib/export-excel";
+import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
-import { emptyCharges } from "@/lib/synthese-calc";
+import {
+  emptyCharges,
+  sumChargesBreakdown,
+} from "@/lib/synthese-calc";
 import type {
   CaisseKey,
+  ChargesBreakdown,
+  CompteResultatDetailLine,
   DayCharges,
   DayPoint,
   MonthPoint,
@@ -35,13 +37,17 @@ type Payload = {
   caisseDepenses: number;
   caisseRecettes: number;
   caisseSessions: number;
-  caisseParCaisse: { caisse: CaisseKey; totalDepense: number; totalRecette: number; sessions: number }[];
+  caisseParCaisse: {
+    caisse: CaisseKey;
+    totalDepense: number;
+    totalRecette: number;
+    sessions: number;
+  }[];
   matieresPurchasesToday?: number;
+  detailProduits: CompteResultatDetailLine[];
 };
 
 const CHARGE_FIELDS: {
-  // « pertes » vient du journal des pertes, « achatsStock » du registre des
-  // achats : tous deux calculés, jamais saisis ici.
   key: keyof Omit<DayCharges, "date" | "updatedAt" | "pertes" | "achatsStock">;
   label: string;
 }[] = [
@@ -53,6 +59,29 @@ const CHARGE_FIELDS: {
   { key: "reparations", label: "Réparations / entretien" },
 ];
 
+const MONTH_NAMES = [
+  "Janvier",
+  "Février",
+  "Mars",
+  "Avril",
+  "Mai",
+  "Juin",
+  "Juillet",
+  "Août",
+  "Septembre",
+  "Octobre",
+  "Novembre",
+  "Décembre",
+];
+
+const KIND_LABELS: Record<string, string> = {
+  plat: "Plat",
+  local: "Accompagnement",
+  boisson: "Boisson",
+  extra: "Extra",
+  combo: "Combo (hors résultat)",
+};
+
 function currentMonth(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -61,7 +90,9 @@ function currentMonth(): string {
 type StatementLine = {
   label: string;
   amount: number;
-  kind: "item" | "subtotal" | "result" | "info";
+  kind: "item" | "subtotal" | "result" | "info" | "group";
+  qty?: number;
+  tickets?: number;
 };
 
 type Statement = {
@@ -74,78 +105,122 @@ type Statement = {
   resultatAmount: number;
 };
 
+function produitsLinesFromCa(t: {
+  caPlatsZogbo: number;
+  caPlatsGbegamey: number;
+  caAccompagnementsZogbo: number;
+  caAccompagnementsGbegamey: number;
+  caBoissonsZogbo: number;
+  caBoissonsGbegamey: number;
+  caExtraZogbo: number;
+  caExtraGbegamey: number;
+  caTotal: number;
+  caCombos: number;
+}): StatementLine[] {
+  const produitsTotal = t.caTotal - t.caCombos;
+  const caZogbo =
+    t.caPlatsZogbo +
+    t.caAccompagnementsZogbo +
+    t.caBoissonsZogbo +
+    t.caExtraZogbo;
+  const caGbegamey =
+    t.caPlatsGbegamey +
+    t.caAccompagnementsGbegamey +
+    t.caBoissonsGbegamey +
+    t.caExtraGbegamey;
+  return [
+    { label: "— Zogbo —", amount: caZogbo, kind: "group" },
+    { label: "CA plats Zogbo", amount: t.caPlatsZogbo, kind: "item" },
+    {
+      label: "CA accompagnements Zogbo",
+      amount: t.caAccompagnementsZogbo,
+      kind: "item",
+    },
+    { label: "CA boissons Zogbo", amount: t.caBoissonsZogbo, kind: "item" },
+    { label: "CA extra Zogbo", amount: t.caExtraZogbo, kind: "item" },
+    { label: "Sous-total Zogbo", amount: caZogbo, kind: "subtotal" },
+    { label: "— Gbégamey —", amount: caGbegamey, kind: "group" },
+    { label: "CA plats Gbégamey", amount: t.caPlatsGbegamey, kind: "item" },
+    {
+      label: "CA accompagnements Gbégamey",
+      amount: t.caAccompagnementsGbegamey,
+      kind: "item",
+    },
+    {
+      label: "CA boissons Gbégamey",
+      amount: t.caBoissonsGbegamey,
+      kind: "item",
+    },
+    { label: "CA extra Gbégamey", amount: t.caExtraGbegamey, kind: "item" },
+    { label: "Sous-total Gbégamey", amount: caGbegamey, kind: "subtotal" },
+    {
+      label: "Total produits d’exploitation",
+      amount: produitsTotal,
+      kind: "subtotal",
+    },
+  ];
+}
+
+function chargesLinesFromBreakdown(
+  c: ChargesBreakdown,
+  chargesTotal: number,
+): StatementLine[] {
+  return [
+    {
+      label: "Achats de stock (registre)",
+      amount: c.achatsStock,
+      kind: "item",
+    },
+    {
+      label: "Achats matières premières",
+      amount: c.matieresPremieres,
+      kind: "item",
+    },
+    { label: "Charge locative", amount: c.loyer, kind: "item" },
+    { label: "Salaires", amount: c.salaires, kind: "item" },
+    { label: "Électricité", amount: c.electricite, kind: "item" },
+    { label: "Carburant", amount: c.carburant, kind: "item" },
+    {
+      label: "Réparations / entretien",
+      amount: c.reparations,
+      kind: "item",
+    },
+    { label: "Pertes déclarées", amount: c.pertes, kind: "item" },
+    {
+      label: "Total charges d’exploitation",
+      amount: chargesTotal,
+      kind: "subtotal",
+    },
+  ];
+}
+
 function buildDayStatement(day: DayPoint, date: string): Statement {
-  // Les combos ne sont plus vendus : le compte de résultat les exclut des
-  // produits (le journal les garde pour l'historique).
   const produitsTotal = day.caTotal - day.caCombos;
+  const charges: ChargesBreakdown = {
+    achatsStock: day.charges.achatsStock ?? 0,
+    matieresPremieres: day.charges.matieresPremieres,
+    loyer: day.charges.loyer,
+    salaires: day.charges.salaires,
+    electricite: day.charges.electricite,
+    carburant: day.charges.carburant,
+    reparations: day.charges.reparations,
+    pertes: day.charges.pertes ?? 0,
+  };
   return {
     title: `Compte de résultat — ${formatDisplayDate(date)}`,
-    produits: [
-      { label: "CA plats Zogbo", amount: day.caZogboPlats, kind: "item" },
-      { label: "CA plats Gbégamey", amount: day.caGbegameyPlats, kind: "item" },
-      {
-        label: "CA accompagnements Zogbo",
-        amount: day.caAccompagnementsZogbo,
-        kind: "item",
-      },
-      {
-        label: "CA accompagnements Gbégamey",
-        amount: day.caAccompagnementsGbegamey,
-        kind: "item",
-      },
-      {
-        label: "CA boissons Zogbo",
-        amount: day.caBoissonsZogbo,
-        kind: "item",
-      },
-      {
-        label: "CA boissons Gbégamey",
-        amount: day.caBoissonsGbegamey,
-        kind: "item",
-      },
-      { label: "CA extra Zogbo", amount: day.caExtraZogbo, kind: "item" },
-      {
-        label: "CA extra Gbégamey",
-        amount: day.caExtraGbegamey,
-        kind: "item",
-      },
-      {
-        label: "Total produits d’exploitation",
-        amount: produitsTotal,
-        kind: "subtotal",
-      },
-    ],
-    charges: [
-      {
-        label: "Achats de stock (registre)",
-        amount: day.charges.achatsStock ?? 0,
-        kind: "item",
-      },
-      {
-        label: "Achats matières premières",
-        amount: day.charges.matieresPremieres,
-        kind: "item",
-      },
-      { label: "Charge locative", amount: day.charges.loyer, kind: "item" },
-      { label: "Salaires", amount: day.charges.salaires, kind: "item" },
-      { label: "Électricité", amount: day.charges.electricite, kind: "item" },
-      { label: "Carburant", amount: day.charges.carburant, kind: "item" },
-      {
-        label: "Réparations / entretien",
-        amount: day.charges.reparations,
-        kind: "item",
-      },
-      {
-        label: "Pertes déclarées",
-        amount: day.charges.pertes ?? 0,
-        kind: "item",
-      },
-      {
-        label: "Total charges d’exploitation",
-        amount: day.chargesTotal,
-        kind: "subtotal",
-      },
-    ],
+    produits: produitsLinesFromCa({
+      caPlatsZogbo: day.caZogboPlats,
+      caPlatsGbegamey: day.caGbegameyPlats,
+      caAccompagnementsZogbo: day.caAccompagnementsZogbo,
+      caAccompagnementsGbegamey: day.caAccompagnementsGbegamey,
+      caBoissonsZogbo: day.caBoissonsZogbo,
+      caBoissonsGbegamey: day.caBoissonsGbegamey,
+      caExtraZogbo: day.caExtraZogbo,
+      caExtraGbegamey: day.caExtraGbegamey,
+      caTotal: day.caTotal,
+      caCombos: day.caCombos,
+    }),
+    charges: chargesLinesFromBreakdown(charges, day.chargesTotal),
     resultat: [
       {
         label: "Résultat d’exploitation",
@@ -166,54 +241,35 @@ function buildDayStatement(day: DayPoint, date: string): Statement {
 
 function buildMonthStatement(data: MonthPoint, label: string): Statement {
   const t = data.totals;
-  // Les combos sont exclus des produits (arrêtés à la vente).
   const produitsTotal = t.caTotal - t.caCombos;
+  const charges = sumChargesBreakdown(data.days);
+  const activeDays = data.days.filter(
+    (d) =>
+      d.caTotal > 0 ||
+      d.chargesTotal > 0 ||
+      d.hasZogboData ||
+      d.hasGbegameyData,
+  );
   return {
     title: `Compte de résultat — ${label}`,
-    produits: [
-      { label: "CA plats Zogbo", amount: t.caPlatsZogbo, kind: "item" },
-      { label: "CA plats Gbégamey", amount: t.caPlatsGbegamey, kind: "item" },
-      {
-        label: "CA accompagnements Zogbo",
-        amount: t.caAccompagnementsZogbo,
-        kind: "item",
-      },
-      {
-        label: "CA accompagnements Gbégamey",
-        amount: t.caAccompagnementsGbegamey,
-        kind: "item",
-      },
-      {
-        label: "CA boissons Zogbo",
-        amount: t.caBoissonsZogbo,
-        kind: "item",
-      },
-      {
-        label: "CA boissons Gbégamey",
-        amount: t.caBoissonsGbegamey,
-        kind: "item",
-      },
-      { label: "CA extra Zogbo", amount: t.caExtraZogbo, kind: "item" },
-      { label: "CA extra Gbégamey", amount: t.caExtraGbegamey, kind: "item" },
-      {
-        label: "Total produits d’exploitation",
-        amount: produitsTotal,
-        kind: "subtotal",
-      },
-    ],
-    charges: [
-      {
-        label: "Total charges d’exploitation",
-        amount: t.chargesTotal,
-        kind: "subtotal",
-      },
-    ],
+    produits: produitsLinesFromCa(t),
+    charges: chargesLinesFromBreakdown(charges, t.chargesTotal),
     resultat: [
       {
         label: "Résultat d’exploitation",
         amount: produitsTotal - t.chargesTotal,
         kind: "result",
       },
+      {
+        label: "Jours avec activité",
+        amount: activeDays.length,
+        kind: "info",
+      },
+      ...activeDays.map((d) => ({
+        label: `Résultat jour ${d.date.slice(8)}`,
+        amount: d.caTotal - d.caCombos - d.chargesTotal,
+        kind: "info" as const,
+      })),
     ],
     caTotal: produitsTotal,
     chargesTotal: t.chargesTotal,
@@ -223,35 +279,165 @@ function buildMonthStatement(data: MonthPoint, label: string): Statement {
 
 function buildYearStatement(data: YearPoint, label: string): Statement {
   const t = data.totals;
-  // Les combos sont exclus des produits (arrêtés à la vente).
   const produitsTotal = t.caTotal - t.caCombos;
+  const monthLines: StatementLine[] = data.months
+    .filter((m) => m.caTotal > 0 || m.chargesTotal > 0 || m.daysWithData > 0)
+    .flatMap((m) => {
+      const name = MONTH_NAMES[m.month - 1] ?? `Mois ${m.month}`;
+      const items: StatementLine[] = [
+        {
+          label: `— ${name} —`,
+          amount: m.caTotal - m.caCombos - m.chargesTotal,
+          kind: "group",
+        },
+        {
+          label: `${name} · CA plats Zogbo`,
+          amount: m.caPlatsZogbo,
+          kind: "item",
+        },
+        {
+          label: `${name} · CA plats Gbégamey`,
+          amount: m.caPlatsGbegamey,
+          kind: "item",
+        },
+        {
+          label: `${name} · CA accompagnements Zogbo`,
+          amount: m.caAccompagnementsZogbo,
+          kind: "item",
+        },
+        {
+          label: `${name} · CA accompagnements Gbégamey`,
+          amount: m.caAccompagnementsGbegamey,
+          kind: "item",
+        },
+        {
+          label: `${name} · CA boissons Zogbo`,
+          amount: m.caBoissonsZogbo,
+          kind: "item",
+        },
+        {
+          label: `${name} · CA boissons Gbégamey`,
+          amount: m.caBoissonsGbegamey,
+          kind: "item",
+        },
+        {
+          label: `${name} · CA extra Zogbo`,
+          amount: m.caExtraZogbo,
+          kind: "item",
+        },
+        {
+          label: `${name} · CA extra Gbégamey`,
+          amount: m.caExtraGbegamey,
+          kind: "item",
+        },
+        {
+          label: `${name} · achats stock`,
+          amount: m.charges.achatsStock,
+          kind: "item",
+        },
+        {
+          label: `${name} · matières premières`,
+          amount: m.charges.matieresPremieres,
+          kind: "item",
+        },
+        {
+          label: `${name} · loyer`,
+          amount: m.charges.loyer,
+          kind: "item",
+        },
+        {
+          label: `${name} · salaires`,
+          amount: m.charges.salaires,
+          kind: "item",
+        },
+        {
+          label: `${name} · électricité`,
+          amount: m.charges.electricite,
+          kind: "item",
+        },
+        {
+          label: `${name} · carburant`,
+          amount: m.charges.carburant,
+          kind: "item",
+        },
+        {
+          label: `${name} · réparations`,
+          amount: m.charges.reparations,
+          kind: "item",
+        },
+        {
+          label: `${name} · pertes`,
+          amount: m.charges.pertes,
+          kind: "item",
+        },
+        {
+          label: `${name} · total charges`,
+          amount: m.chargesTotal,
+          kind: "item",
+        },
+        {
+          label: `${name} · résultat`,
+          amount: m.caTotal - m.caCombos - m.chargesTotal,
+          kind: "subtotal",
+        },
+      ];
+      return items.filter(
+        (l) => l.kind === "group" || l.kind === "subtotal" || l.amount !== 0,
+      );
+    });
+
   return {
     title: `Compte de résultat — ${label}`,
-    produits: [
-      {
-        label: "Total produits d’exploitation (CA hors combos)",
-        amount: produitsTotal,
-        kind: "subtotal",
-      },
-    ],
-    charges: [
-      {
-        label: "Total charges d’exploitation",
-        amount: t.chargesTotal,
-        kind: "subtotal",
-      },
-    ],
+    produits: [...produitsLinesFromCa(t), ...monthLines],
+    charges: chargesLinesFromBreakdown(t.charges, t.chargesTotal),
     resultat: [
       {
         label: "Résultat d’exploitation",
         amount: produitsTotal - t.chargesTotal,
         kind: "result",
       },
+      {
+        label: "Mois avec activité",
+        amount: data.months.filter(
+          (m) => m.caTotal > 0 || m.chargesTotal > 0 || m.daysWithData > 0,
+        ).length,
+        kind: "info",
+      },
     ],
     caTotal: produitsTotal,
     chargesTotal: t.chargesTotal,
     resultatAmount: produitsTotal - t.chargesTotal,
   };
+}
+
+function summarizeDetails(lines: CompteResultatDetailLine[]) {
+  const byKind = new Map<
+    string,
+    { qty: number; amount: number; tickets: number; products: number }
+  >();
+  const bySite = new Map<
+    string,
+    { qty: number; amount: number; tickets: number }
+  >();
+  for (const l of lines) {
+    const k = byKind.get(l.kind) ?? {
+      qty: 0,
+      amount: 0,
+      tickets: 0,
+      products: 0,
+    };
+    k.qty += l.qty;
+    k.amount += l.amount;
+    k.tickets += l.tickets;
+    k.products += 1;
+    byKind.set(l.kind, k);
+    const s = bySite.get(l.site) ?? { qty: 0, amount: 0, tickets: 0 };
+    s.qty += l.qty;
+    s.amount += l.amount;
+    s.tickets += l.tickets;
+    bySite.set(l.site, s);
+  }
+  return { byKind, bySite };
 }
 
 export function CompteResultatPage() {
@@ -284,7 +470,10 @@ export function CompteResultatPage() {
       });
       const body = (await res.json()) as Payload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur");
-      setPayload(body);
+      setPayload({
+        ...body,
+        detailProduits: body.detailProduits ?? [],
+      });
       if (body.view === "day" && body.day) {
         setChargesDraft(body.day.charges);
         setDirty(false);
@@ -316,6 +505,11 @@ export function CompteResultatPage() {
     return null;
   }, [payload, date]);
 
+  const detailSummary = useMemo(
+    () => summarizeDetails(payload?.detailProduits ?? []),
+    [payload],
+  );
+
   async function saveCharges() {
     setSaving(true);
     setError(null);
@@ -341,15 +535,46 @@ export function CompteResultatPage() {
   function exportExcel() {
     if (!payload || !statement) return;
     const rows = [
-      ...statement.produits.map((l) => ({ Poste: l.label, Montant: l.amount })),
-      ...statement.charges.map((l) => ({ Poste: l.label, Montant: l.amount })),
-      ...statement.resultat.map((l) => ({ Poste: l.label, Montant: l.amount })),
+      ...statement.produits.map((l) => ({
+        Section: "Produits",
+        Poste: l.label,
+        Quantite: l.qty ?? "",
+        Tickets: l.tickets ?? "",
+        Montant: l.amount,
+      })),
+      ...statement.charges.map((l) => ({
+        Section: "Charges",
+        Poste: l.label,
+        Quantite: "",
+        Tickets: "",
+        Montant: l.amount,
+      })),
+      ...statement.resultat.map((l) => ({
+        Section: "Résultat",
+        Poste: l.label,
+        Quantite: "",
+        Tickets: "",
+        Montant: l.amount,
+      })),
+      ...payload.detailProduits.map((l) => ({
+        Section: "Détail produits",
+        Poste: `${l.site} · ${KIND_LABELS[l.kind] ?? l.kind} · ${l.name}`,
+        Quantite: l.qty,
+        Tickets: l.tickets,
+        Montant: l.amount,
+      })),
       {
+        Section: "Caisse",
         Poste: "Dépenses caisse (info, hors résultat)",
+        Quantite: "",
+        Tickets: "",
         Montant: payload.caisseDepenses,
       },
       {
+        Section: "Caisse",
         Poste: "Autres recettes caisse (info)",
+        Quantite: "",
+        Tickets: "",
         Montant: payload.caisseRecettes,
       },
     ];
@@ -366,10 +591,14 @@ export function CompteResultatPage() {
     );
   }
 
+  const detail = payload?.detailProduits ?? [];
+  const totalQty = detail.reduce((s, l) => s + l.qty, 0);
+  const totalTickets = detail.reduce((s, l) => s + l.tickets, 0);
+
   return (
     <AppShell
       title="Compte de résultat"
-      subtitle="Produits, charges et résultat d’exploitation"
+      subtitle="Produits, charges et résultat d’exploitation — détail complet"
       actions={
         <>
           <ExportExcelButton disabled={!statement} onExport={exportExcel} />
@@ -439,14 +668,16 @@ export function CompteResultatPage() {
       {error ? <p className="error-banner">{error}</p> : null}
 
       {loading || !statement || !payload ? (
-        <BrandLoader variant="ligne" label="Chargement du compte de résultat…" />
+        <BrandLoader
+          variant="ligne"
+          label="Chargement du compte de résultat…"
+        />
       ) : (
         <div className="pnl-layout">
           <section className="panel pnl-statement">
             <header className="pnl-header">
               <h2>{statement.title}</h2>
-              <p className="muted">Montants en FCFA</p>
-              <p className="muted">Combos historiques exclus des produits</p>
+              <p className="muted">Montants en FCFA · Combos historiques exclus</p>
             </header>
 
             <div className="pnl-section-label">I — Produits d’exploitation</div>
@@ -457,6 +688,64 @@ export function CompteResultatPage() {
 
             <div className="pnl-section-label">III — Résultat</div>
             <PnlTable lines={statement.resultat} />
+
+            <div className="pnl-section-label">
+              IV — Détail produit par produit ({detail.length} lignes ·{" "}
+              {totalQty} unités · {totalTickets} tickets)
+            </div>
+            {detail.length === 0 ? (
+              <p className="muted">Aucune vente sur cette période.</p>
+            ) : (
+              <table className="pnl-table pnl-detail-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Site</th>
+                    <th scope="col">Type</th>
+                    <th scope="col">Produit</th>
+                    <th scope="col" className="col-money">
+                      Qté
+                    </th>
+                    <th scope="col" className="col-money">
+                      Tickets
+                    </th>
+                    <th scope="col" className="col-money">
+                      CA
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.map((l) => (
+                    <tr
+                      key={`${l.site}|${l.kind}|${l.productId}`}
+                      className="pnl-row is-item"
+                    >
+                      <td>{l.site === "gbegamey" ? "Gbégamey" : "Zogbo"}</td>
+                      <td>{KIND_LABELS[l.kind] ?? l.kind}</td>
+                      <th scope="row">{l.name}</th>
+                      <td className="mono col-money">{l.qty}</td>
+                      <td className="mono col-money">{l.tickets}</td>
+                      <td className="mono col-money">
+                        {formatFcfa(l.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="pnl-row is-subtotal">
+                    <th scope="row" colSpan={3}>
+                      Total détail
+                    </th>
+                    <td className="mono col-money">{totalQty}</td>
+                    <td className="mono col-money">{totalTickets}</td>
+                    <td className="mono col-money">
+                      {formatFcfa(
+                        detail.reduce((s, l) => s + l.amount, 0),
+                      )}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            )}
           </section>
 
           <aside className="pnl-side">
@@ -480,7 +769,85 @@ export function CompteResultatPage() {
                     {formatFcfa(statement.resultatAmount)}
                   </dd>
                 </div>
+                <div>
+                  <dt>Unités vendues</dt>
+                  <dd className="mono">{totalQty}</dd>
+                </div>
+                <div>
+                  <dt>Tickets</dt>
+                  <dd className="mono">{totalTickets}</dd>
+                </div>
+                <div>
+                  <dt>Références</dt>
+                  <dd className="mono">{detail.length}</dd>
+                </div>
               </dl>
+            </section>
+
+            <section className="panel">
+              <h3 className="panel-title">Volumes par type</h3>
+              <table className="pnl-caisse-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Type</th>
+                    <th scope="col" className="col-money">
+                      Qté
+                    </th>
+                    <th scope="col" className="col-money">
+                      Tickets
+                    </th>
+                    <th scope="col" className="col-money">
+                      CA
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...detailSummary.byKind.entries()].map(([kind, v]) => (
+                    <tr key={kind}>
+                      <th scope="row">{KIND_LABELS[kind] ?? kind}</th>
+                      <td className="mono col-money">{v.qty}</td>
+                      <td className="mono col-money">{v.tickets}</td>
+                      <td className="mono col-money">
+                        {formatFcfa(v.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+
+            <section className="panel">
+              <h3 className="panel-title">Volumes par site</h3>
+              <table className="pnl-caisse-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Site</th>
+                    <th scope="col" className="col-money">
+                      Qté
+                    </th>
+                    <th scope="col" className="col-money">
+                      Tickets
+                    </th>
+                    <th scope="col" className="col-money">
+                      CA
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...detailSummary.bySite.entries()].map(([site, v]) => (
+                    <tr key={site}>
+                      <th scope="row">
+                        {site === "gbegamey" ? "Gbégamey" : "Zogbo"}
+                      </th>
+                      <td className="mono col-money">{v.qty}</td>
+                      <td className="mono col-money">{v.tickets}</td>
+                      <td className="mono col-money">
+                        {formatFcfa(v.amount)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </section>
 
             <section className="panel">
@@ -508,17 +875,17 @@ export function CompteResultatPage() {
                 </div>
               </dl>
 
-              {/* Le total ci-dessus mélange coffre central et caisses de
-                  zone : on y perd exactement la visibilité par point que le
-                  modèle à trois caisses apporte ailleurs. Détail seulement
-                  quand plus d'une caisse est dans le périmètre du compte. */}
               {payload.caisseParCaisse.length > 1 ? (
                 <table className="pnl-caisse-table">
                   <thead>
                     <tr>
                       <th scope="col">Caisse</th>
-                      <th scope="col" className="col-money">Dépenses</th>
-                      <th scope="col" className="col-money">Recettes</th>
+                      <th scope="col" className="col-money">
+                        Dépenses
+                      </th>
+                      <th scope="col" className="col-money">
+                        Recettes
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -569,9 +936,6 @@ export function CompteResultatPage() {
                             setDirty(true);
                           }}
                         />
-                        {/* Les achats du registre pèsent déjà sur le résultat,
-                            via leur propre ligne de charge. Le rappel évite de
-                            les retaper ici, ce qui les compterait deux fois. */}
                         {achats > 0 ? (
                           <span className="pnl-suggestion">
                             Achats du jour (Stock) : {formatFcfa(achats)} — déjà
@@ -611,9 +975,7 @@ export function CompteResultatPage() {
                           {d.date.slice(8)}
                         </button>
                         <span className="mono">
-                          {formatFcfa(
-                            d.caTotal - d.caCombos - d.chargesTotal,
-                          )}
+                          {formatFcfa(d.caTotal - d.caCombos - d.chargesTotal)}
                         </span>
                       </li>
                     ))}
@@ -631,14 +993,23 @@ function PnlTable({ lines }: { lines: StatementLine[] }) {
   return (
     <table className="pnl-table">
       <tbody>
-        {lines.map((line) => (
-          <tr key={line.label} className={`pnl-row is-${line.kind}`}>
-            <th scope="row">{line.label}</th>
-            <td className={`mono${line.amount < 0 ? " is-neg" : ""}`}>
-              {formatFcfa(line.amount)}
-            </td>
-          </tr>
-        ))}
+        {lines.map((line, i) => {
+          const isCountInfo =
+            line.kind === "info" &&
+            (line.label.includes("Jours avec") ||
+              line.label.includes("Mois avec"));
+          return (
+            <tr
+              key={`${line.kind}-${line.label}-${i}`}
+              className={`pnl-row is-${line.kind}`}
+            >
+              <th scope="row">{line.label}</th>
+              <td className={`mono${line.amount < 0 ? " is-neg" : ""}`}>
+                {isCountInfo ? String(line.amount) : formatFcfa(line.amount)}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   );

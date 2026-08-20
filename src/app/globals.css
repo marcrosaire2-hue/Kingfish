@@ -5084,6 +5084,29 @@ tr.is-alert td {
   font-size: 0.9rem;
   border-bottom: none;
 }
+.pnl-row.is-group th,
+.pnl-row.is-group td {
+  padding-top: 0.85rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted, #6b7280);
+  border-bottom: none;
+}
+.pnl-detail-table thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted, #6b7280);
+  padding: 0.4rem 0.5rem;
+  border-bottom: 1px solid var(--line, #ddd);
+}
+.pnl-detail-table tfoot th,
+.pnl-detail-table tfoot td {
+  font-weight: 600;
+  border-top: 1px solid var(--line, #ddd);
+  padding-top: 0.6rem;
+}
 .mono.is-neg { color: var(--danger); }
 .mono.is-pos { color: var(--success); }
 .pnl-day-list {

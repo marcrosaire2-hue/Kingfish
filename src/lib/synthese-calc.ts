@@ -1,6 +1,7 @@
 import type {
   BaseDish,
   BoissonsDay,
+  ChargesBreakdown,
   ComboDish,
   CombosDay,
   DayCharges,
@@ -272,6 +273,38 @@ export function daysInMonth(year: number, month: number): string[] {
   return out;
 }
 
+export function emptyChargesBreakdown(): ChargesBreakdown {
+  return {
+    achatsStock: 0,
+    matieresPremieres: 0,
+    loyer: 0,
+    salaires: 0,
+    electricite: 0,
+    carburant: 0,
+    reparations: 0,
+    pertes: 0,
+  };
+}
+
+/** Somme des postes de charges sur une liste de jours. */
+export function sumChargesBreakdown(days: DayPoint[]): ChargesBreakdown {
+  return days.reduce(
+    (acc, d) => {
+      const c = d.charges;
+      acc.achatsStock += Math.max(0, Number(c.achatsStock) || 0);
+      acc.matieresPremieres += Math.max(0, Number(c.matieresPremieres) || 0);
+      acc.loyer += Math.max(0, Number(c.loyer) || 0);
+      acc.salaires += Math.max(0, Number(c.salaires) || 0);
+      acc.electricite += Math.max(0, Number(c.electricite) || 0);
+      acc.carburant += Math.max(0, Number(c.carburant) || 0);
+      acc.reparations += Math.max(0, Number(c.reparations) || 0);
+      acc.pertes += Math.max(0, Number(c.pertes) || 0);
+      return acc;
+    },
+    emptyChargesBreakdown(),
+  );
+}
+
 export function sumMonth(days: DayPoint[]): MonthPoint["totals"] {
   return days.reduce(
     (acc, d) => {
@@ -316,32 +349,81 @@ export function buildYearPoint(
   year: number,
   months: MonthPoint[],
 ): YearPoint {
-  const rows = months.map((m) => ({
-    month: m.month,
-    caTotal: m.totals.caTotal,
-    caCombos: m.totals.caCombos,
-    chargesTotal: m.totals.chargesTotal,
-    resultat: m.totals.resultat,
-    daysWithData: m.days.filter(
-      (d) =>
-        d.hasZogboData ||
-        d.hasGbegameyData ||
-        d.hasCombosData ||
-        d.hasBoissonsData ||
-        d.chargesTotal > 0,
-    ).length,
-  }));
+  const rows = months.map((m) => {
+    const charges = sumChargesBreakdown(m.days);
+    return {
+      month: m.month,
+      caTotal: m.totals.caTotal,
+      caCombos: m.totals.caCombos,
+      caPlatsZogbo: m.totals.caPlatsZogbo,
+      caPlatsGbegamey: m.totals.caPlatsGbegamey,
+      caAccompagnementsZogbo: m.totals.caAccompagnementsZogbo,
+      caAccompagnementsGbegamey: m.totals.caAccompagnementsGbegamey,
+      caBoissonsZogbo: m.totals.caBoissonsZogbo,
+      caBoissonsGbegamey: m.totals.caBoissonsGbegamey,
+      caExtraZogbo: m.totals.caExtraZogbo,
+      caExtraGbegamey: m.totals.caExtraGbegamey,
+      charges,
+      chargesTotal: m.totals.chargesTotal,
+      resultat: m.totals.resultat,
+      daysWithData: m.days.filter(
+        (d) =>
+          d.hasZogboData ||
+          d.hasGbegameyData ||
+          d.hasCombosData ||
+          d.hasBoissonsData ||
+          d.chargesTotal > 0,
+      ).length,
+    };
+  });
 
   const totals = rows.reduce(
     (acc, r) => {
-      acc.caTotal += r.caTotal;
+      acc.caPlatsZogbo += r.caPlatsZogbo;
+      acc.caPlatsGbegamey += r.caPlatsGbegamey;
+      acc.caAccompagnementsZogbo += r.caAccompagnementsZogbo;
+      acc.caAccompagnementsGbegamey += r.caAccompagnementsGbegamey;
+      acc.caBoissonsZogbo += r.caBoissonsZogbo;
+      acc.caBoissonsGbegamey += r.caBoissonsGbegamey;
+      acc.caExtraZogbo += r.caExtraZogbo;
+      acc.caExtraGbegamey += r.caExtraGbegamey;
       acc.caCombos += r.caCombos;
+      acc.caTotal += r.caTotal;
+      acc.charges.achatsStock += r.charges.achatsStock;
+      acc.charges.matieresPremieres += r.charges.matieresPremieres;
+      acc.charges.loyer += r.charges.loyer;
+      acc.charges.salaires += r.charges.salaires;
+      acc.charges.electricite += r.charges.electricite;
+      acc.charges.carburant += r.charges.carburant;
+      acc.charges.reparations += r.charges.reparations;
+      acc.charges.pertes += r.charges.pertes;
       acc.chargesTotal += r.chargesTotal;
       acc.resultat += r.resultat;
       return acc;
     },
-    { caTotal: 0, caCombos: 0, chargesTotal: 0, resultat: 0 },
+    {
+      caPlatsZogbo: 0,
+      caPlatsGbegamey: 0,
+      caAccompagnementsZogbo: 0,
+      caAccompagnementsGbegamey: 0,
+      caBoissonsZogbo: 0,
+      caBoissonsGbegamey: 0,
+      caExtraZogbo: 0,
+      caExtraGbegamey: 0,
+      caZogbo: 0,
+      caGbegamey: 0,
+      caCombos: 0,
+      caBoissons: 0,
+      caTotal: 0,
+      charges: emptyChargesBreakdown(),
+      chargesTotal: 0,
+      resultat: 0,
+    },
   );
+
+  totals.caZogbo = months.reduce((s, m) => s + m.totals.caZogbo, 0);
+  totals.caGbegamey = months.reduce((s, m) => s + m.totals.caGbegamey, 0);
+  totals.caBoissons = months.reduce((s, m) => s + m.totals.caBoissons, 0);
 
   return { year, months: rows, totals };
 }
