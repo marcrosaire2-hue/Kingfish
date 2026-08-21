@@ -214,6 +214,7 @@ export type NavKey =
   | "historique-ventes"
   | "journal-ventes"
   | "regularisation"
+  | "immobilisations"
   | "stock"
   | "admin"
   | "journal-stock"
@@ -240,6 +241,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "appro",
     "pertes",
     "stock",
+    "immobilisations",
     // L'historique des ventes de SA zone : le filtre Site est verrouillé
     // sur sa zone (jamais celle d'à côté).
     "historique-ventes",
@@ -263,6 +265,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "journal-ventes",
     "regularisation",
     "stock",
+    "immobilisations",
     "historique",
     "admin",
     // Journal complet des mouvements de stock (ventes, achats, pertes,
@@ -377,6 +380,13 @@ export function canAccessPath(
   }
   if (pathname.startsWith("/regularisation")) {
     return allowed.includes("regularisation");
+  }
+  if (pathname.startsWith("/immobilisations")) {
+    // Page réservée gérant/admin ; l’API doit aussi être lisible en caisse
+    // (vendeur) pour proposer les emballages au panier.
+    return (
+      allowed.includes("immobilisations") || allowed.includes("vente")
+    );
   }
   if (pathname.startsWith("/stock")) {
     return allowed.includes("stock");

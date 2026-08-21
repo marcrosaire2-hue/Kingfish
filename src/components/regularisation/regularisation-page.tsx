@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { formatFcfa } from "@/lib/format";
 import type {
+  Immobilisation,
   PosTicket,
   SaleType,
   VenteProduct,
@@ -43,6 +44,7 @@ export function RegularisationPage() {
   ]);
   const [board, setBoard] = useState<Board | null>(null);
   const [tickets, setTickets] = useState<PosTicket[]>([]);
+  const [emballages, setEmballages] = useState<Immobilisation[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +72,7 @@ export function RegularisationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [venteRes, posRes] = await Promise.all([
+      const [venteRes, posRes, embRes] = await Promise.all([
         fetch(
           `/api/vente?date=${encodeURIComponent(date)}&site=${site}&limit=80`,
           { cache: "no-store" },
@@ -78,6 +80,10 @@ export function RegularisationPage() {
         fetch(`/api/pos?date=${encodeURIComponent(date)}&site=${site}`, {
           cache: "no-store",
         }),
+        fetch(
+          `/api/immobilisations?kind=emballage&active=1&site=${encodeURIComponent(site)}`,
+          { cache: "no-store" },
+        ),
       ]);
       const venteBody = await venteRes.json();
       if (!venteRes.ok) throw new Error(venteBody.error || "Erreur vente");
@@ -92,6 +98,17 @@ export function RegularisationPage() {
         setTickets((posBody.tickets as PosTicket[]) || []);
       } else {
         setTickets([]);
+      }
+
+      if (embRes.ok) {
+        const embBody = await embRes.json();
+        setEmballages(
+          ((embBody.items as Immobilisation[]) || []).filter(
+            (i) => i.active && (i.salePrice ?? 0) > 0,
+          ),
+        );
+      } else {
+        setEmballages([]);
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
@@ -365,6 +382,30 @@ export function RegularisationPage() {
 
               {kind === "extra" ? (
                 <>
+                  {emballages.length > 0 ? (
+                    <div className="vente-emballage-chips">
+                      {emballages.map((e) => (
+                        <button
+                          key={e.id}
+                          type="button"
+                          className="btn btn-ghost vente-emballage-chip"
+                          disabled={busy || !isPast}
+                          onClick={() => {
+                            setExtraName(e.name);
+                            setExtraMontant(String(e.salePrice ?? 0));
+                            setQty("1");
+                            setSaleType("Rapido");
+                          }}
+                        >
+                          {e.name}
+                          <span className="mono">
+                            {" "}
+                            {formatFcfa(e.salePrice ?? 0)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
                   <label className="date-field">
                     <span>Produit / article</span>
                     <input

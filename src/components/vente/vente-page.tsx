@@ -22,6 +22,7 @@ import {
 } from "@/lib/catalog-zogbo";
 import type {
   CaisseSession,
+  Immobilisation,
   PosConfig,
   PosTicket,
   SaleType,
@@ -620,6 +621,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [tickets, setTickets] = useState<PosTicket[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
+  const [emballages, setEmballages] = useState<Immobilisation[]>([]);
   const [paymentId, setPaymentId] = useState("");
   const [clientNom, setClientNom] = useState("");
   const [reduction, setReduction] = useState("0");
@@ -820,6 +822,30 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, site, pathname]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/immobilisations?kind=emballage&active=1&site=${encodeURIComponent(site)}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const body = await res.json();
+        if (cancelled) return;
+        const list = ((body.items as Immobilisation[]) || []).filter(
+          (i) => i.active && (i.salePrice ?? 0) > 0,
+        );
+        setEmballages(list);
+      } catch {
+        if (!cancelled) setEmballages([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [site]);
+
   /** Encaissement possible : caisse du jour, ou correction gérant (backdate). */
   const canSell = Boolean(caisse) || backdateMode;
 
@@ -995,6 +1021,34 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       });
     },
     [backdateMode],
+  );
+
+  const addEmballage = useCallback(
+    (item: Immobilisation) => {
+      const unitPrice = Math.round(Number(item.salePrice) || 0);
+      if (unitPrice <= 0) return;
+      setCart((prev) => {
+        const key = `extra:${item.id}:${unitPrice}`;
+        const existing = prev.find((l) => l.key === key);
+        if (existing) {
+          return prev.map((l) =>
+            l.key === key ? { ...l, qty: l.qty + 1 } : l,
+          );
+        }
+        return [
+          ...prev,
+          {
+            key,
+            kind: "extra",
+            productId: item.id,
+            name: item.name,
+            unitPrice,
+            qty: 1,
+          },
+        ];
+      });
+    },
+    [],
   );
 
   const changeCartQty = useCallback((key: string, delta: number) => {
@@ -1640,6 +1694,40 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                     ))}
                   </select>
                 </label>
+
+                {emballages.length > 0 ? (
+                  <div
+                    className={`vente-emballages${
+                      saleType === "Rapido" ? " is-rapido" : ""
+                    }`}
+                  >
+                    <span className="vente-field">
+                      <span>
+                        Emballages
+                        {saleType === "Rapido" ? " · emporté" : ""}
+                      </span>
+                    </span>
+                    <div className="vente-emballage-chips">
+                      {emballages.map((e) => (
+                        <button
+                          key={e.id}
+                          type="button"
+                          className="btn btn-ghost vente-emballage-chip"
+                          disabled={!canSell}
+                          title={`Ajouter ${e.name}`}
+                          onClick={() => addEmballage(e)}
+                        >
+                          + {e.name}
+                          <span className="mono">
+                            {" "}
+                            {formatFcfa(e.salePrice ?? 0)}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
                 <label className="vente-field">
                   <span>Paiement</span>
                   <select

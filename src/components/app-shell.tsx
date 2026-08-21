@@ -90,6 +90,13 @@ const NAV_ITEMS: {
     group: "pilot",
   },
   {
+    href: "/immobilisations",
+    label: "Immobilisations",
+    key: "immobilisations",
+    mark: "I",
+    group: "pilot",
+  },
+  {
     href: "/stock",
     label: "Stock",
     key: "stock",

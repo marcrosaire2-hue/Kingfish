@@ -637,6 +637,30 @@ export type VentesDaySummary = {
 /** Types de vente POS (AquaPro) */
 export type SaleType = "Sur place" | "Rapido";
 
+/** Immobilisation patrimoniale ou emballage facturable en caisse. */
+export type ImmobilisationKind = "actif" | "emballage";
+
+export type Immobilisation = {
+  id: string;
+  name: string;
+  kind: ImmobilisationKind;
+  /** Prix d’achat / valeur d’acquisition (FCFA). */
+  cost: number;
+  /**
+   * Prix de vente (FCFA). Requis et > 0 pour un emballage ;
+   * null pour un actif non vendu en caisse.
+   */
+  salePrice: number | null;
+  /** Date d’acquisition / mise en service (YYYY-MM-DD). */
+  date: string;
+  /** null = disponible sur les deux sites. */
+  site: VenteSite | null;
+  notes: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type PosPaymentMethod = {
   id: string;
   libelle: string;

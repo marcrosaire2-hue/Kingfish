@@ -4906,6 +4906,30 @@ body {
   grid-column: 1 / -1;
 }
 
+.vente-emballages {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.vente-emballages.is-rapido .vente-emballage-chips {
+  outline: 1px solid color-mix(in srgb, var(--accent, #c45c26) 35%, transparent);
+  border-radius: 0.5rem;
+  padding: 0.35rem;
+}
+
+.vente-emballage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.vente-emballage-chip {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.55rem;
+}
+
 @media (max-width: 1200px) {
   .pos-meta {
     grid-template-columns: 1fr;
