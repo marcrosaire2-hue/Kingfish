@@ -62,7 +62,7 @@ const CAT_LABELS: Record<CatKey, string> = {
   plat: "Plats",
   accompagnement: "Accompagnements",
   boisson: "Boissons",
-  extra: "Extra",
+  extra: "Hors catalogue",
 };
 
 const SALE_TYPES: SaleType[] = ["Sur place", "Rapido"];
@@ -1539,19 +1539,20 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             ) : cat === "extra" ? (
               <div className="vente-extra vente-panel">
                 <header className="vente-panel-head">
-                  <h2>Vente extraordinaire</h2>
-                  <p>Hors catalogue · prix libre</p>
+                  <h2>Vente hors catalogue</h2>
+                  <p>Article libre + montant — pour produits absents du catalogue</p>
                 </header>
                 <label className="vente-extra-field">
-                  <span>Description</span>
+                  <span>Produit / article</span>
                   <textarea
                     rows={3}
                     value={extraDesc}
                     onChange={(e) => setExtraDesc(e.target.value)}
+                    placeholder="Ex. brochette, article vendu hors catalogue…"
                   />
                 </label>
                 <label className="vente-extra-field">
-                  <span>Prix (FCFA)</span>
+                  <span>Montant (FCFA)</span>
                   <input
                     className="qty-input vente-extra-price"
                     inputMode="numeric"

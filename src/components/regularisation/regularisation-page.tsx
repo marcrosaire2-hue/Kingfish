@@ -49,12 +49,13 @@ export function RegularisationPage() {
   const [flash, setFlash] = useState<string | null>(null);
 
   const [kind, setKind] = useState<"plat" | "local" | "boisson" | "extra">(
-    "plat",
+    "extra",
   );
   const [productId, setProductId] = useState("");
   const [qty, setQty] = useState("1");
   const [extraName, setExtraName] = useState("");
-  const [extraPrice, setExtraPrice] = useState("");
+  /** Montant total de la ligne (FCFA) — articles hors catalogue. */
+  const [extraMontant, setExtraMontant] = useState("");
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
 
   const products = useMemo(() => {
@@ -128,16 +129,20 @@ export function RegularisationPage() {
       let lines;
       if (kind === "extra") {
         const name = extraName.trim();
-        const unitPrice = Math.round(Number(extraPrice) || 0);
-        if (name.length < 2) throw new Error("Décrivez la vente extra.");
-        if (unitPrice <= 0) throw new Error("Prix extra invalide.");
+        const montant = Math.round(Number(extraMontant) || 0);
+        if (name.length < 2) {
+          throw new Error("Indiquez le nom du produit / article.");
+        }
+        if (montant <= 0) throw new Error("Montant invalide (FCFA).");
+        // Montant = total encaissé. On le fige exactement (1 ligne).
+        const label = q > 1 ? `${name} × ${q}` : name;
         lines = [
           {
             kind: "extra" as const,
             productId: `extra-${Date.now()}`,
-            name,
-            qty: q,
-            unitPrice,
+            name: label,
+            qty: 1,
+            unitPrice: montant,
           },
         ];
       } else {
@@ -169,7 +174,7 @@ export function RegularisationPage() {
       setFlash(`Vente enregistrée · ticket ${body.ticket?.numero ?? ""}`);
       setQty("1");
       setExtraName("");
-      setExtraPrice("");
+      setExtraMontant("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Enregistrement impossible");
@@ -258,7 +263,7 @@ export function RegularisationPage() {
   return (
     <AppShell
       title="Régularisation"
-      subtitle="Saisir, modifier ou annuler des ventes d’un jour passé — même sans stock. Réservé au gérant."
+      subtitle="Anciennes ventes : hors catalogue (article + montant) ou catalogue — réservé au gérant."
       actions={
         <>
           <Link href="/historique-ventes" className="btn btn-ghost">
@@ -307,8 +312,8 @@ export function RegularisationPage() {
 
       {isPast ? (
         <p className="ui-info" role="status">
-          Mode correction du <strong>{date}</strong> · {siteLabel}. Les écritures
-          touchent le stock et le journal de ce jour.
+          Mode correction du <strong>{date}</strong> · {siteLabel}. Saisissez
+          les articles vendus même s’ils n’étaient pas dans le catalogue.
         </p>
       ) : (
         <p className="ui-info" role="note">
@@ -341,7 +346,7 @@ export function RegularisationPage() {
             </div>
             <div className="admin-form">
               <label className="date-field">
-                <span>Type</span>
+                <span>Origine</span>
                 <select
                   className="select-input"
                   value={kind}
@@ -349,66 +354,107 @@ export function RegularisationPage() {
                     setKind(e.target.value as typeof kind)
                   }
                 >
-                  <option value="plat">Plat</option>
-                  <option value="local">Accompagnement</option>
-                  <option value="boisson">Boisson</option>
-                  <option value="extra">Extra</option>
+                  <option value="extra">
+                    Hors catalogue — article libre + montant
+                  </option>
+                  <option value="plat">Catalogue · Plat</option>
+                  <option value="local">Catalogue · Accompagnement</option>
+                  <option value="boisson">Catalogue · Boisson</option>
                 </select>
               </label>
 
               {kind === "extra" ? (
                 <>
                   <label className="date-field">
-                    <span>Description</span>
+                    <span>Produit / article</span>
                     <input
                       value={extraName}
                       onChange={(e) => setExtraName(e.target.value)}
-                      placeholder="Ex. livraison, service…"
+                      placeholder="Ex. brochette, chawarma, boisson importée…"
+                      autoComplete="off"
                     />
                   </label>
                   <label className="date-field">
-                    <span>Prix unitaire (FCFA)</span>
+                    <span>Quantité</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={qty}
+                      onChange={(e) => setQty(e.target.value)}
+                    />
+                  </label>
+                  <label className="date-field">
+                    <span>Montant total (FCFA)</span>
                     <input
                       type="number"
                       min={0}
-                      value={extraPrice}
-                      onChange={(e) => setExtraPrice(e.target.value)}
+                      step={50}
+                      value={extraMontant}
+                      onChange={(e) => setExtraMontant(e.target.value)}
+                      placeholder="Ex. 1500"
                     />
                   </label>
+                  {Math.round(Number(extraMontant) || 0) > 0 &&
+                  Math.round(Number(qty) || 0) >= 1 ? (
+                    <p className="muted">
+                      Encaissé :{" "}
+                      {formatFcfa(Math.round(Number(extraMontant) || 0))}
+                      {Math.round(Number(qty) || 0) > 1
+                        ? ` · ${Math.round(Number(qty) || 0)} × ${formatFcfa(
+                            Math.round(
+                              Math.round(Number(extraMontant) || 0) /
+                                Math.round(Number(qty) || 1),
+                            ),
+                          )}`
+                        : ""}
+                    </p>
+                  ) : null}
                 </>
               ) : (
-                <label className="date-field">
-                  <span>Produit</span>
-                  <select
-                    className="select-input"
-                    value={productId}
-                    onChange={(e) => setProductId(e.target.value)}
-                  >
-                    {products.length === 0 ? (
-                      <option value="">Aucun produit</option>
-                    ) : (
-                      products.map((p) => (
-                        <option key={p.productId} value={p.productId}>
-                          {p.name}
-                          {p.stockLeft != null
-                            ? ` · reste ${p.stockLeft}`
-                            : ""}
-                        </option>
-                      ))
-                    )}
-                  </select>
-                </label>
+                <>
+                  <label className="date-field">
+                    <span>Produit</span>
+                    <select
+                      className="select-input"
+                      value={productId}
+                      onChange={(e) => setProductId(e.target.value)}
+                    >
+                      {products.length === 0 ? (
+                        <option value="">Aucun produit</option>
+                      ) : (
+                        products.map((p) => (
+                          <option key={p.productId} value={p.productId}>
+                            {p.name}
+                            {p.stockLeft != null
+                              ? ` · reste ${p.stockLeft}`
+                              : ""}
+                          </option>
+                        ))
+                      )}
+                    </select>
+                  </label>
+                  <label className="date-field">
+                    <span>Quantité</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={qty}
+                      onChange={(e) => setQty(e.target.value)}
+                    />
+                  </label>
+                  {selected ? (
+                    <p className="muted">
+                      Prix catalogue : {formatFcfa(selected.unitPrice)}
+                      {selected.stockLeft != null
+                        ? ` · stock affiché ${selected.stockLeft}`
+                        : ""}
+                      {selected.stockLeft != null && selected.stockLeft <= 0
+                        ? " — enregistrement autorisé sans stock (gérant)"
+                        : ""}
+                    </p>
+                  ) : null}
+                </>
               )}
-
-              <label className="date-field">
-                <span>Quantité</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={qty}
-                  onChange={(e) => setQty(e.target.value)}
-                />
-              </label>
 
               <label className="date-field">
                 <span>Type de vente</span>
@@ -424,18 +470,6 @@ export function RegularisationPage() {
                   ))}
                 </select>
               </label>
-
-              {selected && kind !== "extra" ? (
-                <p className="muted">
-                  Prix catalogue : {formatFcfa(selected.unitPrice)}
-                  {selected.stockLeft != null
-                    ? ` · stock affiché ${selected.stockLeft}`
-                    : ""}
-                  {selected.stockLeft != null && selected.stockLeft <= 0
-                    ? " — enregistrement autorisé sans stock (gérant)"
-                    : ""}
-                </p>
-              ) : null}
 
               <button
                 type="button"
