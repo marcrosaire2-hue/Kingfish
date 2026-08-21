@@ -21,6 +21,16 @@ type Board = {
   caToday: number;
 };
 
+/** Ligne en attente, avant validation groupée en une seule facture. */
+type PanierLine = {
+  key: string;
+  kind: "plat" | "local" | "boisson" | "extra";
+  productId: string;
+  name: string;
+  qty: number;
+  unitPrice: number;
+};
+
 const SALE_TYPES: SaleType[] = ["Sur place", "Rapido"];
 
 function formatWhen(iso: string): string {
@@ -59,6 +69,8 @@ export function RegularisationPage() {
   /** Montant total de la ligne (FCFA) — articles hors catalogue. */
   const [extraMontant, setExtraMontant] = useState("");
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
+  /** Articles accumulés avant validation groupée en une seule facture. */
+  const [panier, setPanier] = useState<PanierLine[]>([]);
 
   const products = useMemo(() => {
     if (!board) return [];
@@ -133,48 +145,76 @@ export function RegularisationPage() {
     }
   }, [kind, products, productId]);
 
-  async function enregistrer() {
+  /** Ajoute une ligne au panier en attente — ne crée pas encore de facture. */
+  function ajouterLigne() {
     const q = Math.round(Number(qty) || 0);
     if (q < 1) {
       setError("Quantité invalide");
+      return;
+    }
+    setError(null);
+    setFlash(null);
+    if (kind === "extra") {
+      const name = extraName.trim();
+      const montant = Math.round(Number(extraMontant) || 0);
+      if (name.length < 2) {
+        setError("Indiquez le nom du produit / article.");
+        return;
+      }
+      if (montant <= 0) {
+        setError("Montant invalide (FCFA).");
+        return;
+      }
+      const label = q > 1 ? `${name} × ${q}` : name;
+      setPanier((prev) => [
+        ...prev,
+        {
+          key: `extra-${Date.now()}`,
+          kind: "extra",
+          productId: `extra-${Date.now()}`,
+          name: label,
+          qty: 1,
+          unitPrice: montant,
+        },
+      ]);
+      setExtraName("");
+      setExtraMontant("");
+    } else {
+      if (!selected) {
+        setError("Choisissez un produit.");
+        return;
+      }
+      setPanier((prev) => [
+        ...prev,
+        {
+          key: `${selected.productId}-${Date.now()}`,
+          kind,
+          productId: selected.productId,
+          name: selected.name,
+          qty: q,
+          unitPrice: selected.unitPrice,
+        },
+      ]);
+    }
+    setQty("1");
+  }
+
+  function retirerLigne(key: string) {
+    setPanier((prev) => prev.filter((l) => l.key !== key));
+  }
+
+  const panierTotal = panier.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+
+  /** Valide toutes les lignes accumulées d'un coup, sur une seule facture. */
+  async function validerFacture() {
+    if (!panier.length) {
+      setError("Ajoutez au moins un article avant de valider.");
       return;
     }
     setBusy(true);
     setError(null);
     setFlash(null);
     try {
-      let lines;
-      if (kind === "extra") {
-        const name = extraName.trim();
-        const montant = Math.round(Number(extraMontant) || 0);
-        if (name.length < 2) {
-          throw new Error("Indiquez le nom du produit / article.");
-        }
-        if (montant <= 0) throw new Error("Montant invalide (FCFA).");
-        // Montant = total encaissé. On le fige exactement (1 ligne).
-        const label = q > 1 ? `${name} × ${q}` : name;
-        lines = [
-          {
-            kind: "extra" as const,
-            productId: `extra-${Date.now()}`,
-            name: label,
-            qty: 1,
-            unitPrice: montant,
-          },
-        ];
-      } else {
-        if (!selected) throw new Error("Choisissez un produit.");
-        lines = [
-          {
-            kind: selected.kind,
-            productId: selected.productId,
-            name: selected.name,
-            qty: q,
-            unitPrice: selected.unitPrice,
-          },
-        ];
-      }
-
       const res = await fetch("/api/pos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -183,15 +223,21 @@ export function RegularisationPage() {
           date,
           site,
           saleType,
-          lines,
+          lines: panier.map(({ kind: k, productId, name, qty: q, unitPrice }) => ({
+            kind: k,
+            productId,
+            name,
+            qty: q,
+            unitPrice,
+          })),
         }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Enregistrement impossible");
-      setFlash(`Vente enregistrée · ticket ${body.ticket?.numero ?? ""}`);
-      setQty("1");
-      setExtraName("");
-      setExtraMontant("");
+      setFlash(
+        `Facture enregistrée · ticket ${body.ticket?.numero ?? ""} · ${panier.length} article${panier.length > 1 ? "s" : ""}`,
+      );
+      setPanier([]);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Enregistrement impossible");
@@ -529,14 +575,68 @@ export function RegularisationPage() {
                 <div className="reg-form-actions reg-field-full">
                   <button
                     type="button"
-                    className="btn btn-primary"
+                    className="btn btn-ghost"
                     disabled={busy || !isPast}
-                    onClick={() => void enregistrer()}
+                    onClick={ajouterLigne}
                   >
-                    {busy ? "Enregistrement…" : "Enregistrer sur ce jour"}
+                    + Ajouter à la facture
                   </button>
                 </div>
               </div>
+            </section>
+
+            <div className="reg-right-col">
+              <section className="panel reg-panier-panel">
+              <div className="panel-head">
+                <h2 className="panel-title">Facture en cours</h2>
+                <p className="muted">
+                  {panier.length} article{panier.length > 1 ? "s" : ""}
+                </p>
+              </div>
+
+              {panier.length === 0 ? (
+                <p className="muted reg-empty">
+                  Ajoutez un ou plusieurs articles ci-contre, puis validez
+                  pour les regrouper sur une seule facture.
+                </p>
+              ) : (
+                <>
+                  <ul className="reg-panier-list">
+                    {panier.map((l) => (
+                      <li key={l.key} className="reg-panier-line">
+                        <span>
+                          {l.name} × {l.qty}
+                        </span>
+                        <span className="mono">
+                          {formatFcfa(l.qty * l.unitPrice)}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn-link"
+                          disabled={busy}
+                          onClick={() => retirerLigne(l.key)}
+                        >
+                          Retirer
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="reg-panier-total">
+                    Total :{" "}
+                    <strong className="mono">{formatFcfa(panierTotal)}</strong>
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-primary reg-field-full"
+                    disabled={busy || !isPast}
+                    onClick={() => void validerFacture()}
+                  >
+                    {busy
+                      ? "Enregistrement…"
+                      : `Valider la facture (${panier.length})`}
+                  </button>
+                </>
+              )}
             </section>
 
             <section className="panel reg-tickets-panel">
@@ -627,6 +727,7 @@ export function RegularisationPage() {
                 </div>
               )}
             </section>
+            </div>
           </div>
         )}
       </div>
