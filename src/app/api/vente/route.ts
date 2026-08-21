@@ -131,6 +131,7 @@ export async function POST(request: Request) {
         actor,
         bypassClosedDay: true,
         bypassTeam: true,
+        bypassStock: true,
       });
       return NextResponse.json(result);
     }
@@ -165,6 +166,7 @@ export async function POST(request: Request) {
     const date = await resolveOperatingDate(site, body.date, {
       allowBackdate: manager,
     });
+    const pastDay = date < todayIsoDate();
     const result = await recordVente({
       date,
       site,
@@ -173,7 +175,9 @@ export async function POST(request: Request) {
       qty: body.qty ?? 1,
       unitPrice: body.unitPrice,
       actor,
-      bypassClosedDay: manager && date < todayIsoDate(),
+      bypassClosedDay: manager && pastDay,
+      // Gérant : anciennes ventes même sans stock (régularisation).
+      bypassStock: manager && pastDay,
     });
     return NextResponse.json(result);
   } catch (error) {

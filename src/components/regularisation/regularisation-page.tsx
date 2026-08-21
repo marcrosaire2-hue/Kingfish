@@ -258,7 +258,7 @@ export function RegularisationPage() {
   return (
     <AppShell
       title="Régularisation"
-      subtitle="Saisir, modifier ou annuler des ventes d’un jour passé — réservé au gérant."
+      subtitle="Saisir, modifier ou annuler des ventes d’un jour passé — même sans stock. Réservé au gérant."
       actions={
         <>
           <Link href="/historique-ventes" className="btn btn-ghost">
@@ -430,6 +430,9 @@ export function RegularisationPage() {
                   Prix catalogue : {formatFcfa(selected.unitPrice)}
                   {selected.stockLeft != null
                     ? ` · stock affiché ${selected.stockLeft}`
+                    : ""}
+                  {selected.stockLeft != null && selected.stockLeft <= 0
+                    ? " — enregistrement autorisé sans stock (gérant)"
                     : ""}
                 </p>
               ) : null}

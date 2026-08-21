@@ -264,6 +264,7 @@ export async function validatePosTicket(input: {
           unitPrice: line.unitPrice,
           actor,
           bypassClosedDay,
+          bypassStock: isBackdate,
         });
         createdLogIds.push(result.entry.id);
         ticketLines.push({

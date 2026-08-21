@@ -1006,6 +1006,11 @@ export async function recordVente(input: {
   actor?: VenteActor | null;
   /** Gérant / admin : autorise une écriture sur une journée déjà clôturée. */
   bypassClosedDay?: boolean;
+  /**
+   * Gérant / admin sur une vente passée : enregistre même si le stock du jour
+   * est nul ou insuffisant (régularisation). Le compteur `sold` monte quand même.
+   */
+  bypassStock?: boolean;
 }): Promise<{
   entry: VenteLogEntry;
   soldToday: number;
@@ -1026,8 +1031,9 @@ export async function recordVente(input: {
 
   // Contrôle stock + plafond atomique. « maxSold » est le vendu maximal
   // (stock − pertes) : transmis à applySoldDelta, il borne l'écriture.
+  // Régularisation gérant : pas de plafond (maxSold null).
   let maxSold: number | null = null;
-  if (qty > 0) {
+  if (qty > 0 && !input.bypassStock) {
     if (input.kind === "plat") {
       const { left, maxSold: max } = await getBaseDishStockLeft(
         input.date,
@@ -1387,6 +1393,8 @@ export async function editVenteQty(input: {
   actor?: VenteActor | null;
   bypassClosedDay?: boolean;
   bypassTeam?: boolean;
+  /** Gérant : augmente une qty même sans stock restant. */
+  bypassStock?: boolean;
 }): Promise<{
   board: Awaited<ReturnType<typeof getVenteBoard>>;
   entry: VenteLogEntry;
@@ -1438,7 +1446,7 @@ export async function editVenteQty(input: {
   });
 
   let maxSold: number | null = null;
-  if (delta > 0 && doc.kind === "plat") {
+  if (delta > 0 && doc.kind === "plat" && !input.bypassStock) {
     const { left, maxSold: max } = await getBaseDishStockLeft(
       doc.date,
       doc.site,
@@ -1457,7 +1465,8 @@ export async function editVenteQty(input: {
       kind: doc.kind,
       productId: doc.productId,
       delta,
-      maxSold: delta > 0 && doc.kind === "plat" ? maxSold : null,
+      maxSold:
+        delta > 0 && doc.kind === "plat" && !input.bypassStock ? maxSold : null,
     });
   }
 

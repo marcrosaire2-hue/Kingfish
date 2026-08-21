@@ -187,12 +187,15 @@ function printTicket(
 type ProductGridProps = {
   products: VenteProduct[];
   canSell: boolean;
+  /** Correction gérant : vente possible même sans stock. */
+  ignoreStock?: boolean;
   onAdd: (product: VenteProduct) => void;
 };
 
 const ProductGrid = memo(function ProductGrid({
   products,
   canSell,
+  ignoreStock = false,
   onAdd,
 }: ProductGridProps) {
   if (products.length === 0) {
@@ -204,6 +207,7 @@ const ProductGrid = memo(function ProductGrid({
         const disabledPv = p.kind === "boisson" && p.unitPrice <= 0;
         // Accompagnements toujours vendables, même à stock nul.
         const outOfStock =
+          !ignoreStock &&
           p.kind !== "local" &&
           p.stockLeft !== null &&
           p.stockLeft !== undefined &&
@@ -282,6 +286,8 @@ const ProductGrid = memo(function ProductGrid({
 type MealComposerProps = {
   plats: VenteProduct[];
   canSell: boolean;
+  /** Correction gérant : vente possible même sans stock. */
+  ignoreStock?: boolean;
   busyKey: string | null;
   composerPlatId: string;
   composerPlat: VenteProduct | null;
@@ -299,6 +305,7 @@ type MealComposerProps = {
 const MealComposer = memo(function MealComposer({
   plats,
   canSell,
+  ignoreStock = false,
   busyKey,
   composerPlatId,
   composerPlat,
@@ -335,12 +342,17 @@ const MealComposer = memo(function MealComposer({
                 <option value="">— Choisir —</option>
                 {plats.map((p) => {
                   const platEpuise =
+                    !ignoreStock &&
                     p.stockLeft !== null &&
                     p.stockLeft !== undefined &&
                     p.stockLeft <= 0;
                   const suffix = platEpuise
                     ? ` · ${p.blockReason || "ÉPUISÉ"}`
-                    : "";
+                    : !ignoreStock
+                      ? ""
+                      : p.stockLeft != null && p.stockLeft <= 0
+                        ? " · sans stock (correction)"
+                        : "";
                   return (
                     <option
                       key={p.productId}
@@ -381,7 +393,8 @@ const MealComposer = memo(function MealComposer({
                   disabled={
                     !composerPlat ||
                     !!busyKey ||
-                    (composerPlat.stockLeft !== null &&
+                    (!ignoreStock &&
+                      composerPlat.stockLeft !== null &&
                       composerPlat.stockLeft !== undefined &&
                       composerQty >= composerPlat.stockLeft)
                   }
@@ -926,7 +939,9 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     (product: VenteProduct, unitPriceOverride?: number, qty = 1) => {
       if (product.kind === "boisson" && product.unitPrice <= 0) return;
       // Accompagnements toujours vendables, même à stock nul.
+      // Correction gérant (jour passé) : stock non bloquant.
       if (
+        !backdateMode &&
         product.kind !== "local" &&
         product.stockLeft !== null &&
         product.stockLeft !== undefined &&
@@ -956,7 +971,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         ];
       });
     },
-    [],
+    [backdateMode],
   );
 
   const changeCartQty = useCallback((key: string, delta: number) => {
@@ -973,6 +988,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       return;
     }
     if (
+      !backdateMode &&
       composerPlat.stockLeft !== null &&
       composerPlat.stockLeft !== undefined &&
       composerPlat.stockLeft <= 0
@@ -981,6 +997,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       return;
     }
     if (
+      !backdateMode &&
       composerPlat.stockLeft !== null &&
       composerPlat.stockLeft !== undefined &&
       composerQty > composerPlat.stockLeft
@@ -1008,6 +1025,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     addToCart,
     accPriceFor,
     resetComposer,
+    backdateMode,
   ]);
 
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
@@ -1407,7 +1425,8 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         {!loading && backdateMode ? (
           <p className="ui-info" role="status">
             Mode correction du {date.slice(8)}/{date.slice(5, 7)} — la caisse du
-            jour n&apos;est pas requise.
+            jour n&apos;est pas requise et le stock n&apos;est pas bloquant
+            (régularisation).
             {caisseActive ? (
               <>
                 {" "}
@@ -1491,6 +1510,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
               <MealComposer
                 plats={plats}
                 canSell={canSell}
+                ignoreStock={backdateMode}
                 busyKey={busyKey}
                 composerPlatId={composerPlatId}
                 composerPlat={composerPlat}
@@ -1516,6 +1536,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                 <ProductGrid
                   products={products}
                   canSell={canSell}
+                  ignoreStock={backdateMode}
                   onAdd={addToCart}
                 />
               </>
