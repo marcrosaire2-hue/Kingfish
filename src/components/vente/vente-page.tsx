@@ -29,7 +29,7 @@ import type {
   VenteProduct,
   VenteSite,
 } from "@/lib/types";
-import { todayIsoDate } from "@/lib/zogbo-calc";
+import { previousIsoDate, shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 
 type Board = {
   date: string;
@@ -691,7 +691,12 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     );
   }, [board]);
 
+  /** Compteur : ignore les réponses d’un chargement plus ancien (changement
+   *  rapide de date dans le calendrier). */
+  const loadSeq = useRef(0);
+
   async function load(nextDate = date, nextSite = site) {
+    const seq = ++loadSeq.current;
     // Rechargement silencieux quand la page affiche déjà des données : pas de
     // gel sur un loader, les produits restent sous le doigt pendant la mise
     // à jour. Seul le premier chargement (ou changement de jour/site) fige.
@@ -708,8 +713,12 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
           { cache: "no-store" },
         ),
       ]);
+      if (seq !== loadSeq.current) return;
+
       const venteBody = await venteRes.json();
       if (!venteRes.ok) throw new Error(venteBody.error || "Erreur vente");
+      if (seq !== loadSeq.current) return;
+
       setBoard(venteBody as Board);
       if (venteBody.site) setSite(venteBody.site as VenteSite);
       setAllowedSites(
@@ -718,6 +727,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
 
       if (posRes.ok) {
         const posBody = await posRes.json();
+        if (seq !== loadSeq.current) return;
         setConfig(posBody.config as PosConfig);
         setCaisse(posBody.caisse as CaisseSession | null);
         setCaisseActive(
@@ -730,24 +740,37 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
           setPaymentId(posBody.config.paymentMethods[0].id);
         }
         // Aligner la date sur le POS (date de caisse ou jour de correction).
-        if (typeof posBody.date === "string" && posBody.date !== nextDate) {
-          setDate(posBody.date);
-        } else if (
-          typeof venteBody.date === "string" &&
-          venteBody.date !== nextDate
-        ) {
-          setDate(venteBody.date);
+        // Gérant sur un jour passé : on garde la date demandée (filtre calendrier).
+        const resolved =
+          typeof posBody.date === "string"
+            ? posBody.date
+            : typeof venteBody.date === "string"
+              ? venteBody.date
+              : null;
+        const managerPast =
+          Boolean(posBody.canManagePast ?? venteBody.canManagePast) &&
+          nextDate < todayIsoDate();
+        if (resolved && resolved !== nextDate && !managerPast) {
+          setDate(resolved);
+          setFlash(
+            `Jour ramené au ${resolved.slice(8)}/${resolved.slice(5, 7)} (caisse ouverte). Pour un autre jour, choisissez une date passée.`,
+          );
         }
       } else if (
         typeof venteBody.date === "string" &&
         venteBody.date !== nextDate
       ) {
-        setDate(venteBody.date);
+        const managerPast =
+          Boolean(venteBody.canManagePast) && nextDate < todayIsoDate();
+        if (!managerPast) {
+          setDate(venteBody.date);
+        }
       }
     } catch (e) {
+      if (seq !== loadSeq.current) return;
       setError(e instanceof Error ? e.message : "Erreur de chargement");
     } finally {
-      setLoading(false);
+      if (seq === loadSeq.current) setLoading(false);
     }
   }
 
@@ -1229,7 +1252,46 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       mainClassName="main-vente"
     >
       <div className="vente-page">
-        <ContextBar date={date} onDateChange={setDate} siteLabel={siteLabel}>
+        <ContextBar
+          date={date}
+          onDateChange={(v) => {
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+            setFlash(null);
+            setDate(v);
+          }}
+          siteLabel={siteLabel}
+        >
+          <div className="vente-date-stepper" role="group" aria-label="Changer de jour">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              title="Jour précédent"
+              onClick={() => {
+                const prev = previousIsoDate(date);
+                if (prev) {
+                  setFlash(null);
+                  setDate(prev);
+                }
+              }}
+            >
+              ←
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              title="Jour suivant"
+              disabled={date >= todayIsoDate()}
+              onClick={() => {
+                const next = shiftIsoDate(date, 1);
+                if (next && next <= todayIsoDate()) {
+                  setFlash(null);
+                  setDate(next);
+                }
+              }}
+            >
+              →
+            </button>
+          </div>
           <ExportExcelButton
             onExport={() => exportVenteExcel(date, site)}
             disabled={loading}

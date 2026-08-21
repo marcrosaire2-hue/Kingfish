@@ -27,7 +27,12 @@ export function ContextBar({
               value={date}
               disabled={dateDisabled}
               max={todayIsoDate()}
-              onChange={(e) => onDateChange(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                // Ignore clear / valeur incomplète (sinon le filtre « saute »).
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                onDateChange(v);
+              }}
             />
           </label>
         ) : null}
