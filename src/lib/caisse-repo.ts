@@ -358,7 +358,8 @@ export async function closeCaisse(input: {
   assertAcces(input.user, session.caisse);
   if (session.statut !== "ouverte") throw new Error("Caisse déjà fermée");
 
-  const soldePhysique = Math.round(Number(input.soldePhysique) || 0);
+  // Un tiroir physique ne peut pas être négatif : même plancher qu'à l'ouverture.
+  const soldePhysique = Math.max(0, Math.round(Number(input.soldePhysique) || 0));
   const now = new Date().toISOString();
   const db = await getDb();
   await db.collection<CaisseDoc>("caisses_sessions").updateOne(
@@ -413,6 +414,16 @@ export async function addCaisseMouvement(input: {
   if (nature.length < 2) throw new Error("Nature trop courte");
   const montant = Math.round(Number(input.montant) || 0);
   if (montant <= 0) throw new Error("Montant invalide");
+  // Un tiroir physique ne peut pas passer en négatif : même règle que pour
+  // les versements entre caisses.
+  if (input.kind === "depense") {
+    const disponible = calcSoldeTheorique(session);
+    if (montant > disponible) {
+      throw new Error(
+        `Dépense supérieure au solde de la caisse (${disponible} FCFA).`,
+      );
+    }
+  }
 
   const now = new Date().toISOString();
   const mDoc: MouvementDoc = {
@@ -435,10 +446,46 @@ export async function addCaisseMouvement(input: {
   await db.collection<MouvementDoc>("caisse_mouvements").insertOne(mDoc);
 
   const field = input.kind === "depense" ? "totalDepense" : "totalRecette";
-  await db.collection<CaisseDoc>("caisses_sessions").updateOne(
-    { _id: new ObjectId(input.caisseId) },
-    { $inc: { [field]: montant }, $set: { updatedAt: now } },
-  );
+  if (input.kind === "depense") {
+    // Contrôle + incrément dans la même écriture : deux dépenses concurrentes
+    // ne peuvent pas passer toutes les deux sur le même solde théorique lu
+    // avant l'écriture (même faille que corrigée sur versementCaisse).
+    const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+      {
+        _id: new ObjectId(input.caisseId),
+        $expr: {
+          $lte: [
+            { $add: ["$totalDepense", montant] },
+            {
+              $subtract: [
+                {
+                  $add: [
+                    "$soldeInitial",
+                    "$totalVente",
+                    "$totalRecette",
+                    "$totalVersementRecu",
+                  ],
+                },
+                "$totalVersementSorti",
+              ],
+            },
+          ],
+        },
+      },
+      { $inc: { totalDepense: montant }, $set: { updatedAt: now } },
+    );
+    if (result.modifiedCount !== 1) {
+      await db
+        .collection<MouvementDoc>("caisse_mouvements")
+        .deleteOne({ _id: mDoc._id });
+      throw new Error("Dépense supérieure au solde de la caisse.");
+    }
+  } else {
+    await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+      { _id: new ObjectId(input.caisseId) },
+      { $inc: { [field]: montant }, $set: { updatedAt: now } },
+    );
+  }
 
   const updated = await getCaisseById(input.caisseId);
   if (!updated) throw new Error("Caisse introuvable");
@@ -595,17 +642,42 @@ export async function versementCaisse(input: {
     .collection<MouvementDoc>("caisse_mouvements")
     .insertMany([sortie, entree]);
 
-  // La sortie n'est validée que si la caisse est toujours ouverte ; sinon on
-  // défait tout plutôt que de laisser un versement à moitié écrit.
+  // La sortie n'est validée que si la caisse est toujours ouverte ET que le
+  // solde théorique reste positif après l'écriture — contrôle et incrément
+  // dans la même requête, pour qu'un versement concurrent sur la même caisse
+  // ne puisse pas passer deux fois sur le même solde lu avant écriture.
   const debit = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
-    { _id: new ObjectId(source.id), statut: "ouverte" },
+    {
+      _id: new ObjectId(source.id),
+      statut: "ouverte",
+      $expr: {
+        $lte: [
+          { $add: ["$totalVersementSorti", montant] },
+          {
+            $subtract: [
+              {
+                $add: [
+                  "$soldeInitial",
+                  "$totalVente",
+                  "$totalRecette",
+                  "$totalVersementRecu",
+                ],
+              },
+              "$totalDepense",
+            ],
+          },
+        ],
+      },
+    },
     { $inc: { totalVersementSorti: montant }, $set: { updatedAt: now } },
   );
   if (debit.modifiedCount !== 1) {
     await db
       .collection<MouvementDoc>("caisse_mouvements")
       .deleteMany({ transfertId });
-    throw new Error("Caisse source fermée : versement impossible.");
+    throw new Error(
+      "Versement impossible : caisse source fermée ou solde insuffisant.",
+    );
   }
 
   const credit = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
@@ -637,22 +709,29 @@ export async function versementCaisse(input: {
   };
 }
 
-/** Incrémente le CA caisse lors d’une vente POS validée */
+/**
+ * Incrémente le CA caisse lors d’une vente POS validée.
+ * Renvoie `false` si la caisse a été fermée entre la lecture de la session
+ * (au début de la validation du ticket) et cet appel : l'appelant doit alors
+ * créditer la session malgré tout (`adjustCaisseVenteAmount`) pour ne pas
+ * perdre silencieusement une vente déjà encaissée.
+ */
 export async function addCaisseVenteAmount(
   caisseId: string,
   amount: number,
-): Promise<void> {
-  if (!ObjectId.isValid(caisseId)) return;
+): Promise<boolean> {
+  if (!ObjectId.isValid(caisseId)) return true;
   const delta = Math.round(Number(amount) || 0);
-  if (!delta) return;
+  if (!delta) return true;
   const db = await getDb();
-  await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+  const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
     { _id: new ObjectId(caisseId), statut: "ouverte" },
     {
       $inc: { totalVente: delta },
       $set: { updatedAt: new Date().toISOString() },
     },
   );
+  return result.modifiedCount === 1;
 }
 
 /**

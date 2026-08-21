@@ -328,7 +328,13 @@ export async function validatePosTicket(input: {
     await db.collection<TicketDoc>("pos_tickets").insertOne(doc);
     if (caisseId) {
       if (creditCaisseOpen) {
-        await addCaisseVenteAmount(caisseId, montant);
+        // La caisse a pu être fermée entre la lecture initiale et cet appel
+        // (autre poste). La vente est déjà encaissée côté client : on
+        // crédite quand même la session capturée plutôt que de la perdre.
+        const credited = await addCaisseVenteAmount(caisseId, montant);
+        if (!credited) {
+          await adjustCaisseVenteAmount(caisseId, montant);
+        }
       } else {
         await adjustCaisseVenteAmount(caisseId, montant);
       }
@@ -415,7 +421,13 @@ export async function cancelPosTicket(input: {
     if (manager) {
       await adjustCaisseVenteAmount(doc.caisseId, -doc.montant);
     } else {
-      await addCaisseVenteAmount(doc.caisseId, -doc.montant);
+      // Même filet que côté validation : si la caisse s'est fermée pendant
+      // l'annulation, on corrige quand même la session concernée au lieu de
+      // laisser son total de vente désynchronisé du journal.
+      const credited = await addCaisseVenteAmount(doc.caisseId, -doc.montant);
+      if (!credited) {
+        await adjustCaisseVenteAmount(doc.caisseId, -doc.montant);
+      }
     }
   }
 

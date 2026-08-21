@@ -38,6 +38,22 @@ type Detail = {
   ecart: number | null;
 };
 
+/**
+ * Jours écoulés entre la date de service de la caisse et aujourd'hui. Sert à
+ * alerter quand une caisse reste ouverte plusieurs jours : tant qu'elle ne
+ * ferme pas, le calendrier des écrans Vente/POS reste collé à cette date
+ * (voir operatingDateFromCaisse).
+ */
+function joursOuverte(date: string): number {
+  const today = todayIsoDate();
+  if (date >= today) return 0;
+  const [y1, m1, d1] = date.split("-").map(Number);
+  const [y2, m2, d2] = today.split("-").map(Number);
+  if (!y1 || !m1 || !d1 || !y2 || !m2 || !d2) return 0;
+  const ms = Date.UTC(y2, m2 - 1, d2) - Date.UTC(y1, m1 - 1, d1);
+  return Math.round(ms / 86400000);
+}
+
 function formatOpened(iso: string): string {
   try {
     return new Intl.DateTimeFormat("fr-FR", {
@@ -371,6 +387,15 @@ export function CaissePage() {
                     Ouverte le {formatOpened(active.openedAt)} par{" "}
                     {active.userName}
                   </span>
+                  {joursOuverte(active.date) >= 1 ? (
+                    <span className="caisse-hero-warn">
+                      ⚠ Caisse du {active.date.slice(8)}/
+                      {active.date.slice(5, 7)} encore ouverte —{" "}
+                      {joursOuverte(active.date)} jour
+                      {joursOuverte(active.date) > 1 ? "s" : ""} de retard.
+                      Fermez-la pour repasser au jour courant.
+                    </span>
+                  ) : null}
                 </div>
                 <div className="caisse-hero-metrics">
                   <div>
