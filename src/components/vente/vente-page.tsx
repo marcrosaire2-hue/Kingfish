@@ -102,16 +102,25 @@ function esc(value: unknown): string {
 /** Renvoie false si le navigateur a bloqué la fenêtre d'impression. */
 function printTicket(
   ticket: PosTicket,
-  company: { nom?: string | null; contacts?: string | null; adresse?: string | null } | null,
+  company: {
+    nom?: string | null;
+    contacts?: string | null;
+    adresse?: string | null;
+  } | null,
 ): boolean {
   const w = window.open("", "_blank", "width=360,height=680");
   if (!w) return false;
-  const lines = ticket.lines
+  // HTML pur (pas de JSX) : sinon les lignes deviennent « [object Object] »
+  // et les noms d'articles disparaissent à l'impression.
+  const rows = ticket.lines
     .map(
       (l) =>
-        `<div class="line"><span class="nom">${esc(l.name)}</span>` +
-        `<span class="qte">${l.qty} × ${l.unitPrice.toLocaleString("fr-FR")}</span>` +
-        `<span class="mnt">${l.amount.toLocaleString("fr-FR")} F</span></div>`,
+        `<tr>` +
+        `<td class="prod">${esc(l.name)}</td>` +
+        `<td class="qte">${l.qty}</td>` +
+        `<td class="puni">${l.unitPrice.toLocaleString("fr-FR")} F</td>` +
+        `<td class="mnt">${l.amount.toLocaleString("fr-FR")} F</td>` +
+        `</tr>`,
     )
     .join("");
   const headerBits = [
@@ -123,25 +132,17 @@ function printTicket(
     .map(esc);
   w.document.write(`<!doctype html><html><head><title>${esc(ticket.numero)}</title>
     <style>
-      body{font-family:monospace;font-size:12px;padding:8px;max-width:280px;margin:0 auto;line-height:1.3}
+      body{font-family:monospace;font-size:12px;padding:8px;max-width:280px;margin:0 auto;line-height:1.35}
       .center{text-align:center}.bold{font-weight:700}
       .hr{border-bottom:1px dashed #000;margin:6px 0}
-      .flex{display:flex;justify-content:space-between;gap:4px;margin:1px 0}
-      .line{display:grid;grid-template-columns:1fr auto;gap:0 4px;margin:3px 0}
-      .line .nom{grid-column:1/-1;font-weight:700;font-size:11px}
-      .line .qte{opacity:.85;font-size:10px}
-      .line .mnt{text-align:right;font-size:10px}
+      .flex{display:flex;justify-content:space-between;gap:4px;margin:2px 0}
       .sub{font-size:10px;opacity:.85}
-      .data-table{border-collapse:collapse;width:100%}
-      .data-table th,.data-table td{border:1px solid #ccc;padding:4px;margin:2px 0}
-      .data-table th{text-align:left;font-size:10px}
-      .data-table td{text-align:center;font-size:10px}
-      .data-table .prod{font-size:11px}
-      .data-table .qte{font-size:10px;text-align:center}
-      .data-table .puni{font-size:10px;text-align:right}
-      .data-table .mnt{font-size:10px;text-align:right}
-      .facture-lignes{bottom-margin:10px}
-      .page-break{page-break-inside:avoid}
+      table{border-collapse:collapse;width:100%;margin:4px 0 8px}
+      th,td{border-bottom:1px dotted #999;padding:3px 2px;vertical-align:top}
+      th{text-align:left;font-size:10px;border-bottom:1px solid #000}
+      td.prod{font-size:11px;font-weight:700;text-align:left}
+      td.qte{font-size:10px;text-align:center;white-space:nowrap}
+      td.puni,td.mnt{font-size:10px;text-align:right;white-space:nowrap}
     </style></head><body>
     <div class="center bold">${headerBits[0]}</div>
     ${headerBits
@@ -154,26 +155,17 @@ function printTicket(
     <div class="flex"><span>Enregistré par</span><span>${esc(ticket.userName)}</span></div>
     ${ticket.clientNom ? `<div class="flex"><span>Client</span><span>${esc(ticket.clientNom)}</span></div>` : ""}
     <div class="hr"></div>
-    <div class="data-table facture-lignes">
+    <table>
       <thead>
         <tr>
           <th>Produit</th>
-          <th className="col-num">Qté</th>
-          <th className="col-money">P.U.</th>
-          <th className="col-money">Montant</th>
+          <th>Qté</th>
+          <th>P.U.</th>
+          <th>Montant</th>
         </tr>
       </thead>
-      <tbody>
-        ${ticket.lines.map((l, i) => (
-          <tr key={`${l.productId}-${i}`}>
-            <td className="prod">${esc(l.name)}</td>
-            <td className="qte" align="center">${l.qty}</td>
-            <td className="puni" align="right">${l.unitPrice.toLocaleString("fr-FR")} F</td>
-            <td className="mnt" align="right">${l.amount.toLocaleString("fr-FR")} F</td>
-          </tr>
-        ))}
-      </tbody>
-    </div>
+      <tbody>${rows}</tbody>
+    </table>
     <div class="flex"><span>Sous-total</span><span>${ticket.montantBrut.toLocaleString("fr-FR")} F</span></div>
     ${ticket.reduction ? `<div class="flex"><span>Réduction</span><span>−${ticket.reduction.toLocaleString("fr-FR")} F</span></div>` : ""}
     <div class="flex bold"><span>Total</span><span>${ticket.montant.toLocaleString("fr-FR")} F</span></div>
