@@ -126,6 +126,7 @@ export async function POST(request: Request) {
         date: body.date,
         site: body.site,
         notes: body.notes,
+        user,
       });
       await logActivity({
         user,
@@ -165,6 +166,7 @@ export async function POST(request: Request) {
       date: body.date,
       site: body.site ?? null,
       notes: body.notes,
+      user,
     });
     await logActivity({
       user,

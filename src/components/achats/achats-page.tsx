@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
@@ -272,6 +273,14 @@ export function AchatsPage() {
     >
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       {flash ? <p className="ui-info" role="status">{flash}</p> : null}
+
+      <p className="ui-info" role="note">
+        Pour un équipement durable (frigo, table…) ou un emballage revendu en
+        caisse, utilisez plutôt{" "}
+        <Link href="/immobilisations">Immobilisations</Link> — chaque écran
+        crée sa propre dépense de caisse, ne saisissez pas le même achat aux
+        deux endroits.
+      </p>
 
       {!loading ? (
         <div className="dash-kpi-grid achats-kpi-grid">

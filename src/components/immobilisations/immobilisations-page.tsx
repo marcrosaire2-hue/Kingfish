@@ -127,9 +127,17 @@ export function ImmobilisationsPage() {
             : { action: "create", ...payload },
         ),
       });
-      const body = await res.json();
+      const body = (await res.json()) as { item?: Immobilisation; error?: string };
       if (!res.ok) throw new Error(body.error || "Enregistrement impossible");
-      setFlash(editId ? "Fiche mise à jour" : "Fiche créée");
+      const montant = payload.qty * payload.cost;
+      const base = editId ? "Fiche mise à jour" : "Fiche créée";
+      setFlash(
+        montant > 0
+          ? body.item?.depenseId
+            ? `${base} — dépense de ${formatFcfa(montant)} créée à la caisse.`
+            : `${base} — caisse fermée : aucune dépense liée.`
+          : base,
+      );
       resetForm();
       await load();
     } catch (e) {
@@ -213,11 +221,15 @@ export function ImmobilisationsPage() {
         {tab === "emballage" ? (
           <p className="ui-info" role="note">
             Les emballages actifs avec une valeur vente apparaissent sur{" "}
-            <strong>Vente</strong> (Rapido) pour ajout au panier.
+            <strong>Vente</strong> (Rapido) pour ajout au panier. Pour un
+            emballage consommé en cuisine (non revendu), utilisez plutôt{" "}
+            <Link href="/achats">Achats</Link>.
           </p>
         ) : (
           <p className="ui-info" role="note">
-            Équipements et matériel (frigo, tables…) — hors facturation caisse.
+            Équipements et matériel durables (frigo, tables, balance…) — hors
+            facturation caisse. Pour des ingrédients ou fournitures
+            consommées au quotidien, utilisez <Link href="/achats">Achats</Link>.
           </p>
         )}
 

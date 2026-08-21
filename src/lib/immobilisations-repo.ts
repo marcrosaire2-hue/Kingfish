@@ -1,8 +1,86 @@
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
+import type { SessionUser } from "@/lib/auth-types";
+import {
+  addCaisseMouvement,
+  cancelCaisseMouvement,
+  resolveCaisseForDepense,
+} from "@/lib/caisse-repo";
+import { todayIsoDate } from "@/lib/zogbo-calc";
 import type { Immobilisation, ImmobilisationKind, VenteSite } from "@/lib/types";
 
 type ImmobilisationDoc = Omit<Immobilisation, "id"> & { _id: ObjectId };
+
+/**
+ * Zone débitée pour l'acquisition : celle de la fiche si elle en a une,
+ * sinon celle de l'utilisateur (admin « tous » → Zogbo par défaut, comme les
+ * autres écrans qui doivent trancher entre les deux caisses).
+ */
+function depenseSite(
+  itemSite: VenteSite | null,
+  user: SessionUser,
+): VenteSite {
+  if (itemSite === "zogbo" || itemSite === "gbegamey") return itemSite;
+  if (user.site === "zogbo" || user.site === "gbegamey") return user.site;
+  return "zogbo";
+}
+
+/**
+ * Lie (ou relie) l'acquisition à une dépense de caisse — même mécanique que
+ * les achats de matières : sans ça, l'argent sortirait du tiroir sans que la
+ * caisse ne le sache. Best-effort : une fiche reste enregistrable même si
+ * aucune caisse n'est disponible pour porter la dépense (jour sans caisse).
+ */
+async function attachDepense(input: {
+  user: SessionUser;
+  date: string;
+  site: VenteSite | null;
+  name: string;
+  qty: number;
+  montant: number;
+}): Promise<string | null> {
+  if (input.montant <= 0) return null;
+  try {
+    const { session, allowClosed } = await resolveCaisseForDepense({
+      site: depenseSite(input.site, input.user),
+      date: input.date,
+      // La route est déjà réservée au gérant/admin (canManagePastVentes) :
+      // pas besoin de revérifier le rôle ici.
+      allowPastClosed: input.date < todayIsoDate(),
+    });
+    if (!session) return null;
+    const res = await addCaisseMouvement({
+      caisseId: session.id,
+      user: input.user,
+      kind: "depense",
+      nature: `Immobilisation · ${input.name} +${input.qty}`,
+      beneficiaire: "",
+      montant: input.montant,
+      allowClosed,
+    });
+    return res.mouvement.id;
+  } catch {
+    return null;
+  }
+}
+
+/** Annule au mieux la dépense liée : une fiche corrigée/soldée ne doit pas
+ *  laisser une dépense fantôme si elle échoue (caisse déjà réconciliée…). */
+async function detachDepense(
+  depenseId: string | null,
+  user: SessionUser,
+): Promise<void> {
+  if (!depenseId) return;
+  try {
+    await cancelCaisseMouvement({
+      mouvementId: depenseId,
+      user,
+      allowClosed: true,
+    });
+  } catch {
+    /* best effort : la fiche reste corrigée même si la dépense liée ne l'est pas */
+  }
+}
 
 function isValidDate(date: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(date);
@@ -31,6 +109,7 @@ function toEntry(doc: ImmobilisationDoc): Immobilisation {
     site: doc.site ?? null,
     notes: String(doc.notes ?? ""),
     active: doc.active !== false,
+    depenseId: doc.depenseId ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
   };
@@ -73,6 +152,7 @@ export async function createImmobilisation(input: {
   date: string;
   site?: VenteSite | null;
   notes?: string;
+  user: SessionUser;
 }): Promise<Immobilisation> {
   const name = normalizeName(input.name);
   if (name.length < 2) throw new Error("Nom trop court (2 caractères min.).");
@@ -110,11 +190,21 @@ export async function createImmobilisation(input: {
     site,
     notes: String(input.notes ?? "").trim().slice(0, 500),
     active: true,
+    depenseId: null,
     createdAt: now,
     updatedAt: now,
   };
 
   const db = await getDb();
+  const depenseId = await attachDepense({
+    user: input.user,
+    date: doc.date,
+    site: doc.site,
+    name: doc.name,
+    qty: doc.qty,
+    montant: doc.qty * doc.cost,
+  });
+  doc.depenseId = depenseId;
   await db.collection<ImmobilisationDoc>("immobilisations").insertOne(doc);
   return toEntry(doc);
 }
@@ -129,6 +219,7 @@ export async function updateImmobilisation(input: {
   date?: string;
   site?: VenteSite | null;
   notes?: string;
+  user: SessionUser;
 }): Promise<Immobilisation> {
   if (!ObjectId.isValid(input.id)) throw new Error("Fiche introuvable.");
   const db = await getDb();
@@ -173,6 +264,32 @@ export async function updateImmobilisation(input: {
         ? null
         : Math.max(0, Math.round(Number(input.salePrice) || 0));
     patch.salePrice = price && price > 0 ? price : null;
+  }
+
+  // Dépense liée : reprise et régénérée si l'un des facteurs qui la
+  // déterminent change (montant, jour ou zone débités) — même logique que
+  // la correction d'un achat de matières.
+  const nextQty = patch.qty ?? existing.qty;
+  const nextCost = patch.cost ?? existing.cost;
+  const nextDate = patch.date ?? existing.date;
+  const nextSite = "site" in patch ? (patch.site ?? null) : existing.site;
+  const nextMontant = nextQty * nextCost;
+  const oldMontant = existing.qty * existing.cost;
+  const depenseFactorsChanged =
+    nextMontant !== oldMontant ||
+    nextDate !== existing.date ||
+    nextSite !== existing.site;
+
+  if (depenseFactorsChanged) {
+    await detachDepense(existing.depenseId, input.user);
+    patch.depenseId = await attachDepense({
+      user: input.user,
+      date: nextDate,
+      site: nextSite,
+      name: patch.name ?? existing.name,
+      qty: nextQty,
+      montant: nextMontant,
+    });
   }
 
   await db.collection<ImmobilisationDoc>("immobilisations").updateOne(
@@ -236,8 +353,8 @@ export async function sumImmobilisationsCostByDate(input: {
           total: {
             $sum: {
               $multiply: [
-                { $max: [{ $ifNull: ["$qty", 1] }, 1] },
-                { $max: [{ $ifNull: ["$cost", 0] }, 0] },
+                { $ifNull: ["$qty", 1] },
+                { $ifNull: ["$cost", 0] },
               ],
             },
           },

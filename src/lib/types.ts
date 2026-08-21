@@ -670,6 +670,13 @@ export type Immobilisation = {
   site: VenteSite | null;
   notes: string;
   active: boolean;
+  /**
+   * Dépense de caisse liée à cette acquisition (qté × coût), même mécanique
+   * que les achats de matières : sans elle, l'argent sortirait du tiroir
+   * sans que la caisse ne le sache. Recréée si qté/coût changent, jamais
+   * annulée à la désactivation d'une fiche (l'argent a bien été dépensé).
+   */
+  depenseId: string | null;
   createdAt: string;
   updatedAt: string;
 };
