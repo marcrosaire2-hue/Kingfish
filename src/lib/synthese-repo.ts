@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/mongodb";
+import { sumImmobilisationsCostByDate } from "@/lib/immobilisations-repo";
 import { getParametres } from "@/lib/parametres-repo";
 import { sumPertesCost } from "@/lib/pertes-repo";
 import type {
@@ -141,6 +142,28 @@ async function withAchatsStock(
     if (total <= 0) continue;
     const existante = charges.get(doc._id) ?? emptyCharges(doc._id);
     charges.set(doc._id, { ...existante, achatsStock: total });
+  }
+  return charges;
+}
+
+/**
+ * Injecte le coût d’acquisition Immobilisations (qté × prix unitaire) à la
+ * date d’entrée. Même principe que pertes / achats : le registre fait foi.
+ */
+async function withImmobilisations(
+  charges: Map<string, DayCharges>,
+  start: string,
+  end: string,
+  scopeSite?: VenteSite | null,
+): Promise<Map<string, DayCharges>> {
+  const { parJour } = await sumImmobilisationsCostByDate({
+    from: start,
+    to: end,
+    site: scopeSite ?? "all",
+  });
+  for (const [date, cout] of Object.entries(parJour) as [string, number][]) {
+    const existante = charges.get(date) ?? emptyCharges(date);
+    charges.set(date, { ...existante, immobilisations: cout });
   }
   return charges;
 }
@@ -478,15 +501,20 @@ async function loadMaps(
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     combos: new Map(combosDocs.map((d) => [d._id, toCombos(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: await withAchatsStock(
-      await withPertes(
-        new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+    charges: await withImmobilisations(
+      await withAchatsStock(
+        await withPertes(
+          new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+          dates[0]!,
+          dates[dates.length - 1]!,
+          scopeSite,
+        ),
         dates[0]!,
         dates[dates.length - 1]!,
-        scopeSite,
       ),
       dates[0]!,
       dates[dates.length - 1]!,
+      scopeSite,
     ),
     ventes,
   };
@@ -529,15 +557,20 @@ async function loadRange(
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     combos: new Map(combosDocs.map((d) => [d._id, toCombos(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: await withAchatsStock(
-      await withPertes(
-        new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+    charges: await withImmobilisations(
+      await withAchatsStock(
+        await withPertes(
+          new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+          start,
+          end,
+          scopeSite,
+        ),
         start,
         end,
-        scopeSite,
       ),
       start,
       end,
+      scopeSite,
     ),
     ventes,
   };

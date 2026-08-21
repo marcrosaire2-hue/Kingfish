@@ -48,7 +48,10 @@ type Payload = {
 };
 
 const CHARGE_FIELDS: {
-  key: keyof Omit<DayCharges, "date" | "updatedAt" | "pertes" | "achatsStock">;
+  key: keyof Omit<
+    DayCharges,
+    "date" | "updatedAt" | "pertes" | "achatsStock" | "immobilisations"
+  >;
   label: string;
 }[] = [
   { key: "matieresPremieres", label: "Achats matières premières" },
@@ -172,6 +175,11 @@ function chargesLinesFromBreakdown(
       kind: "item",
     },
     {
+      label: "Immobilisations (acquisitions)",
+      amount: c.immobilisations,
+      kind: "item",
+    },
+    {
       label: "Achats matières premières",
       amount: c.matieresPremieres,
       kind: "item",
@@ -198,6 +206,7 @@ function buildDayStatement(day: DayPoint, date: string): Statement {
   const produitsTotal = day.caTotal - day.caCombos;
   const charges: ChargesBreakdown = {
     achatsStock: day.charges.achatsStock ?? 0,
+    immobilisations: day.charges.immobilisations ?? 0,
     matieresPremieres: day.charges.matieresPremieres,
     loyer: day.charges.loyer,
     salaires: day.charges.salaires,
@@ -333,6 +342,11 @@ function buildYearStatement(data: YearPoint, label: string): Statement {
         {
           label: `${name} · achats stock`,
           amount: m.charges.achatsStock,
+          kind: "item",
+        },
+        {
+          label: `${name} · immobilisations`,
+          amount: m.charges.immobilisations,
           kind: "item",
         },
         {

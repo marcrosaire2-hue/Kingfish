@@ -67,6 +67,8 @@ export async function POST(request: Request) {
       id?: string;
       name?: string;
       kind?: ImmobilisationKind;
+      qty?: number;
+      unit?: string;
       cost?: number;
       salePrice?: number | null;
       date?: string;
@@ -117,6 +119,8 @@ export async function POST(request: Request) {
       const item = await updateImmobilisation({
         id: body.id,
         name: body.name,
+        qty: body.qty,
+        unit: body.unit,
         cost: body.cost,
         salePrice: body.salePrice,
         date: body.date,
@@ -154,6 +158,8 @@ export async function POST(request: Request) {
     const item = await createImmobilisation({
       name: body.name,
       kind: body.kind,
+      qty: body.qty,
+      unit: body.unit,
       cost: body.cost,
       salePrice: body.salePrice,
       date: body.date,

@@ -52,6 +52,24 @@ describe("chargesTotal", () => {
     expect(chargesTotal({ ...base, achatsStock: -500 })).toBe(0);
   });
 
+  it("compte les immobilisations comme une charge", () => {
+    const base = emptyCharges("2026-08-12");
+    expect(chargesTotal({ ...base, immobilisations: 250000 })).toBe(250000);
+    expect(
+      chargesTotal({
+        ...base,
+        achatsStock: 5000,
+        immobilisations: 10000,
+      }),
+    ).toBe(15000);
+  });
+
+  it("ignore un total immobilisations absent ou aberrant", () => {
+    const base = emptyCharges("2026-08-12");
+    expect(chargesTotal({ ...base, immobilisations: undefined })).toBe(0);
+    expect(chargesTotal({ ...base, immobilisations: -100 })).toBe(0);
+  });
+
   it("une journée vierge ne coûte rien", () => {
     expect(chargesTotal(emptyCharges("2026-08-12"))).toBe(0);
   });

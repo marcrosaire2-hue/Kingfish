@@ -297,6 +297,12 @@ export type DayCharges = {
    * la main pour ce qui ne passe pas par la page Achats.
    */
   achatsStock?: number;
+  /**
+   * Acquisitions Immobilisations (actifs + emballages), valorisées
+   * qté × prix unitaire à la date d’entrée. Calculé depuis le registre, jamais
+   * saisi ici.
+   */
+  immobilisations?: number;
   updatedAt: string | null;
 };
 
@@ -525,6 +531,7 @@ export type MonthPoint = {
 /** Agrégat des postes de charges (période mois / année). */
 export type ChargesBreakdown = {
   achatsStock: number;
+  immobilisations: number;
   matieresPremieres: number;
   loyer: number;
   salaires: number;
@@ -644,11 +651,17 @@ export type Immobilisation = {
   id: string;
   name: string;
   kind: ImmobilisationKind;
-  /** Prix d’achat / valeur d’acquisition (FCFA). */
+  /** Quantité en stock / inventaire. */
+  qty: number;
+  /** Unité libre (pièce, carton, kg…). */
+  unit: string;
+  /** Prix unitaire d’achat / inventaire (FCFA). */
   cost: number;
   /**
-   * Prix de vente (FCFA). Requis et > 0 pour un emballage ;
-   * null pour un actif non vendu en caisse.
+   * Valeur unitaire (FCFA), facultative quel que soit le type — une fiche
+   * peut être créée sans montant. Pour un emballage, c'est ce qui sera
+   * facturé en caisse : tant qu'elle est vide, l'article reste enregistré
+   * mais invendable depuis l'écran Vente.
    */
   salePrice: number | null;
   /** Date d’acquisition / mise en service (YYYY-MM-DD). */

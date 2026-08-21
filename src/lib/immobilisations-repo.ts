@@ -8,11 +8,20 @@ function isValidDate(date: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(date);
 }
 
+function normalizeUnit(raw: string | undefined | null): string {
+  return String(raw ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 40);
+}
+
 function toEntry(doc: ImmobilisationDoc): Immobilisation {
   return {
     id: doc._id.toHexString(),
     name: doc.name,
     kind: doc.kind,
+    qty: Math.max(0, Math.round(Number(doc.qty) || 0)) || 1,
+    unit: normalizeUnit(doc.unit) || "pièce",
     cost: Math.max(0, Math.round(Number(doc.cost) || 0)),
     salePrice:
       doc.salePrice === null || doc.salePrice === undefined
@@ -57,6 +66,8 @@ export async function listImmobilisations(input?: {
 export async function createImmobilisation(input: {
   name: string;
   kind: ImmobilisationKind;
+  qty?: number;
+  unit?: string;
   cost?: number;
   salePrice?: number | null;
   date: string;
@@ -71,21 +82,18 @@ export async function createImmobilisation(input: {
   }
   if (!isValidDate(input.date)) throw new Error("Date invalide.");
 
+  const qty = Math.max(1, Math.round(Number(input.qty) || 0));
+  const unit = normalizeUnit(input.unit) || "pièce";
   const cost = Math.max(0, Math.round(Number(input.cost) || 0));
-  let salePrice: number | null =
+  // Valeur facultative, quel que soit le type : une fiche peut être créée
+  // sans montant et complétée plus tard (elle reste alors invendable en
+  // caisse tant que la valeur n'est pas renseignée, sans bloquer sa saisie).
+  const rawSalePrice =
     input.salePrice === null || input.salePrice === undefined
       ? null
       : Math.max(0, Math.round(Number(input.salePrice) || 0));
-
-  if (input.kind === "emballage") {
-    const price = Math.round(Number(input.salePrice) || 0);
-    if (price <= 0) {
-      throw new Error("Prix de vente requis pour un emballage.");
-    }
-    salePrice = price;
-  } else {
-    salePrice = salePrice && salePrice > 0 ? salePrice : null;
-  }
+  const salePrice: number | null =
+    rawSalePrice && rawSalePrice > 0 ? rawSalePrice : null;
 
   const site =
     input.site === "zogbo" || input.site === "gbegamey" ? input.site : null;
@@ -94,6 +102,8 @@ export async function createImmobilisation(input: {
     _id: new ObjectId(),
     name,
     kind: input.kind,
+    qty,
+    unit,
     cost,
     salePrice,
     date: input.date,
@@ -112,6 +122,8 @@ export async function createImmobilisation(input: {
 export async function updateImmobilisation(input: {
   id: string;
   name?: string;
+  qty?: number;
+  unit?: string;
   cost?: number;
   salePrice?: number | null;
   date?: string;
@@ -135,6 +147,12 @@ export async function updateImmobilisation(input: {
     if (name.length > 120) throw new Error("Nom trop long (120 caractères max.).");
     patch.name = name;
   }
+  if (input.qty !== undefined) {
+    patch.qty = Math.max(1, Math.round(Number(input.qty) || 0));
+  }
+  if (input.unit !== undefined) {
+    patch.unit = normalizeUnit(input.unit) || "pièce";
+  }
   if (input.cost !== undefined) {
     patch.cost = Math.max(0, Math.round(Number(input.cost) || 0));
   }
@@ -150,19 +168,11 @@ export async function updateImmobilisation(input: {
     patch.notes = String(input.notes).trim().slice(0, 500);
   }
   if (input.salePrice !== undefined) {
-    if (existing.kind === "emballage") {
-      const price = Math.round(Number(input.salePrice) || 0);
-      if (price <= 0) {
-        throw new Error("Prix de vente requis pour un emballage.");
-      }
-      patch.salePrice = price;
-    } else {
-      const price =
-        input.salePrice === null
-          ? null
-          : Math.max(0, Math.round(Number(input.salePrice) || 0));
-      patch.salePrice = price && price > 0 ? price : null;
-    }
+    const price =
+      input.salePrice === null
+        ? null
+        : Math.max(0, Math.round(Number(input.salePrice) || 0));
+    patch.salePrice = price && price > 0 ? price : null;
   }
 
   await db.collection<ImmobilisationDoc>("immobilisations").updateOne(
@@ -196,4 +206,53 @@ export async function setImmobilisationActive(input: {
     );
   if (!result) throw new Error("Fiche introuvable.");
   return toEntry(result);
+}
+
+/**
+ * Coût d’acquisition Immobilisations par jour (qté × prix unitaire), pour le
+ * compte de résultat. Le registre fait foi : rien n’est recopié dans
+ * charges_jours. Une fiche « tous sites » (site null) compte pour chaque zone.
+ */
+export async function sumImmobilisationsCostByDate(input: {
+  from: string;
+  to: string;
+  site?: VenteSite | "all" | null;
+}): Promise<{ total: number; parJour: Record<string, number> }> {
+  const db = await getDb();
+  const match: Record<string, unknown> = {
+    date: { $gte: input.from, $lte: input.to },
+  };
+  if (input.site && input.site !== "all") {
+    match.$or = [{ site: input.site }, { site: null }];
+  }
+
+  const rows = await db
+    .collection<ImmobilisationDoc>("immobilisations")
+    .aggregate<{ _id: string; total: number }>([
+      { $match: match },
+      {
+        $group: {
+          _id: "$date",
+          total: {
+            $sum: {
+              $multiply: [
+                { $max: [{ $ifNull: ["$qty", 1] }, 1] },
+                { $max: [{ $ifNull: ["$cost", 0] }, 0] },
+              ],
+            },
+          },
+        },
+      },
+    ])
+    .toArray();
+
+  const parJour: Record<string, number> = {};
+  let total = 0;
+  for (const r of rows) {
+    const amount = Math.max(0, Math.round(Number(r.total) || 0));
+    if (amount <= 0) continue;
+    parJour[r._id] = amount;
+    total += amount;
+  }
+  return { total, parJour };
 }

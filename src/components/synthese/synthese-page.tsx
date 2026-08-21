@@ -47,7 +47,10 @@ const MONTH_NAMES = [
 
 const CHARGE_FIELDS: {
   // « pertes » est calculé depuis le journal des pertes : jamais saisi ici.
-  key: keyof Omit<DayCharges, "date" | "updatedAt" | "pertes" | "achatsStock">;
+  key: keyof Omit<
+    DayCharges,
+    "date" | "updatedAt" | "pertes" | "achatsStock" | "immobilisations"
+  >;
   label: string;
 }[] = [
   { key: "matieresPremieres", label: "Achats matières 1ères" },
@@ -708,7 +711,10 @@ function DayDashboard({
   dayResultat: { chargesTotal: number; resultat: number } | null;
   epuises: EpuiseRow[];
   onChargeChange: (
-    key: keyof Omit<DayCharges, "date" | "updatedAt" | "pertes" | "achatsStock">,
+    key: keyof Omit<
+      DayCharges,
+      "date" | "updatedAt" | "pertes" | "achatsStock" | "immobilisations"
+    >,
     value: number | null,
   ) => void;
 }) {

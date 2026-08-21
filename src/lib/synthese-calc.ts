@@ -30,6 +30,7 @@ export function emptyCharges(date: string): DayCharges {
     reparations: 0,
     pertes: 0,
     achatsStock: 0,
+    immobilisations: 0,
     updatedAt: null,
   };
 }
@@ -47,7 +48,9 @@ export function chargesTotal(c: DayCharges): number {
     // Ce qui est acheté sur la page Achats est une charge : sans cette ligne,
     // un achat saisi ne pesait sur le résultat que si le gérant le retapait
     // à la main dans « matières premières ».
-    Math.max(0, Number(c.achatsStock) || 0)
+    Math.max(0, Number(c.achatsStock) || 0) +
+    // Acquisitions Immobilisations (actifs + emballages) à la date d’entrée.
+    Math.max(0, Number(c.immobilisations) || 0)
   );
 }
 
@@ -276,6 +279,7 @@ export function daysInMonth(year: number, month: number): string[] {
 export function emptyChargesBreakdown(): ChargesBreakdown {
   return {
     achatsStock: 0,
+    immobilisations: 0,
     matieresPremieres: 0,
     loyer: 0,
     salaires: 0,
@@ -292,6 +296,7 @@ export function sumChargesBreakdown(days: DayPoint[]): ChargesBreakdown {
     (acc, d) => {
       const c = d.charges;
       acc.achatsStock += Math.max(0, Number(c.achatsStock) || 0);
+      acc.immobilisations += Math.max(0, Number(c.immobilisations) || 0);
       acc.matieresPremieres += Math.max(0, Number(c.matieresPremieres) || 0);
       acc.loyer += Math.max(0, Number(c.loyer) || 0);
       acc.salaires += Math.max(0, Number(c.salaires) || 0);
@@ -390,6 +395,7 @@ export function buildYearPoint(
       acc.caCombos += r.caCombos;
       acc.caTotal += r.caTotal;
       acc.charges.achatsStock += r.charges.achatsStock;
+      acc.charges.immobilisations += r.charges.immobilisations;
       acc.charges.matieresPremieres += r.charges.matieresPremieres;
       acc.charges.loyer += r.charges.loyer;
       acc.charges.salaires += r.charges.salaires;
