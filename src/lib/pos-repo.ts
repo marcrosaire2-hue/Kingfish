@@ -158,10 +158,8 @@ export async function validatePosTicket(input: {
   };
 
   const today = todayIsoDate();
-  const isBackdate =
-    canManagePastVentes(input.user.role) &&
-    Boolean(input.date) &&
-    input.date < today;
+  const manager = canManagePastVentes(input.user.role);
+  const isBackdate = manager && Boolean(input.date) && input.date < today;
 
   let date: string;
   let caisseId: string | null = null;
@@ -264,7 +262,10 @@ export async function validatePosTicket(input: {
           unitPrice: line.unitPrice,
           actor,
           bypassClosedDay,
-          bypassStock: isBackdate,
+          // Le gérant/admin encaisse toujours, même si le stock affiché est
+          // erroné ou pas à jour : le stock reste indicatif, jamais bloquant
+          // pour lui — pas seulement en correction d'un jour passé.
+          bypassStock: manager,
         });
         createdLogIds.push(result.entry.id);
         ticketLines.push({

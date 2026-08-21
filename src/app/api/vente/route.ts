@@ -176,8 +176,9 @@ export async function POST(request: Request) {
       unitPrice: body.unitPrice,
       actor,
       bypassClosedDay: manager && pastDay,
-      // Gérant : anciennes ventes même sans stock (régularisation).
-      bypassStock: manager && pastDay,
+      // Gérant/admin : le stock reste indicatif, jamais bloquant pour lui —
+      // pas seulement en correction d'un jour passé.
+      bypassStock: manager,
     });
     return NextResponse.json(result);
   } catch (error) {
