@@ -407,8 +407,8 @@ export function canUseSite(
 }
 
 /**
- * Gérant et admin : saisir / corriger / annuler des ventes sur un jour passé
- * (y compris journée clôturée ou caisse déjà fermée).
+ * Gérant et admin : saisir / corriger / annuler sur un jour passé
+ * (ventes, stock, achats, pertes — y compris journée ou caisse clôturée).
  */
 export function canManagePastVentes(role: UserRole): boolean {
   return role === "gerant" || role === "admin";

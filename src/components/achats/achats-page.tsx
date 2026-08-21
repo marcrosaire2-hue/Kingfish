@@ -254,7 +254,7 @@ export function AchatsPage() {
   return (
     <AppShell
       title="Achats"
-      subtitle="Achats libres, hors catalogue de matières"
+      subtitle="Achats libres, hors catalogue de matières — une date passée est autorisée pour le gérant"
       actions={
         <ExportExcelButton
           disabled={loading}

@@ -52,6 +52,7 @@ async function resolveTarget(input: {
   site: VenteSite;
   kind: PerteKind;
   productId: string;
+  bypassClosedDay?: boolean;
 }): Promise<PerteTarget> {
   const { date, site, kind, productId } = input;
   const parametres = await getParametres();
@@ -60,6 +61,7 @@ async function resolveTarget(input: {
   // perte, qu'elle crée ou non la ligne : on le lit une seule fois ici et on
   // réutilise le jour chargé dans `ensure` plutôt que de le relire deux fois.
   const closedMessage = "Journée clôturée : perte impossible.";
+  const openOpts = { bypass: input.bypassClosedDay };
 
   if (kind === "plat") {
     const dish = parametres.baseDishes.find((d) => d.id === productId);
@@ -69,7 +71,7 @@ async function resolveTarget(input: {
     const unitCost = dish.costPrice ?? 0;
     if (site === "zogbo") {
       const { day } = await getZogboDayPayload(date);
-      assertDayOpen(day.status, closedMessage);
+      assertDayOpen(day.status, closedMessage, openOpts);
       return {
         collection: "zogbo_jours",
         arrayField: "lines",
@@ -82,7 +84,7 @@ async function resolveTarget(input: {
       };
     }
     const { day } = await getGbegameyDayPayload(date);
-    assertDayOpen(day.status, closedMessage);
+    assertDayOpen(day.status, closedMessage, openOpts);
     return {
       collection: "gbegamey_jours",
       arrayField: "transferLines",
@@ -107,7 +109,7 @@ async function resolveTarget(input: {
     const dish = parametres.localDishes.find((d) => d.id === productId);
     if (!dish) throw new Error("Plat local introuvable");
     const { day } = await getGbegameyDayPayload(date);
-    assertDayOpen(day.status, closedMessage);
+    assertDayOpen(day.status, closedMessage, openOpts);
     return {
       collection: "gbegamey_jours",
       arrayField: "localLines",
@@ -129,7 +131,7 @@ async function resolveTarget(input: {
     const combo = parametres.combos.find((c) => c.id === productId);
     if (!combo) throw new Error("Combo introuvable");
     const { day } = await getCombosDayPayload(date);
-    assertDayOpen(day.status, closedMessage);
+    assertDayOpen(day.status, closedMessage, openOpts);
     return {
       collection: "combos_jours",
       arrayField: "lines",
@@ -146,7 +148,7 @@ async function resolveTarget(input: {
     const drink = parametres.drinks.find((d) => d.id === productId);
     if (!drink) throw new Error("Boisson introuvable");
     const { day } = await getBoissonsDayPayload(date);
-    assertDayOpen(day.status, closedMessage);
+    assertDayOpen(day.status, closedMessage, openOpts);
     return {
       collection: "boissons_jours",
       arrayField: "lines",
@@ -166,7 +168,7 @@ async function resolveTarget(input: {
   );
   if (!matiere) throw new Error("Matière introuvable");
   const { day } = await getMatieresDayPayload(date);
-  assertDayOpen(day.status, closedMessage);
+  assertDayOpen(day.status, closedMessage, openOpts);
   return {
     collection: "matieres_jours",
     arrayField: "lines",
@@ -193,6 +195,7 @@ async function applyPerteDelta(input: {
   kind: PerteKind;
   productId: string;
   delta: number;
+  bypassClosedDay?: boolean;
 }): Promise<{ name: string; unitCost: number }> {
   const target = await resolveTarget(input);
 
@@ -268,6 +271,7 @@ export async function recordPerte(input: {
   motif: PerteMotif;
   commentaire?: string;
   actor?: PerteActor | null;
+  bypassClosedDay?: boolean;
 }): Promise<PerteEntry> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   if (!MOTIFS.includes(input.motif)) throw new Error("Motif invalide");
@@ -289,6 +293,7 @@ export async function recordPerte(input: {
     kind: input.kind,
     productId: input.productId,
     delta: qty,
+    bypassClosedDay: input.bypassClosedDay,
   });
 
   const doc: PerteDoc = {
@@ -318,6 +323,7 @@ export async function recordPerte(input: {
 export async function cancelPerte(input: {
   id: string;
   actor?: PerteActor | null;
+  bypassClosedDay?: boolean;
 }): Promise<PerteEntry> {
   if (!ObjectId.isValid(input.id)) throw new Error("Perte introuvable");
   const db = await getDb();
@@ -334,6 +340,7 @@ export async function cancelPerte(input: {
     kind: doc.kind,
     productId: doc.productId,
     delta: -doc.qty,
+    bypassClosedDay: input.bypassClosedDay,
   });
 
   const cancelledAt = new Date().toISOString();

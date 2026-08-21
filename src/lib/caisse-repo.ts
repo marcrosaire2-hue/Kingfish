@@ -159,6 +159,30 @@ export async function findCaisseSessionForSiteDate(
   return doc ? toSession(doc) : null;
 }
 
+/**
+ * Caisse sur laquelle rattacher une dépense d’achat / stock.
+ * Gérant sur un jour passé : session de cette date (même fermée).
+ * Sinon : caisse ouverte actuelle du site.
+ */
+export async function resolveCaisseForDepense(input: {
+  site: VenteSite;
+  date: string;
+  allowPastClosed?: boolean;
+}): Promise<{ session: CaisseSession | null; allowClosed: boolean }> {
+  if (
+    input.allowPastClosed &&
+    isValidDate(input.date) &&
+    input.date < todayIsoDate()
+  ) {
+    const session = await findCaisseSessionForSiteDate(input.site, input.date);
+    return { session, allowClosed: true };
+  }
+  return {
+    session: await getActiveCaisseForSite(input.site),
+    allowClosed: false,
+  };
+}
+
 export async function listCaisses(input: {
   caisse: CaisseKey;
   limit?: number;
@@ -376,11 +400,13 @@ export async function addCaisseMouvement(input: {
   nature: string;
   beneficiaire: string;
   montant: number;
+  /** Gérant : correction sur une session déjà fermée (jour passé). */
+  allowClosed?: boolean;
 }): Promise<{ session: CaisseSession; mouvement: CaisseMouvement }> {
   const session = await getCaisseById(input.caisseId);
   if (!session) throw new Error("Caisse introuvable");
   assertAcces(input.user, session.caisse);
-  if (session.statut !== "ouverte") {
+  if (session.statut !== "ouverte" && !input.allowClosed) {
     throw new Error("Impossible d’ajouter un mouvement sur une caisse fermée");
   }
   const nature = input.nature.trim();
@@ -429,6 +455,8 @@ export async function addCaisseMouvement(input: {
 export async function cancelCaisseMouvement(input: {
   mouvementId: string;
   user: SessionUser;
+  /** Gérant : correction sur une session déjà fermée (jour passé). */
+  allowClosed?: boolean;
 }): Promise<{ session: CaisseSession; mouvement: CaisseMouvement }> {
   if (!ObjectId.isValid(input.mouvementId)) throw new Error("Mouvement introuvable");
   const db = await getDb();
@@ -443,7 +471,7 @@ export async function cancelCaisseMouvement(input: {
   const session = await getCaisseById(mDoc.caisseId);
   if (!session) throw new Error("Caisse introuvable");
   assertAcces(input.user, session.caisse);
-  if (session.statut !== "ouverte") {
+  if (session.statut !== "ouverte" && !input.allowClosed) {
     throw new Error("Impossible d’annuler un mouvement sur une caisse fermée");
   }
 

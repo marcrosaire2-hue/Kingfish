@@ -52,6 +52,7 @@ export function ApprovisionnementPage() {
   const [flash, setFlash] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [canManagePast, setCanManagePast] = useState(false);
 
   async function loadStock(nextDate = date) {
     setLoading(true);
@@ -61,11 +62,16 @@ export function ApprovisionnementPage() {
         `/api/matieres?date=${encodeURIComponent(nextDate)}`,
         { cache: "no-store" },
       );
-      const body = (await res.json()) as StockPayload & { error?: string };
+      const body = (await res.json()) as StockPayload & {
+        error?: string;
+        canManagePast?: boolean;
+        backdate?: boolean;
+      };
       if (!res.ok) throw new Error(body.error || "Erreur");
       setDay(body.day);
       setMaterials(body.materials);
       setDraftBuy({});
+      setCanManagePast(Boolean(body.canManagePast));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
       setDay(null);
@@ -377,6 +383,13 @@ export function ApprovisionnementPage() {
       }
     >
       <ContextBar date={date} onDateChange={setDate} />
+
+      {canManagePast && date < todayIsoDate() ? (
+        <p className="ui-info" role="status">
+          Correction du {date.slice(8)}/{date.slice(5, 7)} — achats et stock
+          matières autorisés même si la journée est clôturée.
+        </p>
+      ) : null}
 
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       {flash ? <p className="ui-info" role="status">{flash}</p> : null}

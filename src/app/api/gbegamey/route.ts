@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
 import type { GbegameyLocalLine, GbegameyTransferLine } from "@/lib/types";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canUseSite } from "@/lib/auth-types";
+import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import {
   getGbegameyDayPayload,
@@ -27,7 +27,7 @@ async function requireGbegameyAccess() {
 
 export async function GET(request: Request) {
   try {
-    await requireGbegameyAccess();
+    const user = await requireGbegameyAccess();
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date") || todayIsoDate();
     const [payload, caJournal, ventes, ventesSummary] = await Promise.all([
@@ -36,7 +36,15 @@ export async function GET(request: Request) {
       listVentesForSite({ date, site: "gbegamey" }),
       summarizeVentesForSite(date, "gbegamey"),
     ]);
-    return NextResponse.json({ ...payload, caJournal, ventes, ventesSummary });
+    const canManagePast = canManagePastVentes(user.role);
+    return NextResponse.json({
+      ...payload,
+      caJournal,
+      ventes,
+      ventesSummary,
+      canManagePast,
+      backdate: canManagePast && date < todayIsoDate(),
+    });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     reportError("GET /api/gbegamey", error);

@@ -212,12 +212,15 @@ export async function applyMatieresPurchase(input: {
   unitPrice?: number;
   fournisseurId?: string | null;
   fournisseurNom?: string | null;
+  /** Gérant : achat sur une journée matières déjà clôturée. */
+  bypassClosedDay?: boolean;
 }): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getMatieresDayPayload(input.date);
   assertDayOpen(
     payload.day.status,
     "Journée clôturée : achat matière impossible.",
+    { bypass: input.bypassClosedDay },
   );
   const mat = payload.materials.find((m) => m.id === input.productId);
   const unitPrice = input.unitPrice ?? mat?.purchasePrice ?? 0;
@@ -278,12 +281,15 @@ export async function applyMatieresOtherPurchase(input: {
   unitPrice?: number;
   fournisseurId?: string | null;
   fournisseurNom?: string | null;
+  /** Gérant : achat sur une journée matières déjà clôturée. */
+  bypassClosedDay?: boolean;
 }): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getMatieresDayPayload(input.date);
   assertDayOpen(
     payload.day.status,
     "Journée clôturée : achat matière impossible.",
+    { bypass: input.bypassClosedDay },
   );
   const applied = applyMatieresOtherPurchaseToState(
     payload.day.lines,
@@ -369,12 +375,14 @@ export async function listMatieresMovements(input: {
 export async function cancelMatieresMovement(input: {
   date: string;
   movementId: string;
+  bypassClosedDay?: boolean;
 }): Promise<MatieresDayPayload> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getMatieresDayPayload(input.date);
   assertDayOpen(
     payload.day.status,
     "Journée clôturée : annulation d'achat impossible.",
+    { bypass: input.bypassClosedDay },
   );
   const applied = cancelMatieresMovementInState(
     payload.day.lines,
@@ -429,12 +437,14 @@ export async function editMatieresMovement(input: {
   fournisseurId?: string | null;
   fournisseurNom?: string | null;
   newDate?: string;
+  bypassClosedDay?: boolean;
 }): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getMatieresDayPayload(input.date);
   assertDayOpen(
     payload.day.status,
     "Journée clôturée : correction d'achat impossible.",
+    { bypass: input.bypassClosedDay },
   );
   const applied = editMatieresMovementInState(
     payload.day.lines,
@@ -473,6 +483,7 @@ export async function editMatieresMovement(input: {
     assertDayOpen(
       target.day.status,
       "Journée cible clôturée : correction d'achat impossible.",
+      { bypass: input.bypassClosedDay },
     );
     const targetMovements = [applied.movement, ...(target.day.movements ?? [])];
     await db.collection<MatieresDoc>("matieres_jours").updateOne(

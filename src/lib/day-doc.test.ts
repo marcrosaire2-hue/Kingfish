@@ -22,4 +22,10 @@ describe("assertDayOpen", () => {
     expect(() => assertDayOpen(null)).not.toThrow();
     expect(() => assertDayOpen(undefined)).not.toThrow();
   });
+
+  it("bypass autorise une journée clôturée (correction gérant)", () => {
+    expect(() =>
+      assertDayOpen("cloturee", "bloqué", { bypass: true }),
+    ).not.toThrow();
+  });
 });

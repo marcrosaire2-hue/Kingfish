@@ -85,6 +85,7 @@ export function ZogboPage() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [backdate, setBackdate] = useState(false);
   const [draftPrepare, setDraftPrepare] = useState<Record<string, string>>({});
   const [draftSend, setDraftSend] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -116,7 +117,10 @@ export function ZogboPage() {
       const res = await fetch(`/api/zogbo?date=${encodeURIComponent(nextDate)}`, {
         cache: "no-store",
       });
-      const body = (await res.json()) as Payload & { error?: string };
+      const body = (await res.json()) as Payload & {
+        error?: string;
+        backdate?: boolean;
+      };
       if (!res.ok) throw new Error(body.error || "Erreur de chargement");
       setDay(body.day);
       setBaseDishes(body.baseDishes);
@@ -125,6 +129,7 @@ export function ZogboPage() {
       setLastSaleDate(body.lastSaleDate ?? null);
       setVentes(body.ventes ?? []);
       setVentesSummary(body.ventesSummary ?? null);
+      setBackdate(Boolean(body.backdate));
       setDirty(false);
       setDraftPrepare({});
       setDraftSend({});
@@ -314,6 +319,13 @@ export function ZogboPage() {
           </>
         ) : null}
       </ContextBar>
+
+      {backdate ? (
+        <p className="ui-info" role="status">
+          Correction d&apos;un jour passé — stock et mouvements enregistrables
+          sur cette date.
+        </p>
+      ) : null}
 
       <div className="section-tabs zogbo-cats" role="tablist" aria-label="Sections Zogbo">
         <button

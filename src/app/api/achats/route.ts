@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import type { SessionUser } from "@/lib/auth-types";
+import { canManagePastVentes } from "@/lib/auth-types";
 import {
   CAISSE_LABELS,
   allowedCaisses,
   canUseCaisse,
   isCaisseKey,
 } from "@/lib/caisse-model";
-import { addCaisseMouvement } from "@/lib/caisse-repo";
+import {
+  addCaisseMouvement,
+  findCaisseSessionForSiteDate,
+} from "@/lib/caisse-repo";
 import {
   getOpenCaisse,
   listDepensesByCaisse,
@@ -136,29 +140,57 @@ export async function POST(request: Request) {
       );
     }
 
-    const active = await getOpenCaisse(caisse);
-    if (!active) {
-      return NextResponse.json(
-        { error: `Caisse ${CAISSE_LABELS[caisse]} fermée : ouvrez-la avant d’enregistrer une dépense.` },
-        { status: 400 },
+    const managerPast =
+      canManagePastVentes(user.role) && date < todayIsoDate();
+
+    let caisseId: string;
+    let allowClosed = false;
+
+    if (managerPast) {
+      // Correction gérant : dépense sur la session du jour passé (même fermée).
+      const pastSession = await findCaisseSessionForSiteDate(
+        caisse as VenteSite,
+        date,
       );
-    }
-    if (active.date !== date) {
-      return NextResponse.json(
-        {
-          error: `Caisse ouverte au ${active.date} — enregistrez sur ce jour ou clôturez-la.`,
-        },
-        { status: 400 },
-      );
+      if (!pastSession) {
+        return NextResponse.json(
+          {
+            error: `Aucune caisse ${CAISSE_LABELS[caisse]} pour le ${date} — impossible d’y rattacher une dépense.`,
+          },
+          { status: 400 },
+        );
+      }
+      caisseId = pastSession.id;
+      allowClosed = true;
+    } else {
+      const active = await getOpenCaisse(caisse);
+      if (!active) {
+        return NextResponse.json(
+          {
+            error: `Caisse ${CAISSE_LABELS[caisse]} fermée : ouvrez-la avant d’enregistrer une dépense.`,
+          },
+          { status: 400 },
+        );
+      }
+      if (active.date !== date) {
+        return NextResponse.json(
+          {
+            error: `Caisse ouverte au ${active.date} — enregistrez sur ce jour ou clôturez-la.`,
+          },
+          { status: 400 },
+        );
+      }
+      caisseId = active.id;
     }
 
     const result = await addCaisseMouvement({
-      caisseId: active.id,
+      caisseId,
       user,
       kind: "depense",
       nature,
       beneficiaire: body.beneficiaire ?? "",
       montant,
+      allowClosed,
     });
     await logActivity({
       user,

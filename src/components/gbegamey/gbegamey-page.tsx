@@ -70,6 +70,7 @@ export function GbegameyPage() {
   const [savedFlash, setSavedFlash] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [backdate, setBackdate] = useState(false);
 
   function setSection(next: SectionKey) {
     const params = new URLSearchParams(searchParams.toString());
@@ -103,7 +104,10 @@ export function GbegameyPage() {
           `/api/gbegamey?date=${encodeURIComponent(date)}`,
           { cache: "no-store" },
         );
-        const body = (await res.json()) as Payload & { error?: string };
+        const body = (await res.json()) as Payload & {
+          error?: string;
+          backdate?: boolean;
+        };
         if (!res.ok) throw new Error(body.error || "Erreur de chargement");
         if (!cancelled) {
           setDay(body.day);
@@ -114,6 +118,7 @@ export function GbegameyPage() {
           setOpeningEditable(!!body.openingEditable);
           setVentes(body.ventes ?? []);
           setVentesSummary(body.ventesSummary ?? null);
+          setBackdate(Boolean(body.backdate));
           setDirty(false);
         }
       } catch (e) {
@@ -231,6 +236,13 @@ export function GbegameyPage() {
           </button>
         ) : null}
       </ContextBar>
+
+      {backdate ? (
+        <p className="ui-info" role="status">
+          Correction d&apos;un jour passé — stock et mouvements enregistrables
+          sur cette date.
+        </p>
+      ) : null}
 
       <div className="section-tabs" role="tablist" aria-label="Sections Gbégamey">
         <button

@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
+import { canManagePastVentes, type SessionUser } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import { getPosConfig } from "@/lib/pos-config-repo";
 import {
   addCaisseMouvement,
   cancelCaisseMouvement,
-  getActiveCaisseForSite,
+  resolveCaisseForDepense,
 } from "@/lib/caisse-repo";
 import {
   applyMatieresOtherPurchase,
@@ -18,28 +19,83 @@ import {
   saveMatieresDay,
 } from "@/lib/matieres-repo";
 import type { MatieresLine } from "@/lib/types";
+import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
+function siteOf(user: { site: string }): "zogbo" | "gbegamey" {
+  return user.site === "gbegamey" ? "gbegamey" : "zogbo";
+}
+
+function managerBypass(
+  user: { role: SessionUser["role"] },
+  date: string,
+): boolean {
+  return canManagePastVentes(user.role) && date < todayIsoDate();
+}
+
+async function attachDepense(input: {
+  user: SessionUser;
+  date: string;
+  movementId: string;
+  name: string;
+  qty: number;
+  fournisseurNom: string | null;
+  montant: number;
+  bypassPast: boolean;
+}): Promise<{ id: string; montant: number } | null> {
+  if (input.montant <= 0) return null;
+  try {
+    const { session, allowClosed } = await resolveCaisseForDepense({
+      site: siteOf(input.user),
+      date: input.date,
+      allowPastClosed: input.bypassPast,
+    });
+    if (!session) return null;
+    const res = await addCaisseMouvement({
+      caisseId: session.id,
+      user: input.user,
+      kind: "depense",
+      nature: `Achat stock · ${input.name} +${input.qty}`,
+      beneficiaire: input.fournisseurNom ?? "Fournisseur non précisé",
+      montant: input.montant,
+      allowClosed,
+    });
+    await linkMatieresMovementDepense({
+      date: input.date,
+      movementId: input.movementId,
+      depenseId: res.mouvement.id,
+    });
+    return { id: res.mouvement.id, montant: input.montant };
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(request: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const canManagePast = canManagePastVentes(user.role);
     if (from && to) {
       const historique = await listMatieresMovements({
         dateFrom: from,
         dateTo: to,
       });
-      return NextResponse.json({ historique });
+      return NextResponse.json({ historique, canManagePast });
     }
     if (!date) {
       return NextResponse.json({ error: "Date requise." }, { status: 400 });
     }
     const payload = await getMatieresDayPayload(date);
-    return NextResponse.json(payload);
+    return NextResponse.json({
+      ...payload,
+      canManagePast,
+      backdate: canManagePast && date < todayIsoDate(),
+    });
   } catch (error) {
     return authErrorResponse(error);
   }
@@ -97,6 +153,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Date requise." }, { status: 400 });
     }
 
+    const bypass = managerBypass(user, body.date);
+
     if (body.action === "cancel") {
       if (!body.movementId) {
         return NextResponse.json(
@@ -107,9 +165,8 @@ export async function POST(request: Request) {
       const payload = await cancelMatieresMovement({
         date: body.date,
         movementId: body.movementId,
+        bypassClosedDay: bypass,
       });
-      // Dépense de caisse liée à l'achat : on la barre aussi, si la caisse
-      // est encore ouverte. Fermée, la dépense reste au journal (T10).
       const cancelled = payload.day.movements.find(
         (m) => m.id === body.movementId,
       );
@@ -119,6 +176,7 @@ export async function POST(request: Request) {
           await cancelCaisseMouvement({
             mouvementId: cancelled.depenseId,
             user,
+            allowClosed: bypass,
           });
         } catch (e) {
           depenseWarning =
@@ -150,6 +208,9 @@ export async function POST(request: Request) {
             (f) => f.id === body.fournisseurId,
           )
         : null;
+      const editBypass =
+        bypass ||
+        (body.newDate ? managerBypass(user, body.newDate) : false);
       const payload = await editMatieresMovement({
         date: body.date,
         movementId: body.movementId,
@@ -159,15 +220,11 @@ export async function POST(request: Request) {
         fournisseurId: fournisseur?.id ?? null,
         fournisseurNom: fournisseur?.nom ?? null,
         newDate: body.newDate,
+        bypassClosedDay: editBypass,
       });
-      // L'achat a pu changer de jour : tout ce qui suit (dépense liée,
-      // journal d'activité) doit pointer sur sa nouvelle date, pas sur celle
-      // de départ envoyée dans la requête.
       const resolvedDate = payload.day.date;
+      const resolvedBypass = managerBypass(user, resolvedDate);
 
-      // La dépense de caisse doit suivre le montant corrigé. Faute de
-      // modification en place à la caisse, on barre l'ancienne et on en pose
-      // une neuve : le journal montre la correction au lieu de la masquer.
       const montant = Math.round(
         payload.movement.qty * payload.movement.unitPrice,
       );
@@ -179,6 +236,7 @@ export async function POST(request: Request) {
           await cancelCaisseMouvement({
             mouvementId: ancienneDepenseId,
             user,
+            allowClosed: resolvedBypass || bypass,
           });
         } catch (e) {
           depenseWarning =
@@ -188,33 +246,21 @@ export async function POST(request: Request) {
         }
       }
       if (!depenseWarning && montant > 0) {
-        try {
-          const site: "zogbo" | "gbegamey" =
-            user.site === "gbegamey" ? "gbegamey" : "zogbo";
-          const session = await getActiveCaisseForSite(site);
-          if (session) {
-            const res = await addCaisseMouvement({
-              caisseId: session.id,
-              user,
-              kind: "depense",
-              nature: `Achat stock · ${payload.movement.name} +${payload.movement.qty}`,
-              beneficiaire:
-                payload.movement.fournisseurNom ?? "Fournisseur non précisé",
-              montant,
-            });
-            depense = { id: res.mouvement.id, montant };
-            await linkMatieresMovementDepense({
-              date: resolvedDate,
-              movementId: payload.movement.id,
-              depenseId: res.mouvement.id,
-            });
-            payload.movement.depenseId = res.mouvement.id;
-          }
-        } catch {
-          // Caisse fermée ou inaccessible : la correction du stock reste
-          // acquise, la dépense est signalée à l'écran.
+        depense = await attachDepense({
+          user,
+          date: resolvedDate,
+          movementId: payload.movement.id,
+          name: payload.movement.name,
+          qty: payload.movement.qty,
+          fournisseurNom: payload.movement.fournisseurNom ?? null,
+          montant,
+          bypassPast: resolvedBypass,
+        });
+        if (depense) {
+          payload.movement.depenseId = depense.id;
+        } else {
           depenseWarning =
-            "Achat corrigé, mais dépense de caisse non régénérée (caisse fermée).";
+            "Achat corrigé, mais dépense de caisse non régénérée (aucune caisse pour ce jour).";
         }
       }
 
@@ -236,14 +282,11 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    // Le nom est résolu ici et figé sur le mouvement : renommer un
-    // fournisseur plus tard ne doit pas réécrire l'historique d'achat.
     const fournisseur = body.fournisseurId
       ? (await getPosConfig()).fournisseurs.find(
           (f) => f.id === body.fournisseurId,
         )
       : null;
-    // Achat hors catalogue : le nom est écrit à la main, sans ligne de stock.
     const payload =
       body.productId === "autre"
         ? await applyMatieresOtherPurchase({
@@ -253,6 +296,7 @@ export async function POST(request: Request) {
             unitPrice: body.unitPrice,
             fournisseurId: fournisseur?.id ?? null,
             fournisseurNom: fournisseur?.nom ?? null,
+            bypassClosedDay: bypass,
           })
         : await applyMatieresPurchase({
             date: body.date,
@@ -261,42 +305,22 @@ export async function POST(request: Request) {
             unitPrice: body.unitPrice,
             fournisseurId: fournisseur?.id ?? null,
             fournisseurNom: fournisseur?.nom ?? null,
+            bypassClosedDay: bypass,
           });
 
-    // Dépense de trésorerie auto-générée : le stock et la caisse se
-    // recoupent. Caisse fermée, l'achat reste valable mais sans dépense
-    // (signalée à l'écran).
     const montant = Math.round(
       payload.movement.qty * payload.movement.unitPrice,
     );
-    let depense: { id: string; montant: number } | null = null;
-    if (montant > 0) {
-      try {
-        const site: "zogbo" | "gbegamey" =
-          user.site === "gbegamey" ? "gbegamey" : "zogbo";
-        const session = await getActiveCaisseForSite(site);
-        if (session) {
-          const res = await addCaisseMouvement({
-            caisseId: session.id,
-            user,
-            kind: "depense",
-            nature: `Achat stock · ${payload.movement.name} +${payload.movement.qty}`,
-            beneficiaire:
-              payload.movement.fournisseurNom ?? "Fournisseur non précisé",
-            montant,
-          });
-          depense = { id: res.mouvement.id, montant };
-          await linkMatieresMovementDepense({
-            date: body.date,
-            movementId: payload.movement.id,
-            depenseId: res.mouvement.id,
-          });
-        }
-      } catch {
-        // Caisse inaccessible ou session fermée : l'achat reste enregistré.
-        depense = null;
-      }
-    }
+    const depense = await attachDepense({
+      user,
+      date: body.date,
+      movementId: payload.movement.id,
+      name: payload.movement.name,
+      qty: payload.movement.qty,
+      fournisseurNom: payload.movement.fournisseurNom ?? null,
+      montant,
+      bypassPast: bypass,
+    });
 
     await logActivity({
       user,

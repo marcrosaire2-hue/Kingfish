@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canUseSite, effectiveSite } from "@/lib/auth-types";
+import { canManagePastVentes, canUseSite, effectiveSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import { cancelPerte, listPertes, recordPerte } from "@/lib/pertes-repo";
 import { reportError } from "@/lib/report-error";
@@ -60,7 +60,12 @@ export async function POST(request: Request) {
       if (!body.id) {
         return NextResponse.json({ error: "id requis." }, { status: 400 });
       }
-      const entry = await cancelPerte({ id: body.id, actor });
+      // Bypass clôture réservé gérant/admin (date lue après annulation côté repo).
+      const entry = await cancelPerte({
+        id: body.id,
+        actor,
+        bypassClosedDay: canManagePastVentes(user.role),
+      });
       await logActivity({
         user,
         kind: "matieres",
@@ -86,8 +91,9 @@ export async function POST(request: Request) {
       );
     }
 
+    const date = body.date || todayIsoDate();
     const entry = await recordPerte({
-      date: body.date || todayIsoDate(),
+      date,
       site,
       kind: body.kind,
       productId: body.productId,
@@ -95,6 +101,8 @@ export async function POST(request: Request) {
       motif: body.motif,
       commentaire: body.commentaire,
       actor,
+      bypassClosedDay:
+        canManagePastVentes(user.role) && date < todayIsoDate(),
     });
 
     await logActivity({

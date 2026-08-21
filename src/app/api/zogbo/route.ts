@@ -6,7 +6,7 @@ import type {
   ZogboMovementType,
 } from "@/lib/types";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canUseSite } from "@/lib/auth-types";
+import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import {
   applyZogboMovement,
@@ -47,7 +47,7 @@ async function requireZogboAccess() {
 
 export async function GET(request: Request) {
   try {
-    await requireZogboAccess();
+    const user = await requireZogboAccess();
     const { searchParams } = new URL(request.url);
     if (searchParams.get("list") === "1") {
       const days = await listZogboDays();
@@ -62,12 +62,15 @@ export async function GET(request: Request) {
         listVentesForSite({ date, site: "zogbo" }),
         summarizeVentesForSite(date, "zogbo"),
       ]);
+    const canManagePast = canManagePastVentes(user.role);
     return NextResponse.json({
       ...payload,
       caJournal,
       lastSaleDate,
       ventes,
       ventesSummary,
+      canManagePast,
+      backdate: canManagePast && date < todayIsoDate(),
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
