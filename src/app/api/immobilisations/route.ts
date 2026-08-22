@@ -75,6 +75,7 @@ export async function POST(request: Request) {
       site?: VenteSite | null;
       notes?: string;
       active?: boolean;
+      dureeUtiliteAnnees?: number | null;
     };
 
     if (body.action === "setActive") {
@@ -126,6 +127,7 @@ export async function POST(request: Request) {
         date: body.date,
         site: body.site,
         notes: body.notes,
+        dureeUtiliteAnnees: body.dureeUtiliteAnnees,
         user,
       });
       await logActivity({
@@ -166,6 +168,7 @@ export async function POST(request: Request) {
       date: body.date,
       site: body.site ?? null,
       notes: body.notes,
+      dureeUtiliteAnnees: body.dureeUtiliteAnnees,
       user,
     });
     await logActivity({

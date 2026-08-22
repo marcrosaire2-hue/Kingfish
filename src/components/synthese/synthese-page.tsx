@@ -117,7 +117,7 @@ export function SynthesePage() {
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
 
-  const isGeneral = role !== null && role !== "admin";
+  const isGeneral = role !== null && role !== "admin" && role !== "daf" && role !== "comptable";
   const viewMode = isGeneral ? "day" : view;
 
   useEffect(() => {

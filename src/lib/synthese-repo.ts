@@ -91,6 +91,24 @@ function toCharges(doc: ChargesDoc | null, date: string): DayCharges {
 }
 
 /**
+ * Postes de charges saisis à la main (loyer, salaires…), jour par jour, sans
+ * les compléments calculés (achats, immobilisations, pertes) qui viennent
+ * d'ailleurs — pour le journal comptable, qui les traite séparément à partir
+ * de leur propre registre.
+ */
+export async function listChargesManuellesByDateRange(
+  start: string,
+  end: string,
+): Promise<DayCharges[]> {
+  const db = await getDb();
+  const docs = await db
+    .collection<ChargesDoc>("charges_jours")
+    .find({ _id: { $gte: start, $lte: end } })
+    .toArray();
+  return docs.map((doc) => toCharges(doc, doc._id));
+}
+
+/**
  * Injecte le coût des pertes dans les charges du jour. Il n'est jamais stocké
  * dans charges_jours : le journal des pertes fait foi, et une annulation doit
  * se répercuter immédiatement sur le résultat.

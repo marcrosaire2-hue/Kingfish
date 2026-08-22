@@ -696,6 +696,30 @@ export type Immobilisation = {
   depenseId: string | null;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Durée d'utilité (années) pour le calcul d'amortissement — `null` tant que
+   * le module Amortissements n'est pas activé, ou pour une fiche qui n'a pas
+   * encore reçu cette information.
+   */
+  dureeUtiliteAnnees: number | null;
+};
+
+/** Modules comptables avancés, désactivés par défaut — activables par marc. */
+export type ModulesComptables = {
+  capital: boolean;
+  amortissements: boolean;
+  comptesTiers: boolean;
+};
+
+export type ParametresComptables = {
+  modules: ModulesComptables;
+  /** Capital de départ (FCFA) — utilisé au Bilan seulement si modules.capital. */
+  capital: number;
+  /** Créances / dettes : montants saisis à la main, l'app ne suit pas le crédit. */
+  creancesClients: number;
+  dettesFournisseurs: number;
+  updatedAt: string | null;
+  updatedByName: string | null;
 };
 
 export type PosPaymentMethod = {

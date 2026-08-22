@@ -368,6 +368,57 @@ export async function sumCaisseDepensesRecettesParCaisse(input: {
   return caisses.map((caisse) => parCaisse.get(caisse)!);
 }
 
+export type MouvementAvecCaisse = {
+  mouvement: CaisseMouvement;
+  caisse: CaisseKey;
+  date: string;
+};
+
+/**
+ * Dépenses / recettes / versements de toutes les sessions ouvertes dans la
+ * plage — brique de base du journal comptable, qui a besoin de chaque
+ * mouvement individuel (pas seulement des totaux agrégés par
+ * `sumCaisseDepensesRecettes`) pour générer une écriture par opération.
+ */
+export async function listMouvementsByDateRange(input: {
+  dateFrom: string;
+  dateTo: string;
+  scopeSite?: VenteSite | null;
+}): Promise<MouvementAvecCaisse[]> {
+  if (!isValidDate(input.dateFrom) || !isValidDate(input.dateTo)) {
+    throw new Error("Date invalide");
+  }
+  const db = await getDb();
+  const filtre: Record<string, unknown> = {
+    date: { $gte: input.dateFrom, $lte: input.dateTo },
+  };
+  if (input.scopeSite) filtre.site = input.scopeSite;
+  const sessions = await db
+    .collection<CaisseDoc>("caisses_sessions")
+    .find(filtre)
+    .toArray();
+  if (sessions.length === 0) return [];
+
+  const sessionById = new Map(
+    sessions.map((s) => [
+      s._id.toHexString(),
+      { caisse: (s.caisse ?? s.site ?? "zogbo") as CaisseKey, date: s.date },
+    ]),
+  );
+  const ids = [...sessionById.keys()];
+  const mouvements = await db
+    .collection<MouvementDoc>("caisse_mouvements")
+    .find({ caisseId: { $in: ids } })
+    .sort({ at: 1 })
+    .toArray();
+
+  return mouvements.flatMap((m) => {
+    const info = sessionById.get(m.caisseId);
+    if (!info) return [];
+    return [{ mouvement: toMouvement(m), caisse: info.caisse, date: info.date }];
+  });
+}
+
 export async function getCaisseById(id: string): Promise<CaisseSession | null> {
   if (!ObjectId.isValid(id)) return null;
   const db = await getDb();

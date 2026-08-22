@@ -25,7 +25,11 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const user = await requireUser();
-    if (user.role !== "admin" && user.role !== "gerant") {
+    if (
+      user.role !== "admin" &&
+      user.role !== "daf" &&
+      user.role !== "gerant"
+    ) {
       return NextResponse.json({ error: "Accès refusé." }, { status: 403 });
     }
     const body = (await request.json()) as {

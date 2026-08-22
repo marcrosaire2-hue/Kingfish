@@ -17,6 +17,7 @@ type Draft = {
   cost: string;
   salePrice: string;
   date: string;
+  dureeUtiliteAnnees: string;
 };
 
 function emptyDraft(): Draft {
@@ -27,6 +28,7 @@ function emptyDraft(): Draft {
     cost: "",
     salePrice: "",
     date: todayIsoDate(),
+    dureeUtiliteAnnees: "",
   };
 }
 
@@ -40,6 +42,24 @@ export function ImmobilisationsPage() {
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [showInactive, setShowInactive] = useState(false);
+  const [amortissementsActifs, setAmortissementsActifs] = useState(false);
+
+  useEffect(() => {
+    let annule = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/parametres-comptables", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!annule) setAmortissementsActifs(!!body.modules?.amortissements);
+      } catch {
+        /* module non critique pour cette page */
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +111,8 @@ export function ImmobilisationsPage() {
       cost: item.cost ? String(item.cost) : "",
       salePrice: item.salePrice != null ? String(item.salePrice) : "",
       date: item.date,
+      dureeUtiliteAnnees:
+        item.dureeUtiliteAnnees != null ? String(item.dureeUtiliteAnnees) : "",
     });
     setFlash(null);
     setError(null);
@@ -116,6 +138,10 @@ export function ImmobilisationsPage() {
           ? Math.round(Number(draft.salePrice) || 0)
           : null,
         date: draft.date,
+        dureeUtiliteAnnees:
+          amortissementsActifs && tab === "actif" && draft.dureeUtiliteAnnees
+            ? Math.round(Number(draft.dureeUtiliteAnnees) || 0)
+            : null,
       };
 
       const res = await fetch("/api/immobilisations", {
@@ -325,6 +351,33 @@ export function ImmobilisationsPage() {
                   placeholder="Optionnel"
                 />
               </label>
+              {tab === "actif" ? (
+                <label className="date-field">
+                  <span>
+                    Durée d&rsquo;utilité (années)
+                    {!amortissementsActifs ? (
+                      <span className="muted"> · module désactivé</span>
+                    ) : null}
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={draft.dureeUtiliteAnnees}
+                    disabled={!amortissementsActifs}
+                    onChange={(e) =>
+                      setDraft((d) => ({
+                        ...d,
+                        dureeUtiliteAnnees: e.target.value,
+                      }))
+                    }
+                    placeholder={
+                      amortissementsActifs
+                        ? "Ex. 5"
+                        : "À activer par le compte direction (Comptabilité)"
+                    }
+                  />
+                </label>
+              ) : null}
               <div className="immo-form-actions immo-field-full">
                 <button
                   type="button"

@@ -1,19 +1,22 @@
 export type UserRole =
-  | "vendeur"
-  | "cuisine"
-  /**
-   * Rôle polyvalent : réunit vendeur et cuisine sur un même poste. Dans un
-   * restaurant où la même personne encaisse et suit la production, séparer les
-   * deux obligeait à jongler entre deux comptes.
-   */
-  | "equipier"
   | "gerant"
+  /**
+   * Comptable : lecture / pilotage financier (résultat, journal comptable,
+   * journaux, registre). Pas d’encaissement ni de gestion des comptes.
+   */
+  | "comptable"
+  /**
+   * Directeur Administratif et Financier : mêmes écrans / droits opérationnels
+   * qu’un administrateur global, sans gestion des comptes. Peut être créé,
+   * modifié ou supprimé par un admin (ex. Marc).
+   */
+  | "daf"
   | "admin";
 export type UserSite = "zogbo" | "gbegamey" | "tous";
 
 /**
  * Équipe de service. Rattachée au compte : c'est ainsi qu'on sait quelle
- * équipe a encaissé, sans rien demander au vendeur au moment de la vente.
+ * équipe a encaissé, sans rien demander au moment de la vente.
  * Les comptes d'encadrement peuvent n'appartenir à aucune équipe.
  */
 export type UserShift = "jour" | "nuit" | "aucune";
@@ -74,10 +77,9 @@ export type SessionUser = {
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
-  vendeur: "Vendeur",
-  cuisine: "Cuisine / Production",
-  equipier: "Vente & Cuisine",
   gerant: "Gérant",
+  comptable: "Comptable",
+  daf: "Directeur Administratif et Financier",
   admin: "Administrateur",
 };
 
@@ -95,7 +97,18 @@ export function adminKindLabel(site: UserSite): string {
 
 export function roleSiteLabel(role: UserRole, site: UserSite): string {
   if (role === "admin") return adminKindLabel(site);
+  if (role === "daf" || role === "comptable") return ROLE_LABELS[role];
   return `${ROLE_LABELS[role]} · ${SITE_LABELS[site]}`;
+}
+
+/** Direction opérationnelle (admin ou DAF) — hors gestion des comptes. */
+export function hasDirectionAccess(role: UserRole): boolean {
+  return role === "admin" || role === "daf";
+}
+
+/** Accès aux écrans / API financiers (résultat, comptabilité, journal stock). */
+export function hasFinanceAccess(role: UserRole): boolean {
+  return hasDirectionAccess(role) || role === "comptable";
 }
 
 export function isGlobalAdmin(user: {
@@ -124,24 +137,18 @@ export function isExecutiveAdminAccount(username: string): boolean {
   return username.trim().toLowerCase() === "marc";
 }
 
-/**
- * Admin opérationnel sans droit de créer / modifier des comptes (ex. daff).
- */
-export function isUserManagementRestrictedAccount(username: string): boolean {
-  return username.trim().toLowerCase() === "daff";
-}
-
-/** Peut ouvrir /admin et appeler /api/admin/users. */
+/** Peut ouvrir /admin (Équipe) et appeler /api/admin/users. */
 export function canManageUsers(user: {
   role: UserRole;
   username: string;
 }): boolean {
-  if (user.role !== "admin") return false;
-  return !isUserManagementRestrictedAccount(user.username);
+  return user.role === "admin";
 }
 
 const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "synthese",
+  "compte-resultat",
+  "comptabilite",
   "journal-ventes",
   "journal-stock",
   "historique",
@@ -155,10 +162,10 @@ export function rolesCreatableBy(actor: {
 }): UserRole[] {
   if (!actor.role || actor.role !== "admin") return [];
   if (isGlobalAdmin(actor)) {
-    return ["equipier", "vendeur", "cuisine", "gerant", "admin"];
+    return ["gerant", "comptable", "daf", "admin"];
   }
-  // Admin de zone : pas de gérant multi-sites, mais peut créer un autre admin de sa zone
-  return ["equipier", "vendeur", "cuisine", "gerant", "admin"];
+  // Admin de zone : pas de DAF / comptable multi-sites
+  return ["gerant", "admin"];
 }
 
 /** Sites autorisés pour un rôle donné, selon l’admin connecté. */
@@ -242,6 +249,7 @@ export type NavKey =
   | "gbegamey"
   | "synthese"
   | "compte-resultat"
+  | "comptabilite"
   | "historique"
   | "journal-ventes"
   | "regularisation"
@@ -251,17 +259,6 @@ export type NavKey =
   | "journal-stock";
 
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
-  vendeur: ["synthese", "vente", "caisse"],
-  cuisine: ["synthese", "zogbo", "appro", "pertes"],
-  // Union des deux rôles précédents, sans rien y ajouter.
-  equipier: [
-    "synthese",
-    "vente",
-    "caisse",
-    "zogbo",
-    "appro",
-    "pertes",
-  ],
   gerant: [
     "synthese",
     "vente",
@@ -278,9 +275,42 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     // Saisie / correction / annulation des ventes d'un jour passé.
     "regularisation",
   ],
+  // Pilotage financier, sans opération ni gestion des comptes.
+  comptable: [
+    "synthese",
+    "compte-resultat",
+    "comptabilite",
+    "caisse",
+    "journal-ventes",
+    "journal-stock",
+    "historique",
+    "immobilisations",
+    "stock",
+  ],
+  // Même périmètre qu’admin, sans la page Équipe (gestion des comptes).
+  daf: [
+    "synthese",
+    "compte-resultat",
+    "comptabilite",
+    "vente",
+    "caisse",
+    "parametres",
+    "zogbo",
+    "gbegamey",
+    "appro",
+    "pertes",
+    "reglages",
+    "journal-ventes",
+    "regularisation",
+    "stock",
+    "immobilisations",
+    "historique",
+    "journal-stock",
+  ],
   admin: [
     "synthese",
     "compte-resultat",
+    "comptabilite",
     "vente",
     "caisse",
     "parametres",
@@ -303,18 +333,19 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
 
 /** Sites proposés à la création / édition selon le rôle. */
 export function sitesForRole(role: UserRole): UserSite[] {
-  if (role === "vendeur" || role === "cuisine" || role === "equipier") {
-    return ["zogbo", "gbegamey"];
-  }
   if (role === "gerant") {
     // Le gérant est rattaché à UNE zone : il ne voit jamais l'autre.
     return ["zogbo", "gbegamey"];
+  }
+  if (role === "daf" || role === "comptable") {
+    // Multi-sites : les deux restaurants.
+    return ["tous"];
   }
   return ["zogbo", "gbegamey", "tous"];
 }
 
 export function defaultSiteForRole(role: UserRole): UserSite {
-  if (role === "admin") return "tous";
+  if (role === "admin" || role === "daf" || role === "comptable") return "tous";
   return "gbegamey";
 }
 
@@ -328,13 +359,7 @@ export function assertValidRoleSite(role: UserRole, site: UserSite): void {
 
 /** Corrige les anciens comptes encore en « tous » : une zone unique fait foi. */
 export function effectiveSite(role: UserRole, site: UserSite): UserSite {
-  if (
-    (role === "vendeur" ||
-      role === "cuisine" ||
-      role === "equipier" ||
-      role === "gerant") &&
-    site === "tous"
-  ) {
+  if (role === "gerant" && site === "tous") {
     return "gbegamey";
   }
   return site;
@@ -342,7 +367,7 @@ export function effectiveSite(role: UserRole, site: UserSite): UserSite {
 
 /**
  * Menu filtré par rôle + site : un compte Zogbo ne voit pas Gbégamey
- * (et inversement). Cuisine suit le site assigné.
+ * (et inversement).
  */
 export function navForUser(
   role: UserRole,
@@ -355,20 +380,10 @@ export function navForUser(
   const scoped = effectiveSite(role, site);
   let keys = [...ROLE_NAV[role]];
 
-  if (role === "cuisine" || role === "equipier") {
-    const position = keys.indexOf("zogbo");
-    keys = keys.filter((k) => k !== "zogbo" && k !== "gbegamey");
-    keys.splice(position, 0, scoped === "gbegamey" ? "gbegamey" : "zogbo");
-  }
-
   if (scoped === "zogbo") {
     keys = keys.filter((k) => k !== "gbegamey");
   } else if (scoped === "gbegamey") {
     keys = keys.filter((k) => k !== "zogbo");
-  }
-
-  if (username && isUserManagementRestrictedAccount(username)) {
-    keys = keys.filter((k) => k !== "admin");
   }
 
   return keys;
@@ -416,6 +431,15 @@ export function canAccessPath(
   if (pathname.startsWith("/compte-resultat")) {
     return allowed.includes("compte-resultat");
   }
+  if (pathname.startsWith("/comptabilite")) {
+    return allowed.includes("comptabilite");
+  }
+  if (pathname.startsWith("/parametres-comptables")) {
+    // Lecture des modules avancés (Capital, Amortissements, Comptes tiers) :
+    // même périmètre que Comptabilité. L'activation elle-même reste réservée
+    // au compte direction (marc), vérifié séparément côté route.
+    return allowed.includes("comptabilite");
+  }
   if (pathname.startsWith("/historique-ventes")) {
     return allowed.includes("journal-ventes");
   }
@@ -427,7 +451,7 @@ export function canAccessPath(
   }
   if (pathname.startsWith("/immobilisations")) {
     // Page réservée gérant/admin ; l’API doit aussi être lisible en caisse
-    // (vendeur) pour proposer les emballages au panier.
+    // (écran Vente) pour proposer les emballages au panier.
     return (
       allowed.includes("immobilisations") || allowed.includes("vente")
     );
@@ -462,7 +486,7 @@ export function canUseSite(
  * (ventes, stock, achats, pertes — y compris journée ou caisse clôturée).
  */
 export function canManagePastVentes(role: UserRole): boolean {
-  return role === "gerant" || role === "admin";
+  return role === "gerant" || hasDirectionAccess(role);
 }
 
 /** Filtre Mongo / API : rien si « tous », sinon le site unique. */

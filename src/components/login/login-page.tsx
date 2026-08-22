@@ -16,12 +16,14 @@ import {
   UserIcon,
 } from "./login-icons";
 import { LoginShowcase } from "./login-showcase";
+import { useSession } from "@/components/session-provider";
 
 const REMEMBER_KEY = "kingfish-remember-user";
 
 export function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { refresh } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -71,6 +73,7 @@ export function LoginPage() {
       const target = isSafeInternalPath
         ? next
         : (body.home as string) || "/";
+      await refresh();
       router.replace(target);
       router.refresh();
     } catch (err) {

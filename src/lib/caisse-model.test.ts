@@ -85,18 +85,18 @@ describe("solde théorique", () => {
 
 describe("accès aux caisses", () => {
   it("réserve le coffre central à l'administrateur global", () => {
-    expect(canUseCaisse({ role: "vendeur", site: "tous" }, "centrale")).toBe(false);
-    expect(canUseCaisse({ role: "equipier", site: "zogbo" }, "centrale")).toBe(false);
     expect(canUseCaisse({ role: "gerant", site: "zogbo" }, "centrale")).toBe(false);
+    expect(canUseCaisse({ role: "comptable", site: "tous" }, "centrale")).toBe(false);
     expect(canUseCaisse({ role: "admin", site: "tous" }, "centrale")).toBe(true);
+    expect(canUseCaisse({ role: "daf", site: "tous" }, "centrale")).toBe(true);
     expect(canUseCaisse({ role: "admin", site: "zogbo" }, "centrale")).toBe(false);
   });
 
   it("limite un compte de zone à la caisse de sa zone", () => {
-    const vendeur = { role: "vendeur", site: "zogbo" } as const;
-    expect(canUseCaisse(vendeur, "zogbo")).toBe(true);
-    expect(canUseCaisse(vendeur, "gbegamey")).toBe(false);
-    expect(allowedCaisses(vendeur)).toEqual(["zogbo"]);
+    const gerant = { role: "gerant", site: "zogbo" } as const;
+    expect(canUseCaisse(gerant, "zogbo")).toBe(true);
+    expect(canUseCaisse(gerant, "gbegamey")).toBe(false);
+    expect(allowedCaisses(gerant)).toEqual(["zogbo"]);
   });
 
   it("ouvre les trois caisses à l'administrateur global", () => {
@@ -108,9 +108,9 @@ describe("accès aux caisses", () => {
   });
 
   it("arrive sur sa zone, ou sur le coffre pour un compte multi-sites", () => {
-    expect(defaultCaisse({ role: "vendeur", site: "gbegamey" })).toBe("gbegamey");
+    expect(defaultCaisse({ role: "gerant", site: "gbegamey" })).toBe("gbegamey");
     expect(defaultCaisse({ role: "admin", site: "tous" })).toBe("centrale");
-    expect(defaultCaisse({ role: "vendeur", site: "tous" })).toBe("gbegamey");
+    expect(defaultCaisse({ role: "comptable", site: "tous" })).toBe("gbegamey");
     expect(defaultCaisse({ role: "gerant", site: "zogbo" })).toBe("zogbo");
   });
 });

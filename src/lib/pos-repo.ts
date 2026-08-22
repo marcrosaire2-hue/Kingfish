@@ -204,7 +204,7 @@ export async function validatePosTicket(input: {
   // Réduction commerciale : argent qui sort du ticket — tout rôle qui encaisse.
   if (
     reductionRaw > 0 &&
-    !["gerant", "admin", "vendeur", "equipier"].includes(input.user.role)
+    !["gerant", "admin", "daf"].includes(input.user.role)
   ) {
     throw new Error("Réduction réservée aux comptes autorisés à encaisser.");
   }

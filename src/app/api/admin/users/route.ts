@@ -22,10 +22,9 @@ import {
 export const runtime = "nodejs";
 
 const ROLES: UserRole[] = [
-  "equipier",
-  "vendeur",
-  "cuisine",
   "gerant",
+  "comptable",
+  "daf",
   "admin",
 ];
 const SITES: UserSite[] = ["zogbo", "gbegamey", "tous"];

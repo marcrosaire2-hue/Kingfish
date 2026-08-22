@@ -129,6 +129,7 @@ select {
   color: var(--sidebar-text);
   border-right: none;
   box-sizing: border-box;
+  contain: layout style;
 }
 
 .sidebar-brand {
@@ -397,8 +398,10 @@ select {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 0.15rem 0.2rem 0.85rem;
   scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
 }
 
 .side-nav-item-wrap {
@@ -434,10 +437,8 @@ select {
   font-size: 1.08rem;
   border: 1px solid transparent;
   transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease,
-    box-shadow 0.15s ease;
+    background 0.12s ease,
+    color 0.12s ease;
 }
 
 .side-nav-link:hover {
@@ -454,13 +455,16 @@ select {
 }
 
 .side-nav-mark {
-  width: 1.85rem;
+  min-width: 1.85rem;
+  width: auto;
   height: 1.85rem;
+  padding: 0 0.28rem;
   border-radius: 9px;
   display: grid;
   place-items: center;
-  font-size: 0.82rem;
+  font-size: 0.68rem;
   font-weight: 700;
+  letter-spacing: -0.02em;
   background: rgba(255, 255, 255, 0.08);
   color: inherit;
   flex-shrink: 0;
@@ -669,6 +673,7 @@ select {
   min-width: 0;
   flex: 1;
   background: var(--paper);
+  position: relative;
 }
 
 .page-header {
@@ -3353,9 +3358,7 @@ select {
     transform: translate3d(-100%, 0, 0);
     visibility: hidden;
     pointer-events: none;
-    transition:
-      transform 0.2s ease,
-      visibility 0.2s ease;
+    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
     box-shadow: 12px 0 40px color-mix(in srgb, var(--ink) 28%, transparent);
   }
 
@@ -3374,7 +3377,7 @@ select {
     background: color-mix(in srgb, var(--ink) 45%, transparent);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.16s ease;
   }
 
   .app-shell.is-nav-open .sidebar-backdrop {
@@ -7507,6 +7510,105 @@ html.nav-open body {
   }
   50% {
     transform: scale(0.93);
+  }
+}
+
+/* Barre de progression discrète lors d'un changement de page */
+.page-nav-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  overflow: hidden;
+}
+
+.page-nav-progress::after {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 35%;
+  background: var(--accent);
+  transform: translateX(-120%);
+}
+
+.page-nav-progress.is-active {
+  opacity: 1;
+}
+
+.page-nav-progress.is-active::after {
+  animation: page-nav-progress 0.45s ease-out forwards;
+}
+
+@keyframes page-nav-progress {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.page-body-route.is-busy {
+  opacity: 0.72;
+  transition: opacity 0.15s ease;
+}
+
+.page-content-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.25rem 0;
+  animation: page-content-fade-in 0.2s ease;
+}
+
+.page-content-loading-line,
+.page-content-loading-block {
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--ink) 6%, var(--surface)) 0%,
+    color-mix(in srgb, var(--ink) 10%, var(--surface)) 50%,
+    color-mix(in srgb, var(--ink) 6%, var(--surface)) 100%
+  );
+  background-size: 200% 100%;
+  animation: page-content-shimmer 1.1s ease-in-out infinite;
+}
+
+.page-content-loading-line {
+  height: 0.85rem;
+  width: 55%;
+}
+
+.page-content-loading-line.short {
+  width: 38%;
+}
+
+.page-content-loading-block {
+  height: 8rem;
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+@keyframes page-content-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes page-content-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 

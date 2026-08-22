@@ -130,6 +130,10 @@ function toEntry(doc: ImmobilisationDoc): Immobilisation {
     depenseId: doc.depenseId ?? null,
     createdAt: doc.createdAt,
     updatedAt: doc.updatedAt,
+    dureeUtiliteAnnees:
+      doc.dureeUtiliteAnnees === null || doc.dureeUtiliteAnnees === undefined
+        ? null
+        : Math.max(1, Math.round(Number(doc.dureeUtiliteAnnees) || 0)),
   };
 }
 
@@ -170,6 +174,7 @@ export async function createImmobilisation(input: {
   date: string;
   site?: VenteSite | null;
   notes?: string;
+  dureeUtiliteAnnees?: number | null;
   user: SessionUser;
 }): Promise<Immobilisation> {
   const name = normalizeName(input.name);
@@ -195,6 +200,10 @@ export async function createImmobilisation(input: {
 
   const site =
     input.site === "zogbo" || input.site === "gbegamey" ? input.site : null;
+  const dureeUtiliteAnnees =
+    input.dureeUtiliteAnnees === null || input.dureeUtiliteAnnees === undefined
+      ? null
+      : Math.max(1, Math.round(Number(input.dureeUtiliteAnnees) || 0));
   const now = new Date().toISOString();
   const doc: ImmobilisationDoc = {
     _id: new ObjectId(),
@@ -213,6 +222,7 @@ export async function createImmobilisation(input: {
     acquisitionAmount: qty * cost,
     createdAt: now,
     updatedAt: now,
+    dureeUtiliteAnnees,
   };
 
   const db = await getDb();
@@ -239,6 +249,7 @@ export async function updateImmobilisation(input: {
   date?: string;
   site?: VenteSite | null;
   notes?: string;
+  dureeUtiliteAnnees?: number | null;
   user: SessionUser;
 }): Promise<Immobilisation> {
   if (!ObjectId.isValid(input.id)) throw new Error("Fiche introuvable.");
@@ -284,6 +295,12 @@ export async function updateImmobilisation(input: {
         ? null
         : Math.max(0, Math.round(Number(input.salePrice) || 0));
     patch.salePrice = price && price > 0 ? price : null;
+  }
+  if (input.dureeUtiliteAnnees !== undefined) {
+    patch.dureeUtiliteAnnees =
+      input.dureeUtiliteAnnees === null
+        ? null
+        : Math.max(1, Math.round(Number(input.dureeUtiliteAnnees) || 0));
   }
 
   // Dépense liée : reprise et régénérée si l'un des facteurs qui la

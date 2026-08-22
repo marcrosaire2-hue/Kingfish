@@ -45,7 +45,9 @@ type Acteur = { role: UserRole; site: UserSite };
  */
 export function canUseCaisse(user: Acteur, caisse: CaisseKey): boolean {
   if (caisse === "centrale") {
-    return user.role === "admin" && user.site === "tous";
+    return (
+      (user.role === "admin" || user.role === "daf") && user.site === "tous"
+    );
   }
   return user.site === "tous" || user.site === caisse;
 }

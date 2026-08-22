@@ -24,10 +24,9 @@ import { exportAdminUsersExcel } from "@/lib/page-exports";
 import { BrandLoader } from "@/components/brand-loader";
 
 const ALL_ROLES: UserRole[] = [
-  "equipier",
-  "vendeur",
-  "cuisine",
   "gerant",
+  "comptable",
+  "daf",
   "admin",
 ];
 
@@ -112,7 +111,7 @@ export function AdminPage() {
     username: "",
     name: "",
     password: "",
-    role: "equipier" as UserRole,
+    role: "gerant" as UserRole,
     shift: "jour" as UserShift,
     site: "gbegamey" as UserSite,
   });
@@ -140,7 +139,7 @@ export function AdminPage() {
         setActor(nextActor);
         setForm((f) => {
           const roles = rolesCreatableBy(nextActor);
-          const role = roles.includes(f.role) ? f.role : (roles[0] ?? "equipier");
+          const role = roles.includes(f.role) ? f.role : (roles[0] ?? "gerant");
           const sites = sitesCreatableBy(nextActor, role);
           const site = sites.includes(f.site)
             ? f.site
@@ -296,12 +295,12 @@ export function AdminPage() {
 
   const actorIsGlobal = actor ? isGlobalAdmin(actor) : true;
   const bulkExample = actorIsGlobal
-    ? "paul;Paul D.;Paul123;vendeur;zogbo\naya;Aya S.;Aya1234;admin;gbegamey\nsuper;Aide globale;Super123;admin;tous"
-    : `marie;Marie K.;Marie123;vendeur;${actor?.site ?? "gbegamey"}\nchef;Chef zone;Chef123;admin;${actor?.site ?? "gbegamey"}`;
+    ? "paul;Paul D.;Paul123;gerant;zogbo\naya;Aya S.;Aya1234;admin;gbegamey\nsuper;Aide globale;Super123;admin;tous"
+    : `marie;Marie K.;Marie123;gerant;${actor?.site ?? "gbegamey"}\nchef;Chef zone;Chef123;admin;${actor?.site ?? "gbegamey"}`;
 
   return (
     <AppShell
-      title="Administration"
+      title="Équipe"
       subtitle={
         actor
           ? actorIsGlobal
@@ -389,6 +388,10 @@ export function AdminPage() {
                         <span className="cell-sub">
                           {adminKindLabel(u.site)}
                         </span>
+                      ) : u.role === "daf" ? (
+                        <span className="cell-sub">{ROLE_LABELS.daf}</span>
+                      ) : u.role === "comptable" ? (
+                        <span className="cell-sub">{ROLE_LABELS.comptable}</span>
                       ) : null}
                     </td>
                     <td>{u.name}</td>
@@ -588,7 +591,9 @@ export function AdminPage() {
                 <span>
                   {form.role === "admin"
                     ? "Périmètre admin"
-                    : "Site de rattachement"}
+                    : form.role === "daf" || form.role === "comptable"
+                      ? "Périmètre"
+                      : "Site de rattachement"}
                 </span>
                 <select
                   className="select-input"
@@ -635,9 +640,13 @@ export function AdminPage() {
                 ? form.site === "tous"
                   ? "Admin global : Zogbo + Gbégamey. Équipe « Hors équipe » pour l’encadrement."
                   : `Admin de zone : ${SITE_LABELS[form.site]} uniquement.`
-                : form.site === "tous"
-                  ? "Accès aux deux zones — ventes créditées à l’équipe choisie."
-                  : `${SITE_LABELS[form.site]} — ventes créditées à l’équipe choisie.`}
+                : form.role === "daf"
+                  ? "DAF : mêmes droits opérationnels sur les deux sites, sans gestion des comptes. Peut être retiré par un administrateur."
+                  : form.role === "comptable"
+                    ? "Comptable : résultat, journal comptable, journaux et registre — sans vente ni gestion des comptes."
+                  : form.site === "tous"
+                    ? "Accès aux deux zones — ventes créditées à l’équipe choisie."
+                    : `${SITE_LABELS[form.site]} — ventes créditées à l’équipe choisie.`}
             </p>
             <div className="admin-form-actions">
               <button
@@ -681,7 +690,9 @@ export function AdminPage() {
         )}
 
         <div className="admin-legend">
-          <span className="admin-legend-chip">Vendeur / Cuisine / Gérant → site</span>
+          <span className="admin-legend-chip">Gérant → un site</span>
+          <span className="admin-legend-chip">Comptable → les deux sites (finance)</span>
+          <span className="admin-legend-chip">DAF → les deux sites (sans Équipe)</span>
           <span className="admin-legend-chip">Admin zone → Zogbo ou Gbégamey</span>
           <span className="admin-legend-chip">Admin global → les deux sites</span>
         </div>

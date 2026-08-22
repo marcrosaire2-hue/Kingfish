@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SessionUser } from "@/lib/auth-types";
-import { canManageUsers, effectiveSite } from "@/lib/auth-types";
+import { canManageUsers, effectiveSite, hasFinanceAccess } from "@/lib/auth-types";
 import { reportError } from "@/lib/report-error";
 import { getSessionUser } from "@/lib/session";
 
@@ -15,9 +15,10 @@ export async function requireUser(): Promise<SessionUser> {
   };
 }
 
+/** Admin, DAF ou comptable — écrans / API financiers et de direction. */
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
-  if (user.role !== "admin") {
+  if (!hasFinanceAccess(user.role)) {
     throw new AuthError("Accès administrateur requis", 403);
   }
   return user;

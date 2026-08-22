@@ -17,6 +17,12 @@ import {
 import { formatActorLabel, HISTORIQUE_KIND_LABELS } from "@/lib/historique-types";
 import type { HistoriqueEvent } from "@/lib/historique-types";
 import type {
+  CompteGrandLivre,
+  EcritureComptable,
+  LigneBalance,
+} from "@/lib/journal-comptable-calc";
+import type { Bilan } from "@/lib/bilan-repo";
+import type {
   BaseDish,
   BoissonsDay,
   CaisseKey,
@@ -1104,4 +1110,183 @@ export function exportJournalStockExcel(input: {
 
 export type JournalStockRow = JournalRow;
 export type JournalStockBalanceRow = JournalBalanceRow;
+
+/**
+ * Journal comptable (débit/crédit). Le mapping vers les comptes SYSCOHADA est
+ * une proposition par défaut : les lignes « à reclasser » et les anomalies
+ * sont mises en avant pour qu'un expert-comptable les valide avant tout usage
+ * fiscal ou légal — voir la feuille « Points d'attention ».
+ */
+export function exportJournalComptableExcel(input: {
+  from: string;
+  to: string;
+  ecritures: EcritureComptable[];
+  totalDebit: number;
+  totalCredit: number;
+  equilibre: boolean;
+  anomalies: { date: string; message: string }[];
+  pertesExclues: { montant: number; note: string };
+}): void {
+  const sheets: ExcelSheet[] = [
+    {
+      name: "Résumé",
+      rows: [
+        {
+          Du: input.from,
+          Au: input.to,
+          "Total débit (FCFA)": input.totalDebit,
+          "Total crédit (FCFA)": input.totalCredit,
+          Équilibré: input.equilibre ? "Oui" : "NON — à corriger",
+          "Pertes exclues (FCFA)": input.pertesExclues.montant,
+        },
+      ],
+    },
+    {
+      name: "Journal",
+      totals: ["Débit", "Crédit"],
+      rows: input.ecritures.map((e) => ({
+        Date: e.date,
+        Pièce: e.piece,
+        Compte: e.compte,
+        "Libellé compte": e.compteLibelle,
+        Libellé: e.libelle,
+        Débit: e.debit || "",
+        Crédit: e.credit || "",
+        "À vérifier": e.confiant ? "" : "oui",
+      })),
+    },
+    {
+      name: "Points d'attention",
+      rows: [
+        ...input.anomalies.map((a) => ({
+          Date: a.date,
+          Type: "Anomalie",
+          Message: a.message,
+        })),
+        {
+          Date: `${input.from} → ${input.to}`,
+          Type: "Pertes",
+          Message: input.pertesExclues.note,
+        },
+        {
+          Date: "—",
+          Type: "Rappel",
+          Message:
+            "Le mapping comptes/opérations est un défaut à faire valider par un expert-comptable avant toute déclaration.",
+        },
+      ],
+    },
+  ];
+  downloadExcel(excelFilename("journal-comptable", input.from, input.to), sheets);
+}
+
+/** Grand livre : mêmes écritures que le journal, groupées par compte. */
+export function exportGrandLivreExcel(input: {
+  from: string;
+  to: string;
+  comptes: CompteGrandLivre[];
+}): void {
+  const rows: Record<string, string | number>[] = [];
+  for (const c of input.comptes) {
+    for (const m of c.mouvements) {
+      rows.push({
+        Compte: c.compte,
+        "Libellé compte": c.compteLibelle,
+        Date: m.date,
+        Pièce: m.piece,
+        Libellé: m.libelle,
+        Débit: m.debit || "",
+        Crédit: m.credit || "",
+        Solde: m.solde,
+      });
+    }
+    rows.push({
+      Compte: c.compte,
+      "Libellé compte": `Total ${c.compteLibelle}`,
+      Date: "",
+      Pièce: "",
+      Libellé: "",
+      Débit: c.totalDebit,
+      Crédit: c.totalCredit,
+      Solde: c.soldeFinal,
+    });
+  }
+  downloadExcel(excelFilename("grand-livre", input.from, input.to), [
+    { name: "Grand livre", rows },
+  ]);
+}
+
+/** Balance générale : un total par compte. */
+export function exportBalanceExcel(input: {
+  from: string;
+  to: string;
+  lignes: LigneBalance[];
+}): void {
+  const sheets: ExcelSheet[] = [
+    {
+      name: "Balance",
+      totals: ["Débit", "Crédit", "Solde débiteur", "Solde créditeur"],
+      rows: input.lignes.map((l) => ({
+        Compte: l.compte,
+        "Libellé compte": l.compteLibelle,
+        Débit: l.debit,
+        Crédit: l.credit,
+        "Solde débiteur": l.soldeDebiteur || "",
+        "Solde créditeur": l.soldeCrediteur || "",
+      })),
+    },
+  ];
+  downloadExcel(excelFilename("balance-generale", input.from, input.to), sheets);
+}
+
+/**
+ * Bilan simplifié. Les postes marqués « non fiable » (capital, stocks,
+ * créances, dettes) sont à 0 par construction — l'application ne les tient
+ * pas — d'où l'écart affiché tant qu'un expert-comptable ne les a pas fournis.
+ */
+export function exportBilanExcel(bilan: Omit<Bilan, "balance">): void {
+  const sheets: ExcelSheet[] = [
+    {
+      name: "Bilan",
+      rows: [
+        { Colonne: "ACTIF", Poste: "", "Montant (FCFA)": "", Note: "" },
+        ...bilan.actif.map((l) => ({
+          Colonne: "",
+          Poste: l.libelle,
+          "Montant (FCFA)": l.montant,
+          Note: l.fiable ? "" : l.note ?? "à vérifier",
+        })),
+        {
+          Colonne: "",
+          Poste: "Total actif",
+          "Montant (FCFA)": bilan.totalActif,
+          Note: "",
+        },
+        { Colonne: "PASSIF", Poste: "", "Montant (FCFA)": "", Note: "" },
+        ...bilan.passif.map((l) => ({
+          Colonne: "",
+          Poste: l.libelle,
+          "Montant (FCFA)": l.montant,
+          Note: l.fiable ? "" : l.note ?? "à vérifier",
+        })),
+        {
+          Colonne: "",
+          Poste: "Total passif",
+          "Montant (FCFA)": bilan.totalPassif,
+          Note: "",
+        },
+        {
+          Colonne: "",
+          Poste: "Écart (actif − passif)",
+          "Montant (FCFA)": bilan.ecart,
+          Note: bilan.equilibre
+            ? "Équilibré"
+            : "Déséquilibré tant que le capital et les autres postes non suivis ne sont pas renseignés par le comptable.",
+        },
+      ],
+    },
+  ];
+  downloadExcel(excelFilename("bilan", bilan.asOf), sheets);
+}
+
 export type JournalStockTotals = JournalTotals;
