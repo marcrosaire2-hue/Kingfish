@@ -70,6 +70,9 @@ function valeurNette(item: Immobilisation, asOf: string): number {
  * denrées périssables à faible valeur résiduelle, déjà couvertes côté risque
  * par le suivi des Pertes — les capitaliser ajouterait une hypothèse fragile
  * pour un montant qui reste marginal.
+ *
+ * Les emballages sont ajoutés à part par l'appelant (`buildBilan`) : ce sont
+ * des fiches Immobilisations, pas des lignes matières/boissons.
  */
 async function valeurStockMatieresBoissons(asOf: string): Promise<number> {
   const [matieres, boissons] = await Promise.all([
@@ -124,16 +127,25 @@ export async function buildBilan(input: {
   const balance = balanceGenerale(journal.ecritures);
   const resultatAvantStock = resultatNetDeBalance(balance);
 
-  // Variation de stock : les achats de matières sont déjà passés en charge à
-  // 100% dès l'achat (compte 601). Sans correction, capitaliser le stock
-  // restant à l'actif surestimerait le patrimoine sans alléger la charge en
-  // face. `ORIGINE` étant antérieure à toute donnée réelle de l'application,
-  // le stock à cette date est nécessairement nul — la variation cumulée
-  // depuis l'origine est donc exactement la valeur du stock actuel, ajoutée
-  // au résultat (elle réduit d'autant la charge d'achats réellement
-  // consommée sur la période).
+  // Les emballages sont un stock consommable (quantité qui baisse à la vente
+  // ou à la perte), pas un actif durable amortissable comme les « actifs »
+  // (matériel, mobilier) — ils rejoignent donc la valorisation du stock au
+  // lieu de la ligne Immobilisations. Toujours en valeur brute : un
+  // emballage ne s'amortit pas, il se consomme.
+  const actifsImmobilises = immobilisations.filter((i) => i.kind === "actif");
+  const emballages = immobilisations.filter((i) => i.kind === "emballage");
+  const valeurEmballages = emballages.reduce((s, i) => s + i.qty * i.cost, 0);
+
+  // Variation de stock : les achats de matières (et d'emballages) sont déjà
+  // passés en charge à 100% dès l'achat. Sans correction, capitaliser le
+  // stock restant à l'actif surestimerait le patrimoine sans alléger la
+  // charge en face. `ORIGINE` étant antérieure à toute donnée réelle de
+  // l'application, le stock à cette date est nécessairement nul — la
+  // variation cumulée depuis l'origine est donc exactement la valeur du
+  // stock actuel, ajoutée au résultat (elle réduit d'autant la charge
+  // réellement consommée sur la période).
   const stockValorise = parametres.modules.stock
-    ? await valeurStockMatieresBoissons(input.asOf)
+    ? (await valeurStockMatieresBoissons(input.asOf)) + valeurEmballages
     : 0;
   const resultat = resultatAvantStock + Math.round(stockValorise);
 
@@ -154,8 +166,8 @@ export async function buildBilan(input: {
   ];
 
   if (parametres.modules.amortissements) {
-    const sansDuree = immobilisations.filter((i) => !i.dureeUtiliteAnnees);
-    const valeurNetteTotale = immobilisations.reduce(
+    const sansDuree = actifsImmobilises.filter((i) => !i.dureeUtiliteAnnees);
+    const valeurNetteTotale = actifsImmobilises.reduce(
       (s, i) => s + valeurNette(i, input.asOf),
       0,
     );
@@ -166,10 +178,10 @@ export async function buildBilan(input: {
       note:
         sansDuree.length > 0
           ? `${sansDuree.length} fiche(s) sans durée d'utilité renseignée, comptée(s) en valeur brute : ${sansDuree.map((i) => i.name).join(", ")}.`
-          : undefined,
+          : "Emballages exclus de cette ligne : comptés en Stocks (consommables, non amortissables).",
     });
   } else {
-    const immobilisationsBrutes = immobilisations.reduce(
+    const immobilisationsBrutes = actifsImmobilises.reduce(
       (s, i) => s + i.qty * i.cost,
       0,
     );
@@ -177,23 +189,23 @@ export async function buildBilan(input: {
       libelle: "Immobilisations (valeur brute — amortissements non activés)",
       montant: Math.round(immobilisationsBrutes),
       fiable: false,
-      note: "Module Amortissements désactivé : à activer par le compte direction (marc) pour une valeur nette.",
+      note: "Module Amortissements désactivé : à activer par le compte direction (marc) pour une valeur nette. Emballages exclus de cette ligne : comptés en Stocks.",
     });
   }
 
   actif.push(
     parametres.modules.stock
       ? {
-          libelle: "Stocks (matières premières, boissons)",
+          libelle: "Stocks (matières premières, boissons, emballages)",
           montant: Math.round(stockValorise),
           fiable: true,
-          note: "Plats et accompagnements préparés exclus (denrées périssables, valeur résiduelle marginale, déjà couverte par le suivi des Pertes). Résultat ajusté de la variation de stock en contrepartie (compte 603).",
+          note: `Plats et accompagnements préparés exclus (denrées périssables, valeur résiduelle marginale, déjà couverte par le suivi des Pertes). Inclut les emballages (${Math.round(valeurEmballages)} FCFA) : consommables liés au stock, pas des immobilisations amortissables. Résultat ajusté de la variation de stock en contrepartie (compte 603).`,
         }
       : {
-          libelle: "Stocks (matières, boissons)",
+          libelle: "Stocks (matières, boissons, emballages)",
           montant: 0,
           fiable: false,
-          note: "Module Stock désactivé : à activer par le compte direction (marc). Les achats restent alors passés en charge intégralement à l'acquisition, sans capitalisation du stock restant.",
+          note: "Module Stock désactivé : à activer par le compte direction (marc). Les achats (dont les emballages) restent alors passés en charge intégralement à l'acquisition, sans capitalisation du stock restant.",
         },
   );
 
