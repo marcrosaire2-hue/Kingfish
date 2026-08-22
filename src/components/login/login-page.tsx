@@ -1,108 +1,23 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { APP_LOGO, APP_NAME, APP_SITES_LABEL } from "@/lib/brand";
+import {
+  APP_LOGO,
+  APP_SHORT,
+  APP_TAGLINE,
+} from "@/lib/brand";
+import {
+  EyeIcon,
+  LockIcon,
+  ShieldIcon,
+  Spinner,
+  SubmitArrowIcon,
+  UserIcon,
+} from "./login-icons";
+import { LoginShowcase } from "./login-showcase";
 
-function EyeIcon({ open }: { open: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-      <path
-        d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <circle
-        cx="12"
-        cy="12"
-        r="3"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-      />
-      {open ? null : (
-        <path
-          d="m4 20 16-16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.7"
-          strokeLinecap="round"
-        />
-      )}
-    </svg>
-  );
-}
-
-function LockIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-      <rect
-        x="4.5"
-        y="10.5"
-        width="15"
-        height="9.5"
-        rx="2.2"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-      />
-      <path
-        d="M7.5 10.5V7.8a4.5 4.5 0 0 1 9 0v2.7"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-      />
-      <circle cx="12" cy="15" r="1.3" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function PinIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-      <path
-        d="M12 21s7-6.4 7-11.8A7 7 0 0 0 5 9.2C5 14.6 12 21 12 21Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        strokeLinejoin="round"
-      />
-      <circle cx="12" cy="9.3" r="2.3" fill="none" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
-}
-
-function Spinner() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden focusable="false" className="login-spinner">
-      <circle
-        cx="12"
-        cy="12"
-        r="9"
-        fill="none"
-        stroke="currentColor"
-        strokeOpacity="0.28"
-        strokeWidth="2.6"
-      />
-      <path
-        d="M21 12a9 9 0 0 0-9-9"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
-/* Le dernier mot du nom passe en graisse légère (« King Fish Manager »). */
-const NAME_WORDS = APP_NAME.trim().split(" ");
-const NAME_HEAD = NAME_WORDS.slice(0, -1).join(" ");
-const NAME_TAIL = NAME_WORDS.length > 1 ? NAME_WORDS[NAME_WORDS.length - 1] : "";
+const REMEMBER_KEY = "kingfish-remember-user";
 
 export function LoginPage() {
   const router = useRouter();
@@ -110,11 +25,25 @@ export function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(REMEMBER_KEY);
+      if (saved) {
+        setUsername(saved);
+        setRemember(true);
+      }
+    } catch {
+      /* stockage indisponible */
+    }
+  }, []);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setError(null);
     try {
@@ -125,6 +54,14 @@ export function LoginPage() {
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Connexion impossible");
+
+      try {
+        if (remember) localStorage.setItem(REMEMBER_KEY, username.trim());
+        else localStorage.removeItem(REMEMBER_KEY);
+      } catch {
+        /* stockage indisponible */
+      }
+
       const next = searchParams.get("next");
       const target =
         next && next.startsWith("/")
@@ -141,100 +78,147 @@ export function LoginPage() {
 
   return (
     <div className="login-screen">
-      <div className="login-shell">
-        <div className="login-brand">
-          <span className="login-logo-ring">
-            <img
-              src={APP_LOGO}
-              alt=""
-              className="login-logo"
-              width={96}
-              height={96}
-            />
-          </span>
-          <p className="login-appname">
-            <strong>{NAME_HEAD}</strong>
-            {NAME_TAIL ? <span>{NAME_TAIL}</span> : null}
-          </p>
-          <p className="login-sites">
-            <PinIcon />
-            {APP_SITES_LABEL}
-          </p>
-        </div>
+      <div className="login-layout">
+        <section className="login-panel login-panel-form" aria-label="Connexion">
+          <div className="login-form-card">
+            <div className="login-form-wrap">
+            <header className="login-form-head">
+              <img
+                src={APP_LOGO}
+                alt=""
+                className="login-form-logo"
+                width={64}
+                height={64}
+              />
+              <p className="login-welcome">Bienvenue sur</p>
+              <h1 className="login-title">
+                {APP_SHORT}{" "}
+                <span className="login-title-accent">Manager</span>
+              </h1>
+              <p className="login-tagline">{APP_TAGLINE}</p>
+              <p className="login-secure-badge">
+                <ShieldIcon />
+                Accès sécurisé
+              </p>
+            </header>
 
-        <form className="login-form" onSubmit={onSubmit}>
-          {error ? (
-            <p className="login-error" role="alert">
-              <span className="login-error-mark" aria-hidden>
-                !
-              </span>
-              {error}
+            <form className="login-form" onSubmit={onSubmit} noValidate>
+              {error ? (
+                <p className="login-error" role="alert" id="login-error">
+                  <span className="login-error-mark" aria-hidden>
+                    !
+                  </span>
+                  {error}
+                </p>
+              ) : null}
+
+              <label className="login-field login-field-icon">
+                <span className="login-label">Identifiant</span>
+                <span className="login-field-leading" aria-hidden>
+                  <UserIcon />
+                </span>
+                <input
+                  name="username"
+                  placeholder="Votre identifiant"
+                  autoComplete="username"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="next"
+                  autoFocus
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  required
+                  disabled={loading}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "login-error" : undefined}
+                />
+              </label>
+
+              <label className="login-field login-field-icon login-password">
+                <span className="login-label">Mot de passe</span>
+                <span className="login-field-leading" aria-hidden>
+                  <LockIcon />
+                </span>
+                <input
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  placeholder="Votre mot de passe"
+                  autoComplete="current-password"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  enterKeyHint="go"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  disabled={loading}
+                  aria-invalid={error ? true : undefined}
+                  aria-describedby={error ? "login-error" : undefined}
+                />
+                <button
+                  type="button"
+                  className="login-reveal"
+                  onClick={() => setShowPassword((v) => !v)}
+                  disabled={loading}
+                  aria-label={
+                    showPassword
+                      ? "Masquer le mot de passe"
+                      : "Afficher le mot de passe"
+                  }
+                  aria-pressed={showPassword}
+                >
+                  <EyeIcon open={showPassword} />
+                </button>
+              </label>
+
+              <div className="login-form-options">
+                <label className="login-remember">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    disabled={loading}
+                  />
+                  Se souvenir de moi
+                </label>
+                <span
+                  className="login-forgot"
+                  role="note"
+                  title="Fonctionnalité à venir — contactez votre administrateur."
+                >
+                  Mot de passe oublié ?
+                </span>
+              </div>
+
+              <button
+                type="submit"
+                className="btn login-submit"
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <Spinner />
+                    Connexion en cours…
+                  </>
+                ) : (
+                  <>
+                    Se connecter
+                    <SubmitArrowIcon />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <p className="login-foot">
+              <LockIcon />
+              Accès réservé au personnel
             </p>
-          ) : null}
+          </div>
+          </div>
+        </section>
 
-          <label className="login-field">
-            <span className="login-label">Identifiant</span>
-            <input
-              name="username"
-              placeholder="Identifiant"
-              autoComplete="username"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              enterKeyHint="next"
-              autoFocus
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </label>
-
-          <label className="login-field login-password">
-            <span className="login-label">Mot de passe</span>
-            <input
-              name="password"
-              type={showPassword ? "text" : "password"}
-              placeholder="Mot de passe"
-              autoComplete="current-password"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              enterKeyHint="go"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <button
-              type="button"
-              className="login-reveal"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={
-                showPassword
-                  ? "Masquer le mot de passe"
-                  : "Afficher le mot de passe"
-              }
-              aria-pressed={showPassword}
-            >
-              <EyeIcon open={showPassword} />
-            </button>
-          </label>
-
-          <button type="submit" className="btn login-submit" disabled={loading}>
-            {loading ? (
-              <>
-                <Spinner />
-                Connexion en cours…
-              </>
-            ) : (
-              "Se connecter"
-            )}
-          </button>
-        </form>
-
-        <p className="login-foot">
-          <LockIcon />
-          Accès réservé au personnel
-        </p>
+        <LoginShowcase />
       </div>
     </div>
   );

@@ -71,6 +71,7 @@ export function RegularisationPage() {
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
   /** Articles accumulés avant validation groupée en une seule facture. */
   const [panier, setPanier] = useState<PanierLine[]>([]);
+  const [reduction, setReduction] = useState("0");
 
   const products = useMemo(() => {
     if (!board) return [];
@@ -204,6 +205,11 @@ export function RegularisationPage() {
   }
 
   const panierTotal = panier.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+  const reductionN = Math.max(
+    0,
+    Math.min(panierTotal, Math.round(Number(reduction) || 0)),
+  );
+  const panierNet = panierTotal - reductionN;
 
   /** Valide toutes les lignes accumulées d'un coup, sur une seule facture. */
   async function validerFacture() {
@@ -223,6 +229,7 @@ export function RegularisationPage() {
           date,
           site,
           saleType,
+          reduction: reductionN,
           lines: panier.map(({ kind: k, productId, name, qty: q, unitPrice }) => ({
             kind: k,
             productId,
@@ -238,6 +245,7 @@ export function RegularisationPage() {
         `Facture enregistrée · ticket ${body.ticket?.numero ?? ""} · ${panier.length} article${panier.length > 1 ? "s" : ""}`,
       );
       setPanier([]);
+      setReduction("0");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Enregistrement impossible");
@@ -621,9 +629,27 @@ export function RegularisationPage() {
                       </li>
                     ))}
                   </ul>
+                  <label className="date-field reg-field-full">
+                    <span>Réduction commerciale (FCFA)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      max={panierTotal}
+                      value={reduction}
+                      onChange={(e) => setReduction(e.target.value)}
+                    />
+                  </label>
+                  {reductionN > 0 ? (
+                    <p className="reg-panier-total muted">
+                      Sous-total :{" "}
+                      <strong className="mono">{formatFcfa(panierTotal)}</strong>
+                      {" · "}Réduction :{" "}
+                      <strong className="mono">−{formatFcfa(reductionN)}</strong>
+                    </p>
+                  ) : null}
                   <p className="reg-panier-total">
                     Total :{" "}
-                    <strong className="mono">{formatFcfa(panierTotal)}</strong>
+                    <strong className="mono">{formatFcfa(panierNet)}</strong>
                   </p>
                   <button
                     type="button"

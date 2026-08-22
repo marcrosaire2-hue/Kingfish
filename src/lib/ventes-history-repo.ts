@@ -35,6 +35,13 @@ export type VenteHistoryTicket = {
   client: string | null;
   table: string | null;
   lines: VenteHistoryLine[];
+  /**
+   * id réel du ticket POS (pos_tickets), pour l'annuler — `null` pour les
+   * tickets synthétisés depuis ventes_log (carnets, devis, imports), qui
+   * peuvent regrouper plusieurs documents indépendants sans identifiant
+   * d'annulation unique.
+   */
+  ticketId: string | null;
 };
 
 export type VenteHistoryFilters = {
@@ -179,6 +186,7 @@ function ticketsFromVentesLog(
       client: null,
       table: null,
       lines,
+      ticketId: null,
     };
 
     if (serveurF && (!serveur || !matchesText(serveur, serveurF))) continue;
@@ -286,6 +294,7 @@ export async function listVentesHistory(
         client: (d.clientNom as string) || null,
         table: (d.tableLabel as string) || null,
         lines,
+        ticketId: String(d._id),
       };
 
       if (q) {
@@ -405,6 +414,7 @@ export async function listVentesHistory(
           client: (d.nomclient as string) || null,
           table: (d.table as string) || null,
           lines,
+          ticketId: null,
         };
 
         if (q) {
@@ -472,6 +482,8 @@ export type JournalVenteLine = {
   qty: number;
   unitPrice: number;
   montant: number;
+  /** id du ticket POS pour annulation — `null` si non annulable d'ici. */
+  ticketId: string | null;
 };
 
 export type JournalVenteDay = {
@@ -534,6 +546,7 @@ export async function listJournalVentes(
         qty: l.qty,
         unitPrice: l.unitPrice,
         montant: l.amount,
+        ticketId: t.ticketId,
       });
       day.nbLignes += 1;
       if (t.statut === "valide") day.montant += l.amount;
@@ -598,6 +611,7 @@ export async function getVenteHistoryTicket(
           amount: Number(l.amount) || 0,
         }),
       ),
+      ticketId: raw,
     };
   }
   if (id.startsWith("aqua-")) {
@@ -636,6 +650,7 @@ export async function getVenteHistoryTicket(
           amount: Number(l.amount) || 0,
         }),
       ),
+      ticketId: null,
     };
   }
   return null;

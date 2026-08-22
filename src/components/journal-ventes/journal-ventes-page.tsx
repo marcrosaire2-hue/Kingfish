@@ -12,6 +12,7 @@ import {
 } from "@/lib/page-exports";
 import type {
   JournalVenteDay,
+  JournalVenteLine,
   JournalVenteResult,
 } from "@/lib/ventes-history-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -73,6 +74,8 @@ export function JournalVentesPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
+  const [busyTicketId, setBusyTicketId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -155,6 +158,41 @@ export function JournalVentesPage() {
       setError(e instanceof Error ? e.message : "Erreur d'export");
     } finally {
       setExporting(false);
+    }
+  }
+
+  /** Annule le ticket entier lié à cette ligne — retrouvé via son ticketId. */
+  async function annulerTicket(l: JournalVenteLine) {
+    if (!l.ticketId) return;
+    if (
+      !window.confirm(
+        `Annuler le ticket ${l.numero} (${formatFcfa(l.montant)}) ?\nToutes ses lignes seront annulées et le stock repris.`,
+      )
+    ) {
+      return;
+    }
+    setBusyTicketId(l.ticketId);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/pos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel",
+          id: l.ticketId,
+          date: l.date,
+          site: l.site,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Annulation impossible");
+      setFlash(`Ticket ${l.numero} annulé.`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Annulation impossible");
+    } finally {
+      setBusyTicketId(null);
     }
   }
 
@@ -316,6 +354,11 @@ export function JournalVentesPage() {
           {error}
         </p>
       ) : null}
+      {flash ? (
+        <p className="ui-info" role="status">
+          {flash}
+        </p>
+      ) : null}
 
       {loading ? <BrandLoader variant="ligne" label="Chargement du journal…" /> : null}
 
@@ -330,6 +373,8 @@ export function JournalVentesPage() {
               day={day}
               formatHeure={formatHeure}
               siteLabel={siteLabel}
+              busyTicketId={busyTicketId}
+              onCancel={(l) => void annulerTicket(l)}
             />
           ))
         : null}
@@ -341,10 +386,14 @@ function JournalDayBlock({
   day,
   formatHeure,
   siteLabel,
+  busyTicketId,
+  onCancel,
 }: {
   day: JournalVenteDay;
   formatHeure: (iso: string) => string;
   siteLabel: (site: string) => string;
+  busyTicketId: string | null;
+  onCancel: (line: JournalVenteLine) => void;
 }) {
   return (
     <div className="panel panel-wide jv-day">
@@ -379,6 +428,7 @@ function JournalDayBlock({
                 Montant
               </th>
               <th scope="col">Statut</th>
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -409,6 +459,20 @@ function JournalDayBlock({
                     {l.statutLabel}
                   </span>
                 </td>
+                <td>
+                  {l.statut === "valide" && l.ticketId ? (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={busyTicketId === l.ticketId}
+                      onClick={() => onCancel(l)}
+                    >
+                      {busyTicketId === l.ticketId ? "…" : "Annuler"}
+                    </button>
+                  ) : (
+                    "—"
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -420,7 +484,7 @@ function JournalDayBlock({
               <td className="mono col-money">{day.nbLignes}</td>
               <td colSpan={1} />
               <td className="mono col-money">{formatFcfa(day.montant)}</td>
-              <td colSpan={1} />
+              <td colSpan={2} />
             </tr>
           </tfoot>
         </table>
