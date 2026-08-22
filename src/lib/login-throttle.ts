@@ -34,12 +34,19 @@ function keyFor(username: string, ip: string): string {
   return `${username.trim().toLowerCase()}|${ip}`;
 }
 
-/** IP de l’appelant derrière le proxy Render (x-forwarded-for : client, proxy…). */
+/**
+ * IP de l’appelant derrière le proxy Render. Le client peut envoyer son
+ * propre en-tête X-Forwarded-For ; un proxy de confiance ajoute la vraie IP
+ * en dernier plutôt que de remplacer ce que le client a fourni. Ne jamais
+ * faire confiance au premier maillon (falsifiable, casserait le
+ * anti-bruteforce) — seul le dernier, posé par notre propre proxy, est fiable.
+ */
 export function clientIpFrom(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
+    const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);
+    const last = parts[parts.length - 1];
+    if (last) return last;
   }
   return request.headers.get("x-real-ip")?.trim() || "inconnue";
 }

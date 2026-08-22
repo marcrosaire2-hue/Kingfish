@@ -563,6 +563,12 @@ export async function listJournalVentes(
     a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
   );
 
+  for (const d of days) {
+    d.lines.sort((a, b) =>
+      a.at === b.at ? a.produit.localeCompare(b.produit) : a.at < b.at ? -1 : 1,
+    );
+  }
+
   const totals = { count: 0, montant: 0, valide: 0, annule: 0, encours: 0 };
   for (const d of days) {
     totals.count += d.nbTickets;

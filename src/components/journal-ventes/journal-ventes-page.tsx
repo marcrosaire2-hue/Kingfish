@@ -36,7 +36,7 @@ function formatDateLong(iso: string): string {
   }
 }
 
-function formatHeure(iso: string): string {
+function formatHeureOnly(iso: string): string {
   try {
     return new Intl.DateTimeFormat("fr-FR", {
       hour: "2-digit",
@@ -543,7 +543,7 @@ export function JournalVentesPage() {
             <JournalDayBlock
               key={day.date}
               day={day}
-              formatHeure={formatHeure}
+              formatHeure={formatHeureOnly}
               siteLabel={siteLabel}
               busyTicketId={busyTicketId}
               busyLineId={busyLineId}
@@ -582,23 +582,9 @@ function JournalDayBlock({
   onDeleteLine: (line: JournalVenteLine) => void;
   onDeleteTicket: (line: JournalVenteLine) => void;
 }) {
-  const plats = day.lines.filter((l) => venteCategory(l.kind) === "plat");
-  const accompagnements = day.lines.filter(
-    (l) => venteCategory(l.kind) === "accompagnement",
-  );
-  const boissons = day.lines.filter((l) => venteCategory(l.kind) === "boisson");
-  const autres = day.lines.filter((l) => venteCategory(l.kind) === "autre");
-
   const dayPlats = sumCategoryLines(day.lines, "plat");
   const dayAcc = sumCategoryLines(day.lines, "accompagnement");
   const dayBoissons = sumCategoryLines(day.lines, "boisson");
-
-  const groups: { title: string; lines: JournalVenteLine[] }[] = [
-    { title: "Plats", lines: plats },
-    { title: "Accompagnements", lines: accompagnements },
-    { title: "Boissons", lines: boissons },
-    { title: "Autres articles", lines: autres },
-  ];
 
   return (
     <div className="panel panel-wide jv-day">
@@ -625,28 +611,23 @@ function JournalDayBlock({
           <strong className="mono">{formatFcfa(dayBoissons.montant)}</strong>
         </span>
       </div>
-      {groups.map((g) => (
-        <JournalLinesTable
-          key={g.title}
-          title={g.title}
-          lines={g.lines}
-          formatHeure={formatHeure}
-          siteLabel={siteLabel}
-          busyTicketId={busyTicketId}
-          busyLineId={busyLineId}
-          canManagePast={canManagePast}
-          onCancel={onCancel}
-          onEdit={onEdit}
-          onDeleteLine={onDeleteLine}
-          onDeleteTicket={onDeleteTicket}
-        />
-      ))}
+      <JournalLinesTable
+        lines={day.lines}
+        formatHeure={formatHeure}
+        siteLabel={siteLabel}
+        busyTicketId={busyTicketId}
+        busyLineId={busyLineId}
+        canManagePast={canManagePast}
+        onCancel={onCancel}
+        onEdit={onEdit}
+        onDeleteLine={onDeleteLine}
+        onDeleteTicket={onDeleteTicket}
+      />
     </div>
   );
 }
 
 function JournalLinesTable({
-  title,
   lines,
   formatHeure,
   siteLabel,
@@ -658,7 +639,6 @@ function JournalLinesTable({
   onDeleteLine,
   onDeleteTicket,
 }: {
-  title: string;
   lines: JournalVenteLine[];
   formatHeure: (iso: string) => string;
   siteLabel: (site: string) => string;
@@ -683,12 +663,6 @@ function JournalLinesTable({
 
   return (
     <div className="jv-group">
-      <h3 className="jv-group-title">
-        {title}
-        <span className="jv-day-head-count">
-          {lines.length} ligne{lines.length > 1 ? "s" : ""}
-        </span>
-      </h3>
       <div className="table-scroll">
         <table className="data-table jv-table">
           <thead>
@@ -696,6 +670,7 @@ function JournalLinesTable({
               <th scope="col">Heure</th>
               <th scope="col">Ticket</th>
               <th scope="col">Site</th>
+              <th scope="col">Catégorie</th>
               <th scope="col">Type</th>
               <th scope="col">Serveur</th>
               <th scope="col">Paiement</th>
@@ -715,7 +690,7 @@ function JournalLinesTable({
           </thead>
           <tbody>
             {lines.map((l, i) => (
-              <tr key={`${l.date}-${title}-${i}`}>
+              <tr key={`${l.date}-${l.at}-${i}`}>
                 <td>{formatHeure(l.at)}</td>
                 <td className="cell-name">
                   <strong>{l.numero}</strong>
@@ -727,6 +702,7 @@ function JournalLinesTable({
                   ) : null}
                 </td>
                 <td>{siteLabel(l.site)}</td>
+                <td>{CATEGORY_LABELS[venteCategory(l.kind)]}</td>
                 <td>{l.typeVente}</td>
                 <td>{l.serveur || "—"}</td>
                 <td>{l.paiement || "—"}</td>
@@ -806,8 +782,8 @@ function JournalLinesTable({
           </tbody>
           <tfoot>
             <tr>
-              <th scope="row" colSpan={7}>
-                Total {title} (Validé)
+              <th scope="row" colSpan={8}>
+                Total du jour (Validé)
               </th>
               <td className="mono col-money">{totalQty}</td>
               <td colSpan={1} />

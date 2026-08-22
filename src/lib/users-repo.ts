@@ -1,4 +1,5 @@
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
 import {
@@ -27,10 +28,19 @@ type UserDoc = {
 const DEFAULT_ADMIN = {
   username: "admin",
   name: "Administrateur",
-  password: "Admin123!",
   role: "admin" as const,
   site: "tous" as const,
 };
+
+/**
+ * Génère un mot de passe lisible mais imprévisible (pas de mot de passe fixe
+ * en clair dans le code source — ce dépôt est public sur GitHub). Affiché une
+ * seule fois dans les logs serveur au premier démarrage ; à changer aussitôt
+ * via Réglages, comme n'importe quel autre compte.
+ */
+function generateBootstrapPassword(): string {
+  return randomBytes(12).toString("base64url");
+}
 
 function toAppUser(doc: UserDoc): AppUser {
   return {
@@ -56,12 +66,13 @@ export async function ensureDefaultAdmin(): Promise<void> {
   const count = await col.countDocuments();
   if (count > 0) return;
 
+  const password = generateBootstrapPassword();
   const now = new Date().toISOString();
   await col.insertOne({
     _id: new ObjectId(),
     username: DEFAULT_ADMIN.username,
     name: DEFAULT_ADMIN.name,
-    passwordHash: await bcrypt.hash(DEFAULT_ADMIN.password, 10),
+    passwordHash: await bcrypt.hash(password, 10),
     role: DEFAULT_ADMIN.role,
     site: DEFAULT_ADMIN.site,
     shift: "aucune",
@@ -69,13 +80,11 @@ export async function ensureDefaultAdmin(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   });
-}
-
-export function getDefaultAdminCredentials() {
-  return {
-    username: DEFAULT_ADMIN.username,
-    password: DEFAULT_ADMIN.password,
-  };
+  // Seul endroit où ce mot de passe existe en clair : les logs serveur, au
+  // tout premier démarrage. Jamais renvoyé par une API, jamais stocké ailleurs.
+  console.log(
+    `[bootstrap] Compte admin créé : identifiant "${DEFAULT_ADMIN.username}", mot de passe "${password}" — à changer immédiatement via Réglages.`,
+  );
 }
 
 export async function authenticateUser(

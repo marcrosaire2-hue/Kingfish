@@ -62,11 +62,15 @@ export function LoginPage() {
         /* stockage indisponible */
       }
 
+      // "/" seul est un chemin interne valide ; "//" ou "/\" sont des URL
+      // protocole-relatives que certains navigateurs suivent vers un autre
+      // domaine — à exclure pour ne jamais rediriger hors de l'application.
       const next = searchParams.get("next");
-      const target =
-        next && next.startsWith("/")
-          ? next
-          : (body.home as string) || "/";
+      const isSafeInternalPath =
+        !!next && /^\/(?!\/|\\)/.test(next);
+      const target = isSafeInternalPath
+        ? next
+        : (body.home as string) || "/";
       router.replace(target);
       router.refresh();
     } catch (err) {

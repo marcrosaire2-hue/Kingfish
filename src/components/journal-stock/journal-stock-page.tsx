@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { ExportExcelButton } from "@/components/export-excel-button";
@@ -66,6 +66,30 @@ function formatWhen(iso: string): string {
   }
 }
 
+function formatDateLong(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      dateStyle: "full",
+      timeZone: "Africa/Porto-Novo",
+    }).format(new Date(`${iso}T12:00:00`));
+  } catch {
+    return iso;
+  }
+}
+
+function sumDayRows(dayRows: JournalRow[]) {
+  let montant = 0;
+  let entrees = 0;
+  let sorties = 0;
+  for (const r of dayRows) {
+    if (r.annule) continue;
+    montant += r.montant;
+    if (r.direction > 0) entrees += r.qty;
+    else sorties += r.qty;
+  }
+  return { montant, entrees, sorties, count: dayRows.length };
+}
+
 export function JournalStockPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -109,6 +133,24 @@ export function JournalStockPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const rowsByDay = useMemo(() => {
+    const map = new Map<string, JournalRow[]>();
+    for (const r of rows) {
+      const list = map.get(r.date) ?? [];
+      list.push(r);
+      map.set(r.date, list);
+    }
+    return [...map.entries()]
+      .sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0))
+      .map(([date, dayRows]) => ({
+        date,
+        rows: [...dayRows].sort((a, b) =>
+          a.at === b.at ? a.name.localeCompare(b.name) : a.at < b.at ? -1 : 1,
+        ),
+        ...sumDayRows(dayRows),
+      }));
+  }, [rows]);
 
   function applyFilters(nextFrom?: string, nextTo?: string) {
     setFrom(nextFrom ?? from);
@@ -278,92 +320,112 @@ export function JournalStockPage() {
         <p className="muted">Aucun mouvement pour ces filtres.</p>
       ) : null}
 
-      {!loading && rows.length > 0 ? (
-        <div className="panel panel-wide">
-          <div className="table-scroll">
-            <table className="data-table journal-table">
-              <thead>
-                <tr>
-                  <th scope="col">Quand</th>
-                  <th scope="col">Site</th>
-                  <th scope="col">Type</th>
-                  <th scope="col">Produit</th>
-                  <th scope="col" className="col-money">
-                    Qté
-                  </th>
-                  <th scope="col" className="col-money">
-                    PU
-                  </th>
-                  <th scope="col" className="col-money">
-                    Montant
-                  </th>
-                  <th scope="col">Statut</th>
-                  <th scope="col">Détail</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((r) => (
-                  <tr key={r.id}>
-                    <td>{formatWhen(r.at)}</td>
-                    <td>{r.site === "zogbo" ? "Zogbo" : "Gbégamey"}</td>
-                    <td>
-                      <span className={`hist-badge hist-badge-type-${r.type}`}>
-                        {TYPE_LABELS[r.type]}
-                      </span>
-                    </td>
-                    <td className="cell-name">
-                      <strong>{r.name}</strong>
-                      <span className="cell-sub">{kindLabel(r.kind)}</span>
-                    </td>
-                    <td
-                      className={`mono col-money journal-qty ${r.direction > 0 ? "journal-in" : "journal-out"}`}
-                    >
-                      {r.direction > 0 ? "+" : "−"}
-                      {r.qty}
-                    </td>
-                    <td className="mono col-money">
-                      {r.unitPrice > 0 ? formatFcfa(r.unitPrice) : "—"}
-                    </td>
-                    <td className="mono col-money">
-                      {r.montant > 0 ? formatFcfa(r.montant) : "—"}
-                    </td>
-                    <td>
-                      {r.annule ? (
-                        <span className="hist-statut hist-statut-annule">Annulé</span>
-                      ) : (
-                        <span className="hist-statut hist-statut-valide">Validé</span>
-                      )}
-                    </td>
-                    <td className="cell-sub">{r.detail || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {!loading && rows.length > 0
+        ? rowsByDay.map((day) => (
+            <div key={day.date} className="panel panel-wide jv-day">
+              <div className="jv-day-head">
+                <h2 className="panel-title">
+                  {formatDateLong(day.date)}
+                  <span className="jv-day-head-count">
+                    {day.count} mouvement{day.count > 1 ? "s" : ""} · +{day.entrees}{" "}
+                    / −{day.sorties}
+                  </span>
+                </h2>
+                <strong className="jv-day-total mono">
+                  {formatFcfa(day.montant)}
+                </strong>
+              </div>
+              <div className="table-scroll">
+                <table className="data-table journal-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Quand</th>
+                      <th scope="col">Site</th>
+                      <th scope="col">Type</th>
+                      <th scope="col">Produit</th>
+                      <th scope="col" className="col-money">
+                        Qté
+                      </th>
+                      <th scope="col" className="col-money">
+                        PU
+                      </th>
+                      <th scope="col" className="col-money">
+                        Montant
+                      </th>
+                      <th scope="col">Statut</th>
+                      <th scope="col">Détail</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {day.rows.map((r) => (
+                      <tr key={r.id}>
+                        <td>{formatWhen(r.at)}</td>
+                        <td>{r.site === "zogbo" ? "Zogbo" : "Gbégamey"}</td>
+                        <td>
+                          <span className={`hist-badge hist-badge-type-${r.type}`}>
+                            {TYPE_LABELS[r.type]}
+                          </span>
+                        </td>
+                        <td className="cell-name">
+                          <strong>{r.name}</strong>
+                          <span className="cell-sub">{kindLabel(r.kind)}</span>
+                        </td>
+                        <td
+                          className={`mono col-money journal-qty ${r.direction > 0 ? "journal-in" : "journal-out"}`}
+                        >
+                          {r.direction > 0 ? "+" : "−"}
+                          {r.qty}
+                        </td>
+                        <td className="mono col-money">
+                          {r.unitPrice > 0 ? formatFcfa(r.unitPrice) : "—"}
+                        </td>
+                        <td className="mono col-money">
+                          {r.montant > 0 ? formatFcfa(r.montant) : "—"}
+                        </td>
+                        <td>
+                          {r.annule ? (
+                            <span className="hist-statut hist-statut-annule">
+                              Annulé
+                            </span>
+                          ) : (
+                            <span className="hist-statut hist-statut-valide">
+                              Validé
+                            </span>
+                          )}
+                        </td>
+                        <td className="cell-sub">{r.detail || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))
+        : null}
 
-          <div className="pager">
-            <button
-              type="button"
-              className="btn btn-ghost"
-              disabled={offset <= 0 || loading}
-              onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-            >
-              ← Précédent
-            </button>
-            <span className="muted">
-              {total === 0
-                ? ""
-                : `${offset + 1}–${Math.min(offset + PAGE_SIZE, total)} sur ${total}`}
-            </span>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              disabled={offset + PAGE_SIZE >= total || loading}
-              onClick={() => setOffset(offset + PAGE_SIZE)}
-            >
-              Suivant →
-            </button>
-          </div>
+      {!loading && rows.length > 0 ? (
+        <div className="pager">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={offset <= 0 || loading}
+            onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+          >
+            ← Précédent
+          </button>
+          <span className="muted">
+            {total === 0
+              ? ""
+              : `${offset + 1}–${Math.min(offset + PAGE_SIZE, total)} sur ${total}`}
+          </span>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            disabled={offset + PAGE_SIZE >= total || loading}
+            onClick={() => setOffset(offset + PAGE_SIZE)}
+          >
+            Suivant →
+          </button>
         </div>
       ) : null}
 
