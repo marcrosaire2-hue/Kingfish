@@ -115,8 +115,19 @@ export const PERTE_MOTIF_LABELS: Record<PerteMotif, string> = {
   autre: "Autre (à préciser)",
 };
 
-/** Famille de stock concernée par une perte. */
-export type PerteKind = "plat" | "local" | "combo" | "boisson" | "matiere";
+/**
+ * Famille de stock concernée par une perte. « immobilisation » cible une
+ * fiche du registre Immobilisations (emballage ou actif) ; « libre » cible un
+ * achat hors-catalogue enregistré sur Achats.
+ */
+export type PerteKind =
+  | "plat"
+  | "local"
+  | "combo"
+  | "boisson"
+  | "matiere"
+  | "immobilisation"
+  | "libre";
 
 /** Une déclaration de perte au journal — jamais effacée, seulement annulable. */
 export type PerteEntry = {
@@ -137,6 +148,12 @@ export type PerteEntry = {
   cancelledAt: string | null;
   actorName: string | null;
   cancelledByName: string | null;
+  /**
+   * Référence vers le document source quand `productId` seul ne suffit pas à
+   * le retrouver — ex. « libre » : date du jour d'achat (matieres_jours),
+   * nécessaire pour rattraper le mouvement à l'annulation.
+   */
+  sourceRef: string | null;
 };
 
 /** Mouvement de stock Zogbo (préparation ou envoi) */
@@ -869,6 +886,12 @@ export type MatieresMovement = {
   fournisseurNom?: string | null;
   /** Dépense de trésorerie auto-générée à la caisse lors de l'achat. */
   depenseId?: string | null;
+  /**
+   * Perte déclarée contre ce mouvement (uniquement pour un achat libre — un
+   * achat catalogue passe par la ligne matière et son propre compteur
+   * `pertes`). Quantité restante utilisable = qty − pertes.
+   */
+  pertes: number;
 };
 
 export type MatieresDay = {

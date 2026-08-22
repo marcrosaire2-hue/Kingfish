@@ -58,6 +58,7 @@ export function normalizeMatieresMovement(
     fournisseurId: m.fournisseurId ?? null,
     fournisseurNom: m.fournisseurNom ?? null,
     depenseId: m.depenseId ?? null,
+    pertes: Math.max(0, Number(m.pertes) || 0),
   };
 }
 
@@ -154,6 +155,7 @@ export function applyMatieresPurchaseToState(
     fournisseurId: input.fournisseurId ?? null,
     fournisseurNom: input.fournisseurNom ?? null,
     depenseId: null,
+    pertes: 0,
   };
 
   return {
@@ -209,11 +211,46 @@ export function applyMatieresOtherPurchaseToState(
     fournisseurId: input.fournisseurId ?? null,
     fournisseurNom: input.fournisseurNom ?? null,
     depenseId: null,
+    pertes: 0,
   };
 
   return {
     lines: lines.map((l) => normalizeMatieresLine(l)),
     movements: [movement, ...movements],
+    movement,
+  };
+}
+
+/**
+ * Déclare (ou annule, avec `delta` négatif) une perte contre un achat libre
+ * précis. Aucune ligne de stock n'est touchée : un achat libre n'en a pas —
+ * seul le compteur `pertes` du mouvement varie, comme `pertes` sur une ligne
+ * matière.
+ */
+export function applyMatieresMovementPerteInState(
+  movements: MatieresMovement[],
+  movementId: string,
+  delta: number,
+): { movements: MatieresMovement[]; movement: MatieresMovement } {
+  const idx = movements.findIndex((m) => m.id === movementId);
+  if (idx < 0) throw new Error("Achat introuvable");
+  const current = normalizeMatieresMovement(movements[idx]!);
+  if (!current) throw new Error("Achat introuvable");
+  if (current.type !== "autre") {
+    throw new Error("Seul un achat hors catalogue se déclare en perte ici.");
+  }
+  if (current.cancelledAt) throw new Error("Achat annulé : perte impossible.");
+
+  const pertes = current.pertes + delta;
+  if (pertes < 0 || pertes > current.qty) {
+    throw new Error(
+      `Quantité invalide : reste disponible ${current.qty - current.pertes}.`,
+    );
+  }
+
+  const movement: MatieresMovement = { ...current, pertes };
+  return {
+    movements: movements.map((m, i) => (i === idx ? movement : m)),
     movement,
   };
 }
@@ -298,6 +335,11 @@ export function editMatieresMovementInState(
 
   if (previous.type === "autre") {
     // Achat libre : le nom est saisi à la main, aucune ligne de stock derrière.
+    if (qty < previous.pertes) {
+      throw new Error(
+        `Quantité trop basse : ${previous.pertes} déjà déclaré(s) en perte sur cet achat.`,
+      );
+    }
     const saisi = String(input.name ?? previous.name).trim();
     if (saisi.length < 2) throw new Error("Nom du produit obligatoire");
     name = saisi;

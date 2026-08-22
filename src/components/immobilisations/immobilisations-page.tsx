@@ -176,7 +176,7 @@ export function ImmobilisationsPage() {
   return (
     <AppShell
       title="Immobilisations"
-      subtitle="Inventaire simple : date, produit, quantité, prix unitaire, valeur vente."
+      subtitle="Registre des immobilisations et emballages : date d'acquisition, désignation, quantité, coût d'acquisition, valeur."
       actions={
         <Link href="/vente" className="btn btn-ghost">
           ← Vente
@@ -242,7 +242,7 @@ export function ImmobilisationsPage() {
             </div>
             <div className="immo-form">
               <label className="date-field immo-field-full">
-                <span>Date</span>
+                <span>Date d&rsquo;acquisition</span>
                 <input
                   type="date"
                   value={draft.date}
@@ -253,7 +253,7 @@ export function ImmobilisationsPage() {
                 />
               </label>
               <label className="date-field immo-field-full">
-                <span>Nom du produit</span>
+                <span>Désignation</span>
                 <input
                   value={draft.name}
                   onChange={(e) =>
@@ -298,7 +298,7 @@ export function ImmobilisationsPage() {
                 </datalist>
               </label>
               <label className="date-field">
-                <span>Prix unitaire (FCFA)</span>
+                <span>Coût d&rsquo;acquisition unitaire (FCFA)</span>
                 <input
                   type="number"
                   min={0}
@@ -306,11 +306,15 @@ export function ImmobilisationsPage() {
                   onChange={(e) =>
                     setDraft((d) => ({ ...d, cost: e.target.value }))
                   }
-                  placeholder="Coût inventaire"
+                  placeholder="Valeur d'entrée au patrimoine"
                 />
               </label>
               <label className="date-field">
-                <span>Valeur (FCFA)</span>
+                <span>
+                  {tab === "emballage"
+                    ? "Prix de vente unitaire (FCFA)"
+                    : "Valeur estimée unitaire (FCFA)"}
+                </span>
                 <input
                   type="number"
                   min={0}
@@ -365,12 +369,15 @@ export function ImmobilisationsPage() {
 
             {!loading && filtered.length > 0 ? (
               <p className="muted immo-totals">
-                Total inventaire :{" "}
+                Total coût d&rsquo;acquisition :{" "}
                 <strong className="mono">
                   {formatFcfa(totals.inventaire)}
                 </strong>
                 {" · "}
-                Total valeur :{" "}
+                {tab === "emballage"
+                  ? "Total prix de vente"
+                  : "Total valeur estimée"}{" "}
+                :{" "}
                 <strong className="mono">{formatFcfa(totals.vente)}</strong>
               </p>
             ) : null}
@@ -384,14 +391,14 @@ export function ImmobilisationsPage() {
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th scope="col">Date</th>
-                      <th scope="col">Produit</th>
+                      <th scope="col">Date d&rsquo;acquisition</th>
+                      <th scope="col">Désignation</th>
                       <th scope="col">Qté</th>
                       <th scope="col" className="col-money">
-                        P.U. inventaire
+                        Coût d&rsquo;acquisition
                       </th>
                       <th scope="col" className="col-money">
-                        Valeur
+                        {tab === "emballage" ? "Prix de vente" : "Valeur estimée"}
                       </th>
                       <th scope="col">Actions</th>
                     </tr>

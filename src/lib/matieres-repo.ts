@@ -2,6 +2,7 @@ import { assertDayOpen, updateDayDocument } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import {
+  applyMatieresMovementPerteInState,
   applyMatieresOtherPurchaseToState,
   applyMatieresPurchaseToState,
   cancelMatieresMovementInState,
@@ -415,6 +416,45 @@ export async function cancelMatieresMovement(input: {
     },
     materials: payload.materials,
   };
+}
+
+/**
+ * Déclare (delta > 0) ou annule (delta < 0) une perte contre un achat libre
+ * précis, identifié par le jour où il a été saisi et son id de mouvement.
+ * Aucun statut de journée n'est vérifié : un achat libre ne participe à
+ * aucune réconciliation de stock quotidienne, contrairement aux matières du
+ * catalogue — rien ne justifie de bloquer la déclaration parce que le jour
+ * d'achat est clôturé, potentiellement des semaines plus tôt.
+ */
+export async function applyMatieresMovementPerte(input: {
+  date: string;
+  movementId: string;
+  delta: number;
+}): Promise<{ movement: MatieresMovement }> {
+  if (!isValidDate(input.date)) throw new Error("Date invalide");
+  const db = await getDb();
+  const doc = await db
+    .collection<MatieresDoc>("matieres_jours")
+    .findOne({ _id: input.date });
+  if (!doc) throw new Error("Achat introuvable");
+
+  const applied = applyMatieresMovementPerteInState(
+    doc.movements ?? [],
+    input.movementId,
+    input.delta,
+  );
+
+  await db.collection<MatieresDoc>("matieres_jours").updateOne(
+    { _id: input.date },
+    {
+      $set: {
+        movements: applied.movements,
+        updatedAt: new Date().toISOString(),
+      },
+    },
+  );
+
+  return { movement: applied.movement };
 }
 
 /**

@@ -118,13 +118,6 @@ const NAV_ITEMS: {
     group: "pilot",
   },
   {
-    href: "/pilotage-global",
-    label: "Pilotage global",
-    key: "pilotage-global",
-    mark: "◎",
-    group: "pilot",
-  },
-  {
     href: "/journal-stock",
     label: "Journal stock",
     key: "journal-stock",

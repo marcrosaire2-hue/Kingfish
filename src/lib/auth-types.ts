@@ -216,8 +216,7 @@ export type NavKey =
   | "immobilisations"
   | "stock"
   | "admin"
-  | "journal-stock"
-  | "pilotage-global";
+  | "journal-stock";
 
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
   vendeur: ["synthese", "vente", "caisse"],
@@ -241,6 +240,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "pertes",
     "stock",
     "immobilisations",
+    "parametres",
     // Journal des ventes de sa zone (tickets, détail, export).
     "journal-ventes",
     // Saisie / correction / annulation des ventes d'un jour passé.
@@ -266,9 +266,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     // Journal complet des mouvements de stock (ventes, achats, pertes,
     // réceptions) avec export détaillé : audit réservé à l'administration.
     "journal-stock",
-    // Vue consolidée de tout le réseau, coffre central compris : même
-    // périmètre que Compte de résultat et Registre, administration seule.
-    "pilotage-global",
   ],
 };
 
@@ -387,9 +384,6 @@ export function canAccessPath(
     return allowed.includes("stock");
   }
   if (pathname.startsWith("/historique")) return allowed.includes("historique");
-  if (pathname.startsWith("/pilotage-global")) {
-    return allowed.includes("pilotage-global");
-  }
   if (pathname.startsWith("/journal-stock")) {
     return allowed.includes("journal-stock");
   }

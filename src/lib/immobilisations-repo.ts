@@ -9,7 +9,20 @@ import {
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import type { Immobilisation, ImmobilisationKind, VenteSite } from "@/lib/types";
 
-type ImmobilisationDoc = Omit<Immobilisation, "id"> & { _id: ObjectId };
+type ImmobilisationDoc = Omit<Immobilisation, "id"> & {
+  _id: ObjectId;
+  /**
+   * Quantité réellement acquise et son montant (qty × coût), figés à la
+   * création et recalculés seulement quand une correction change
+   * explicitement la quantité, le coût, le jour ou la zone de la fiche. Une
+   * perte ultérieure fait baisser `qty` (stock restant, vivant) sans jamais
+   * toucher ces deux champs : le compte de résultat du jour d'acquisition ne
+   * doit pas se réécrire des semaines plus tard parce qu'un emballage a
+   * cassé — la perte se valorise séparément, à sa propre date.
+   */
+  acquisitionQty?: number;
+  acquisitionAmount?: number;
+};
 
 /**
  * Zone débitée pour l'acquisition : celle de la fiche si elle en a une,
@@ -98,7 +111,12 @@ function toEntry(doc: ImmobilisationDoc): Immobilisation {
     id: doc._id.toHexString(),
     name: doc.name,
     kind: doc.kind,
-    qty: Math.max(0, Math.round(Number(doc.qty) || 0)) || 1,
+    // 0 est une quantité légitime (stock épuisé par une perte) — seul un
+    // champ manquant (fiche antérieure à ce compteur) retombe sur 1.
+    qty:
+      doc.qty === null || doc.qty === undefined
+        ? 1
+        : Math.max(0, Math.round(Number(doc.qty) || 0)),
     unit: normalizeUnit(doc.unit) || "pièce",
     cost: Math.max(0, Math.round(Number(doc.cost) || 0)),
     salePrice:
@@ -191,6 +209,8 @@ export async function createImmobilisation(input: {
     notes: String(input.notes ?? "").trim().slice(0, 500),
     active: true,
     depenseId: null,
+    acquisitionQty: qty,
+    acquisitionAmount: qty * cost,
     createdAt: now,
     updatedAt: now,
   };
@@ -269,12 +289,25 @@ export async function updateImmobilisation(input: {
   // Dépense liée : reprise et régénérée si l'un des facteurs qui la
   // déterminent change (montant, jour ou zone débités) — même logique que
   // la correction d'un achat de matières.
-  const nextQty = patch.qty ?? existing.qty;
+  //
+  // La quantité *acquise* sert de base au montant, pas la quantité *encore en
+  // stock* : si une perte a déjà réduit `qty` entre-temps, une simple
+  // correction du coût ne doit pas silencieusement rétrécir la dépense et
+  // le montant comptabilisés pour l'acquisition d'origine. Le formulaire de
+  // la fiche renvoie systématiquement `qty` (même quand seul un autre champ a
+  // changé) : c'est donc un écart avec `existing.qty` — pas la simple
+  // présence du champ — qui signale une correction volontaire de la
+  // quantité acquise (typo corrigée, réassort).
+  const previousAcquisitionQty = existing.acquisitionQty ?? existing.qty;
+  const qtyEditedByUser =
+    patch.qty !== undefined && patch.qty !== existing.qty;
+  const nextAcquisitionQty = qtyEditedByUser ? patch.qty! : previousAcquisitionQty;
   const nextCost = patch.cost ?? existing.cost;
   const nextDate = patch.date ?? existing.date;
   const nextSite = "site" in patch ? (patch.site ?? null) : existing.site;
-  const nextMontant = nextQty * nextCost;
-  const oldMontant = existing.qty * existing.cost;
+  const nextMontant = nextAcquisitionQty * nextCost;
+  const oldMontant =
+    existing.acquisitionAmount ?? previousAcquisitionQty * existing.cost;
   const depenseFactorsChanged =
     nextMontant !== oldMontant ||
     nextDate !== existing.date ||
@@ -287,9 +320,11 @@ export async function updateImmobilisation(input: {
       date: nextDate,
       site: nextSite,
       name: patch.name ?? existing.name,
-      qty: nextQty,
+      qty: nextAcquisitionQty,
       montant: nextMontant,
     });
+    patch.acquisitionQty = nextAcquisitionQty;
+    patch.acquisitionAmount = nextMontant;
   }
 
   await db.collection<ImmobilisationDoc>("immobilisations").updateOne(
@@ -301,6 +336,39 @@ export async function updateImmobilisation(input: {
     .findOne({ _id: existing._id });
   if (!updated) throw new Error("Fiche introuvable.");
   return toEntry(updated);
+}
+
+/**
+ * Ajuste la quantité en stock suite à une perte déclarée (delta > 0) ou son
+ * annulation (delta < 0) — ne touche jamais la dépense d'acquisition ni son
+ * montant : l'argent a déjà été dépensé en totalité à l'achat, seule la
+ * quantité physique restante change. Contrairement à `updateImmobilisation`,
+ * qui régénère la dépense quand qty/coût changent (correction de la fiche
+ * elle-même), ce qui serait faux ici : réduire le compteur suite à une casse
+ * ne doit pas amputer le coût déjà enregistré.
+ */
+export async function adjustImmobilisationQty(input: {
+  id: string;
+  delta: number;
+}): Promise<{ name: string; cost: number }> {
+  if (!ObjectId.isValid(input.id)) throw new Error("Fiche introuvable.");
+  const db = await getDb();
+  const filter: Record<string, unknown> = { _id: new ObjectId(input.id) };
+  if (input.delta > 0) filter.qty = { $gte: input.delta };
+  const updated = await db
+    .collection<ImmobilisationDoc>("immobilisations")
+    .findOneAndUpdate(
+      filter,
+      {
+        $inc: { qty: -input.delta },
+        $set: { updatedAt: new Date().toISOString() },
+      },
+      { returnDocument: "after" },
+    );
+  if (!updated) {
+    throw new Error("Stock insuffisant pour déclarer cette perte.");
+  }
+  return { name: updated.name, cost: updated.cost };
 }
 
 export async function setImmobilisationActive(input: {
@@ -352,9 +420,18 @@ export async function sumImmobilisationsCostByDate(input: {
           _id: "$date",
           total: {
             $sum: {
-              $multiply: [
-                { $ifNull: ["$qty", 1] },
-                { $ifNull: ["$cost", 0] },
+              // Montant figé à l'acquisition en priorité — une fiche créée
+              // avant ce champ retombe sur qty × coût courants (elle n'a
+              // jamais pu être réduite par une perte, cette fonctionnalité
+              // n'existant pas encore à l'époque).
+              $ifNull: [
+                "$acquisitionAmount",
+                {
+                  $multiply: [
+                    { $ifNull: ["$qty", 1] },
+                    { $ifNull: ["$cost", 0] },
+                  ],
+                },
               ],
             },
           },

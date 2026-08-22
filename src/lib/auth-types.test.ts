@@ -187,6 +187,15 @@ describe("l'API suit les droits de l'écran", () => {
     expect(navForUser("gerant", "zogbo")).toContain("regularisation");
   });
 
+  it("ouvre Paramètres au gérant (catalogue et prix)", () => {
+    expect(canAccessPath("gerant", "/parametres", "zogbo")).toBe(true);
+    expect(canAccessPath("gerant", ecranPourApi("/api/parametres"), "zogbo")).toBe(
+      true,
+    );
+    expect(navForUser("gerant", "zogbo")).toContain("parametres");
+    expect(canAccessPath("vendeur", "/parametres", "gbegamey")).toBe(false);
+  });
+
   it("ouvre Immobilisations au gérant ; l’API reste lisible en caisse", () => {
     expect(navForUser("gerant", "zogbo")).toContain("immobilisations");
     expect(canAccessPath("gerant", "/immobilisations", "zogbo")).toBe(true);

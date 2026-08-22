@@ -10,7 +10,15 @@ import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
-const KINDS: PerteKind[] = ["plat", "local", "combo", "boisson", "matiere"];
+const KINDS: PerteKind[] = [
+  "plat",
+  "local",
+  "combo",
+  "boisson",
+  "matiere",
+  "immobilisation",
+  "libre",
+];
 
 function resolveSite(raw: string | null, userSite: string): VenteSite {
   if (raw === "zogbo" || raw === "gbegamey") return raw;
@@ -52,6 +60,8 @@ export async function POST(request: Request) {
       motif?: PerteMotif;
       commentaire?: string;
       id?: string;
+      /** kind "libre" uniquement : jour où l'achat hors-catalogue a été saisi. */
+      sourceDate?: string;
     };
 
     const actor = { id: user.id, name: user.name };
@@ -90,6 +100,12 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    if (body.kind === "libre" && !body.sourceDate) {
+      return NextResponse.json(
+        { error: "Achat source requis." },
+        { status: 400 },
+      );
+    }
 
     const date = body.date || todayIsoDate();
     const entry = await recordPerte({
@@ -103,6 +119,7 @@ export async function POST(request: Request) {
       actor,
       bypassClosedDay:
         canManagePastVentes(user.role) && date < todayIsoDate(),
+      sourceDate: body.sourceDate,
     });
 
     await logActivity({

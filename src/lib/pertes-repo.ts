@@ -6,7 +6,12 @@ import { unitsPerCasierOf } from "@/lib/boissons-calc";
 import { getBoissonsDayPayload, saveBoissonsDay } from "@/lib/boissons-repo";
 import { getCombosDayPayload, saveCombosDay } from "@/lib/combos-repo";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
-import { getMatieresDayPayload, saveMatieresDay } from "@/lib/matieres-repo";
+import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
+import {
+  applyMatieresMovementPerte,
+  getMatieresDayPayload,
+  saveMatieresDay,
+} from "@/lib/matieres-repo";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import type {
   PerteEntry,
@@ -163,6 +168,13 @@ async function resolveTarget(input: {
     };
   }
 
+  if (kind !== "matiere") {
+    // "immobilisation" et "libre" ne passent jamais par ici : ils sont
+    // interceptés plus tôt dans recordPerte/cancelPerte (aucun document jour
+    // à cette forme). Un appel direct par erreur doit échouer, pas retomber
+    // sur une recherche de matière qui n'aurait aucun sens.
+    throw new Error("Famille de perte inconnue.");
+  }
   const matiere = (parametres.rawMaterials ?? []).find(
     (m) => m.id === productId,
   );
@@ -259,6 +271,7 @@ function toEntry(doc: PerteDoc): PerteEntry {
     cancelledAt: doc.cancelledAt ?? null,
     actorName: doc.actorName ?? null,
     cancelledByName: doc.cancelledByName ?? null,
+    sourceRef: doc.sourceRef ?? null,
   };
 }
 
@@ -272,6 +285,8 @@ export async function recordPerte(input: {
   commentaire?: string;
   actor?: PerteActor | null;
   bypassClosedDay?: boolean;
+  /** Requis pour kind "libre" : jour d'achat (document matieres_jours). */
+  sourceDate?: string;
 }): Promise<PerteEntry> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   if (!MOTIFS.includes(input.motif)) throw new Error("Motif invalide");
@@ -287,14 +302,41 @@ export async function recordPerte(input: {
     throw new Error("Précisez la raison dans le commentaire.");
   }
 
-  const { name, unitCost } = await applyPerteDelta({
-    date: input.date,
-    site: input.site,
-    kind: input.kind,
-    productId: input.productId,
-    delta: qty,
-    bypassClosedDay: input.bypassClosedDay,
-  });
+  let name: string;
+  let unitCost: number;
+  let sourceRef: string | null = null;
+
+  if (input.kind === "immobilisation") {
+    const res = await adjustImmobilisationQty({
+      id: input.productId,
+      delta: qty,
+    });
+    name = res.name;
+    unitCost = res.cost;
+  } else if (input.kind === "libre") {
+    if (!input.sourceDate || !isValidDate(input.sourceDate)) {
+      throw new Error("Achat source introuvable.");
+    }
+    const res = await applyMatieresMovementPerte({
+      date: input.sourceDate,
+      movementId: input.productId,
+      delta: qty,
+    });
+    name = res.movement.name;
+    unitCost = res.movement.unitPrice;
+    sourceRef = input.sourceDate;
+  } else {
+    const res = await applyPerteDelta({
+      date: input.date,
+      site: input.site,
+      kind: input.kind,
+      productId: input.productId,
+      delta: qty,
+      bypassClosedDay: input.bypassClosedDay,
+    });
+    name = res.name;
+    unitCost = res.unitCost;
+  }
 
   const doc: PerteDoc = {
     _id: new ObjectId(),
@@ -312,6 +354,7 @@ export async function recordPerte(input: {
     cancelledAt: null,
     actorName: input.actor?.name ?? null,
     cancelledByName: null,
+    sourceRef,
   };
 
   const db = await getDb();
@@ -334,14 +377,25 @@ export async function cancelPerte(input: {
   });
   if (!doc) throw new Error("Perte introuvable ou déjà annulée");
 
-  await applyPerteDelta({
-    date: doc.date,
-    site: doc.site,
-    kind: doc.kind,
-    productId: doc.productId,
-    delta: -doc.qty,
-    bypassClosedDay: input.bypassClosedDay,
-  });
+  if (doc.kind === "immobilisation") {
+    await adjustImmobilisationQty({ id: doc.productId, delta: -doc.qty });
+  } else if (doc.kind === "libre") {
+    if (!doc.sourceRef) throw new Error("Achat source introuvable.");
+    await applyMatieresMovementPerte({
+      date: doc.sourceRef,
+      movementId: doc.productId,
+      delta: -doc.qty,
+    });
+  } else {
+    await applyPerteDelta({
+      date: doc.date,
+      site: doc.site,
+      kind: doc.kind,
+      productId: doc.productId,
+      delta: -doc.qty,
+      bypassClosedDay: input.bypassClosedDay,
+    });
+  }
 
   const cancelledAt = new Date().toISOString();
   await col.updateOne(

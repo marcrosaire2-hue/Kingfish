@@ -9,7 +9,9 @@ import { computeMatieresDay } from "@/lib/matieres-calc";
 import { exportPertesExcel } from "@/lib/page-exports";
 import { PERTE_MOTIF_LABELS } from "@/lib/types";
 import type {
+  Immobilisation,
   MatieresDay,
+  MatieresMovement,
   PerteEntry,
   PerteKind,
   PerteMotif,
@@ -27,11 +29,23 @@ const FAMILLES: Famille[] = [
   { key: "local", label: "Sur place" },
   { key: "boisson", label: "Boissons" },
   { key: "matiere", label: "Matières" },
+  { key: "immobilisation", label: "Emballages / Actifs" },
+  { key: "libre", label: "Achats hors-catalogue" },
 ];
 
 const MOTIFS = Object.entries(PERTE_MOTIF_LABELS) as [PerteMotif, string][];
 
-type Candidat = { productId: string; name: string; stock: number | null };
+// Achats libres : mêmes bornes que la page Achats, qui montre tout
+// l'historique sans notion de « jour affiché ».
+const RANGE_FROM = "2020-01-01";
+
+type Candidat = {
+  productId: string;
+  name: string;
+  stock: number | null;
+  /** kind "libre" uniquement : jour d'achat (matieres_jours), à renvoyer à la déclaration. */
+  sourceDate?: string;
+};
 
 export function PertesPage() {
   const [date, setDate] = useState(() => todayIsoDate());
@@ -42,6 +56,8 @@ export function PertesPage() {
 
   const [produits, setProduits] = useState<VenteProduct[]>([]);
   const [matieres, setMatieres] = useState<Candidat[]>([]);
+  const [immobilisations, setImmobilisations] = useState<Candidat[]>([]);
+  const [achatsLibres, setAchatsLibres] = useState<Candidat[]>([]);
   const [pertes, setPertes] = useState<PerteEntry[]>([]);
 
   const [productId, setProductId] = useState("");
@@ -95,7 +111,7 @@ export function PertesPage() {
           userSite === "zogbo" || userSite === "gbegamey"
             ? userSite
             : point;
-        const [vente, mat] = await Promise.all([
+        const [vente, mat, immo, achats] = await Promise.all([
           fetch(
             `/api/vente?date=${encodeURIComponent(jour)}&site=${effectivePoint}`,
             { cache: "no-store" },
@@ -103,6 +119,14 @@ export function PertesPage() {
           fetch(`/api/matieres?date=${encodeURIComponent(jour)}`, {
             cache: "no-store",
           }),
+          fetch(
+            `/api/immobilisations?active=1&site=${effectivePoint}`,
+            { cache: "no-store" },
+          ),
+          fetch(
+            `/api/matieres?from=${RANGE_FROM}&to=${encodeURIComponent(todayIsoDate())}`,
+            { cache: "no-store" },
+          ),
         ]);
 
         if (vente.ok) {
@@ -123,6 +147,34 @@ export function PertesPage() {
             })),
           );
         }
+        if (immo.ok) {
+          const body = (await immo.json()) as { items: Immobilisation[] };
+          setImmobilisations(
+            (body.items ?? []).map((it) => ({
+              productId: it.id,
+              name: it.name,
+              stock: it.qty,
+            })),
+          );
+        }
+        if (achats.ok) {
+          const body = (await achats.json()) as {
+            historique?: Array<{ date: string; movement: MatieresMovement }>;
+          };
+          setAchatsLibres(
+            (body.historique ?? [])
+              .filter(
+                ({ movement: m }) => m.type === "autre" && !m.cancelledAt,
+              )
+              .map(({ date: d, movement: m }) => ({
+                productId: m.id,
+                name: m.name,
+                stock: Math.max(0, m.qty - (m.pertes ?? 0)),
+                sourceDate: d,
+              }))
+              .filter((c) => c.stock > 0),
+          );
+        }
         await chargerJournal(jour);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur de chargement");
@@ -140,6 +192,8 @@ export function PertesPage() {
   /** Produits déclarables dans la famille choisie, avec leur reste. */
   const candidats = useMemo<Candidat[]>(() => {
     if (famille === "matiere") return matieres;
+    if (famille === "immobilisation") return immobilisations;
+    if (famille === "libre") return achatsLibres;
     return produits
       .filter((p) => p.kind === famille)
       .map((p) => ({
@@ -147,7 +201,7 @@ export function PertesPage() {
         name: p.name,
         stock: p.stockLeft ?? null,
       }));
-  }, [famille, produits, matieres]);
+  }, [famille, produits, matieres, immobilisations, achatsLibres]);
 
   const choisi = candidats.find((c) => c.productId === productId) ?? null;
   const enBouteilles = famille === "boisson";
@@ -157,6 +211,10 @@ export function PertesPage() {
     const quantite = Number(String(qty).replace(",", "."));
     if (!productId || !Number.isFinite(quantite) || quantite <= 0) {
       setError("Choisissez un produit et une quantité.");
+      return;
+    }
+    if (famille === "libre" && !choisi?.sourceDate) {
+      setError("Achat source introuvable — rechargez la page.");
       return;
     }
     setBusy(true);
@@ -174,6 +232,7 @@ export function PertesPage() {
           qty: quantite,
           motif,
           commentaire,
+          sourceDate: famille === "libre" ? choisi?.sourceDate : undefined,
         }),
       });
       const body = (await res.json()) as { entry?: PerteEntry; error?: string };
@@ -225,7 +284,7 @@ export function PertesPage() {
   return (
     <AppShell
       title="Pertes"
-      subtitle="Sortie de stock sans vente — produit gâté, casse, test. Le motif est obligatoire."
+      subtitle="Perte constatée sur un plat, une matière, un emballage, un actif ou un achat — jamais une vente. Le motif est obligatoire."
       actions={
         pertes.length > 0 ? (
           <ExportExcelButton
@@ -336,7 +395,13 @@ export function PertesPage() {
         </label>
         {choisi && choisi.stock !== null ? (
           <p className="muted">
-            Stock actuel : {choisi.stock}
+            {famille === "libre"
+              ? "Reste disponible sur cet achat"
+              : famille === "immobilisation"
+                ? "Quantité en registre"
+                : "Stock actuel"}
+            {" : "}
+            {choisi.stock}
             {enBouteilles ? " bouteille(s)" : ""}
           </p>
         ) : null}

@@ -31,6 +31,8 @@ const KIND_LABELS: Record<string, string> = {
   boisson: "Boisson",
   extra: "Vente libre",
   matiere: "Matière",
+  immobilisation: "Emballage / Actif",
+  libre: "Achat hors-catalogue",
 };
 
 function kindLabel(kind: string): string {
