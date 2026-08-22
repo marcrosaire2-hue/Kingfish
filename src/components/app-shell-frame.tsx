@@ -55,6 +55,13 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
+    href: "/appro",
+    label: "Approvisionnement",
+    key: "appro",
+    mark: "M",
+    group: "ops",
+  },
+  {
     href: "/achats",
     label: "Achats",
     key: "appro",
@@ -66,6 +73,20 @@ const NAV_ITEMS: {
     label: "Pertes",
     key: "pertes",
     mark: "P",
+    group: "ops",
+  },
+  {
+    href: "/stock",
+    label: "Stock",
+    key: "stock",
+    mark: "S",
+    group: "ops",
+  },
+  {
+    href: "/immobilisations",
+    label: "Immobilisations",
+    key: "immobilisations",
+    mark: "I",
     group: "ops",
   },
   {
@@ -81,20 +102,6 @@ const NAV_ITEMS: {
     label: "Régularisation",
     key: "regularisation",
     mark: "±",
-    group: "pilot",
-  },
-  {
-    href: "/immobilisations",
-    label: "Immobilisations",
-    key: "immobilisations",
-    mark: "I",
-    group: "pilot",
-  },
-  {
-    href: "/stock",
-    label: "Stock",
-    key: "stock",
-    mark: "S",
     group: "pilot",
   },
   {

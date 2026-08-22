@@ -23,7 +23,8 @@ type SessionContextValue = {
   refresh: () => Promise<void>;
 };
 
-const CACHE_KEY = "kf-session-v1";
+/** v2 : invalide les menus figés après un changement de droits. */
+const CACHE_KEY = "kf-session-v2";
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
@@ -54,8 +55,8 @@ function writeStorageCache(payload: SessionPayload | null) {
   }
 }
 
-async function fetchSession(): Promise<SessionPayload | null> {
-  if (memoryCache) return memoryCache;
+/** Toujours aller au réseau (sauf si un appel est déjà en cours). */
+async function fetchSessionFromNetwork(): Promise<SessionPayload | null> {
   if (inflight) return inflight;
 
   inflight = (async () => {
@@ -109,17 +110,20 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     memoryCache = null;
     inflight = null;
-    const payload = await fetchSession();
+    const payload = await fetchSessionFromNetwork();
     apply(payload);
   }, [apply]);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      // Cache local d'abord (après montage), puis confirmation API.
+      // Affichage immédiat depuis le cache, puis toujours revalidation API
+      // (sinon un ancien menu reste figé après un changement de droits).
       const local = memoryCache ?? readStorageCache();
       if (local && !cancelled) apply(local);
-      const payload = await fetchSession();
+      memoryCache = null;
+      inflight = null;
+      const payload = await fetchSessionFromNetwork();
       if (!cancelled) apply(payload);
     })();
     return () => {
