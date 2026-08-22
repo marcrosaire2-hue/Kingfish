@@ -82,7 +82,7 @@ const KIND_LABELS: Record<string, string> = {
   local: "Accompagnement",
   boisson: "Boisson",
   extra: "Extra",
-  combo: "Combo (hors résultat)",
+  combo: "Formule (hors résultat)",
 };
 
 function currentMonth(): string {
@@ -691,7 +691,7 @@ export function CompteResultatPage() {
           <section className="panel pnl-statement">
             <header className="pnl-header">
               <h2>{statement.title}</h2>
-              <p className="muted">Montants en FCFA · Combos historiques exclus</p>
+              <p className="muted">Montants en FCFA · Formules historiques exclues</p>
             </header>
 
             <div className="pnl-section-label">I — Produits d’exploitation</div>

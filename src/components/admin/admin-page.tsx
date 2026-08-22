@@ -106,6 +106,7 @@ export function AdminPage() {
   const [flash, setFlash] = useState<string | null>(null);
   const [bulkText, setBulkText] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
+  const [createMode, setCreateMode] = useState<"single" | "bulk">("single");
 
   const [form, setForm] = useState({
     username: "",
@@ -322,195 +323,27 @@ export function AdminPage() {
         </p>
       ) : null}
 
-      <div className="admin-site-banner">
-        <strong>Deux niveaux d’administration.</strong>
+      <details className="admin-site-banner">
+        <summary>Niveaux d’administration et périmètres</summary>
         <ul className="admin-admin-levels">
           <li>
-            <strong>Admin de zone</strong> (site Zogbo ou Gbégamey) — gère les
-            comptes et l’activité de sa zone uniquement.
+            <strong>Admin de zone</strong> (Zogbo ou Gbégamey) — comptes et
+            activité de sa zone uniquement.
           </li>
           <li>
-            <strong>Administrateur global</strong> (Les deux sites) — aide
-            toutes les zones et peut créer les admins de chaque zone.
+            <strong>Admin global</strong> (Les deux sites) — toutes les zones,
+            création des admins de zone.
           </li>
         </ul>
         {!actorIsGlobal && actor ? (
           <p className="admin-zone-note">
-            Vous êtes connecté comme {adminKindLabel(actor.site)}. Les comptes
-            des autres zones et l’admin global ne sont pas visibles ici.
+            Connecté comme {adminKindLabel(actor.site)} — les autres zones ne
+            sont pas visibles ici.
           </p>
         ) : null}
-      </div>
+      </details>
 
-      <div className="admin-grid">
-        <section className="panel">
-          <h2 className="panel-title">Nouvel utilisateur</h2>
-          <form className="admin-form" onSubmit={createUser}>
-            <label className="login-field">
-              <span>Identifiant</span>
-              <input
-                value={form.username}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, username: e.target.value }))
-                }
-                required
-                minLength={3}
-                autoComplete="off"
-              />
-            </label>
-            <label className="login-field">
-              <span>Nom affiché</span>
-              <input
-                value={form.name}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, name: e.target.value }))
-                }
-                required
-              />
-            </label>
-            <label className="login-field">
-              <span>Mot de passe</span>
-              <input
-                type="password"
-                value={form.password}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, password: e.target.value }))
-                }
-                required
-                minLength={6}
-                autoComplete="new-password"
-              />
-            </label>
-            <label className="login-field">
-              <span>Rôle</span>
-              <select
-                className="select-input"
-                value={form.role}
-                onChange={(e) => setRole(e.target.value as UserRole)}
-              >
-                {creatableRoles.map((r) => (
-                  <option key={r} value={r}>
-                    {r === "admin"
-                      ? actorIsGlobal
-                        ? "Administrateur (zone ou global)"
-                        : "Administrateur de zone"
-                      : ROLE_LABELS[r]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="login-field">
-              <span>
-                {form.role === "admin"
-                  ? "Périmètre admin"
-                  : "Site de rattachement"}
-              </span>
-              <select
-                className="select-input"
-                value={form.site}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    site: e.target.value as UserSite,
-                  }))
-                }
-                required
-              >
-                {siteOptions.map((s) => (
-                  <option key={s} value={s}>
-                    {form.role === "admin"
-                      ? adminKindLabel(s)
-                      : SITE_LABELS[s]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="login-field">
-              <span>Équipe de service</span>
-              <select
-                className="select-input"
-                value={form.shift}
-                onChange={(e) =>
-                  setForm((f) => ({
-                    ...f,
-                    shift: e.target.value as UserShift,
-                  }))
-                }
-              >
-                {SHIFTS.map((eq) => (
-                  <option key={eq} value={eq}>
-                    {SHIFT_LABELS[eq]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p className="muted admin-site-hint">
-              Les ventes encaissées par ce compte seront créditées à son
-              équipe. « Hors équipe » convient à l’encadrement.
-            </p>
-            <p className="muted admin-site-hint">
-              {form.role === "admin"
-                ? form.site === "tous"
-                  ? "Admin global : voit et aide Zogbo + Gbégamey."
-                  : `Admin de zone : uniquement ${SITE_LABELS[form.site]}.`
-                : form.site === "tous"
-                  ? "Accès aux deux zones."
-                  : `Accès limité à ${SITE_LABELS[form.site]}.`}
-            </p>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving}
-            >
-              {saving ? "Création…" : "Créer et préparer le suivant"}
-            </button>
-          </form>
-
-          <div className="admin-legend">
-            <p>
-              <strong>Vendeur / Cuisine / Gérant</strong> — liés à leur site
-            </p>
-            <p>
-              <strong>Admin de zone</strong> — admin limité à Zogbo ou Gbégamey
-            </p>
-            <p>
-              <strong>Admin global</strong> — aide toutes les zones
-            </p>
-          </div>
-        </section>
-
-        <section className="panel panel-wide">
-          <h2 className="panel-title">Création groupée</h2>
-          <p className="muted admin-bulk-help">
-            Une ligne par compte :{" "}
-            <code>identifiant;nom;motdepasse;role;site</code>
-            {!actorIsGlobal
-              ? ` — site forcé côté serveur à ${SITE_LABELS[actor?.site ?? "gbegamey"]} si hors zone.`
-              : null}
-          </p>
-          <form className="admin-form" onSubmit={createBulk}>
-            <label className="login-field">
-              <span>Liste des comptes</span>
-              <textarea
-                className="admin-bulk-textarea"
-                rows={10}
-                value={bulkText}
-                onChange={(e) => setBulkText(e.target.value)}
-                placeholder={bulkExample}
-              />
-            </label>
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={bulkBusy || !bulkText.trim()}
-            >
-              {bulkBusy ? "Création…" : "Créer tous les comptes"}
-            </button>
-          </form>
-        </section>
-      </div>
-
-      <section className="panel panel-wide">
+      <section className="panel panel-wide admin-users-panel">
         <h2 className="panel-title">
           Utilisateurs ({users.length})
           {actor && !actorIsGlobal

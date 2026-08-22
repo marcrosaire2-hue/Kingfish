@@ -31,7 +31,7 @@ function shortKind(kind: string): string {
     case "local":
       return "Accomp.";
     case "combo":
-      return "Combo";
+      return "Formule";
     case "boisson":
       return "Boisson";
     case "extra":

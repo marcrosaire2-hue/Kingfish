@@ -77,7 +77,7 @@ export async function middleware(request: NextRequest) {
     }
 
     const site = effectiveSite(user.role, user.site);
-    if (!canAccessPath(user.role, pageEquivalent(pathname), site)) {
+    if (!canAccessPath(user.role, pageEquivalent(pathname), site, user.username)) {
       return NextResponse.json(
         { error: "Accès non autorisé pour ce rôle." },
         { status: 403 },
@@ -102,7 +102,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const site = effectiveSite(user.role, user.site);
-  if (!canAccessPath(user.role, pathname, site)) {
+  if (!canAccessPath(user.role, pathname, site, user.username)) {
     return NextResponse.redirect(new URL(homeForRole(user.role), request.url));
   }
 

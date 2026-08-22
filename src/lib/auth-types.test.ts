@@ -202,4 +202,25 @@ describe("l'API suit les droits de l'écran", () => {
     expect(canAccessPath("vendeur", "/immobilisations", "gbegamey")).toBe(true);
     expect(navForUser("vendeur", "gbegamey")).not.toContain("immobilisations");
   });
+
+  it("restreint le compte Marc aux écrans direction (tableau, journaux, registre, admin)", () => {
+    const menu = navForUser("admin", "tous", "marc");
+    expect(menu).toEqual([
+      "synthese",
+      "journal-ventes",
+      "journal-stock",
+      "historique",
+      "admin",
+    ]);
+    expect(canAccessPath("admin", "/", "tous", "marc")).toBe(true);
+    expect(canAccessPath("admin", "/journal-ventes", "tous", "marc")).toBe(
+      true,
+    );
+    expect(canAccessPath("admin", "/journal-stock", "tous", "marc")).toBe(true);
+    expect(canAccessPath("admin", "/historique", "tous", "marc")).toBe(true);
+    expect(canAccessPath("admin", "/admin", "tous", "marc")).toBe(true);
+    expect(canAccessPath("admin", "/vente", "tous", "marc")).toBe(false);
+    expect(canAccessPath("admin", "/parametres", "tous", "marc")).toBe(false);
+    expect(canAccessPath("admin", "/zogbo", "tous", "marc")).toBe(false);
+  });
 });

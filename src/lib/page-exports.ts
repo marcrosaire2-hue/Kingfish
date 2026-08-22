@@ -53,7 +53,7 @@ async function fetchJson<T>(url: string): Promise<T> {
 const KIND_LABELS: Record<string, string> = {
   plat: "Plat",
   local: "Sur place",
-  combo: "Combo",
+  combo: "Formule",
   boisson: "Boisson",
   extra: "Vente libre",
   matiere: "Matière",
@@ -93,7 +93,7 @@ export function exportParametresExcel(data: Parametres): void {
       })),
     },
     {
-      name: "Combos",
+      name: "Formules",
       rows: data.combos.map((c) => ({
         Id: c.id,
         Nom: c.name,
@@ -184,9 +184,9 @@ export async function exportZogboExcel(date: string): Promise<void> {
       })),
     },
     {
-      name: "Combos",
+      name: "Formules",
       rows: c.lines.map((l) => ({
-        Combo: l.name,
+        Formule: l.name,
         "Stock Zogbo": l.stockActuelZogbo,
         Préparé: l.prepared,
         Envoyé: l.sentToGbegamey,
@@ -283,9 +283,9 @@ export async function exportGbegameyExcel(date: string): Promise<void> {
       })),
     },
     {
-      name: "Combos",
+      name: "Formules",
       rows: c.lines.map((l) => ({
-        Combo: l.name,
+        Formule: l.name,
         "Init Gbégamey": l.initialGbegamey,
         Reçu: l.receivedGbegamey,
         Vendu: l.soldGbegamey,
@@ -448,14 +448,14 @@ export async function exportSyntheseExcel(input: {
           Date: String(d.date ?? input.date ?? ""),
           "CA Zogbo plats": Number(d.caZogboPlats) || 0,
           "CA Zogbo accompagnements": Number(d.caAccompagnementsZogbo) || 0,
-          "CA Zogbo combos": Number(d.caCombosZogbo) || 0,
+          "CA Zogbo formules": Number(d.caCombosZogbo) || 0,
           "CA Zogbo boissons": Number(d.caBoissonsZogbo) || 0,
           "CA Zogbo extra": Number(d.caExtraZogbo) || 0,
           "CA Zogbo total": Number(d.caZogbo) || 0,
           "CA Gbégamey plats": Number(d.caGbegameyPlats) || 0,
           "CA Gbégamey accompagnements":
             Number(d.caAccompagnementsGbegamey) || 0,
-          "CA Gbégamey combos": Number(d.caCombosGbegamey) || 0,
+          "CA Gbégamey formules": Number(d.caCombosGbegamey) || 0,
           "CA Gbégamey boissons": Number(d.caBoissonsGbegamey) || 0,
           "CA Gbégamey extra": Number(d.caExtraGbegamey) || 0,
           "CA Gbégamey total": Number(d.caGbegamey) || 0,

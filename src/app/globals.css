@@ -3738,6 +3738,53 @@ select {
   font-size: 1.05rem;
 }
 
+.jv-day-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  padding: 0 1.1rem 0.85rem;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.jv-day-breakdown strong {
+  color: var(--ink);
+  margin-left: 0.25rem;
+}
+
+.jv-category-totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1.25rem;
+}
+
+.jv-category-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.65rem;
+  background: var(--surface-elevated, #f8fafc);
+  border: 1px solid var(--border, #d5e0ec);
+}
+
+.jv-category-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.jv-category-card strong {
+  font-size: 1.05rem;
+}
+
+.jv-category-card .muted {
+  font-size: 0.78rem;
+}
+
 .jv-table td,
 .jv-table th {
   white-space: nowrap;

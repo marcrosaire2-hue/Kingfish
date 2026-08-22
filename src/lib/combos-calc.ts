@@ -239,7 +239,7 @@ export function applyCombosMovementToState(
   if (qty <= 0) throw new Error("Quantité invalide");
 
   const idx = lines.findIndex((l) => l.productId === input.productId);
-  if (idx < 0) throw new Error("Combo introuvable");
+  if (idx < 0) throw new Error("Formule introuvable");
 
   const line = normalizeCombosLine(lines[idx]!);
   let nextStock = line.stockZogbo;
@@ -299,7 +299,7 @@ export function cancelCombosMovementInState(
   if (target.cancelledAt) throw new Error("Mouvement déjà annulé");
 
   const idx = lines.findIndex((l) => l.productId === target.productId);
-  if (idx < 0) throw new Error("Combo introuvable");
+  if (idx < 0) throw new Error("Formule introuvable");
   const line = normalizeCombosLine(lines[idx]!);
 
   let nextStock: number;

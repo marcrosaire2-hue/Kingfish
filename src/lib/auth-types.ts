@@ -116,6 +116,22 @@ export function isPrincipalAdminAccount(username: string): boolean {
   return username.trim().toLowerCase() === "admin";
 }
 
+/**
+ * Compte direction (Marc) : vue synthèse + journaux + registre + création
+ * d'utilisateurs — sans les écrans opérationnels (vente, caisse, stocks zone…).
+ */
+export function isExecutiveAdminAccount(username: string): boolean {
+  return username.trim().toLowerCase() === "marc";
+}
+
+const EXECUTIVE_ADMIN_NAV: NavKey[] = [
+  "synthese",
+  "journal-ventes",
+  "journal-stock",
+  "historique",
+  "admin",
+];
+
 /** Rôles qu’un admin peut attribuer. */
 export function rolesCreatableBy(actor: {
   role: UserRole;
@@ -312,7 +328,14 @@ export function effectiveSite(role: UserRole, site: UserSite): UserSite {
  * Menu filtré par rôle + site : un compte Zogbo ne voit pas Gbégamey
  * (et inversement). Cuisine suit le site assigné.
  */
-export function navForUser(role: UserRole, site: UserSite): NavKey[] {
+export function navForUser(
+  role: UserRole,
+  site: UserSite,
+  username?: string,
+): NavKey[] {
+  if (role === "admin" && username && isExecutiveAdminAccount(username)) {
+    return [...EXECUTIVE_ADMIN_NAV];
+  }
   const scoped = effectiveSite(role, site);
   let keys = [...ROLE_NAV[role]];
 
@@ -335,12 +358,21 @@ export function navForRole(role: UserRole): NavKey[] {
   return navForUser(role, "tous");
 }
 
+export function navForSession(user: {
+  role: UserRole;
+  site: UserSite;
+  username: string;
+}): NavKey[] {
+  return navForUser(user.role, user.site, user.username);
+}
+
 export function canAccessPath(
   role: UserRole,
   pathname: string,
   site: UserSite = "tous",
+  username?: string,
 ): boolean {
-  const allowed = navForUser(role, site);
+  const allowed = navForUser(role, site, username);
   if (pathname.startsWith("/admin")) return allowed.includes("admin");
   if (pathname.startsWith("/vente")) return allowed.includes("vente");
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");

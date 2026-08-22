@@ -134,7 +134,7 @@ async function resolveTarget(input: {
 
   if (kind === "combo") {
     const combo = parametres.combos.find((c) => c.id === productId);
-    if (!combo) throw new Error("Combo introuvable");
+    if (!combo) throw new Error("Formule introuvable");
     const { day } = await getCombosDayPayload(date);
     assertDayOpen(day.status, closedMessage, openOpts);
     return {

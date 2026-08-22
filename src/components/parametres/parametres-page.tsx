@@ -228,7 +228,7 @@ export function ParametresPage() {
   return (
     <AppShell
       title="Paramètres"
-      subtitle="Catalogues classés par point — Zogbo et Gbégamey. Combos et boissons sont partagés ; les ventes restent séparées."
+      subtitle="Catalogues classés par point — Zogbo et Gbégamey. Formules et boissons sont partagées ; les ventes restent séparées."
       actions={
         <>
           <ExportExcelButton

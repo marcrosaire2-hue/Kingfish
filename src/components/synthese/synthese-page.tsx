@@ -544,7 +544,7 @@ function GeneralDayDashboard({
     },
     {
       key: "combos",
-      label: "Combos",
+      label: "Formules",
       value: day.caCombos,
       color: CHART_COLORS.combos,
     },
@@ -640,7 +640,7 @@ function GeneralDayDashboard({
           <div className="dash-breakdown">
             <p>
               <strong>Zogbo</strong> — plats {formatFcfa(day.caZogboPlats)} ·
-              acc. {formatFcfa(day.caAccompagnementsZogbo)} · combos{" "}
+              acc. {formatFcfa(day.caAccompagnementsZogbo)} · formules{" "}
               {formatFcfa(day.caCombosZogbo)} · boissons{" "}
               {formatFcfa(day.caBoissonsZogbo)} · extra{" "}
               {formatFcfa(day.caExtraZogbo)}
@@ -648,7 +648,7 @@ function GeneralDayDashboard({
             <p>
               <strong>Gbégamey</strong> — plats{" "}
               {formatFcfa(day.caGbegameyPlats)} · acc.{" "}
-              {formatFcfa(day.caAccompagnementsGbegamey)} · combos{" "}
+              {formatFcfa(day.caAccompagnementsGbegamey)} · formules{" "}
               {formatFcfa(day.caCombosGbegamey)} · boissons{" "}
               {formatFcfa(day.caBoissonsGbegamey)} · extra{" "}
               {formatFcfa(day.caExtraGbegamey)}
@@ -736,7 +736,7 @@ function DayDashboard({
     },
     {
       key: "combos",
-      label: "Combos",
+      label: "Formules",
       value: day.caCombos,
       color: CHART_COLORS.combos,
     },
@@ -832,7 +832,7 @@ function DayDashboard({
           <div className="dash-breakdown">
             <p>
               <strong>Zogbo</strong> — plats {formatFcfa(day.caZogboPlats)} ·
-              acc. {formatFcfa(day.caAccompagnementsZogbo)} · combos{" "}
+              acc. {formatFcfa(day.caAccompagnementsZogbo)} · formules{" "}
               {formatFcfa(day.caCombosZogbo)} · boissons{" "}
               {formatFcfa(day.caBoissonsZogbo)} · extra{" "}
               {formatFcfa(day.caExtraZogbo)}
@@ -840,7 +840,7 @@ function DayDashboard({
             <p>
               <strong>Gbégamey</strong> — plats{" "}
               {formatFcfa(day.caGbegameyPlats)} · acc.{" "}
-              {formatFcfa(day.caAccompagnementsGbegamey)} · combos{" "}
+              {formatFcfa(day.caAccompagnementsGbegamey)} · formules{" "}
               {formatFcfa(day.caCombosGbegamey)} · boissons{" "}
               {formatFcfa(day.caBoissonsGbegamey)} · extra{" "}
               {formatFcfa(day.caExtraGbegamey)}
@@ -967,7 +967,7 @@ function MonthDashboard({
   const categoryBars = [
     {
       key: "combos",
-      label: "Combos",
+      label: "Formules",
       value: data.totals.caCombos,
       color: CHART_COLORS.combos,
     },
@@ -1045,7 +1045,7 @@ function MonthDashboard({
           )}
         </section>
         <section className="panel dash-card">
-          <h2 className="panel-title">Combos · Boissons · Charges</h2>
+          <h2 className="panel-title">Formules · Boissons · Charges</h2>
           <HorizontalBars rows={categoryBars} />
         </section>
       </div>

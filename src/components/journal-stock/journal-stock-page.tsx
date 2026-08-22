@@ -27,7 +27,7 @@ const TYPE_LABELS: Record<TypeFilter, string> = {
 const KIND_LABELS: Record<string, string> = {
   plat: "Plat",
   local: "Sur place",
-  combo: "Combo",
+  combo: "Formule",
   boisson: "Boisson",
   extra: "Vente libre",
   matiere: "Matière",

@@ -63,7 +63,7 @@ export async function PUT(request: Request) {
     await logActivity({
       user,
       kind: "combos",
-      title: `Combos · ${body.date}`,
+      title: `Formules · ${body.date}`,
       detail: `notes / compté enregistrés`,
       date: body.date,
       site: body.site ?? null,
@@ -103,7 +103,7 @@ export async function POST(request: Request) {
       await logActivity({
         user,
         kind: "combos",
-        title: `Annulation combo · ${m.name}`,
+        title: `Annulation formule · ${m.name}`,
         detail: `${m.type === "prepare" ? "Préparé" : "Envoi"} −${m.qty}`,
         date: body.date,
         site: "zogbo",
@@ -143,8 +143,8 @@ export async function POST(request: Request) {
       kind: "combos",
       title:
         m.type === "prepare"
-          ? `Combo préparé · ${m.name}`
-          : `Combo envoyé · ${m.name}`,
+          ? `Formule préparée · ${m.name}`
+          : `Formule envoyée · ${m.name}`,
       detail: `+${m.qty} · dispo Zogbo ${m.stockAfter}`,
       date: body.date,
       site: "zogbo",

@@ -46,7 +46,7 @@ export const HISTORIQUE_KIND_LABELS: Record<HistoriqueKind, string> = {
   transfert: "Transfert",
   zogbo: "Zogbo",
   gbegamey: "Gbégamey",
-  combos: "Combos",
+  combos: "Formules",
   boissons: "Boissons",
   parametres: "Paramètres",
   charges: "Charges",

@@ -48,7 +48,7 @@ const KIND_OPTIONS: { value: KindFilter; label: string }[] = [
   { value: "transfert", label: "Transferts" },
   { value: "zogbo", label: "Zogbo" },
   { value: "gbegamey", label: "Gbégamey" },
-  { value: "combos", label: "Combos" },
+  { value: "combos", label: "Formules" },
   { value: "boissons", label: "Boissons" },
   { value: "parametres", label: "Paramètres" },
   { value: "charges", label: "Charges" },

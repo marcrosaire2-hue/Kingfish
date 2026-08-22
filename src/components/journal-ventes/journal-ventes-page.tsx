@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { ExportExcelButton } from "@/components/export-excel-button";
@@ -52,6 +52,39 @@ function siteLabel(site: string): string {
   if (site === "zogbo") return "Zogbo";
   if (site === "gbegamey") return "Gbégamey";
   return "—";
+}
+
+type VenteCategory = "plat" | "accompagnement" | "boisson" | "autre";
+
+function venteCategory(kind?: string): VenteCategory {
+  if (kind === "plat" || kind === "combo") return "plat";
+  if (kind === "local") return "accompagnement";
+  if (kind === "boisson") return "boisson";
+  return "autre";
+}
+
+const CATEGORY_LABELS: Record<VenteCategory, string> = {
+  plat: "Plats",
+  accompagnement: "Accompagnements",
+  boisson: "Boissons",
+  autre: "Autres",
+};
+
+function sumCategoryLines(
+  lines: JournalVenteLine[],
+  category: VenteCategory,
+): { qty: number; montant: number; lignes: number } {
+  let qty = 0;
+  let montant = 0;
+  let lignes = 0;
+  for (const l of lines) {
+    if (l.statut !== "valide") continue;
+    if (venteCategory(l.kind) !== category) continue;
+    qty += l.qty;
+    montant += l.montant;
+    lignes += 1;
+  }
+  return { qty, montant, lignes };
 }
 
 const EMPTY_RESULT: JournalVenteResult = {
@@ -118,6 +151,17 @@ export function JournalVentesPage() {
       setLoading(false);
     }
   }, [from, to, site, statut, source, serveur, paiement, q]);
+
+  const categoryTotals = useMemo(() => {
+    const allLines = result.days.flatMap((d) => d.lines);
+    return (["plat", "accompagnement", "boisson", "autre"] as VenteCategory[]).map(
+      (cat) => ({
+        cat,
+        label: CATEGORY_LABELS[cat],
+        ...sumCategoryLines(allLines, cat),
+      }),
+    );
+  }, [result.days]);
 
   useEffect(() => {
     void load();
@@ -464,6 +508,19 @@ export function JournalVentesPage() {
         </div>
       </div>
 
+      <div className="jv-category-totals">
+        {categoryTotals.map((c) => (
+          <div key={c.cat} className="jv-category-card">
+            <span className="jv-category-label">{c.label}</span>
+            <strong className="mono">{formatFcfa(c.montant)}</strong>
+            <span className="muted">
+              {c.qty} vendu{c.qty > 1 ? "s" : ""} · {c.lignes} ligne
+              {c.lignes > 1 ? "s" : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+
       {error ? (
         <p className="error-banner" role="alert">
           {error}
@@ -525,8 +582,23 @@ function JournalDayBlock({
   onDeleteLine: (line: JournalVenteLine) => void;
   onDeleteTicket: (line: JournalVenteLine) => void;
 }) {
-  const boissons = day.lines.filter((l) => l.kind === "boisson");
-  const plats = day.lines.filter((l) => l.kind !== "boisson");
+  const plats = day.lines.filter((l) => venteCategory(l.kind) === "plat");
+  const accompagnements = day.lines.filter(
+    (l) => venteCategory(l.kind) === "accompagnement",
+  );
+  const boissons = day.lines.filter((l) => venteCategory(l.kind) === "boisson");
+  const autres = day.lines.filter((l) => venteCategory(l.kind) === "autre");
+
+  const dayPlats = sumCategoryLines(day.lines, "plat");
+  const dayAcc = sumCategoryLines(day.lines, "accompagnement");
+  const dayBoissons = sumCategoryLines(day.lines, "boisson");
+
+  const groups: { title: string; lines: JournalVenteLine[] }[] = [
+    { title: "Plats", lines: plats },
+    { title: "Accompagnements", lines: accompagnements },
+    { title: "Boissons", lines: boissons },
+    { title: "Autres articles", lines: autres },
+  ];
 
   return (
     <div className="panel panel-wide jv-day">
@@ -540,32 +612,35 @@ function JournalDayBlock({
         </h2>
         <strong className="jv-day-total mono">{formatFcfa(day.montant)}</strong>
       </div>
-      <JournalLinesTable
-        title="Plats & autres articles"
-        lines={plats}
-        formatHeure={formatHeure}
-        siteLabel={siteLabel}
-        busyTicketId={busyTicketId}
-        busyLineId={busyLineId}
-        canManagePast={canManagePast}
-        onCancel={onCancel}
-        onEdit={onEdit}
-        onDeleteLine={onDeleteLine}
-        onDeleteTicket={onDeleteTicket}
-      />
-      <JournalLinesTable
-        title="Boissons"
-        lines={boissons}
-        formatHeure={formatHeure}
-        siteLabel={siteLabel}
-        busyTicketId={busyTicketId}
-        busyLineId={busyLineId}
-        canManagePast={canManagePast}
-        onCancel={onCancel}
-        onEdit={onEdit}
-        onDeleteLine={onDeleteLine}
-        onDeleteTicket={onDeleteTicket}
-      />
+      <div className="jv-day-breakdown">
+        <span>
+          Plats <strong className="mono">{formatFcfa(dayPlats.montant)}</strong>
+        </span>
+        <span>
+          Accomp.{" "}
+          <strong className="mono">{formatFcfa(dayAcc.montant)}</strong>
+        </span>
+        <span>
+          Boissons{" "}
+          <strong className="mono">{formatFcfa(dayBoissons.montant)}</strong>
+        </span>
+      </div>
+      {groups.map((g) => (
+        <JournalLinesTable
+          key={g.title}
+          title={g.title}
+          lines={g.lines}
+          formatHeure={formatHeure}
+          siteLabel={siteLabel}
+          busyTicketId={busyTicketId}
+          busyLineId={busyLineId}
+          canManagePast={canManagePast}
+          onCancel={onCancel}
+          onEdit={onEdit}
+          onDeleteLine={onDeleteLine}
+          onDeleteTicket={onDeleteTicket}
+        />
+      ))}
     </div>
   );
 }
@@ -599,6 +674,10 @@ function JournalLinesTable({
 
   const total = lines.reduce(
     (s, l) => (l.statut === "valide" ? s + l.montant : s),
+    0,
+  );
+  const totalQty = lines.reduce(
+    (s, l) => (l.statut === "valide" ? s + l.qty : s),
     0,
   );
 
@@ -730,7 +809,7 @@ function JournalLinesTable({
               <th scope="row" colSpan={7}>
                 Total {title} (Validé)
               </th>
-              <td className="mono col-money">{lines.length}</td>
+              <td className="mono col-money">{totalQty}</td>
               <td colSpan={1} />
               <td className="mono col-money">{formatFcfa(total)}</td>
               <td colSpan={2} />
