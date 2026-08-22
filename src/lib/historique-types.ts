@@ -14,6 +14,8 @@ export type HistoriqueKind =
   | "caisse"
   | "pos"
   | "matieres"
+  | "immobilisations"
+  | "pertes"
   | "reprise";
 
 export type HistoriqueSite = VenteSite | "tous" | null;
@@ -52,6 +54,8 @@ export const HISTORIQUE_KIND_LABELS: Record<HistoriqueKind, string> = {
   caisse: "Caisse",
   pos: "Ticket POS",
   matieres: "Matières",
+  immobilisations: "Immobilisations",
+  pertes: "Pertes",
   reprise: "Reprise d’historique",
 };
 

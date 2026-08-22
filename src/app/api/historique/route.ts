@@ -25,6 +25,8 @@ const KINDS: Array<HistoriqueKind | "all"> = [
   "caisse",
   "pos",
   "matieres",
+  "immobilisations",
+  "pertes",
 ];
 
 export async function GET(request: Request) {

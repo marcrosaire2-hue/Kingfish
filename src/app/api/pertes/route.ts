@@ -78,7 +78,7 @@ export async function POST(request: Request) {
       });
       await logActivity({
         user,
-        kind: "matieres",
+        kind: "pertes",
         title: "Annulation d’une perte",
         detail: `${entry.qty} × ${entry.name}`,
         date: entry.date,
@@ -124,7 +124,7 @@ export async function POST(request: Request) {
 
     await logActivity({
       user,
-      kind: "matieres",
+      kind: "pertes",
       title: "Perte déclarée",
       detail: `${entry.qty} × ${entry.name} — ${PERTE_MOTIF_LABELS[entry.motif]}`,
       date: entry.date,

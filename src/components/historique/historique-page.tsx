@@ -56,6 +56,8 @@ const KIND_OPTIONS: { value: KindFilter; label: string }[] = [
   { value: "caisse", label: "Caisse" },
   { value: "pos", label: "Tickets POS" },
   { value: "matieres", label: "Matières" },
+  { value: "immobilisations", label: "Immobilisations" },
+  { value: "pertes", label: "Pertes" },
   { value: "reprise", label: "Reprise d’historique" },
 ];
 

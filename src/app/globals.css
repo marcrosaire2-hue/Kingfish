@@ -3292,8 +3292,13 @@ select {
 .hist-badge-parametres,
 .hist-badge-caisse,
 .hist-badge-pos,
-.hist-badge-matieres {
+.hist-badge-matieres,
+.hist-badge-immobilisations {
   background: color-mix(in srgb, var(--ink) 10%, var(--paper-raised));
+}
+
+.hist-badge-pertes {
+  background: color-mix(in srgb, var(--danger, #b91c1c) 16%, var(--paper-raised));
 }
 
 /* Journal stock — badges par type de mouvement */

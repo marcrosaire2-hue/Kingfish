@@ -90,7 +90,7 @@ export async function POST(request: Request) {
       });
       await logActivity({
         user,
-        kind: "parametres",
+        kind: "immobilisations",
         title: body.active
           ? `Immobilisation activée · ${item.name}`
           : `Immobilisation désactivée · ${item.name}`,
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
       });
       await logActivity({
         user,
-        kind: "parametres",
+        kind: "immobilisations",
         title: `Immobilisation modifiée · ${item.name}`,
         detail: item.kind,
         date: item.date,
@@ -170,7 +170,7 @@ export async function POST(request: Request) {
     });
     await logActivity({
       user,
-      kind: "parametres",
+      kind: "immobilisations",
       title: `Immobilisation créée · ${item.name}`,
       detail: item.kind,
       date: item.date,
