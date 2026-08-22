@@ -223,4 +223,17 @@ describe("l'API suit les droits de l'écran", () => {
     expect(canAccessPath("admin", "/parametres", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/zogbo", "tous", "marc")).toBe(false);
   });
+
+  it("interdit à daff la page Admin et l’API de gestion des comptes", () => {
+    const menu = navForUser("admin", "tous", "daff");
+    expect(menu).not.toContain("admin");
+    expect(menu).toContain("vente");
+    expect(menu).toContain("compte-resultat");
+    expect(canAccessPath("admin", "/admin", "tous", "daff")).toBe(false);
+    expect(
+      canAccessPath("admin", "/api/admin/users".replace(/^\/api/, ""), "tous", "daff"),
+    ).toBe(false);
+    expect(canAccessPath("admin", "/vente", "tous", "daff")).toBe(true);
+    expect(canAccessPath("admin", "/parametres", "tous", "daff")).toBe(true);
+  });
 });

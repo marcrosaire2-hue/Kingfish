@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AuthError, authErrorResponse, requireAdmin } from "@/lib/api-auth";
+import { AuthError, authErrorResponse, requireUserManagementAdmin } from "@/lib/api-auth";
 import {
   assertAdminCanManageTarget,
   assertValidRoleSite,
@@ -40,7 +40,7 @@ function isSite(v: unknown): v is UserSite {
 
 export async function GET() {
   try {
-    const admin = await requireAdmin();
+    const admin = await requireUserManagementAdmin();
     const users = (await listUsers()).filter((u) =>
       userVisibleToAdmin(admin, u),
     );
@@ -61,7 +61,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const admin = await requireAdmin();
+    const admin = await requireUserManagementAdmin();
     const body = (await request.json()) as {
       username?: string;
       name?: string;
@@ -218,7 +218,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const admin = await requireAdmin();
+    const admin = await requireUserManagementAdmin();
     const body = (await request.json()) as {
       id?: string;
       name?: string;
@@ -301,7 +301,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const admin = await requireAdmin();
+    const admin = await requireUserManagementAdmin();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     if (!id) {

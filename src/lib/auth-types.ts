@@ -124,6 +124,22 @@ export function isExecutiveAdminAccount(username: string): boolean {
   return username.trim().toLowerCase() === "marc";
 }
 
+/**
+ * Admin opérationnel sans droit de créer / modifier des comptes (ex. daff).
+ */
+export function isUserManagementRestrictedAccount(username: string): boolean {
+  return username.trim().toLowerCase() === "daff";
+}
+
+/** Peut ouvrir /admin et appeler /api/admin/users. */
+export function canManageUsers(user: {
+  role: UserRole;
+  username: string;
+}): boolean {
+  if (user.role !== "admin") return false;
+  return !isUserManagementRestrictedAccount(user.username);
+}
+
 const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "synthese",
   "journal-ventes",
@@ -349,6 +365,10 @@ export function navForUser(
     keys = keys.filter((k) => k !== "gbegamey");
   } else if (scoped === "gbegamey") {
     keys = keys.filter((k) => k !== "zogbo");
+  }
+
+  if (username && isUserManagementRestrictedAccount(username)) {
+    keys = keys.filter((k) => k !== "admin");
   }
 
   return keys;

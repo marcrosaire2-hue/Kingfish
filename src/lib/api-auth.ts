@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { SessionUser } from "@/lib/auth-types";
-import { effectiveSite } from "@/lib/auth-types";
+import { canManageUsers, effectiveSite } from "@/lib/auth-types";
 import { reportError } from "@/lib/report-error";
 import { getSessionUser } from "@/lib/session";
 
@@ -19,6 +19,14 @@ export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (user.role !== "admin") {
     throw new AuthError("Accès administrateur requis", 403);
+  }
+  return user;
+}
+
+export async function requireUserManagementAdmin(): Promise<SessionUser> {
+  const user = await requireAdmin();
+  if (!canManageUsers(user)) {
+    throw new AuthError("Gestion des comptes non autorisée pour ce profil.", 403);
   }
   return user;
 }
