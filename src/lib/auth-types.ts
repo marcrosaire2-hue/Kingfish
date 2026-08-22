@@ -1,8 +1,9 @@
 export type UserRole =
   | "gerant"
   /**
-   * Comptable : lecture / pilotage financier (résultat, journal comptable,
-   * journaux, registre). Pas d’encaissement ni de gestion des comptes.
+   * Comptable : pilotage financier + saisie des stocks par zone (plats,
+   * accompagnements, boissons, matières) et immobilisations. Pas de vente POS
+   * ni de gestion des comptes.
    */
   | "comptable"
   /**
@@ -275,17 +276,21 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     // Saisie / correction / annulation des ventes d'un jour passé.
     "regularisation",
   ],
-  // Pilotage financier, sans opération ni gestion des comptes.
+  // Finance + stocks par zone (plats, accompagnements, boissons, matières)
+  // et immobilisations (emballages / actifs).
   comptable: [
     "synthese",
     "compte-resultat",
     "comptabilite",
     "caisse",
+    "zogbo",
+    "gbegamey",
+    "appro",
+    "stock",
+    "immobilisations",
     "journal-ventes",
     "journal-stock",
     "historique",
-    "immobilisations",
-    "stock",
   ],
   // Même périmètre qu’admin, sans la page Équipe (gestion des comptes).
   daf: [
@@ -482,11 +487,15 @@ export function canUseSite(
 }
 
 /**
- * Gérant et admin : saisir / corriger / annuler sur un jour passé
+ * Gérant, DAF, admin et comptable : saisir / corriger sur un jour passé
  * (ventes, stock, achats, pertes — y compris journée ou caisse clôturée).
  */
 export function canManagePastVentes(role: UserRole): boolean {
-  return role === "gerant" || hasDirectionAccess(role);
+  return (
+    role === "gerant" ||
+    role === "comptable" ||
+    hasDirectionAccess(role)
+  );
 }
 
 /** Filtre Mongo / API : rien si « tous », sinon le site unique. */

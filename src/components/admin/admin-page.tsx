@@ -643,7 +643,7 @@ export function AdminPage() {
                 : form.role === "daf"
                   ? "DAF : mêmes droits opérationnels sur les deux sites, sans gestion des comptes. Peut être retiré par un administrateur."
                   : form.role === "comptable"
-                    ? "Comptable : résultat, journal comptable, journaux et registre — sans vente ni gestion des comptes."
+                    ? "Comptable : résultat, stocks par zone (Zogbo / Gbégamey / achats) et immobilisations — sans vente POS ni gestion des comptes."
                   : form.site === "tous"
                     ? "Accès aux deux zones — ventes créditées à l’équipe choisie."
                     : `${SITE_LABELS[form.site]} — ventes créditées à l’équipe choisie.`}
@@ -691,7 +691,7 @@ export function AdminPage() {
 
         <div className="admin-legend">
           <span className="admin-legend-chip">Gérant → un site</span>
-          <span className="admin-legend-chip">Comptable → les deux sites (finance)</span>
+          <span className="admin-legend-chip">Comptable → finance + stocks zones</span>
           <span className="admin-legend-chip">DAF → les deux sites (sans Équipe)</span>
           <span className="admin-legend-chip">Admin zone → Zogbo ou Gbégamey</span>
           <span className="admin-legend-chip">Admin global → les deux sites</span>

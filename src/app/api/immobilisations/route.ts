@@ -57,7 +57,10 @@ export async function POST(request: Request) {
     const user = await requireUser();
     if (!canManagePastVentes(user.role)) {
       return NextResponse.json(
-        { error: "Réservé au gérant ou à l’administrateur." },
+        {
+          error:
+            "Réservé au gérant, au comptable, au DAF ou à l’administrateur.",
+        },
         { status: 403 },
       );
     }

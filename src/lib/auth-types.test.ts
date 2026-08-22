@@ -9,25 +9,33 @@ import {
 } from "@/lib/auth-types";
 
 describe("rôle Comptable", () => {
-  it("ouvre les écrans financiers, sans opération ni Équipe", () => {
+  it("ouvre la finance et la saisie stock par zone, sans vente ni Équipe", () => {
     const menu = navForUser("comptable", "tous");
     expect(menu).toEqual([
       "synthese",
       "compte-resultat",
       "comptabilite",
       "caisse",
+      "zogbo",
+      "gbegamey",
+      "appro",
+      "stock",
+      "immobilisations",
       "journal-ventes",
       "journal-stock",
       "historique",
-      "immobilisations",
-      "stock",
     ]);
     expect(canAccessPath("comptable", "/compte-resultat", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/comptabilite", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/zogbo", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/gbegamey", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/achats", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/stock", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/immobilisations", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/admin", "tous")).toBe(false);
     expect(canAccessPath("comptable", "/vente", "tous")).toBe(false);
     expect(canAccessPath("comptable", "/parametres", "tous")).toBe(false);
-    expect(canManagePastVentes("comptable")).toBe(false);
+    expect(canManagePastVentes("comptable")).toBe(true);
   });
 
   it("couvre les deux sites", () => {
@@ -132,7 +140,7 @@ describe("l'API suit les droits de l'écran", () => {
   it("réserve la correction des ventes passées au gérant et à l'admin", () => {
     expect(canManagePastVentes("gerant")).toBe(true);
     expect(canManagePastVentes("admin")).toBe(true);
-    expect(canManagePastVentes("comptable")).toBe(false);
+    expect(canManagePastVentes("comptable")).toBe(true);
     expect(canAccessPath("gerant", "/regularisation", "zogbo")).toBe(true);
     expect(canAccessPath("comptable", "/regularisation", "tous")).toBe(false);
     expect(navForUser("gerant", "zogbo")).toContain("regularisation");
