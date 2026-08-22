@@ -159,10 +159,10 @@ export function ZoneVentesPanel({
         <div className="panel-head-row">
           <h3 className="panel-title">Détail des ventes</h3>
           <Link
-            href={`/historique-ventes?from=${date}&to=${date}&site=${site}`}
+            href={`/journal-ventes?from=${date}&to=${date}&site=${site}`}
             className="btn btn-ghost"
           >
-            Historique complet
+            Journal complet
           </Link>
         </div>
         <table className="data-table zogbo-table">

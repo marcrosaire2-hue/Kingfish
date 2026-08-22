@@ -38,7 +38,7 @@ describe("rôle Vente & Cuisine", () => {
       "/admin",
       "/historique",
       "/stock",
-      "/historique-ventes",
+      "/journal-ventes",
       "/journal-stock",
     ]) {
       expect(canAccessPath("equipier", chemin, "gbegamey")).toBe(false);
@@ -103,10 +103,12 @@ describe("étanchéité des zones", () => {
     expect(navForUser("gerant", "zogbo")).toContain("stock");
   });
 
-  it("le gérant accède à l'historique des ventes de SA zone", () => {
+  it("le gérant accède au journal des ventes de SA zone", () => {
+    expect(canAccessPath("gerant", "/journal-ventes", "zogbo")).toBe(true);
     expect(canAccessPath("gerant", "/historique-ventes", "zogbo")).toBe(true);
     const menu = navForUser("gerant", "zogbo");
-    expect(menu).toContain("historique-ventes");
+    expect(menu).toContain("journal-ventes");
+    expect(menu).not.toContain("historique-ventes");
     // La zone est imposée par l'API : le menu ne propose que la sienne.
     expect(navForUser("gerant", "zogbo")).not.toContain("gbegamey");
   });

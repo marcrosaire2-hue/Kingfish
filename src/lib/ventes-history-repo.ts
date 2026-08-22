@@ -468,6 +468,7 @@ export type JournalVenteLine = {
   client: string | null;
   table: string | null;
   produit: string;
+  kind?: VenteKind;
   qty: number;
   unitPrice: number;
   montant: number;
@@ -489,6 +490,10 @@ export type JournalVenteResult = {
     valide: number;
     annule: number;
     encours: number;
+  };
+  facets: {
+    serveurs: string[];
+    paiements: string[];
   };
 };
 
@@ -525,6 +530,7 @@ export async function listJournalVentes(
         client: t.client,
         table: t.table,
         produit: l.name,
+        kind: l.kind,
         qty: l.qty,
         unitPrice: l.unitPrice,
         montant: l.amount,
@@ -549,7 +555,7 @@ export async function listJournalVentes(
     else totals.encours += 1;
   }
 
-  return { days, totals };
+  return { days, totals, facets: result.facets };
 }
 
 export async function getVenteHistoryTicket(

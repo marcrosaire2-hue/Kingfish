@@ -329,8 +329,8 @@ export function RegularisationPage() {
       subtitle="Corriger ou saisir des ventes d’un jour passé — réservé au gérant."
       actions={
         <>
-          <Link href="/historique-ventes" className="btn btn-ghost">
-            Historique
+          <Link href="/journal-ventes" className="btn btn-ghost">
+            Journal
           </Link>
           <Link href="/vente" className="btn btn-ghost">
             ← Vente

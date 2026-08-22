@@ -68,19 +68,12 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
-    href: "/historique-ventes",
-    label: "Historique ventes",
-    key: "historique-ventes",
-    mark: "H",
-    group: "pilot",
-    groupLabel: "Pilotage",
-  },
-  {
     href: "/journal-ventes",
     label: "Journal ventes",
     key: "journal-ventes",
     mark: "J",
     group: "pilot",
+    groupLabel: "Pilotage",
   },
   {
     href: "/regularisation",

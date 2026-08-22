@@ -596,8 +596,8 @@ const TicketsList = memo(function TicketsList({
         ))}
       </ul>
       {canViewHistory ? (
-        <Link href="/historique-ventes" className="vente-hist-link">
-          Voir tout l’historique des ventes
+        <Link href="/journal-ventes" className="vente-hist-link">
+          Voir le journal des ventes
         </Link>
       ) : null}
     </div>
@@ -1351,8 +1351,8 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             disabled={loading}
           />
           {canViewHistory ? (
-            <Link href="/historique-ventes" className="btn btn-ghost">
-              Historique
+            <Link href="/journal-ventes" className="btn btn-ghost">
+              Journal
             </Link>
           ) : null}
           <button
@@ -1955,8 +1955,8 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
           <p className="muted">Aucune vente.</p>
         )}
         {canViewHistory ? (
-            <Link href="/historique-ventes" className="vente-hist-link">
-              Voir l’historique des ventes
+            <Link href="/journal-ventes" className="vente-hist-link">
+              Voir le journal des ventes
             </Link>
           ) : null}
       </RegistreDrawer>

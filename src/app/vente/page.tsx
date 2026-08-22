@@ -5,7 +5,7 @@ import { getSessionUser } from "@/lib/session";
 export default async function Page() {
   const user = await getSessionUser();
   const canViewHistory = Boolean(
-    user && canAccessPath(user.role, "/historique-ventes", user.site),
+    user && canAccessPath(user.role, "/journal-ventes", user.site),
   );
   return <VentePage canViewHistory={canViewHistory} />;
 }
