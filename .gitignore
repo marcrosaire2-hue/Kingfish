@@ -39,6 +39,14 @@ yarn-error.log*
 # sauvegardes de la base : données d'exploitation, jamais dans le dépôt
 /sauvegardes/
 
+# Excel générés localement (regénérables via npm run excel:ventes)
+*.xlsx
+.~lock.*
+check-admin-password.mjs
+
+# exports générés (copies des xlsx)
+/exports/*.xlsx
+
 # vercel
 .vercel
 

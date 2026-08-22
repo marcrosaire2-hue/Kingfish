@@ -11,7 +11,12 @@
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "sauvegarde": "node --env-file=.env.local scripts/sauvegarde.mjs",
-    "restaurer": "node --env-file=.env.local scripts/restaurer.mjs"
+    "restaurer": "node --env-file=.env.local scripts/restaurer.mjs",
+    "excel:ventes": "node --env-file=.env.local scripts/generate-saisie-gerant-workbook.mjs --from-db",
+    "excel:import": "node --env-file=.env.local scripts/import-ventes-jour-excel.mjs --dry-run",
+    "excel:import:apply": "node --env-file=.env.local scripts/import-ventes-jour-excel.mjs --apply",
+    "resync:sold": "node --env-file=.env.local scripts/resync-sold-depuis-ventes-log.mjs",
+    "resync:sold:apply": "node --env-file=.env.local scripts/resync-sold-depuis-ventes-log.mjs --apply"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
