@@ -3,28 +3,35 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { BrandLoader } from "@/components/brand-loader";
+import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
-import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
 import { exportStockExcel } from "@/lib/page-exports";
 import type { StockPayload, StockRow, StockZone } from "@/lib/stock-repo";
-import { BrandLoader } from "@/components/brand-loader";
+import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
 
-function zoneLink(row: StockRow, date: string): string | null {
-  if (row.zone.startsWith("zogbo")) return `/zogbo?date=${date}`;
-  if (row.zone.startsWith("gbegamey")) return `/gbegamey?date=${date}`;
-  return null;
+function zoneHref(zone: StockZone, date: string): string {
+  return zone.startsWith("zogbo")
+    ? `/zogbo?date=${date}`
+    : `/gbegamey?date=${date}`;
 }
 
 function ecartClass(ecart: number | null): string {
   if (ecart === null || ecart === 0) return "";
-  if (Math.abs(ecart) <= 1) return "text-amber-700";
-  return "text-red-700 font-medium";
+  if (Math.abs(ecart) <= 1) return "stock-ecart is-warn";
+  return "stock-ecart is-bad";
 }
 
 function fmt(n: number | null | undefined): string {
   if (n === null || n === undefined) return "—";
   return String(n);
 }
+
+type ZoneGroup = {
+  zone: StockZone;
+  label: string;
+  rows: StockRow[];
+};
 
 export function StockPage() {
   const [date, setDate] = useState(() => todayIsoDate());
@@ -56,13 +63,9 @@ export function StockPage() {
 
   const zoneOptions = useMemo(() => {
     if (!data) return [];
-    const labels = new Map<StockZone, string>();
-    for (const t of data.totalsByZone) {
-      labels.set(t.zone, t.zoneLabel);
-    }
-    return [...labels.entries()].sort((a, b) =>
-      a[1].localeCompare(b[1], "fr"),
-    );
+    return data.totalsByZone
+      .map((t) => [t.zone, t.zoneLabel] as const)
+      .sort((a, b) => a[1].localeCompare(b[1], "fr"));
   }, [data]);
 
   const filteredRows = useMemo(() => {
@@ -70,6 +73,22 @@ export function StockPage() {
     if (zoneFilter === "all") return data.rows;
     return data.rows.filter((r) => r.zone === zoneFilter);
   }, [data, zoneFilter]);
+
+  const groups = useMemo((): ZoneGroup[] => {
+    const order = data?.totalsByZone.map((t) => t.zone) ?? [];
+    const map = new Map<StockZone, ZoneGroup>();
+    for (const row of filteredRows) {
+      let g = map.get(row.zone);
+      if (!g) {
+        g = { zone: row.zone, label: row.zoneLabel, rows: [] };
+        map.set(row.zone, g);
+      }
+      g.rows.push(row);
+    }
+    return [...map.values()].sort(
+      (a, b) => order.indexOf(a.zone) - order.indexOf(b.zone),
+    );
+  }, [data, filteredRows]);
 
   const scopeLabel = useMemo(() => {
     if (!data?.scopeSite) return "Tous les sites";
@@ -84,10 +103,113 @@ export function StockPage() {
     [zoneFilter, filteredRows],
   );
 
+  const globalTotals = useMemo(() => {
+    if (!data) return null;
+    return data.totalsByZone.reduce(
+      (acc, t) => {
+        acc.lignes += t.lignes;
+        acc.stockFinal += t.stockFinal;
+        acc.vendu += t.vendu;
+        acc.ecarts += t.ecarts;
+        return acc;
+      },
+      { lignes: 0, stockFinal: 0, vendu: 0, ecarts: 0 },
+    );
+  }, [data]);
+
+  function renderTable(rows: StockRow[], hideZoneCol: boolean) {
+    return (
+      <div className="table-scroll">
+        <table className="data-table stock-table">
+          <thead>
+            <tr>
+              {!hideZoneCol ? <th scope="col">Zone</th> : null}
+              <th scope="col">Produit</th>
+              <th scope="col" className="col-money">
+                Ouverture
+              </th>
+              <th scope="col" className="col-money">
+                Entrées
+              </th>
+              {showEnvoye ? (
+                <th scope="col" className="col-money">
+                  Envoyé Gbé
+                </th>
+              ) : null}
+              <th scope="col" className="col-money">
+                Vendu
+              </th>
+              <th scope="col" className="col-money">
+                Pertes
+              </th>
+              <th scope="col" className="col-money">
+                Stock final
+              </th>
+              <th scope="col" className="col-money">
+                Vendable
+              </th>
+              <th scope="col" className="col-money">
+                Compté
+              </th>
+              <th scope="col" className="col-money">
+                Écart
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => {
+              const href = zoneHref(row.zone, date);
+              const warnRow =
+                row.ecart !== null && Math.abs(row.ecart) > 1
+                  ? "row-warn"
+                  : undefined;
+              return (
+                <tr key={`${row.zone}:${row.productId}`} className={warnRow}>
+                  {!hideZoneCol ? (
+                    <td>
+                      <Link href={href} className="stock-zone-link">
+                        {row.zoneLabel}
+                      </Link>
+                    </td>
+                  ) : null}
+                  <td className="cell-name">
+                    <strong>{row.name}</strong>
+                    <span className="cell-sub">
+                      {row.kind === "plat" ? "Plat" : "Accompagnement"}
+                    </span>
+                  </td>
+                  <td className="mono col-money">{fmt(row.opening)}</td>
+                  <td className="mono col-money">{fmt(row.entrees)}</td>
+                  {showEnvoye ? (
+                    <td className="mono col-money">
+                      {row.zone === "zogbo-plats" ? fmt(row.envoye) : "—"}
+                    </td>
+                  ) : null}
+                  <td className="mono col-money">{fmt(row.vendu)}</td>
+                  <td className="mono col-money">{fmt(row.pertes)}</td>
+                  <td className="mono col-money stock-final">
+                    {fmt(row.stockFinal)}
+                  </td>
+                  <td className="mono col-money">{fmt(row.stockVendable)}</td>
+                  <td className="mono col-money">{fmt(row.compte)}</td>
+                  <td
+                    className={`mono col-money ${ecartClass(row.ecart)}`}
+                  >
+                    {fmt(row.ecart)}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
   return (
     <AppShell
       title="Stock"
-      subtitle="Stock final par plat et accompagnement pour chaque site et chaque date — inventaire signé ou report théorique"
+      subtitle="Inventaire du jour par site — ouverture, mouvements et reste théorique"
       actions={
         data ? (
           <ExportExcelButton
@@ -97,44 +219,42 @@ export function StockPage() {
         ) : undefined
       }
     >
-      <div className="space-y-8">
-        <section className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm sm:p-6">
-          <h2 className="text-lg font-semibold text-stone-900">Date</h2>
-          <p className="mt-1 text-sm text-stone-600">
-            Zone visible : {scopeLabel}. Les chiffres reprennent les fiches
-            inventaire (Zogbo / Gbégamey) : ouverture, entrées, ventes, pertes
-            et reste théorique.
-          </p>
-          <div className="mt-4 flex flex-wrap items-end gap-4">
-            <label className="block text-sm">
-              <span className="font-medium text-stone-700">Journée</span>
-              <input
-                type="date"
-                className="mt-1 block rounded-lg border border-stone-300 px-3 py-2"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </label>
-            <button
-              type="button"
-              className="rounded-lg border border-stone-300 px-3 py-2 text-sm hover:bg-stone-50"
-              onClick={() => setDate(todayIsoDate())}
-            >
-              Aujourd&apos;hui
-            </button>
+      <div className="stock-page">
+        <ContextBar
+          date={date}
+          onDateChange={setDate}
+          siteLabel={scopeLabel}
+        >
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setDate(todayIsoDate())}
+          >
+            Aujourd&apos;hui
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            Actualiser
+          </button>
+        </ContextBar>
+
+        {data ? (
+          <div className="stock-day-meta">
+            <span className="muted">{formatDisplayDate(date)}</span>
+            {data.dayStatus.zogbo ? (
+              <span className="context-pill">Zogbo · {data.dayStatus.zogbo}</span>
+            ) : null}
+            {data.dayStatus.gbegamey ? (
+              <span className="context-pill">
+                Gbégamey · {data.dayStatus.gbegamey}
+              </span>
+            ) : null}
           </div>
-          {data ? (
-            <p className="mt-3 text-sm text-stone-500">
-              {formatDisplayDate(date)}
-              {data.dayStatus.zogbo
-                ? ` · Zogbo : ${data.dayStatus.zogbo}`
-                : ""}
-              {data.dayStatus.gbegamey
-                ? ` · Gbégamey : ${data.dayStatus.gbegamey}`
-                : ""}
-            </p>
-          ) : null}
-        </section>
+        ) : null}
 
         {error ? (
           <p className="error-banner" role="alert">
@@ -144,201 +264,147 @@ export function StockPage() {
 
         {loading ? (
           <BrandLoader variant="ligne" label="Chargement du stock…" />
-        ) : data ? (
-          <>
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {data.totalsByZone.map((t) => {
-                const href =
-                  t.zone.startsWith("zogbo")
-                    ? `/zogbo?date=${date}`
-                    : `/gbegamey?date=${date}`;
-                return (
-                  <article
-                    key={t.zone}
-                    className="rounded-xl border border-stone-200 bg-white p-4 shadow-sm"
-                  >
-                    <h3 className="text-sm font-semibold text-stone-800">
-                      <Link
-                        href={href}
-                        className="hover:text-teal-800 hover:underline"
-                      >
-                        {t.zoneLabel}
-                      </Link>
-                    </h3>
-                    <dl className="mt-3 space-y-1 text-sm">
-                      <div className="flex justify-between">
-                        <dt className="text-stone-500">Lignes actives</dt>
-                        <dd className="mono font-medium">{t.lignes}</dd>
-                      </div>
-                      <div className="flex justify-between">
-                        <dt className="text-stone-500">Stock final</dt>
-                        <dd className="mono font-semibold text-teal-800">
-                          {t.stockFinal}
-                        </dd>
-                      </div>
-                      {t.stockVendable !== null ? (
-                        <div className="flex justify-between">
-                          <dt className="text-stone-500">Vendable</dt>
-                          <dd className="mono">{t.stockVendable}</dd>
-                        </div>
-                      ) : null}
-                      <div className="flex justify-between">
-                        <dt className="text-stone-500">Vendu</dt>
-                        <dd className="mono">{t.vendu}</dd>
-                      </div>
-                      {t.ecarts > 0 ? (
-                        <div className="flex justify-between text-amber-700">
-                          <dt>Écarts inventaire</dt>
-                          <dd className="mono">{t.ecarts}</dd>
-                        </div>
-                      ) : null}
-                    </dl>
-                  </article>
-                );
-              })}
-            </section>
+        ) : null}
 
-            <section className="rounded-xl border border-stone-200 bg-white shadow-sm">
-              <div className="flex flex-wrap items-center gap-2 border-b border-stone-100 p-4">
-                <span className="text-sm font-medium text-stone-700">
-                  Filtrer :
+        {!loading && data && globalTotals ? (
+          <>
+            <div className="dash-kpi-grid stock-kpi-grid">
+              <div
+                className={`dash-kpi${globalTotals.ecarts > 0 ? " dash-kpi-warn" : " dash-kpi-accent"}`}
+              >
+                <span className="dash-kpi-label">Vue d&apos;ensemble</span>
+                <span className="dash-kpi-value mono">
+                  {globalTotals.stockFinal}
                 </span>
-                <button
-                  type="button"
-                  className={`rounded-full px-3 py-1 text-sm ${
-                    zoneFilter === "all"
-                      ? "bg-teal-800 text-white"
-                      : "border border-stone-300 hover:bg-stone-50"
-                  }`}
-                  onClick={() => setZoneFilter("all")}
-                >
-                  Toutes les zones
-                </button>
-                {zoneOptions.map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`rounded-full px-3 py-1 text-sm ${
-                      zoneFilter === key
-                        ? "bg-teal-800 text-white"
-                        : "border border-stone-300 hover:bg-stone-50"
-                    }`}
-                    onClick={() => setZoneFilter(key)}
-                  >
-                    {label}
-                  </button>
-                ))}
+                <div className="stock-kpi-meta">
+                  <span>
+                    {globalTotals.lignes} ligne
+                    {globalTotals.lignes > 1 ? "s" : ""} · vendu{" "}
+                    <strong>{globalTotals.vendu}</strong>
+                  </span>
+                  {globalTotals.ecarts > 0 ? (
+                    <span className="stock-ecart is-warn">
+                      {globalTotals.ecarts} écart
+                      {globalTotals.ecarts > 1 ? "s" : ""} inventaire
+                    </span>
+                  ) : (
+                    <span>Inventaire aligné</span>
+                  )}
+                </div>
               </div>
 
-              {filteredRows.length === 0 ? (
-                <p className="p-6 text-sm text-stone-500">
-                  Aucun stock reporté pour cette date
-                  {zoneFilter !== "all" ? " dans cette zone" : ""}
-                  . Ouvrez la fiche du site ou choisissez une date après
-                  inventaire.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[880px] text-sm">
-                    <thead>
-                      <tr className="border-b border-stone-200 bg-stone-50 text-left text-stone-600">
-                        <th className="px-4 py-3 font-medium">Zone</th>
-                        <th className="px-4 py-3 font-medium">Produit</th>
-                        <th className="px-4 py-3 font-medium text-right">
-                          Ouverture
-                        </th>
-                        <th className="px-4 py-3 font-medium text-right">
-                          Entrées
-                        </th>
-                        {showEnvoye ? (
-                          <th className="px-4 py-3 font-medium text-right">
-                            Envoyé Gbé
-                          </th>
-                        ) : null}
-                        <th className="px-4 py-3 font-medium text-right">
-                          Vendu
-                        </th>
-                        <th className="px-4 py-3 font-medium text-right">
-                          Pertes
-                        </th>
-                        <th className="px-4 py-3 font-medium text-right">
-                          Stock final
-                        </th>
-                        <th className="px-4 py-3 font-medium text-right">
-                          Vendable
-                        </th>
-                        <th className="px-4 py-3 font-medium text-right">
-                          Compté
-                        </th>
-                        <th className="px-4 py-3 font-medium text-right">
-                          Écart
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredRows.map((row) => {
-                        const href = zoneLink(row, date);
-                        return (
-                          <tr
-                            key={`${row.zone}:${row.productId}`}
-                            className="border-b border-stone-100 hover:bg-stone-50/80"
+              {data.totalsByZone.map((t) => (
+                <button
+                  key={t.zone}
+                  type="button"
+                  className={`dash-kpi stock-kpi-btn${
+                    zoneFilter === t.zone ? " is-active" : ""
+                  }${t.ecarts > 0 ? " dash-kpi-warn" : ""}`}
+                  onClick={() =>
+                    setZoneFilter((z) => (z === t.zone ? "all" : t.zone))
+                  }
+                >
+                  <span className="dash-kpi-label">{t.zoneLabel}</span>
+                  <span className="dash-kpi-value mono">{t.stockFinal}</span>
+                  <div className="stock-kpi-meta">
+                    <span>
+                      {t.lignes} actif{t.lignes > 1 ? "s" : ""} · vendu{" "}
+                      <strong>{t.vendu}</strong>
+                    </span>
+                    {t.stockVendable !== null ? (
+                      <span>
+                        Vendable <strong>{t.stockVendable}</strong>
+                      </span>
+                    ) : null}
+                    {t.ecarts > 0 ? (
+                      <span className="stock-ecart is-warn">
+                        {t.ecarts} écart{t.ecarts > 1 ? "s" : ""}
+                      </span>
+                    ) : null}
+                    <Link
+                      href={zoneHref(t.zone, date)}
+                      className="stock-zone-link"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Ouvrir la fiche →
+                    </Link>
+                  </div>
+                </button>
+              ))}
+            </div>
+
+            <div
+              className="section-tabs"
+              role="tablist"
+              aria-label="Filtrer par zone"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={zoneFilter === "all"}
+                className={`section-tab${zoneFilter === "all" ? " is-active" : ""}`}
+                onClick={() => setZoneFilter("all")}
+              >
+                Toutes les zones
+              </button>
+              {zoneOptions.map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={zoneFilter === key}
+                  className={`section-tab${zoneFilter === key ? " is-active" : ""}`}
+                  onClick={() => setZoneFilter(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {groups.length === 0 ? (
+              <p className="muted">
+                Aucun stock reporté pour cette date
+                {zoneFilter !== "all" ? " dans cette zone" : ""}. Ouvrez la fiche
+                du site ou choisissez une date après inventaire.
+              </p>
+            ) : (
+              groups.map((g) => {
+                const total = data.totalsByZone.find((t) => t.zone === g.zone);
+                const single = zoneFilter !== "all";
+                return (
+                  <section key={g.zone} className="panel panel-wide stock-zone-panel">
+                    <div className="stock-zone-head">
+                      <div>
+                        <h2 className="panel-title">
+                          <Link
+                            href={zoneHref(g.zone, date)}
+                            className="stock-zone-link"
                           >
-                            <td className="px-4 py-2.5 text-stone-600">
-                              {href ? (
-                                <Link
-                                  href={href}
-                                  className="hover:text-teal-800 hover:underline"
-                                >
-                                  {row.zoneLabel}
-                                </Link>
-                              ) : (
-                                row.zoneLabel
-                              )}
-                            </td>
-                            <td className="px-4 py-2.5 font-medium text-stone-900">
-                              {row.name}
-                            </td>
-                            <td className="mono px-4 py-2.5 text-right">
-                              {fmt(row.opening)}
-                            </td>
-                            <td className="mono px-4 py-2.5 text-right">
-                              {fmt(row.entrees)}
-                            </td>
-                            {showEnvoye ? (
-                              <td className="mono px-4 py-2.5 text-right">
-                                {row.zone === "zogbo-plats"
-                                  ? fmt(row.envoye)
-                                  : "—"}
-                              </td>
-                            ) : null}
-                            <td className="mono px-4 py-2.5 text-right">
-                              {fmt(row.vendu)}
-                            </td>
-                            <td className="mono px-4 py-2.5 text-right">
-                              {fmt(row.pertes)}
-                            </td>
-                            <td className="mono px-4 py-2.5 text-right font-semibold text-teal-800">
-                              {fmt(row.stockFinal)}
-                            </td>
-                            <td className="mono px-4 py-2.5 text-right">
-                              {fmt(row.stockVendable)}
-                            </td>
-                            <td className="mono px-4 py-2.5 text-right">
-                              {fmt(row.compte)}
-                            </td>
-                            <td
-                              className={`mono px-4 py-2.5 text-right ${ecartClass(row.ecart)}`}
-                            >
-                              {fmt(row.ecart)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </section>
+                            {g.label}
+                          </Link>
+                        </h2>
+                        <p className="muted stock-zone-hint">
+                          {g.rows.length} produit{g.rows.length > 1 ? "s" : ""}
+                          {total
+                            ? ` · stock final ${total.stockFinal} · vendu ${total.vendu}`
+                            : null}
+                        </p>
+                      </div>
+                      {!single ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          onClick={() => setZoneFilter(g.zone)}
+                        >
+                          Filtrer
+                        </button>
+                      ) : null}
+                    </div>
+                    {renderTable(g.rows, true)}
+                  </section>
+                );
+              })
+            )}
           </>
         ) : null}
       </div>
