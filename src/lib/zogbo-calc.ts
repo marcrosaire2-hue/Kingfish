@@ -415,10 +415,37 @@ export function todayIsoDate(now = new Date()): string {
   return isoDateInTimeZone(now);
 }
 
+/** Heure (fuseau du restaurant) au-delà de laquelle une caisse encore datée
+ *  d'un jour antérieur est considérée oubliée plutôt qu'un service tardif qui
+ *  déborde après minuit. */
+export const CAISSE_AUTO_CLOSE_HOUR = 5;
+
+function hourInTimeZone(instant: Date, timeZone = BUSINESS_TIMEZONE): number {
+  const formatted = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    hour: "2-digit",
+    hour12: false,
+  }).format(instant);
+  // Certains moteurs ICU rendent minuit "24" plutôt que "00".
+  return Number(formatted) % 24;
+}
+
+/**
+ * Une caisse datée d'avant aujourd'hui n'est « oubliée » qu'après l'heure de
+ * coupure : avant, elle peut encore correspondre au service de la veille qui
+ * déborde après minuit (cf. operatingDateFromCaisse, qui la garde active).
+ */
+export function isCaisseStale(caisseDate: string, now = new Date()): boolean {
+  const today = todayIsoDate(now);
+  if (!ISO_DATE.test(caisseDate) || caisseDate >= today) return false;
+  return hourInTimeZone(now) >= CAISSE_AUTO_CLOSE_HOUR;
+}
+
 /**
  * Jour de service : tant que la caisse de la zone est ouverte, les ventes
- * restent collées à sa date — même après minuit. Sinon, date demandée ou
- * calendrier civil de Porto-Novo.
+ * restent collées à sa date — même après minuit et jusqu'à l'heure de
+ * coupure (cf. isCaisseStale, qui déclenche alors la bascule automatique).
+ * Sinon, date demandée ou calendrier civil de Porto-Novo.
  */
 export function operatingDateFromCaisse(
   caisseDate: string | null | undefined,

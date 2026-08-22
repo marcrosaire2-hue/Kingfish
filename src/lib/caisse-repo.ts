@@ -18,7 +18,11 @@ import type {
   CaisseStatut,
   VenteSite,
 } from "@/lib/types";
-import { operatingDateFromCaisse, todayIsoDate } from "@/lib/zogbo-calc";
+import {
+  isCaisseStale,
+  operatingDateFromCaisse,
+  todayIsoDate,
+} from "@/lib/zogbo-calc";
 
 export type CaisseDoc = Omit<CaisseSession, "id"> & { _id: ObjectId };
 export type MouvementDoc = Omit<CaisseMouvement, "id"> & { _id: ObjectId };
@@ -101,6 +105,73 @@ function assertAcces(user: SessionUser, caisse: CaisseKey): void {
   }
 }
 
+const SYSTEM_ACTOR_ID = "system";
+const SYSTEM_ACTOR_NAME = "Système (jour suivant)";
+
+/**
+ * Une caisse restée ouverte après l'heure de coupure du lendemain (cf.
+ * isCaisseStale) est considérée oubliée : on la clôture sans compter le
+ * tiroir (soldePhysique reste `null`, l'écart n'est pas inventé) puis on en
+ * rouvre une pour aujourd'hui, avec son solde théorique reporté comme fond de
+ * caisse — l'argent n'a physiquement pas bougé, seule la journée comptable
+ * change.
+ */
+async function rolloverStaleCaisse(
+  caisse: CaisseKey,
+  session: CaisseSession,
+): Promise<CaisseSession | null> {
+  const db = await getDb();
+  const now = new Date().toISOString();
+  const theo = calcSoldeTheorique(session);
+
+  const closeResult = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+    { _id: new ObjectId(session.id), statut: "ouverte" },
+    {
+      $set: {
+        statut: "fermee" satisfies CaisseStatut,
+        soldePhysique: null,
+        soldeFermeture: theo,
+        commentaire:
+          "Clôturée automatiquement (changement de jour, décompte physique à faire).",
+        closedAt: now,
+        closedById: SYSTEM_ACTOR_ID,
+        closedByName: SYSTEM_ACTOR_NAME,
+        updatedAt: now,
+      },
+    },
+  );
+  if (closeResult.modifiedCount !== 1) {
+    // Bascule concurrente déjà passée (autre requête simultanée) : état réel.
+    return getActiveCaisse(caisse);
+  }
+
+  const newDoc: CaisseDoc = {
+    _id: new ObjectId(),
+    caisse,
+    date: todayIsoDate(),
+    site: caisseZone(caisse),
+    userId: SYSTEM_ACTOR_ID,
+    userName: SYSTEM_ACTOR_NAME,
+    statut: "ouverte",
+    soldeInitial: Math.max(0, Math.round(theo)),
+    totalVente: 0,
+    totalDepense: 0,
+    totalRecette: 0,
+    totalVersementSorti: 0,
+    totalVersementRecu: 0,
+    soldePhysique: null,
+    soldeFermeture: null,
+    commentaire: null,
+    openedAt: now,
+    closedAt: null,
+    closedById: null,
+    closedByName: null,
+    updatedAt: now,
+  };
+  await db.collection<CaisseDoc>("caisses_sessions").insertOne(newDoc);
+  return toSession(newDoc);
+}
+
 /**
  * Session ouverte d'une caisse. Une caisse est un tiroir partagé : qui l'ouvre
  * l'ouvre pour toute la zone, et le POS y encaisse quel que soit le vendeur.
@@ -113,7 +184,12 @@ export async function getActiveCaisse(
     ...filtreCaisse(caisse),
     statut: "ouverte" satisfies CaisseStatut,
   });
-  return doc ? toSession(doc) : null;
+  if (!doc) return null;
+  const session = toSession(doc);
+  if (isCaisseStale(session.date)) {
+    return rolloverStaleCaisse(caisse, session);
+  }
+  return session;
 }
 
 /** Caisse d'encaissement d'une zone — point d'entrée du POS. */
