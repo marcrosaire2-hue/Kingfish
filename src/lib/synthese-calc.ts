@@ -71,6 +71,9 @@ export type VenteTotals = {
   boissonsGbegamey: number;
   extraZogbo: number;
   extraGbegamey: number;
+  /** Réductions commerciales POS (montant déduit du CA encaissé). */
+  reductionsZogbo: number;
+  reductionsGbegamey: number;
   margeBoissons: number;
   count: number;
 };
@@ -87,6 +90,8 @@ export function emptyVenteTotals(): VenteTotals {
     boissonsGbegamey: 0,
     extraZogbo: 0,
     extraGbegamey: 0,
+    reductionsZogbo: 0,
+    reductionsGbegamey: 0,
     margeBoissons: 0,
     count: 0,
   };
@@ -201,24 +206,28 @@ export function computeDayRevenue(input: {
     zAcc = caAccompagnementsZogbo,
     zCombos = caCombosZogbo,
     zBoissons = caBoissonsZogbo,
-    zExtra = caExtraZogbo;
+    zExtra = caExtraZogbo,
+    zReductions = fromJournal ? ventes.reductionsZogbo : 0;
   let gPlats = caGbegameyPlats,
     gAcc = caAccompagnementsGbegamey,
     gCombos = caCombosGbegamey,
     gBoissons = caBoissonsGbegamey,
-    gExtra = caExtraGbegamey;
+    gExtra = caExtraGbegamey,
+    gReductions = fromJournal ? ventes.reductionsGbegamey : 0;
   if (scopeSite === "gbegamey") {
-    zPlats = zAcc = zCombos = zBoissons = zExtra = 0;
+    zPlats = zAcc = zCombos = zBoissons = zExtra = zReductions = 0;
   } else if (scopeSite === "zogbo") {
-    gPlats = gAcc = gCombos = gBoissons = gExtra = 0;
+    gPlats = gAcc = gCombos = gBoissons = gExtra = gReductions = 0;
   }
 
   const caCombos = zCombos + gCombos;
   const caBoissons = zBoissons + gBoissons;
   const caExtra = zExtra + gExtra;
   const caAccompagnements = zAcc + gAcc;
-  const caZogbo = zPlats + zAcc + zCombos + zBoissons + zExtra;
-  const caGbegamey = gPlats + gAcc + gCombos + gBoissons + gExtra;
+  const caZogbo =
+    zPlats + zAcc + zCombos + zBoissons + zExtra - Math.max(0, zReductions);
+  const caGbegamey =
+    gPlats + gAcc + gCombos + gBoissons + gExtra - Math.max(0, gReductions);
   const caTotal = caZogbo + caGbegamey;
 
   return {

@@ -76,6 +76,8 @@ export function JournalVentesPage() {
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [busyTicketId, setBusyTicketId] = useState<string | null>(null);
+  const [busyLineId, setBusyLineId] = useState<string | null>(null);
+  const [canManagePast, setCanManagePast] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,9 +107,10 @@ export function JournalVentesPage() {
       if (body.lockedSite && body.site && body.site !== "all") {
         setLockedSite(true);
         setSite(body.site as SiteFilter);
-      } else if (typeof body.lockedSite === "boolean") {
+      } else       if (typeof body.lockedSite === "boolean") {
         setLockedSite(!!body.lockedSite);
       }
+      setCanManagePast(!!body.canManagePast);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
       setResult(EMPTY_RESULT);
@@ -191,6 +194,118 @@ export function JournalVentesPage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Annulation impossible");
+    } finally {
+      setBusyTicketId(null);
+    }
+  }
+
+  async function modifierLigne(l: JournalVenteLine) {
+    if (!l.venteLogId) {
+      setError("Cette ligne n’a pas de journal lié.");
+      return;
+    }
+    const raw = window.prompt(
+      `Nouvelle quantité pour « ${l.produit} » (actuelle : ${l.qty}) :`,
+      String(l.qty),
+    );
+    if (raw === null) return;
+    const next = Math.round(Number(raw));
+    if (!Number.isFinite(next) || next < 1) {
+      setError("Quantité invalide (minimum 1). Pour supprimer, utilisez Suppr. déf.");
+      return;
+    }
+    setBusyLineId(l.venteLogId);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/vente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "edit",
+          id: l.venteLogId,
+          date: l.date,
+          site: l.site,
+          qty: next,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Modification impossible");
+      setFlash(`Quantité de « ${l.produit} » mise à jour`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Modification impossible");
+    } finally {
+      setBusyLineId(null);
+    }
+  }
+
+  async function supprimerLigne(l: JournalVenteLine) {
+    if (!l.venteLogId) {
+      setError("Cette ligne n’a pas de journal lié.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Supprimer définitivement « ${l.produit} × ${l.qty} » ?\nCette action est irréversible.`,
+      )
+    ) {
+      return;
+    }
+    setBusyLineId(l.venteLogId);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/vente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          id: l.venteLogId,
+          date: l.date,
+          site: l.site,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Suppression impossible");
+      setFlash(`« ${l.produit} » supprimé définitivement`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Suppression impossible");
+    } finally {
+      setBusyLineId(null);
+    }
+  }
+
+  async function supprimerTicket(l: JournalVenteLine) {
+    if (!l.ticketId) return;
+    if (
+      !window.confirm(
+        `Supprimer définitivement le ticket ${l.numero} (${formatFcfa(l.montant)}) ?\nCette action est irréversible.`,
+      )
+    ) {
+      return;
+    }
+    setBusyTicketId(l.ticketId);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/pos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          id: l.ticketId,
+          date: l.date,
+          site: l.site,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Suppression impossible");
+      setFlash(`Ticket ${l.numero} supprimé définitivement`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Suppression impossible");
     } finally {
       setBusyTicketId(null);
     }
@@ -374,7 +489,12 @@ export function JournalVentesPage() {
               formatHeure={formatHeure}
               siteLabel={siteLabel}
               busyTicketId={busyTicketId}
+              busyLineId={busyLineId}
+              canManagePast={canManagePast}
               onCancel={(l) => void annulerTicket(l)}
+              onEdit={(l) => void modifierLigne(l)}
+              onDeleteLine={(l) => void supprimerLigne(l)}
+              onDeleteTicket={(l) => void supprimerTicket(l)}
             />
           ))
         : null}
@@ -387,14 +507,27 @@ function JournalDayBlock({
   formatHeure,
   siteLabel,
   busyTicketId,
+  busyLineId,
+  canManagePast,
   onCancel,
+  onEdit,
+  onDeleteLine,
+  onDeleteTicket,
 }: {
   day: JournalVenteDay;
   formatHeure: (iso: string) => string;
   siteLabel: (site: string) => string;
   busyTicketId: string | null;
+  busyLineId: string | null;
+  canManagePast: boolean;
   onCancel: (line: JournalVenteLine) => void;
+  onEdit: (line: JournalVenteLine) => void;
+  onDeleteLine: (line: JournalVenteLine) => void;
+  onDeleteTicket: (line: JournalVenteLine) => void;
 }) {
+  const boissons = day.lines.filter((l) => l.kind === "boisson");
+  const plats = day.lines.filter((l) => l.kind !== "boisson");
+
   return (
     <div className="panel panel-wide jv-day">
       <div className="jv-day-head">
@@ -407,6 +540,76 @@ function JournalDayBlock({
         </h2>
         <strong className="jv-day-total mono">{formatFcfa(day.montant)}</strong>
       </div>
+      <JournalLinesTable
+        title="Plats & autres articles"
+        lines={plats}
+        formatHeure={formatHeure}
+        siteLabel={siteLabel}
+        busyTicketId={busyTicketId}
+        busyLineId={busyLineId}
+        canManagePast={canManagePast}
+        onCancel={onCancel}
+        onEdit={onEdit}
+        onDeleteLine={onDeleteLine}
+        onDeleteTicket={onDeleteTicket}
+      />
+      <JournalLinesTable
+        title="Boissons"
+        lines={boissons}
+        formatHeure={formatHeure}
+        siteLabel={siteLabel}
+        busyTicketId={busyTicketId}
+        busyLineId={busyLineId}
+        canManagePast={canManagePast}
+        onCancel={onCancel}
+        onEdit={onEdit}
+        onDeleteLine={onDeleteLine}
+        onDeleteTicket={onDeleteTicket}
+      />
+    </div>
+  );
+}
+
+function JournalLinesTable({
+  title,
+  lines,
+  formatHeure,
+  siteLabel,
+  busyTicketId,
+  busyLineId,
+  canManagePast,
+  onCancel,
+  onEdit,
+  onDeleteLine,
+  onDeleteTicket,
+}: {
+  title: string;
+  lines: JournalVenteLine[];
+  formatHeure: (iso: string) => string;
+  siteLabel: (site: string) => string;
+  busyTicketId: string | null;
+  busyLineId: string | null;
+  canManagePast: boolean;
+  onCancel: (line: JournalVenteLine) => void;
+  onEdit: (line: JournalVenteLine) => void;
+  onDeleteLine: (line: JournalVenteLine) => void;
+  onDeleteTicket: (line: JournalVenteLine) => void;
+}) {
+  if (lines.length === 0) return null;
+
+  const total = lines.reduce(
+    (s, l) => (l.statut === "valide" ? s + l.montant : s),
+    0,
+  );
+
+  return (
+    <div className="jv-group">
+      <h3 className="jv-group-title">
+        {title}
+        <span className="jv-day-head-count">
+          {lines.length} ligne{lines.length > 1 ? "s" : ""}
+        </span>
+      </h3>
       <div className="table-scroll">
         <table className="data-table jv-table">
           <thead>
@@ -432,8 +635,8 @@ function JournalDayBlock({
             </tr>
           </thead>
           <tbody>
-            {day.lines.map((l, i) => (
-              <tr key={`${day.date}-${i}`}>
+            {lines.map((l, i) => (
+              <tr key={`${l.date}-${title}-${i}`}>
                 <td>{formatHeure(l.at)}</td>
                 <td className="cell-name">
                   <strong>{l.numero}</strong>
@@ -460,7 +663,53 @@ function JournalDayBlock({
                   </span>
                 </td>
                 <td>
-                  {l.statut === "valide" && l.ticketId ? (
+                  {canManagePast ? (
+                    <span className="reg-actions">
+                      {l.statut === "valide" && l.venteLogId ? (
+                        <button
+                          type="button"
+                          className="btn-link"
+                          disabled={busyLineId === l.venteLogId}
+                          onClick={() => onEdit(l)}
+                        >
+                          {busyLineId === l.venteLogId ? "…" : "Qty"}
+                        </button>
+                      ) : null}
+                      {l.venteLogId ? (
+                        <button
+                          type="button"
+                          className="btn-link btn-link-danger"
+                          disabled={busyLineId === l.venteLogId}
+                          onClick={() => onDeleteLine(l)}
+                        >
+                          Suppr.
+                        </button>
+                      ) : null}
+                      {l.ticketId ? (
+                        <button
+                          type="button"
+                          className="btn-link btn-link-danger"
+                          disabled={busyTicketId === l.ticketId}
+                          onClick={() => onDeleteTicket(l)}
+                        >
+                          {busyTicketId === l.ticketId
+                            ? "…"
+                            : "Ticket"}
+                        </button>
+                      ) : null}
+                      {l.statut === "valide" && l.ticketId ? (
+                        <button
+                          type="button"
+                          className="btn-link"
+                          disabled={busyTicketId === l.ticketId}
+                          onClick={() => onCancel(l)}
+                        >
+                          Annuler
+                        </button>
+                      ) : null}
+                      {!l.venteLogId && !l.ticketId ? "—" : null}
+                    </span>
+                  ) : l.statut === "valide" && l.ticketId ? (
                     <button
                       type="button"
                       className="btn-link"
@@ -479,11 +728,11 @@ function JournalDayBlock({
           <tfoot>
             <tr>
               <th scope="row" colSpan={7}>
-                Total du jour (Validé)
+                Total {title} (Validé)
               </th>
-              <td className="mono col-money">{day.nbLignes}</td>
+              <td className="mono col-money">{lines.length}</td>
               <td colSpan={1} />
-              <td className="mono col-money">{formatFcfa(day.montant)}</td>
+              <td className="mono col-money">{formatFcfa(total)}</td>
               <td colSpan={2} />
             </tr>
           </tfoot>

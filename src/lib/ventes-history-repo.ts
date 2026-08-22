@@ -162,6 +162,7 @@ function ticketsFromVentesLog(
       unitPrice: Number(r.unitPrice) || 0,
       amount: Number(r.amount) || 0,
       kind: r.kind,
+      venteLogId: r._id.toHexString(),
     }));
     const montant = lines.reduce((s, l) => s + l.amount, 0);
     const serveur = first.actorName || null;
@@ -484,6 +485,8 @@ export type JournalVenteLine = {
   montant: number;
   /** id du ticket POS pour annulation — `null` si non annulable d'ici. */
   ticketId: string | null;
+  /** id ventes_log pour correction / suppression définitive. */
+  venteLogId: string | null;
 };
 
 export type JournalVenteDay = {
@@ -527,6 +530,9 @@ export async function listJournalVentes(
       byDay.set(t.date, day);
     }
     day.nbTickets += 1;
+    if (t.statut === "valide") {
+      day.montant += t.montant;
+    }
     for (const l of t.lines) {
       day.lines.push({
         at: t.at,
@@ -547,9 +553,9 @@ export async function listJournalVentes(
         unitPrice: l.unitPrice,
         montant: l.amount,
         ticketId: t.ticketId,
+        venteLogId: l.venteLogId ?? null,
       });
       day.nbLignes += 1;
-      if (t.statut === "valide") day.montant += l.amount;
     }
   }
 

@@ -253,6 +253,52 @@ async function loadVenteTotals(
   return out;
 }
 
+async function loadPosReductions(
+  match: Record<string, unknown>,
+): Promise<Map<string, { zogbo: number; gbegamey: number }>> {
+  const db = await getDb();
+  const rows = await db
+    .collection("pos_tickets")
+    .aggregate<{ _id: { date: string; site: VenteSite }; total: number }>([
+      {
+        $match: {
+          ...match,
+          statut: "valide",
+          reduction: { $gt: 0 },
+        },
+      },
+      {
+        $group: {
+          _id: { date: "$date", site: "$site" },
+          total: { $sum: "$reduction" },
+        },
+      },
+    ])
+    .toArray();
+
+  const out = new Map<string, { zogbo: number; gbegamey: number }>();
+  for (const row of rows) {
+    const date = row._id.date;
+    const bucket = out.get(date) ?? { zogbo: 0, gbegamey: 0 };
+    if (row._id.site === "zogbo") bucket.zogbo += row.total;
+    else bucket.gbegamey += row.total;
+    out.set(date, bucket);
+  }
+  return out;
+}
+
+function applyPosReductions(
+  ventes: Map<string, VenteTotals>,
+  reductions: Map<string, { zogbo: number; gbegamey: number }>,
+): void {
+  for (const [date, red] of reductions) {
+    const totals = ventes.get(date) ?? emptyVenteTotals();
+    totals.reductionsZogbo = red.zogbo;
+    totals.reductionsGbegamey = red.gbegamey;
+    ventes.set(date, totals);
+  }
+}
+
 type ProductAgg = {
   _id: { productId: string; kind: string };
   name: string;
@@ -421,7 +467,7 @@ export async function getCaCumuls(
   const db = await getDb();
   const monthPrefix = date.slice(0, 7);
   const siteFilter = scopeSite ? { site: scopeSite } : {};
-  const [jour, mois, total] = await Promise.all([
+  const [jour, mois, total, redJour, redMois, redTotal] = await Promise.all([
     db
       .collection("ventes_log")
       .aggregate<{ ca: number }>([
@@ -448,11 +494,52 @@ export async function getCaCumuls(
         { $group: { _id: null, ca: { $sum: "$amount" } } },
       ])
       .toArray(),
+    db
+      .collection("pos_tickets")
+      .aggregate<{ total: number }>([
+        {
+          $match: {
+            date,
+            statut: "valide",
+            reduction: { $gt: 0 },
+            ...siteFilter,
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$reduction" } } },
+      ])
+      .toArray(),
+    db
+      .collection("pos_tickets")
+      .aggregate<{ total: number }>([
+        {
+          $match: {
+            date: { $gte: `${monthPrefix}-01`, $lte: `${monthPrefix}-31` },
+            statut: "valide",
+            reduction: { $gt: 0 },
+            ...siteFilter,
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$reduction" } } },
+      ])
+      .toArray(),
+    db
+      .collection("pos_tickets")
+      .aggregate<{ total: number }>([
+        {
+          $match: {
+            statut: "valide",
+            reduction: { $gt: 0 },
+            ...siteFilter,
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$reduction" } } },
+      ])
+      .toArray(),
   ]);
   return {
-    jour: Number(jour[0]?.ca) || 0,
-    mois: Number(mois[0]?.ca) || 0,
-    total: Number(total[0]?.ca) || 0,
+    jour: (Number(jour[0]?.ca) || 0) - (Number(redJour[0]?.total) || 0),
+    mois: (Number(mois[0]?.ca) || 0) - (Number(redMois[0]?.total) || 0),
+    total: (Number(total[0]?.ca) || 0) - (Number(redTotal[0]?.total) || 0),
   };
 }
 
@@ -475,6 +562,8 @@ async function loadMaps(
   const filter = { _id: { $in: dates } };
   const venteMatch: Record<string, unknown> = { date: { $in: dates } };
   if (scopeSite) venteMatch.site = scopeSite;
+  const redMatch: Record<string, unknown> = { date: { $in: dates } };
+  if (scopeSite) redMatch.site = scopeSite;
 
   const [
     zogboDocs,
@@ -483,6 +572,7 @@ async function loadMaps(
     boissonsDocs,
     chargesDocs,
     ventes,
+    reductions,
   ] = await Promise.all([
     scopeSite === "gbegamey"
       ? Promise.resolve([])
@@ -494,7 +584,9 @@ async function loadMaps(
     db.collection<BoissonsDoc>("boissons_jours").find(filter).toArray(),
     db.collection<ChargesDoc>("charges_jours").find(filter).toArray(),
     loadVenteTotals(venteMatch),
+    loadPosReductions(redMatch),
   ]);
+  applyPosReductions(ventes, reductions);
 
   return {
     zogbo: new Map(zogboDocs.map((d) => [d._id, toZogbo(d)])),
@@ -531,6 +623,10 @@ async function loadRange(
     date: { $gte: start, $lte: end },
   };
   if (scopeSite) venteMatch.site = scopeSite;
+  const redMatch: Record<string, unknown> = {
+    date: { $gte: start, $lte: end },
+  };
+  if (scopeSite) redMatch.site = scopeSite;
 
   const [
     zogboDocs,
@@ -539,6 +635,7 @@ async function loadRange(
     boissonsDocs,
     chargesDocs,
     ventes,
+    reductions,
   ] = await Promise.all([
     scopeSite === "gbegamey"
       ? Promise.resolve([])
@@ -550,7 +647,9 @@ async function loadRange(
     db.collection<BoissonsDoc>("boissons_jours").find(filter).toArray(),
     db.collection<ChargesDoc>("charges_jours").find(filter).toArray(),
     loadVenteTotals(venteMatch),
+    loadPosReductions(redMatch),
   ]);
+  applyPosReductions(ventes, reductions);
 
   return {
     zogbo: new Map(zogboDocs.map((d) => [d._id, toZogbo(d)])),

@@ -1248,6 +1248,17 @@ select {
   text-underline-offset: 2px;
 }
 
+.btn-link-danger {
+  color: var(--danger, #c0392b);
+}
+
+.reg-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.65rem;
+  align-items: center;
+}
+
 .row-muted td {
   opacity: 0.45;
 }
@@ -3730,6 +3741,29 @@ select {
 .jv-table td,
 .jv-table th {
   white-space: nowrap;
+}
+
+.jv-group {
+  margin-bottom: 0.9rem;
+}
+
+.jv-group:last-child {
+  margin-bottom: 0;
+}
+
+.jv-group-title {
+  margin: 0;
+  padding: 0.4rem 1.1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.jv-group-title .jv-day-head-count {
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .journal-qty {

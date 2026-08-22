@@ -1756,10 +1756,11 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   />
                 </label>
                 <label className="vente-field">
-                  <span>Réduction (FCFA)</span>
+                  <span>Réduction commerciale (FCFA)</span>
                   <input
                     type="number"
                     min={0}
+                    max={cartTotal}
                     value={reduction}
                     onChange={(e) => setReduction(e.target.value)}
                   />
@@ -1767,6 +1768,18 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
               </div>
 
               <div className="pos-cart-foot">
+                {reductionN > 0 ? (
+                  <div className="pos-total pos-total-sub">
+                    <span>Sous-total</span>
+                    <strong className="mono">{formatFcfa(cartTotal)}</strong>
+                  </div>
+                ) : null}
+                {reductionN > 0 ? (
+                  <div className="pos-total pos-total-sub">
+                    <span>Réduction</span>
+                    <strong className="mono">−{formatFcfa(reductionN)}</strong>
+                  </div>
+                ) : null}
                 <div className="pos-total">
                   <span>Total</span>
                   <strong className="mono">{formatFcfa(cartNet)}</strong>

@@ -4,6 +4,7 @@ import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import {
   cancelPosTicket,
+  deletePosTicketPermanently,
   getPosContext,
   validatePosTicket,
 } from "@/lib/pos-repo";
@@ -54,7 +55,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as {
-      action?: "validate" | "cancel";
+      action?: "validate" | "cancel" | "delete";
       date?: string;
       site?: VenteSite;
       id?: string;
@@ -124,6 +125,40 @@ export async function POST(request: Request) {
         kind: "pos",
         title: `Annulation ticket · ${result.ticket.numero}`,
         detail: `Site ${site === "zogbo" ? "Zogbo" : "Gbégamey"}`,
+        date: body.date,
+        site,
+        amount: -result.ticket.montant,
+      });
+      return NextResponse.json(result);
+    }
+
+    if (body.action === "delete") {
+      if (!canManagePastVentes(user.role)) {
+        return NextResponse.json(
+          {
+            error:
+              "Suppression définitive réservée au gérant ou à l'administrateur.",
+          },
+          { status: 403 },
+        );
+      }
+      if (!body.id || !body.date) {
+        return NextResponse.json(
+          { error: "id et date requis" },
+          { status: 400 },
+        );
+      }
+      const result = await deletePosTicketPermanently({
+        id: body.id,
+        date: body.date,
+        site,
+        bypassClosedDay: true,
+      });
+      await logActivity({
+        user,
+        kind: "pos",
+        title: `Suppression définitive ticket · ${result.ticket.numero}`,
+        detail: `${result.ticket.deletedLines} ligne(s) journal`,
         date: body.date,
         site,
         amount: -result.ticket.montant,

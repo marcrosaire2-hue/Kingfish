@@ -6,6 +6,7 @@ import {
   type UserShift,
 } from "@/lib/auth-types";
 import { reportError } from "@/lib/report-error";
+import { logActivity } from "@/lib/log-activity";
 import { resolveOperatingDate } from "@/lib/caisse-repo";
 import {
   editVenteQty,
@@ -13,7 +14,9 @@ import {
   recordExtraVente,
   recordVente,
   undoVente,
+  deleteVentePermanently,
 } from "@/lib/vente-repo";
+import { purgeVentesByDateRange } from "@/lib/pos-repo";
 import type { VenteKind, VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
@@ -76,7 +79,7 @@ export async function POST(request: Request) {
     const actor = actorOf(user);
     const manager = canManagePastVentes(user.role);
     const body = (await request.json()) as {
-      action?: "sell" | "undo" | "extra" | "edit";
+      action?: "sell" | "undo" | "extra" | "edit" | "delete" | "purge";
       date?: string;
       site?: VenteSite;
       kind?: VenteKind;
@@ -85,6 +88,8 @@ export async function POST(request: Request) {
       id?: string;
       description?: string;
       unitPrice?: number;
+      from?: string;
+      to?: string;
     };
 
     const site = resolveSite(body.site ?? null, user.site);
@@ -117,21 +122,85 @@ export async function POST(request: Request) {
           { status: 403 },
         );
       }
-      if (!body.id || !body.date || body.qty === undefined) {
+      if (!body.id || body.qty === undefined) {
         return NextResponse.json(
-          { error: "id, date et qty requis." },
+          { error: "id et qty requis." },
           { status: 400 },
         );
       }
       const result = await editVenteQty({
         id: body.id,
-        date: body.date,
+        date: body.date || todayIsoDate(),
         site,
         qty: body.qty,
         actor,
         bypassClosedDay: true,
         bypassTeam: true,
         bypassStock: true,
+      });
+      return NextResponse.json(result);
+    }
+
+    if (body.action === "delete") {
+      if (!manager) {
+        return NextResponse.json(
+          {
+            error:
+              "Suppression définitive réservée au gérant ou à l'administrateur.",
+          },
+          { status: 403 },
+        );
+      }
+      if (!body.id) {
+        return NextResponse.json({ error: "id requis." }, { status: 400 });
+      }
+      const deleted = await deleteVentePermanently({
+        id: body.id,
+        date: body.date,
+        site,
+        bypassClosedDay: true,
+      });
+      await logActivity({
+        user,
+        kind: "pos",
+        title: `Suppression définitive · ${deleted.name}`,
+        detail: `Site ${site === "zogbo" ? "Zogbo" : "Gbégamey"}`,
+        date: deleted.date,
+        site,
+        amount: -deleted.amount,
+      });
+      const board = await getVenteBoard(deleted.date, site);
+      return NextResponse.json({ deleted, board });
+    }
+
+    if (body.action === "purge") {
+      if (!manager) {
+        return NextResponse.json(
+          {
+            error:
+              "Purge réservée au gérant ou à l'administrateur.",
+          },
+          { status: 403 },
+        );
+      }
+      if (!body.from || !body.to) {
+        return NextResponse.json(
+          { error: "from et to requis (YYYY-MM-DD)." },
+          { status: 400 },
+        );
+      }
+      const result = await purgeVentesByDateRange({
+        from: body.from,
+        to: body.to,
+        site,
+      });
+      await logActivity({
+        user,
+        kind: "pos",
+        title: `Purge ventes ${body.from} → ${body.to}`,
+        detail: `${result.posTickets} ticket(s) POS · ${result.ventesLog} ligne(s) journal · ${result.aquaproTickets} AquaPro`,
+        date: body.to,
+        site,
       });
       return NextResponse.json(result);
     }

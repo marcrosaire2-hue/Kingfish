@@ -289,7 +289,7 @@ export function RegularisationPage() {
 
   async function modifierLigne(t: PosTicket, line: PosTicket["lines"][number]) {
     if (!line.venteLogId) {
-      setError("Cette ligne n’a pas de journal lié.");
+      setError("Cette ligne n’a pas de journal lié — actualisez la page.");
       return;
     }
     const raw = window.prompt(
@@ -323,6 +323,79 @@ export function RegularisationPage() {
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Modification impossible");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function supprimerLigne(
+    t: PosTicket,
+    line: PosTicket["lines"][number],
+  ) {
+    if (!line.venteLogId) {
+      setError("Cette ligne n’a pas de journal lié — actualisez la page.");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Supprimer définitivement « ${line.name} × ${line.qty} » ?\nCette action est irréversible.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/vente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          id: line.venteLogId,
+          date: t.date,
+          site: t.site,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Suppression impossible");
+      setFlash(`« ${line.name} » supprimé définitivement`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Suppression impossible");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function supprimerTicket(t: PosTicket) {
+    if (
+      !window.confirm(
+        `Supprimer définitivement le ticket ${t.numero} (${formatFcfa(t.montant)}) ?\nCette action est irréversible.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/pos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          id: t.id,
+          date: t.date,
+          site: t.site,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Suppression impossible");
+      setFlash(`Ticket ${t.numero} supprimé définitivement`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Suppression impossible");
     } finally {
       setBusy(false);
     }
@@ -705,16 +778,28 @@ export function RegularisationPage() {
                                     {l.name} × {l.qty}
                                   </span>
                                   {t.statut === "valide" && l.venteLogId ? (
-                                    <button
-                                      type="button"
-                                      className="btn-link"
-                                      disabled={busy}
-                                      onClick={() =>
-                                        void modifierLigne(t, l)
-                                      }
-                                    >
-                                      Qty
-                                    </button>
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="btn-link"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void modifierLigne(t, l)
+                                        }
+                                      >
+                                        Qty
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className="btn-link btn-link-danger"
+                                        disabled={busy}
+                                        onClick={() =>
+                                          void supprimerLigne(t, l)
+                                        }
+                                      >
+                                        Suppr.
+                                      </button>
+                                    </>
                                   ) : null}
                                 </li>
                               ))}
@@ -734,16 +819,33 @@ export function RegularisationPage() {
                           </td>
                           <td>
                             {t.statut === "valide" ? (
+                              <span className="reg-actions">
+                                <button
+                                  type="button"
+                                  className="btn-link"
+                                  disabled={busy}
+                                  onClick={() => void annulerTicket(t)}
+                                >
+                                  Annuler
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-link btn-link-danger"
+                                  disabled={busy}
+                                  onClick={() => void supprimerTicket(t)}
+                                >
+                                  Suppr. déf.
+                                </button>
+                              </span>
+                            ) : (
                               <button
                                 type="button"
-                                className="btn-link"
+                                className="btn-link btn-link-danger"
                                 disabled={busy}
-                                onClick={() => void annulerTicket(t)}
+                                onClick={() => void supprimerTicket(t)}
                               >
-                                Annuler
+                                Suppr. déf.
                               </button>
-                            ) : (
-                              "—"
                             )}
                           </td>
                         </tr>

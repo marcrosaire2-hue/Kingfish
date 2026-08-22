@@ -15,6 +15,7 @@ import { getDb } from "@/lib/mongodb";
 import { getPosConfig } from "@/lib/pos-config-repo";
 import {
   assertSameTeamCancellation,
+  deleteVentePermanently,
   getVenteBoard,
   recordExtraVente,
   recordVente,
@@ -200,11 +201,12 @@ export async function validatePosTicket(input: {
   const saleType = input.saleType || "Sur place";
 
   const reductionRaw = Math.round(Number(input.reduction) || 0);
-  // Réduction = argent qui sort de la caisse : réservée au gérant et à
-  // l'administrateur. Contrôlé AVANT la moindre écriture — refuser plus tard
-  // laisserait des lignes vendues (stock déduit, CA gonflé) sans ticket.
-  if (reductionRaw > 0 && !["gerant", "admin"].includes(input.user.role)) {
-    throw new Error("Réduction réservée au gérant ou à l'administrateur.");
+  // Réduction commerciale : argent qui sort du ticket — tout rôle qui encaisse.
+  if (
+    reductionRaw > 0 &&
+    !["gerant", "admin", "vendeur", "equipier"].includes(input.user.role)
+  ) {
+    throw new Error("Réduction réservée aux comptes autorisés à encaisser.");
   }
 
   const createdLogIds: string[] = [];
@@ -452,6 +454,195 @@ export async function cancelPosTicket(input: {
   };
 }
 
+/**
+ * Rattache venteLogId aux lignes POS anciennes qui n'en ont pas encore,
+ * en faisant correspondre kind / productId / qty / prix.
+ */
+export async function backfillPosTicketVenteLogIds(input: {
+  id: string;
+  date: string;
+  site: VenteSite;
+}): Promise<void> {
+  if (!ObjectId.isValid(input.id)) return;
+  const db = await getDb();
+  const doc = await db.collection<TicketDoc>("pos_tickets").findOne({
+    _id: new ObjectId(input.id),
+    site: input.site,
+    date: input.date,
+  });
+  if (!doc?.lines?.some((l) => !l.venteLogId)) return;
+
+  const usedElsewhere = new Set<string>();
+  const others = await db
+    .collection<TicketDoc>("pos_tickets")
+    .find({ date: input.date, site: input.site, _id: { $ne: doc._id } })
+    .toArray();
+  for (const t of others) {
+    for (const l of t.lines ?? []) {
+      if (l.venteLogId) usedElsewhere.add(l.venteLogId);
+    }
+  }
+  for (const l of doc.lines ?? []) {
+    if (l.venteLogId) usedElsewhere.add(l.venteLogId);
+  }
+
+  const logFilter: Record<string, unknown> = {
+    date: input.date,
+    site: input.site,
+  };
+  if (doc.statut === "annule") {
+    logFilter.cancelledAt = { $ne: null };
+  } else {
+    logFilter.cancelledAt = null;
+    logFilter.caExcluded = { $ne: true };
+  }
+
+  const logs = await db
+    .collection("ventes_log")
+    .find(logFilter)
+    .sort({ at: 1 })
+    .toArray();
+
+  let changed = false;
+  const lines = (doc.lines ?? []).map((line) => {
+    if (line.venteLogId) return line;
+    const match = logs.find((log) => {
+      const id = log._id.toHexString();
+      if (usedElsewhere.has(id)) return false;
+      return (
+        log.kind === line.kind &&
+        log.productId === line.productId &&
+        Number(log.qty) === Number(line.qty) &&
+        Math.round(Number(log.unitPrice) || 0) ===
+          Math.round(Number(line.unitPrice) || 0)
+      );
+    });
+    if (!match) return line;
+    usedElsewhere.add(match._id.toHexString());
+    changed = true;
+    return { ...line, venteLogId: match._id.toHexString() };
+  });
+
+  if (changed) {
+    await db
+      .collection<TicketDoc>("pos_tickets")
+      .updateOne({ _id: doc._id }, { $set: { lines } });
+  }
+}
+
+export async function deletePosTicketPermanently(input: {
+  id: string;
+  date: string;
+  site: VenteSite;
+  bypassClosedDay?: boolean;
+}): Promise<{
+  board: Awaited<ReturnType<typeof getVenteBoard>>;
+  ticket: { numero: string; montant: number; deletedLines: number };
+}> {
+  if (!ObjectId.isValid(input.id)) throw new Error("Ticket invalide");
+  await backfillPosTicketVenteLogIds(input);
+
+  const db = await getDb();
+  const doc = await db.collection<TicketDoc>("pos_tickets").findOne({
+    _id: new ObjectId(input.id),
+    site: input.site,
+    date: input.date,
+  });
+  if (!doc) throw new Error("Ticket introuvable");
+
+  const wasValid = doc.statut === "valide";
+  let deletedLines = 0;
+
+  for (const line of doc.lines ?? []) {
+    if (!line.venteLogId) continue;
+    try {
+      await deleteVentePermanently({
+        id: line.venteLogId,
+        date: doc.date,
+        site: input.site,
+        bypassClosedDay: input.bypassClosedDay ?? true,
+        skipPosUpdate: true,
+      });
+      deletedLines += 1;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("introuvable")) continue;
+      throw error;
+    }
+  }
+
+  if (wasValid && doc.caisseId) {
+    await adjustCaisseVenteAmount(doc.caisseId, -doc.montant);
+  }
+
+  await db.collection<TicketDoc>("pos_tickets").deleteOne({ _id: doc._id });
+
+  const board = await getVenteBoard(doc.date, input.site);
+  return {
+    board,
+    ticket: {
+      numero: doc.numero,
+      montant: doc.montant,
+      deletedLines,
+    },
+  };
+}
+
+export async function purgeVentesByDateRange(input: {
+  from: string;
+  to: string;
+  site?: VenteSite | "all";
+}): Promise<{
+  posTickets: number;
+  ventesLog: number;
+  aquaproTickets: number;
+}> {
+  const db = await getDb();
+  const dateMatch = { date: { $gte: input.from, $lte: input.to } };
+  const siteQ =
+    input.site && input.site !== "all" ? { site: input.site } : {};
+
+  const tickets = await db
+    .collection<TicketDoc>("pos_tickets")
+    .find({ ...dateMatch, ...siteQ })
+    .toArray();
+
+  let posTickets = 0;
+  for (const t of tickets) {
+    await deletePosTicketPermanently({
+      id: t._id.toHexString(),
+      date: t.date,
+      site: t.site,
+      bypassClosedDay: true,
+    });
+    posTickets += 1;
+  }
+
+  const orphans = await db
+    .collection("ventes_log")
+    .find({ ...dateMatch, ...siteQ })
+    .toArray();
+
+  let ventesLog = 0;
+  for (const doc of orphans) {
+    await deleteVentePermanently({
+      id: doc._id.toHexString(),
+      date: doc.date,
+      site: doc.site as VenteSite,
+      bypassClosedDay: true,
+    });
+    ventesLog += 1;
+  }
+
+  let aquaproTickets = 0;
+  if (!input.site || input.site === "all" || input.site === "gbegamey") {
+    const res = await db.collection("aquapro_tickets").deleteMany(dateMatch);
+    aquaproTickets = res.deletedCount;
+  }
+
+  return { posTickets, ventesLog, aquaproTickets };
+}
+
 export async function getPosContext(input: {
   date: string;
   site: VenteSite;
@@ -472,11 +663,21 @@ export async function getPosContext(input: {
   const caisseForUi =
     caisse && caisse.date === date ? caisse : requestedPast ? null : caisse;
   const backdate = requestedPast && !(caisse && caisse.date === date);
-  const [config, tickets, board] = await Promise.all([
+  const [config, rawTickets, board] = await Promise.all([
     getPosConfig(),
     listTickets({ date, site: input.site }),
     getVenteBoard(date, input.site),
   ]);
+  if (requestedPast) {
+    await Promise.all(
+      rawTickets.map((t) =>
+        backfillPosTicketVenteLogIds({ id: t.id, date: t.date, site: t.site }),
+      ),
+    );
+  }
+  const tickets = requestedPast
+    ? await listTickets({ date, site: input.site })
+    : rawTickets;
   return {
     date,
     config,

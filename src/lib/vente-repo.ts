@@ -64,6 +64,7 @@ type VenteLogDoc = {
   cancelledByUsername?: string | null;
   /** Provenance (caisse, carnet-zogbo, aquapro, reprise…) */
   source?: string | null;
+  caExcluded?: boolean;
 };
 
 function mapVenteLogDoc(d: VenteLogDoc): VenteLogEntry {
@@ -510,6 +511,10 @@ export async function sumCaByShift(
     // dans « hors équipe » plutôt que d'être attribuées arbitrairement.
     parEquipe[effectiveShift(row._id)] += row.total;
   }
+  const reductions = await sumPosReductionsByShift(date, site);
+  for (const shift of ["jour", "nuit", "aucune"] as UserShift[]) {
+    parEquipe[shift] -= reductions[shift];
+  }
   return parEquipe;
 }
 
@@ -587,20 +592,70 @@ export async function sumCaByShiftRange(
   };
 }
 
-/** CA actif du jour pour un site — même source que l’écran Vente. */
+/** CA actif du jour pour un site — journal des ventes moins réductions POS. */
+export async function sumPosReductions(
+  date: string,
+  site: VenteSite | "all",
+): Promise<number> {
+  const db = await getDb();
+  const match: Record<string, unknown> = {
+    date,
+    statut: "valide",
+    reduction: { $gt: 0 },
+  };
+  if (site !== "all") match.site = site;
+  const rows = await db
+    .collection("pos_tickets")
+    .aggregate<{ total: number }>([
+      { $match: match },
+      { $group: { _id: null, total: { $sum: "$reduction" } } },
+    ])
+    .toArray();
+  return rows[0]?.total ?? 0;
+}
+
+/** Réductions POS du jour, réparties par équipe du ticket. */
+export async function sumPosReductionsByShift(
+  date: string,
+  site: VenteSite | "all",
+): Promise<Record<UserShift, number>> {
+  const db = await getDb();
+  const match: Record<string, unknown> = {
+    date,
+    statut: "valide",
+    reduction: { $gt: 0 },
+  };
+  if (site !== "all") match.site = site;
+  const rows = await db
+    .collection("pos_tickets")
+    .aggregate<{ _id: UserShift | null; total: number }>([
+      { $match: match },
+      { $group: { _id: "$shift", total: { $sum: "$reduction" } } },
+    ])
+    .toArray();
+  const out: Record<UserShift, number> = { jour: 0, nuit: 0, aucune: 0 };
+  for (const row of rows) {
+    out[effectiveShift(row._id)] += row.total;
+  }
+  return out;
+}
+
 export async function sumCaForSite(
   date: string,
   site: VenteSite,
 ): Promise<number> {
   const db = await getDb();
-  const rows = await db
-    .collection<VenteLogDoc>("ventes_log")
-    .aggregate<{ total: number }>([
-      { $match: { date, site, ...ACTIVE } },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
-    ])
-    .toArray();
-  return rows[0]?.total ?? 0;
+  const [logRows, reductions] = await Promise.all([
+    db
+      .collection<VenteLogDoc>("ventes_log")
+      .aggregate<{ total: number }>([
+        { $match: { date, site, ...ACTIVE } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ])
+      .toArray(),
+    sumPosReductions(date, site),
+  ]);
+  return (logRows[0]?.total ?? 0) - reductions;
 }
 
 /** CA journal figé pour un type de produit (combos, boissons…). */
@@ -1308,11 +1363,13 @@ export async function undoVente(input: {
   const db = await getDb();
   const doc = await db.collection<VenteLogDoc>("ventes_log").findOne({
     _id: new ObjectId(input.id),
-    date: input.date,
     site: input.site,
     ...ACTIVE,
   });
   if (!doc) throw new Error("Vente introuvable ou déjà annulée");
+  if (input.date && input.date !== doc.date) {
+    throw new Error("Date incohérente avec la vente.");
+  }
 
   assertSameTeamCancellation({
     saleShift: doc.shift,
@@ -1408,11 +1465,13 @@ export async function editVenteQty(input: {
   const db = await getDb();
   const doc = await db.collection<VenteLogDoc>("ventes_log").findOne({
     _id: new ObjectId(input.id),
-    date: input.date,
     site: input.site,
     ...ACTIVE,
   });
   if (!doc) throw new Error("Vente introuvable ou déjà annulée");
+  if (input.date && input.date !== doc.date) {
+    throw new Error("Date incohérente avec la vente.");
+  }
 
   assertSameTeamCancellation({
     saleShift: doc.shift,
@@ -1423,7 +1482,7 @@ export async function editVenteQty(input: {
   const oldQty = doc.qty;
   const delta = newQty - oldQty;
   if (delta === 0) {
-    const board = await getVenteBoard(input.date, input.site);
+    const board = await getVenteBoard(doc.date, input.site);
     return {
       board,
       entry: {
@@ -1486,7 +1545,7 @@ export async function editVenteQty(input: {
   // Ticket POS lié : recalcule la ligne et les totaux.
   const ticket = await db.collection("pos_tickets").findOne({
     site: input.site,
-    date: input.date,
+    date: doc.date,
     "lines.venteLogId": input.id,
     statut: "valide",
   });
@@ -1529,7 +1588,7 @@ export async function editVenteQty(input: {
     }
   }
 
-  const board = await getVenteBoard(input.date, input.site);
+  const board = await getVenteBoard(doc.date, input.site);
   return {
     board,
     entry: {
@@ -1544,5 +1603,127 @@ export async function editVenteQty(input: {
       amount: oldQty < 0 ? -Math.abs(amount) : Math.abs(amount),
       at: doc.at,
     },
+  };
+}
+
+function venteLogStockActive(doc: VenteLogDoc): boolean {
+  return !doc.cancelledAt && doc.caExcluded !== true && doc.kind !== "extra";
+}
+
+type PosTicketLineDoc = {
+  venteLogId?: string | null;
+  qty: number;
+  unitPrice: number;
+  amount: number;
+};
+
+type PosTicketSnapshot = {
+  _id: ObjectId;
+  statut?: string;
+  caisseId?: string | null;
+  montant?: number;
+  reduction?: number;
+  lines?: PosTicketLineDoc[];
+};
+
+async function syncPosTicketAfterVenteDelete(input: {
+  site: VenteSite;
+  date: string;
+  venteLogId: string;
+  bypassClosedDay?: boolean;
+}): Promise<void> {
+  const db = await getDb();
+  const ticket = (await db.collection("pos_tickets").findOne({
+    site: input.site,
+    date: input.date,
+    "lines.venteLogId": input.venteLogId,
+  })) as PosTicketSnapshot | null;
+  if (!ticket) return;
+
+  const lines = (ticket.lines ?? []).filter(
+    (l) => l.venteLogId !== input.venteLogId,
+  );
+  const wasValid = ticket.statut === "valide";
+
+  if (lines.length === 0) {
+    if (wasValid && ticket.caisseId) {
+      await adjustCaisseVenteAmount(
+        String(ticket.caisseId),
+        -(Number(ticket.montant) || 0),
+      );
+    }
+    await db.collection("pos_tickets").deleteOne({ _id: ticket._id });
+    return;
+  }
+
+  const montantBrut = lines.reduce((s, l) => s + l.amount, 0);
+  const reduction = Math.min(
+    montantBrut,
+    Math.max(0, Number(ticket.reduction) || 0),
+  );
+  const montant = montantBrut - reduction;
+  await db.collection("pos_tickets").updateOne(
+    { _id: ticket._id },
+    { $set: { lines, montantBrut, reduction, montant } },
+  );
+  if (wasValid && ticket.caisseId) {
+    const deltaTicket = montant - (Number(ticket.montant) || 0);
+    if (deltaTicket) {
+      await adjustCaisseVenteAmount(String(ticket.caisseId), deltaTicket);
+    }
+  }
+}
+
+/**
+ * Suppression physique d'une ligne ventes_log (gérant / admin).
+ * Reprend le stock si la vente est encore active ; met à jour ou supprime le
+ * ticket POS lié sauf si `skipPosUpdate`.
+ */
+export async function deleteVentePermanently(input: {
+  id: string;
+  date?: string;
+  site: VenteSite;
+  bypassClosedDay?: boolean;
+  skipPosUpdate?: boolean;
+}): Promise<{ id: string; name: string; amount: number; date: string }> {
+  if (!ObjectId.isValid(input.id)) throw new Error("Vente invalide");
+  const db = await getDb();
+  const doc = await db.collection<VenteLogDoc>("ventes_log").findOne({
+    _id: new ObjectId(input.id),
+    site: input.site,
+  });
+  if (!doc) throw new Error("Vente introuvable");
+  if (input.date && input.date !== doc.date) {
+    throw new Error("Date incohérente avec la vente.");
+  }
+
+  if (venteLogStockActive(doc)) {
+    await assertDayNotClosed(doc.date, doc.site, doc.kind, {
+      bypassClosedDay: input.bypassClosedDay ?? true,
+    });
+    await applySoldDelta({
+      date: doc.date,
+      site: doc.site,
+      kind: doc.kind,
+      productId: doc.productId,
+      delta: -doc.qty,
+    });
+  }
+
+  if (!input.skipPosUpdate) {
+    await syncPosTicketAfterVenteDelete({
+      site: doc.site,
+      date: doc.date,
+      venteLogId: input.id,
+      bypassClosedDay: input.bypassClosedDay,
+    });
+  }
+
+  await db.collection("ventes_log").deleteOne({ _id: doc._id });
+  return {
+    id: input.id,
+    name: doc.name,
+    amount: doc.amount,
+    date: doc.date,
   };
 }
