@@ -709,6 +709,9 @@ export type ModulesComptables = {
   capital: boolean;
   amortissements: boolean;
   comptesTiers: boolean;
+  /** Valorisation automatique du stock matières + boissons, avec ajustement
+   *  de variation de stock sur le résultat pour ne pas doubler les achats. */
+  stock: boolean;
 };
 
 export type ParametresComptables = {

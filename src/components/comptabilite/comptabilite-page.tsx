@@ -510,8 +510,10 @@ type BilanResult = {
   equilibre: boolean;
 };
 
+type ModuleKey = "capital" | "amortissements" | "comptesTiers" | "stock";
+
 type ParametresComptablesUi = {
-  modules: { capital: boolean; amortissements: boolean; comptesTiers: boolean };
+  modules: Record<ModuleKey, boolean>;
   capital: number;
   creancesClients: number;
   dettesFournisseurs: number;
@@ -521,7 +523,12 @@ type ParametresComptablesUi = {
 };
 
 const MODULES_VIDE: ParametresComptablesUi = {
-  modules: { capital: false, amortissements: false, comptesTiers: false },
+  modules: {
+    capital: false,
+    amortissements: false,
+    comptesTiers: false,
+    stock: false,
+  },
   capital: 0,
   creancesClients: 0,
   dettesFournisseurs: 0,
@@ -567,7 +574,7 @@ function ModulesComptablesPanel({ onSaved }: { onSaved: () => void }) {
     void load();
   }, [load]);
 
-  async function toggle(module: "capital" | "amortissements" | "comptesTiers") {
+  async function toggle(module: ModuleKey) {
     if (!parametres.peutActiver || saving) return;
     setSaving(true);
     setError(null);
@@ -615,10 +622,11 @@ function ModulesComptablesPanel({ onSaved }: { onSaved: () => void }) {
     }
   }
 
-  const items: { key: "capital" | "amortissements" | "comptesTiers"; label: string }[] = [
+  const items: { key: ModuleKey; label: string }[] = [
     { key: "capital", label: "Capital" },
     { key: "amortissements", label: "Amortissements" },
     { key: "comptesTiers", label: "Comptes tiers" },
+    { key: "stock", label: "Stock (matières, boissons)" },
   ];
 
   return (

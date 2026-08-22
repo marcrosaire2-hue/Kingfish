@@ -29,6 +29,7 @@ export async function POST(request: Request) {
         capital?: boolean;
         amortissements?: boolean;
         comptesTiers?: boolean;
+        stock?: boolean;
       };
       capital?: number;
       creancesClients?: number;

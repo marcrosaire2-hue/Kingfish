@@ -1,3 +1,5 @@
+import { physicalBoissonsStock, unitsPerCasierOf } from "@/lib/boissons-calc";
+import { getBoissonsDayPayload } from "@/lib/boissons-repo";
 import { getCaissesOverview } from "@/lib/caisse-repo";
 import { listImmobilisations } from "@/lib/immobilisations-repo";
 import {
@@ -6,6 +8,8 @@ import {
   type LigneBalance,
 } from "@/lib/journal-comptable-calc";
 import { buildJournalComptable } from "@/lib/journal-comptable-repo";
+import { stockOf } from "@/lib/matieres-calc";
+import { getMatieresDayPayload } from "@/lib/matieres-repo";
 import { getParametresComptables } from "@/lib/parametres-comptables-repo";
 import { COMPTES } from "@/lib/plan-comptable";
 import type { Immobilisation, VenteSite } from "@/lib/types";
@@ -61,6 +65,40 @@ function valeurNette(item: Immobilisation, asOf: string): number {
 }
 
 /**
+ * Valeur du stock physique restant (matières premières + boissons), au prix
+ * d'achat catalogue. Les plats et accompagnements préparés en sont exclus :
+ * denrées périssables à faible valeur résiduelle, déjà couvertes côté risque
+ * par le suivi des Pertes — les capitaliser ajouterait une hypothèse fragile
+ * pour un montant qui reste marginal.
+ */
+async function valeurStockMatieresBoissons(asOf: string): Promise<number> {
+  const [matieres, boissons] = await Promise.all([
+    getMatieresDayPayload(asOf),
+    getBoissonsDayPayload(asOf),
+  ]);
+
+  const materialById = new Map(matieres.materials.map((m) => [m.id, m]));
+  const valeurMatieres = matieres.day.lines.reduce((s, line) => {
+    const materiau = materialById.get(line.productId);
+    if (!materiau) return s;
+    return s + stockOf(line) * materiau.purchasePrice;
+  }, 0);
+
+  const drinkById = new Map(boissons.drinks.map((d) => [d.id, d]));
+  const valeurBoissons = boissons.day.lines.reduce((s, line) => {
+    const boisson = drinkById.get(line.productId);
+    if (!boisson) return s;
+    const stockBouteilles = physicalBoissonsStock(
+      line,
+      unitsPerCasierOf(boisson),
+    );
+    return s + stockBouteilles * boisson.purchasePrice;
+  }, 0);
+
+  return valeurMatieres + valeurBoissons;
+}
+
+/**
  * Bilan simplifié établi à partir des données que l'application tient
  * réellement : trésorerie des caisses, immobilisations (valeur nette si le
  * module Amortissements est activé, brute sinon), résultat cumulé depuis
@@ -84,7 +122,20 @@ export async function buildBilan(input: {
   ]);
 
   const balance = balanceGenerale(journal.ecritures);
-  const resultat = resultatNetDeBalance(balance);
+  const resultatAvantStock = resultatNetDeBalance(balance);
+
+  // Variation de stock : les achats de matières sont déjà passés en charge à
+  // 100% dès l'achat (compte 601). Sans correction, capitaliser le stock
+  // restant à l'actif surestimerait le patrimoine sans alléger la charge en
+  // face. `ORIGINE` étant antérieure à toute donnée réelle de l'application,
+  // le stock à cette date est nécessairement nul — la variation cumulée
+  // depuis l'origine est donc exactement la valeur du stock actuel, ajoutée
+  // au résultat (elle réduit d'autant la charge d'achats réellement
+  // consommée sur la période).
+  const stockValorise = parametres.modules.stock
+    ? await valeurStockMatieresBoissons(input.asOf)
+    : 0;
+  const resultat = resultatAvantStock + Math.round(stockValorise);
 
   const tresorerie = caisses.reduce((s, c) => s + c.soldeTheorique, 0);
   const compteAttente = balance.find(
@@ -130,12 +181,21 @@ export async function buildBilan(input: {
     });
   }
 
-  actif.push({
-    libelle: "Stocks (matières, emballages)",
-    montant: 0,
-    fiable: false,
-    note: "Aucun stock valorisé au bilan : les achats sont passés en charge intégralement à l'acquisition, pas capitalisés.",
-  });
+  actif.push(
+    parametres.modules.stock
+      ? {
+          libelle: "Stocks (matières premières, boissons)",
+          montant: Math.round(stockValorise),
+          fiable: true,
+          note: "Plats et accompagnements préparés exclus (denrées périssables, valeur résiduelle marginale, déjà couverte par le suivi des Pertes). Résultat ajusté de la variation de stock en contrepartie (compte 603).",
+        }
+      : {
+          libelle: "Stocks (matières, boissons)",
+          montant: 0,
+          fiable: false,
+          note: "Module Stock désactivé : à activer par le compte direction (marc). Les achats restent alors passés en charge intégralement à l'acquisition, sans capitalisation du stock restant.",
+        },
+  );
 
   actif.push({
     libelle: "Créances clients",
@@ -159,6 +219,10 @@ export async function buildBilan(input: {
       libelle: `Résultat cumulé depuis ${ORIGINE}`,
       montant: resultat,
       fiable: true,
+      note:
+        parametres.modules.stock && stockValorise > 0
+          ? `Inclut +${Math.round(stockValorise)} FCFA de variation de stock (module Stock activé).`
+          : undefined,
     },
     {
       libelle: "Dettes fournisseurs",

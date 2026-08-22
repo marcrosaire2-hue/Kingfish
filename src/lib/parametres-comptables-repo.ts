@@ -11,7 +11,12 @@ type ParametresComptablesDoc = Omit<ParametresComptables, "modules"> & {
 };
 
 const DEFAUT: ParametresComptables = {
-  modules: { capital: false, amortissements: false, comptesTiers: false },
+  modules: {
+    capital: false,
+    amortissements: false,
+    comptesTiers: false,
+    stock: false,
+  },
   capital: 0,
   creancesClients: 0,
   dettesFournisseurs: 0,
@@ -35,6 +40,7 @@ function toParametres(doc: ParametresComptablesDoc | null): ParametresComptables
       capital: doc.modules?.capital === true,
       amortissements: doc.modules?.amortissements === true,
       comptesTiers: doc.modules?.comptesTiers === true,
+      stock: doc.modules?.stock === true,
     },
     capital: Math.max(0, Math.round(Number(doc.capital) || 0)),
     creancesClients: Math.max(0, Math.round(Number(doc.creancesClients) || 0)),
@@ -76,6 +82,7 @@ export async function saveParametresComptables(input: {
       amortissements:
         input.modules?.amortissements ?? existing.modules.amortissements,
       comptesTiers: input.modules?.comptesTiers ?? existing.modules.comptesTiers,
+      stock: input.modules?.stock ?? existing.modules.stock,
     },
     capital:
       input.capital !== undefined
