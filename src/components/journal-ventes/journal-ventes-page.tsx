@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { ExportExcelButton } from "@/components/export-excel-button";
@@ -19,14 +19,6 @@ import { todayIsoDate } from "@/lib/zogbo-calc";
 type SiteFilter = "all" | "zogbo" | "gbegamey";
 type StatutFilter = "all" | "valide" | "annule" | "encours";
 type SourceFilter = "all" | "kingfish" | "aquapro";
-
-type DayPlatAcc = {
-  date: string;
-  platQty: number;
-  platMontant: number;
-  accQty: number;
-  accMontant: number;
-};
 
 function monthStartIso(d = todayIsoDate()): string {
   return `${d.slice(0, 7)}-01`;
@@ -59,32 +51,6 @@ function siteLabel(site: string): string {
   if (site === "zogbo") return "Zogbo";
   if (site === "gbegamey") return "Gbégamey";
   return "—";
-}
-
-function summarizePlatsAccompagnements(days: JournalVenteDay[]): DayPlatAcc[] {
-  const byDate = new Map<string, DayPlatAcc>();
-  for (const day of days) {
-    for (const l of day.lines) {
-      if (l.statut !== "valide") continue;
-      if (l.kind !== "plat" && l.kind !== "local") continue;
-      const row = byDate.get(day.date) ?? {
-        date: day.date,
-        platQty: 0,
-        platMontant: 0,
-        accQty: 0,
-        accMontant: 0,
-      };
-      if (l.kind === "plat") {
-        row.platQty += l.qty;
-        row.platMontant += l.montant;
-      } else {
-        row.accQty += l.qty;
-        row.accMontant += l.montant;
-      }
-      byDate.set(day.date, row);
-    }
-  }
-  return [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
 
 const EMPTY_RESULT: JournalVenteResult = {
@@ -150,20 +116,6 @@ export function JournalVentesPage() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const platAccByDay = useMemo(
-    () => summarizePlatsAccompagnements(result.days),
-    [result.days],
-  );
-  const platAccTotals = platAccByDay.reduce(
-    (acc, d) => ({
-      platQty: acc.platQty + d.platQty,
-      platMontant: acc.platMontant + d.platMontant,
-      accQty: acc.accQty + d.accQty,
-      accMontant: acc.accMontant + d.accMontant,
-    }),
-    { platQty: 0, platMontant: 0, accQty: 0, accMontant: 0 },
-  );
 
   async function exportJournal() {
     if (exporting) return;
@@ -366,69 +318,6 @@ export function JournalVentesPage() {
       ) : null}
 
       {loading ? <BrandLoader variant="ligne" label="Chargement du journal…" /> : null}
-
-      {!loading && platAccByDay.length > 0 ? (
-        <div className="panel panel-wide">
-          <div className="panel-head">
-            <h2 className="panel-title">Plats et accompagnements vendus par jour</h2>
-            <p className="muted hist-line-meta">
-              Ventes validées uniquement, quel que soit le filtre Statut ci-dessus.
-            </p>
-          </div>
-          <table className="data-table hist-ventes-table">
-            <thead>
-              <tr>
-                <th scope="col">Date</th>
-                <th scope="col" className="col-num">
-                  Plats vendus
-                </th>
-                <th scope="col" className="col-money">
-                  Montant plats
-                </th>
-                <th scope="col" className="col-num">
-                  Accompagnements vendus
-                </th>
-                <th scope="col" className="col-money">
-                  Montant accompagnements
-                </th>
-                <th scope="col" className="col-money">
-                  Total jour
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {platAccByDay.map((d) => (
-                <tr key={d.date}>
-                  <td>{d.date}</td>
-                  <td className="mono col-num">{d.platQty}</td>
-                  <td className="mono col-money">{formatFcfa(d.platMontant)}</td>
-                  <td className="mono col-num">{d.accQty}</td>
-                  <td className="mono col-money">{formatFcfa(d.accMontant)}</td>
-                  <td className="mono col-money">
-                    {formatFcfa(d.platMontant + d.accMontant)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr>
-                <th scope="row">Total période</th>
-                <td className="mono col-num">{platAccTotals.platQty}</td>
-                <td className="mono col-money">
-                  {formatFcfa(platAccTotals.platMontant)}
-                </td>
-                <td className="mono col-num">{platAccTotals.accQty}</td>
-                <td className="mono col-money">
-                  {formatFcfa(platAccTotals.accMontant)}
-                </td>
-                <td className="mono col-money">
-                  {formatFcfa(platAccTotals.platMontant + platAccTotals.accMontant)}
-                </td>
-              </tr>
-            </tfoot>
-          </table>
-        </div>
-      ) : null}
 
       {!loading && !result.days.length ? (
         <p className="muted">Aucune vente pour ces filtres.</p>
