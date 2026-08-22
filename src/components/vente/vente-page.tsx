@@ -536,16 +536,20 @@ type TicketsListProps = {
   tickets: PosTicket[];
   busyKey: string | null;
   canViewHistory: boolean;
+  canManagePast: boolean;
   onFacture: (ticket: PosTicket) => void;
   onCancel: (ticket: PosTicket) => void;
+  onDeletePermanent: (ticket: PosTicket) => void;
 };
 
 const TicketsList = memo(function TicketsList({
   tickets,
   busyKey,
   canViewHistory,
+  canManagePast,
   onFacture,
   onCancel,
+  onDeletePermanent,
 }: TicketsListProps) {
   return (
     <div className="pos-tickets">
@@ -589,6 +593,16 @@ const TicketsList = memo(function TicketsList({
                   >
                     Annuler
                   </button>
+                  {canManagePast ? (
+                    <button
+                      type="button"
+                      className="btn-link btn-link-danger"
+                      disabled={!!busyKey}
+                      onClick={() => onDeletePermanent(t)}
+                    >
+                      Suppr. déf.
+                    </button>
+                  ) : null}
                 </>
               ) : null}
             </div>
@@ -642,6 +656,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [facture, setFacture] = useState<PosTicket | null>(null);
   /** Alerte transitoire quand un produit vient de s'épuiser (rupture). */
   const [ruptureAlert, setRuptureAlert] = useState<string | null>(null);
+  const [canManagePast, setCanManagePast] = useState(false);
   /** Ruptures connues au dernier chargement (pour ne signaler que les nouvelles). */
   const prevRuptures = useRef<Set<string> | null>(null);
   const ruptureAlertTimer = useRef<number | null>(null);
@@ -722,6 +737,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       if (seq !== loadSeq.current) return;
 
       setBoard(venteBody as Board);
+      setCanManagePast(Boolean(venteBody.canManagePast));
       if (venteBody.site) setSite(venteBody.site as VenteSite);
       setAllowedSites(
         (venteBody.allowedSites as VenteSite[] | undefined) ?? [],
@@ -1236,6 +1252,79 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         window.setTimeout(() => setFlash(null), 1600);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Annulation impossible");
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [date, site],
+  );
+
+  const deleteTicketPermanent = useCallback(
+    async (ticket: PosTicket) => {
+      if (
+        !window.confirm(
+          `Supprimer définitivement le ticket ${ticket.numero} (${formatFcfa(ticket.montant)}) ?\nCette action est irréversible.`,
+        )
+      ) {
+        return;
+      }
+      setBusyKey(`del:${ticket.id}`);
+      setError(null);
+      try {
+        const res = await fetch("/api/pos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "delete",
+            id: ticket.id,
+            date,
+            site,
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Suppression impossible");
+        if (body.board) setBoard(body.board as Board);
+        setTickets((prev) => prev.filter((t) => t.id !== ticket.id));
+        setFlash(`Ticket ${ticket.numero} supprimé définitivement`);
+        window.setTimeout(() => setFlash(null), 1600);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Suppression impossible");
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [date, site],
+  );
+
+  const deleteVenteLine = useCallback(
+    async (entry: VenteLogEntry) => {
+      if (
+        !window.confirm(
+          `Supprimer définitivement « ${entry.name} × ${entry.qty} » ?\nCette action est irréversible.`,
+        )
+      ) {
+        return;
+      }
+      setBusyKey(`del:${entry.id}`);
+      setError(null);
+      try {
+        const res = await fetch("/api/vente", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "delete",
+            id: entry.id,
+            date,
+            site,
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Suppression impossible");
+        if (body.board) setBoard(body.board as Board);
+        setFlash(`« ${entry.name} » supprimé définitivement`);
+        window.setTimeout(() => setFlash(null), 1200);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Suppression impossible");
       } finally {
         setBusyKey(null);
       }
@@ -1799,8 +1888,10 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   tickets={tickets}
                   busyKey={busyKey}
                   canViewHistory={canViewHistory}
+                  canManagePast={canManagePast}
                   onFacture={openFacture}
                   onCancel={cancelTicket}
+                  onDeletePermanent={deleteTicketPermanent}
                 />
               ) : null}
           </aside>
@@ -1953,14 +2044,26 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                     {formatLogTime(entry.at)}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  className="btn-link"
-                  disabled={!!busyKey}
-                  onClick={() => void undo(entry)}
-                >
-                  Annuler
-                </button>
+                <span className="reg-actions">
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={!!busyKey}
+                    onClick={() => void undo(entry)}
+                  >
+                    Annuler
+                  </button>
+                  {canManagePast ? (
+                    <button
+                      type="button"
+                      className="btn-link btn-link-danger"
+                      disabled={!!busyKey}
+                      onClick={() => void deleteVenteLine(entry)}
+                    >
+                      Suppr. déf.
+                    </button>
+                  ) : null}
+                </span>
               </li>
             ))}
           </ul>
