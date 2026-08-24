@@ -16,7 +16,7 @@ export type JournalRow = {
   date: string;
   site: "zogbo" | "gbegamey";
   type: JournalType;
-  /** Famille du produit (plat, local, combo, boisson, extra, matiere…) */
+  /** Famille du produit (plat, local, boisson, extra, matiere…) */
   kind: string;
   productId: string;
   name: string;

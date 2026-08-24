@@ -73,6 +73,11 @@ describe("étanchéité des zones", () => {
     expect(navForUser("gerant", "zogbo")).toContain("stock");
   });
 
+  it("l’ancienne URL /combos suit le droit stock (redirection, plus de menu)", () => {
+    expect(canAccessPath("gerant", "/combos", "zogbo")).toBe(true);
+    expect(navForUser("gerant", "zogbo")).not.toContain("combos");
+  });
+
   it("le gérant accède au journal des ventes de SA zone", () => {
     expect(canAccessPath("gerant", "/journal-ventes", "zogbo")).toBe(true);
     expect(canAccessPath("gerant", "/historique-ventes", "zogbo")).toBe(true);

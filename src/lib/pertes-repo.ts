@@ -4,7 +4,6 @@ import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import { unitsPerCasierOf } from "@/lib/boissons-calc";
 import { getBoissonsDayPayload, saveBoissonsDay } from "@/lib/boissons-repo";
-import { getCombosDayPayload, saveCombosDay } from "@/lib/combos-repo";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
 import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import {
@@ -132,23 +131,6 @@ async function resolveTarget(input: {
     };
   }
 
-  if (kind === "combo") {
-    const combo = parametres.combos.find((c) => c.id === productId);
-    if (!combo) throw new Error("Formule introuvable");
-    const { day } = await getCombosDayPayload(date);
-    assertDayOpen(day.status, closedMessage, openOpts);
-    return {
-      collection: "combos_jours",
-      arrayField: "lines",
-      perteField: site === "zogbo" ? "pertesZogbo" : "pertesGbegamey",
-      name: combo.name,
-      unitCost: combo.costPrice ?? 0,
-      ensure: async () => {
-        await saveCombosDay({ date, status: day.status, lines: day.lines });
-      },
-    };
-  }
-
   if (kind === "boisson") {
     const drink = parametres.drinks.find((d) => d.id === productId);
     if (!drink) throw new Error("Boisson introuvable");
@@ -157,13 +139,20 @@ async function resolveTarget(input: {
     return {
       collection: "boissons_jours",
       arrayField: "lines",
-      perteField: "pertes",
+      // Stock désormais séparé par site : la perte débite le point de vente
+      // où elle a réellement eu lieu, jamais l'autre.
+      perteField: site === "zogbo" ? "pertesZogbo" : "pertesGbegamey",
       name: drink.name,
       // Le stock boissons se tient en casiers, la perte se déclare en
       // bouteilles : le prix d'achat est déjà par bouteille.
       unitCost: drink.purchasePrice ?? 0,
       ensure: async () => {
-        await saveBoissonsDay({ date, status: day.status, lines: day.lines });
+        await saveBoissonsDay({
+          date,
+          site,
+          status: day.status,
+          lines: day.lines,
+        });
       },
     };
   }

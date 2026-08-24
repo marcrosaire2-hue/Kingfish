@@ -8,7 +8,6 @@ import { BrandLoader } from "@/components/brand-loader";
 const KIND_LABELS: Record<string, string> = {
   plat: "Plat",
   boisson: "Boisson",
-  combo: "Formule",
   extra: "Vente libre",
   local: "Sur place",
   matiere: "Matière",
@@ -97,7 +96,7 @@ export function ZoneVentesPanel({
             i
           </span>
           <p>
-            Le CA affiché provient de ce journal. Les onglets Plats / Formules /
+            Le CA affiché provient de ce journal. Les onglets Plats /
             Boissons suivent les <strong>compteurs de stock</strong> : si une
             vente n’a pas mis à jour le stock (import carnet, reprise), le
             détail apparaît ici mais pas dans les compteurs.

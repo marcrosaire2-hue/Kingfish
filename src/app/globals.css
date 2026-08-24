@@ -1838,10 +1838,6 @@ select {
   color: #1f6f8b;
 }
 
-.product-icon-combo {
-  color: var(--accent-deep);
-}
-
 .product-icon-sauce {
   color: #9a5b12;
 }
@@ -4377,6 +4373,58 @@ select {
     align-items: stretch;
   }
 }
+
+.stock-search {
+  width: 13rem;
+}
+
+.stock-inactive-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.stock-inactive-toggle input {
+  accent-color: var(--accent);
+}
+
+.section-tab.stock-alert-tab::before {
+  content: "";
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  margin-right: 0.45rem;
+  background: var(--line);
+}
+
+.section-tab.stock-alert-tab.is-warn::before {
+  background: var(--warn);
+}
+
+.section-tab.stock-alert-tab.is-bad::before {
+  background: var(--danger);
+}
+
+.section-tab.stock-alert-tab.is-accent::before {
+  background: var(--accent);
+}
+
+.section-tab.stock-alert-tab:not(.is-active) {
+  opacity: 0.85;
+}
+
+.stock-chip-inline {
+  font-size: 0.78rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  justify-self: start;
+}
+
 
 .vente-layout.is-caisse {
   display: block;

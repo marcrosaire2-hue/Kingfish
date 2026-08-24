@@ -82,10 +82,7 @@ export async function GET(request: Request) {
         month: data,
         ranking,
         cancelNotice,
-        caCumuls: {
-          ...caCumuls,
-          mois: cancelNotice.caActif,
-        },
+        caCumuls,
         role: user.role,
         scopeSite,
         lockedSite: user.site !== "tous",
@@ -108,10 +105,7 @@ export async function GET(request: Request) {
       year: data,
       ranking,
       cancelNotice,
-      caCumuls: {
-        ...caCumuls,
-        total: cancelNotice.caActif,
-      },
+      caCumuls,
       role: user.role,
       scopeSite,
       lockedSite: user.site !== "tous",

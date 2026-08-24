@@ -134,6 +134,14 @@ function toEntry(doc: ImmobilisationDoc): Immobilisation {
       doc.dureeUtiliteAnnees === null || doc.dureeUtiliteAnnees === undefined
         ? null
         : Math.max(1, Math.round(Number(doc.dureeUtiliteAnnees) || 0)),
+    acquisitionQty:
+      doc.acquisitionQty === null || doc.acquisitionQty === undefined
+        ? undefined
+        : Math.max(0, Math.round(Number(doc.acquisitionQty) || 0)),
+    acquisitionAmount:
+      doc.acquisitionAmount === null || doc.acquisitionAmount === undefined
+        ? undefined
+        : Math.max(0, Math.round(Number(doc.acquisitionAmount) || 0)),
   };
 }
 
@@ -144,15 +152,20 @@ function normalizeName(raw: string): string {
 export async function listImmobilisations(input?: {
   kind?: ImmobilisationKind | "all";
   active?: boolean | "all";
-  /** Filtre site : inclut aussi les fiches « tous sites » (site null). */
   site?: VenteSite | "all";
+  /** false = exclure les fiches « tous sites » (site null) des vues zone. */
+  includeUnscoped?: boolean;
 }): Promise<Immobilisation[]> {
   const filter: Record<string, unknown> = {};
   if (input?.kind && input.kind !== "all") filter.kind = input.kind;
   if (input?.active === true) filter.active = true;
   if (input?.active === false) filter.active = false;
   if (input?.site && input.site !== "all") {
-    filter.$or = [{ site: input.site }, { site: null }];
+    if (input.includeUnscoped === false) {
+      filter.site = input.site;
+    } else {
+      filter.$or = [{ site: input.site }, { site: null }];
+    }
   }
 
   const db = await getDb();
@@ -411,9 +424,9 @@ export async function setImmobilisationActive(input: {
 }
 
 /**
- * Coût d’acquisition Immobilisations par jour (qté × prix unitaire), pour le
- * compte de résultat. Le registre fait foi : rien n’est recopié dans
- * charges_jours. Une fiche « tous sites » (site null) compte pour chaque zone.
+ * Coût d’acquisition Immobilisations par jour (montant figé), pour le
+ * journal (écritures 2181 sans caisse). Une fiche « tous sites » n’entre
+ * que dans la vue maison entière.
  */
 export async function sumImmobilisationsCostByDate(input: {
   from: string;
@@ -425,7 +438,7 @@ export async function sumImmobilisationsCostByDate(input: {
     date: { $gte: input.from, $lte: input.to },
   };
   if (input.site && input.site !== "all") {
-    match.$or = [{ site: input.site }, { site: null }];
+    match.site = input.site;
   }
 
   const rows = await db
@@ -437,10 +450,6 @@ export async function sumImmobilisationsCostByDate(input: {
           _id: "$date",
           total: {
             $sum: {
-              // Montant figé à l'acquisition en priorité — une fiche créée
-              // avant ce champ retombe sur qty × coût courants (elle n'a
-              // jamais pu être réduite par une perte, cette fonctionnalité
-              // n'existant pas encore à l'époque).
               $ifNull: [
                 "$acquisitionAmount",
                 {
@@ -467,3 +476,92 @@ export async function sumImmobilisationsCostByDate(input: {
   }
   return { total, parJour };
 }
+
+function joursEntre(from: string, to: string): number {
+  const a = new Date(`${from}T00:00:00Z`).getTime();
+  const b = new Date(`${to}T00:00:00Z`).getTime();
+  return Math.max(0, (b - a) / (1000 * 60 * 60 * 24));
+}
+
+export function brutAmortissable(item: Immobilisation): number {
+  if (item.acquisitionAmount != null && item.acquisitionAmount > 0) {
+    return item.acquisitionAmount;
+  }
+  if (item.acquisitionQty != null) {
+    return Math.max(0, item.acquisitionQty * item.cost);
+  }
+  return Math.max(0, item.qty * item.cost);
+}
+
+/** VNC linéaire sur la base d’acquisition, pas sur la qty après pertes. */
+export function valeurNette(item: Immobilisation, asOf: string): number {
+  if (item.kind === "emballage") {
+    return Math.max(0, item.qty * item.cost);
+  }
+  const brut = brutAmortissable(item);
+  if (!item.dureeUtiliteAnnees || item.dureeUtiliteAnnees <= 0) return brut;
+  const anneesEcoulees = joursEntre(item.date, asOf) / 365;
+  const dotationAnnuelle = brut / item.dureeUtiliteAnnees;
+  const amortissementCumule = Math.min(
+    brut,
+    dotationAnnuelle * Math.max(0, anneesEcoulees),
+  );
+  return Math.max(0, brut - amortissementCumule);
+}
+
+export function dotationJour(item: Immobilisation, date: string): number {
+  if (item.kind !== "actif") return 0;
+  if (!item.dureeUtiliteAnnees || item.dureeUtiliteAnnees <= 0) return 0;
+  if (date < item.date) return 0;
+  const brut = brutAmortissable(item);
+  const daily = brut / item.dureeUtiliteAnnees / 365;
+  const vnc = valeurNette(item, date);
+  return Math.max(0, Math.round(Math.min(daily, vnc)));
+}
+
+export async function sumAmortissementsByDate(input: {
+  from: string;
+  to: string;
+  site?: VenteSite | "all" | null;
+}): Promise<{ total: number; parJour: Record<string, number> }> {
+  const items = await listImmobilisations({
+    kind: "actif",
+    active: true,
+    site: input.site && input.site !== "all" ? input.site : "all",
+    includeUnscoped: !input.site || input.site === "all",
+  });
+  const parJour: Record<string, number> = {};
+  let cursor = input.from;
+  while (cursor <= input.to) {
+    let jour = 0;
+    for (const item of items) {
+      jour += dotationJour(item, cursor);
+    }
+    if (jour > 0) parJour[cursor] = jour;
+    const next = new Date(`${cursor}T00:00:00Z`);
+    next.setUTCDate(next.getUTCDate() + 1);
+    cursor = next.toISOString().slice(0, 10);
+  }
+  const total = Object.values(parJour).reduce((s, n) => s + n, 0);
+  return { total, parJour };
+}
+
+export async function listAcquisitionsSansCaisse(input: {
+  from: string;
+  to: string;
+  site?: VenteSite | "all" | null;
+}): Promise<Immobilisation[]> {
+  const items = await listImmobilisations({
+    active: "all",
+    site: input.site && input.site !== "all" ? input.site : "all",
+    includeUnscoped: !input.site || input.site === "all",
+  });
+  return items.filter(
+    (i) =>
+      i.date >= input.from &&
+      i.date <= input.to &&
+      !i.depenseId &&
+      brutAmortissable(i) > 0,
+  );
+}
+

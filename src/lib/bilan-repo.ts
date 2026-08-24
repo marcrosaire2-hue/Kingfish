@@ -1,7 +1,13 @@
-import { physicalBoissonsStock, unitsPerCasierOf } from "@/lib/boissons-calc";
+import {
+  physicalBoissonsStockCombined,
+  unitsPerCasierOf,
+} from "@/lib/boissons-calc";
 import { getBoissonsDayPayload } from "@/lib/boissons-repo";
 import { getCaissesOverview } from "@/lib/caisse-repo";
-import { listImmobilisations } from "@/lib/immobilisations-repo";
+import {
+  listImmobilisations,
+  valeurNette,
+} from "@/lib/immobilisations-repo";
 import {
   balanceGenerale,
   resultatNetDeBalance,
@@ -12,7 +18,7 @@ import { stockOf } from "@/lib/matieres-calc";
 import { getMatieresDayPayload } from "@/lib/matieres-repo";
 import { getParametresComptables } from "@/lib/parametres-comptables-repo";
 import { COMPTES } from "@/lib/plan-comptable";
-import type { Immobilisation, VenteSite } from "@/lib/types";
+import type { VenteSite } from "@/lib/types";
 
 /**
  * Origine retenue pour cumuler le résultat depuis le début — même convention
@@ -41,29 +47,6 @@ export type Bilan = {
   balance: LigneBalance[];
 };
 
-function joursEntre(from: string, to: string): number {
-  const a = new Date(`${from}T00:00:00Z`).getTime();
-  const b = new Date(`${to}T00:00:00Z`).getTime();
-  return Math.max(0, (b - a) / (1000 * 60 * 60 * 24));
-}
-
-/**
- * Valeur nette comptable d'une fiche, méthode linéaire. Une fiche sans durée
- * d'utilité renseignée reste à sa valeur brute — l'app ne devine pas une
- * durée qui n'a pas été saisie.
- */
-function valeurNette(item: Immobilisation, asOf: string): number {
-  const brut = item.qty * item.cost;
-  if (!item.dureeUtiliteAnnees || item.dureeUtiliteAnnees <= 0) return brut;
-  const anneesEcoulees = joursEntre(item.date, asOf) / 365;
-  const dotationAnnuelle = brut / item.dureeUtiliteAnnees;
-  const amortissementCumule = Math.min(
-    brut,
-    dotationAnnuelle * Math.max(0, anneesEcoulees),
-  );
-  return Math.max(0, brut - amortissementCumule);
-}
-
 /**
  * Valeur du stock physique restant (matières premières + boissons), au prix
  * d'achat catalogue. Les plats et accompagnements préparés en sont exclus :
@@ -91,7 +74,9 @@ async function valeurStockMatieresBoissons(asOf: string): Promise<number> {
   const valeurBoissons = boissons.day.lines.reduce((s, line) => {
     const boisson = drinkById.get(line.productId);
     if (!boisson) return s;
-    const stockBouteilles = physicalBoissonsStock(
+    // Bilan = patrimoine de l'entreprise entière : les deux sites cumulés,
+    // même si chaque caisse ne voit plus que son propre stock.
+    const stockBouteilles = physicalBoissonsStockCombined(
       line,
       unitsPerCasierOf(boisson),
     );
@@ -120,7 +105,11 @@ export async function buildBilan(input: {
       scopeSite: input.scopeSite,
     }),
     getCaissesOverview(),
-    listImmobilisations({ active: true }),
+    listImmobilisations({
+      active: true,
+      site: input.scopeSite ?? "all",
+      includeUnscoped: !input.scopeSite,
+    }),
     getParametresComptables(),
   ]);
 
@@ -147,9 +136,13 @@ export async function buildBilan(input: {
   const stockValorise = parametres.modules.stock
     ? (await valeurStockMatieresBoissons(input.asOf)) + valeurEmballages
     : 0;
-  const resultat = resultatAvantStock + Math.round(stockValorise);
+  // Les achats vont en stock (31), le CMV en charge (601) : le stock restant
+  // est un actif, pas un produit à ajouter au résultat.
+  const resultat = resultatAvantStock;
 
-  const tresorerie = caisses.reduce((s, c) => s + c.soldeTheorique, 0);
+  const tresorerie = caisses
+    .filter((c) => !input.scopeSite || c.caisse === input.scopeSite)
+    .reduce((s, c) => s + c.soldeTheorique, 0);
   const compteAttente = balance.find(
     (l) => l.compte === COMPTES.COMPTE_ATTENTE.numero,
   );
@@ -199,13 +192,13 @@ export async function buildBilan(input: {
           libelle: "Stocks (matières premières, boissons, emballages)",
           montant: Math.round(stockValorise),
           fiable: true,
-          note: `Plats et accompagnements préparés exclus (denrées périssables, valeur résiduelle marginale, déjà couverte par le suivi des Pertes). Inclut les emballages (${Math.round(valeurEmballages)} FCFA) : consommables liés au stock, pas des immobilisations amortissables. Résultat ajusté de la variation de stock en contrepartie (compte 603).`,
+          note: `Plats et accompagnements préparés exclus. Inclut les emballages (${Math.round(valeurEmballages)} FCFA). Les achats sont à l'actif (31), le résultat porte le CMV et les dotations.`,
         }
       : {
           libelle: "Stocks (matières, boissons, emballages)",
           montant: 0,
           fiable: false,
-          note: "Module Stock désactivé : à activer par le compte direction (marc). Les achats (dont les emballages) restent alors passés en charge intégralement à l'acquisition, sans capitalisation du stock restant.",
+          note: "Module Stock désactivé : à activer par le compte direction (marc).",
         },
   );
 
@@ -231,10 +224,7 @@ export async function buildBilan(input: {
       libelle: `Résultat cumulé depuis ${ORIGINE}`,
       montant: resultat,
       fiable: true,
-      note:
-        parametres.modules.stock && stockValorise > 0
-          ? `Inclut +${Math.round(stockValorise)} FCFA de variation de stock (module Stock activé).`
-          : undefined,
+      note: undefined,
     },
     {
       libelle: "Dettes fournisseurs",

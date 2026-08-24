@@ -429,7 +429,10 @@ export function canAccessPath(
   if (pathname.startsWith("/parametres")) return allowed.includes("parametres");
   if (pathname.startsWith("/zogbo")) return allowed.includes("zogbo");
   if (pathname.startsWith("/gbegamey")) return allowed.includes("gbegamey");
-  if (pathname.startsWith("/combos") || pathname.startsWith("/boissons")) {
+  if (pathname.startsWith("/combos")) {
+    return allowed.includes("stock");
+  }
+  if (pathname.startsWith("/boissons")) {
     return allowed.includes("zogbo") || allowed.includes("gbegamey");
   }
   if (pathname.startsWith("/synthese")) return allowed.includes("synthese");

@@ -6,7 +6,6 @@ export type HistoriqueKind =
   | "transfert"
   | "zogbo"
   | "gbegamey"
-  | "combos"
   | "boissons"
   | "parametres"
   | "charges"
@@ -46,7 +45,6 @@ export const HISTORIQUE_KIND_LABELS: Record<HistoriqueKind, string> = {
   transfert: "Transfert",
   zogbo: "Zogbo",
   gbegamey: "Gbégamey",
-  combos: "Formules",
   boissons: "Boissons",
   parametres: "Paramètres",
   charges: "Charges",

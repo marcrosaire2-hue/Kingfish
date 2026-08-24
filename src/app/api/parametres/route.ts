@@ -15,7 +15,6 @@ function isParametres(body: unknown): body is Parametres {
   const b = body as Parametres;
   return (
     Array.isArray(b.baseDishes) &&
-    Array.isArray(b.combos) &&
     Array.isArray(b.drinks) &&
     Array.isArray(b.localDishes)
   );
@@ -46,7 +45,7 @@ export async function PUT(request: Request) {
       user,
       kind: "parametres",
       title: "Catalogue paramètres enregistré",
-      detail: `plats ${body.baseDishes.length} · combos ${body.combos.length} · boissons ${body.drinks.length} · locaux ${body.localDishes.length}`,
+      detail: `plats ${body.baseDishes.length} · boissons ${body.drinks.length} · locaux ${body.localDishes.length}`,
       site: "tous",
     });
     return NextResponse.json(saved);

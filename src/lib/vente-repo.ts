@@ -1,18 +1,14 @@
-import { ObjectId } from "mongodb";
+import { ObjectId, type Filter } from "mongodb";
 import { effectiveShift, type UserShift } from "@/lib/auth-types";
 import { adjustCaisseVenteAmount } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
-import { physicalBoissonsStock, DEFAULT_UNITS_PER_CASIER } from "@/lib/boissons-calc";
+import { physicalBoissonsStockForSite, DEFAULT_UNITS_PER_CASIER } from "@/lib/boissons-calc";
 import { getBoissonsDayPayload, saveBoissonsDay } from "@/lib/boissons-repo";
-import {
-  physicalComboStockGbegamey,
-  physicalComboStockZogbo,
-} from "@/lib/combos-calc";
-import { getCombosDayPayload, saveCombosDay } from "@/lib/combos-repo";
 import { newId } from "@/lib/format";
 import { computeTransferLine } from "@/lib/gbegamey-calc";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
+import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import { computeZogboLine, shiftIsoDate } from "@/lib/zogbo-calc";
 import { isLegalAccompanimentPrice } from "@/lib/catalog-zogbo";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
@@ -52,7 +48,7 @@ type VenteLogDoc = {
   at: string;
   /** Annulation : la ligne reste au journal, elle sort des totaux */
   cancelledAt: string | null;
-  /** Plat de base déduit lors d’une vente combo (pour annulation fiable) */
+  /** Plat de base déduit lors d’une vente (pour annulation fiable) */
   baseProductId?: string | null;
   actorId?: string | null;
   actorName?: string | null;
@@ -83,8 +79,12 @@ function mapVenteLogDoc(d: VenteLogDoc): VenteLogEntry {
   };
 }
 
-/** Ventes actives : les annulations restent en base mais ne comptent plus. */
-const ACTIVE = { cancelledAt: null, caExcluded: { $ne: true } };
+/** Ventes actives : les annulations restent en base mais ne comptent plus. Formules retirées. */
+const ACTIVE = {
+  cancelledAt: null,
+  caExcluded: { $ne: true },
+  kind: { $ne: "combo" },
+} as unknown as Filter<VenteLogDoc>;
 
 /** Document « jour » quelconque, adressé par date — lignes accédées dynamiquement. */
 type DayCounterDoc = { _id: string; rev?: number; updatedAt?: string };
@@ -113,9 +113,6 @@ async function assertDayNotClosed(
         site === "zogbo"
           ? await getZogboDayPayload(date)
           : await getGbegameyDayPayload(date);
-      status = payload.day.status;
-    } else if (kind === "combo") {
-      const payload = await getCombosDayPayload(date);
       status = payload.day.status;
     } else if (kind === "boisson") {
       const payload = await getBoissonsDayPayload(date);
@@ -443,7 +440,7 @@ export async function getVenteBoard(
       const drink = drinkById.get(l.productId);
       return [
         l.productId,
-        physicalBoissonsStock(l, drink?.unitsPerCasier),
+        physicalBoissonsStockForSite(l, site, drink?.unitsPerCasier),
       ];
     }),
   );
@@ -451,10 +448,12 @@ export async function getVenteBoard(
     const stockLeft = drinkStock.get(drink.id) ?? 0;
     const upc = Math.max(1, drink.unitsPerCasier || 12);
     const line = boissons.day.lines.find((l) => l.productId === drink.id);
+    const countedThisSite =
+      site === "zogbo" ? line?.countedZogbo : line?.countedGbegamey;
     // Boisson jamais inventoriée (aucun comptage, stock 0) : vendable sans
     // stock, comme un accompagnement non suivi — sinon elle resterait grisée.
     const untracked =
-      line?.counted === null &&
+      countedThisSite === null &&
       stockLeft <= 0 &&
       (drink.salePrice ?? 0) > 0;
     products.push({
@@ -649,7 +648,7 @@ export async function sumCaForSite(
     db
       .collection<VenteLogDoc>("ventes_log")
       .aggregate<{ total: number }>([
-        { $match: { date, site, ...ACTIVE } },
+        { $match: { ...ACTIVE, date, site } },
         { $group: { _id: null, total: { $sum: "$amount" } } },
       ])
       .toArray(),
@@ -658,21 +657,34 @@ export async function sumCaForSite(
   return (logRows[0]?.total ?? 0) - reductions;
 }
 
-/** CA journal figé pour un type de produit (combos, boissons…). */
+/** CA journal figé pour un type de produit, net des réductions POS au prorata. */
 export async function sumCaByKindForSite(
   date: string,
   site: VenteSite,
   kind: VenteKind,
 ): Promise<number> {
   const db = await getDb();
-  const rows = await db
-    .collection<VenteLogDoc>("ventes_log")
-    .aggregate<{ total: number }>([
-      { $match: { date, site, kind, ...ACTIVE } },
-      { $group: { _id: null, total: { $sum: "$amount" } } },
-    ])
-    .toArray();
-  return rows[0]?.total ?? 0;
+  const [kindRows, grossSite, netSite] = await Promise.all([
+    db
+      .collection<VenteLogDoc>("ventes_log")
+      .aggregate<{ total: number }>([
+        { $match: { ...ACTIVE, date, site, kind } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ])
+      .toArray(),
+    db
+      .collection<VenteLogDoc>("ventes_log")
+      .aggregate<{ total: number }>([
+        { $match: { ...ACTIVE, date, site } },
+        { $group: { _id: null, total: { $sum: "$amount" } } },
+      ])
+      .toArray(),
+    sumCaForSite(date, site),
+  ]);
+  const kindGross = kindRows[0]?.total ?? 0;
+  const siteGross = grossSite[0]?.total ?? 0;
+  if (siteGross <= 0) return 0;
+  return Math.round(kindGross * (Math.max(0, netSite) / siteGross));
 }
 
 /** Dernière journée avec au moins une vente active sur le site. */
@@ -703,7 +715,7 @@ async function listRecentVentes(
   return docs.map(mapVenteLogDoc);
 }
 
-/** Sorties (ventes) du jour pour un type de produit — registre combos / boissons */
+/** Sorties (ventes) du jour pour un type de produit — registre boissons */
 export async function listVentesByKind(input: {
   date: string;
   kind: VenteKind;
@@ -712,10 +724,10 @@ export async function listVentesByKind(input: {
 }): Promise<VenteLogEntry[]> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const db = await getDb();
-  const filter: Record<string, unknown> = {
+  const filter: Filter<VenteLogDoc> = {
+    ...ACTIVE,
     date: input.date,
     kind: input.kind,
-    ...ACTIVE,
   };
   if (input.site && input.site !== "all") filter.site = input.site;
 
@@ -780,10 +792,25 @@ export async function summarizeVentesForSite(
     bySource[src] = srcBucket;
   }
 
+  const reductions = await sumPosReductions(date, site);
+  const brut = montant;
+  const net = Math.max(0, brut - reductions);
+  const ratio = brut > 0 ? net / brut : 1;
+  if (ratio !== 1) {
+    for (const k of Object.keys(byKind) as (keyof typeof byKind)[]) {
+      const bucket = byKind[k];
+      if (bucket) bucket.montant = Math.round(bucket.montant * ratio);
+    }
+    for (const k of Object.keys(bySource) as (keyof typeof bySource)[]) {
+      const bucket = bySource[k];
+      if (bucket) bucket.montant = Math.round(bucket.montant * ratio);
+    }
+  }
+
   return {
     lignes: docs.length,
     articles,
-    montant,
+    montant: net,
     byKind,
     bySource,
   };
@@ -859,20 +886,6 @@ async function resolveSoldTarget(input: {
       unitPrice: dish.unitPrice,
       costPrice: 0,
       ensure: () => ensureGbegameyDay(date),
-    };
-  }
-
-  if (kind === "combo") {
-    const combo = parametres.combos.find((c) => c.id === productId);
-    if (!combo) throw new Error("Formule introuvable");
-    return {
-      collection: "combos_jours",
-      arrayField: "lines",
-      soldField: site === "zogbo" ? "soldZogbo" : "soldGbegamey",
-      name: combo.name,
-      unitPrice: combo.unitPrice,
-      costPrice: 0,
-      ensure: () => ensureCombosDay(date),
     };
   }
 
@@ -962,14 +975,19 @@ async function ensureGbegameyDay(date: string): Promise<void> {
   });
 }
 
-async function ensureCombosDay(date: string): Promise<void> {
-  const { day } = await getCombosDayPayload(date);
-  await saveCombosDay({ date, status: day.status, lines: day.lines });
-}
+
 
 async function ensureBoissonsDay(date: string): Promise<void> {
   const { day } = await getBoissonsDayPayload(date);
-  await saveBoissonsDay({ date, status: day.status, lines: day.lines });
+  // Réenregistrement à l'identique (juste pour garantir la présence de la
+  // ligne avant l'incrément atomique) : le site passé ici n'a pas d'effet,
+  // aucune valeur n'est modifiée.
+  await saveBoissonsDay({
+    date,
+    site: "zogbo",
+    status: day.status,
+    lines: day.lines,
+  });
 }
 
 /**
@@ -1103,54 +1121,46 @@ export async function recordVente(input: {
       // Accompagnements toujours vendables, même à stock nul : le stock est
       // une indication, jamais un blocage.
       maxSold = null;
-    } else if (input.kind === "combo") {
-      const { day } = await getCombosDayPayload(input.date);
-      const line = day.lines.find((l) => l.productId === input.productId);
-      const left = line
-        ? input.site === "zogbo"
-          ? physicalComboStockZogbo(line)
-          : physicalComboStockGbegamey(line)
-        : 0;
-      maxSold = line
-        ? input.site === "zogbo"
-          ? Math.max(0, line.stockZogbo - line.pertesZogbo)
-          : Math.max(
-              0,
-              line.initialGbegamey +
-                line.sentToGbegamey -
-                line.pertesGbegamey,
-            )
-        : 0;
-      if (left < qty) {
-        throw new Error(`Stock insuffisant (reste ${left})`);
-      }
     } else if (input.kind === "boisson") {
       const { day, drinks } = await getBoissonsDayPayload(input.date);
       const line = day.lines.find((l) => l.productId === input.productId);
       const drink = drinks.find((d) => d.id === input.productId);
       const upc = drink?.unitsPerCasier;
+      const countedThisSite = line
+        ? input.site === "zogbo"
+          ? line.countedZogbo
+          : line.countedGbegamey
+        : null;
       // Boisson jamais inventoriée (pas de comptage) : vente libre, comme un
       // accompagnement non suivi — sinon elle resterait « épuisée » à tort.
-      const untracked = !line || line.counted === null;
+      const untracked = !line || countedThisSite === null;
       if (untracked) {
         maxSold = null;
       } else {
-        const left = physicalBoissonsStock(line, upc);
+        const left = physicalBoissonsStockForSite(line, input.site, upc);
         const upcResolved = Math.max(
           1,
           Math.round(Number(upc) || DEFAULT_UNITS_PER_CASIER),
         );
+        const initialStock =
+          input.site === "zogbo"
+            ? line.initialStockZogbo
+            : line.initialStockGbegamey;
+        const purchases =
+          input.site === "zogbo" ? line.purchasesZogbo : line.purchasesGbegamey;
+        const pertes =
+          input.site === "zogbo" ? line.pertesZogbo : line.pertesGbegamey;
         // Comptage saisi en bouteilles : le stock physique prévaut.
         const stockBottles =
-          line.counted !== null && line.counted !== undefined
-            ? Math.max(0, Number(line.counted) || 0)
-            : (line.initialStock + line.purchases) * upcResolved;
-        const bottles = stockBottles - Math.max(0, Number(line.pertes) || 0);
-        maxSold =
-          Math.max(0, bottles) -
-          (input.site === "zogbo"
-            ? line.soldGbegamey
-            : line.soldZogbo);
+          countedThisSite !== null && countedThisSite !== undefined
+            ? Math.max(0, Number(countedThisSite) || 0)
+            : (initialStock + purchases) * upcResolved;
+        // Stock propre à ce site : plus besoin de retirer les ventes de
+        // l'autre site, elles ne partagent plus le même pot.
+        maxSold = Math.max(
+          0,
+          stockBottles - Math.max(0, Number(pertes) || 0),
+        );
         if (left < qty) {
           throw new Error(`Stock insuffisant (reste ${left} bt)`);
         }
@@ -1263,6 +1273,8 @@ export async function recordExtraVente(input: {
   unitPrice: number;
   /** Unités facturées — une ligne de panier POS peut en porter plusieurs. */
   qty?: number;
+  /** Fiche Immobilisations (emballage) : décrémente le stock à la vente. */
+  immobilisationId?: string | null;
   actor?: VenteActor | null;
 }): Promise<{
   entry: VenteLogEntry;
@@ -1285,28 +1297,44 @@ export async function recordExtraVente(input: {
     throw new Error("Quantité invalide");
   }
 
+  const immoId =
+    input.immobilisationId && ObjectId.isValid(input.immobilisationId)
+      ? input.immobilisationId
+      : null;
+  if (immoId) {
+    await adjustImmobilisationQty({ id: immoId, delta: qty });
+  }
+
   const at = new Date().toISOString();
-  const productId = newId("extra");
+  const productId = immoId ?? newId("extra");
   const db = await getDb();
-  const insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
-    _id: new ObjectId(),
-    date: input.date,
-    site: input.site,
-    kind: "extra",
-    productId,
-    name: description,
-    qty,
-    unitPrice,
-    costPrice: 0,
-    amount: qty * unitPrice,
-    at,
-    cancelledAt: null,
-    baseProductId: null,
-    actorId: input.actor?.id ?? null,
-    actorName: input.actor?.name ?? null,
-    actorUsername: input.actor?.username ?? null,
-    shift: effectiveShift(input.actor?.shift),
-  });
+  let insert;
+  try {
+    insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
+      _id: new ObjectId(),
+      date: input.date,
+      site: input.site,
+      kind: "extra",
+      productId,
+      name: description,
+      qty,
+      unitPrice,
+      costPrice: 0,
+      amount: qty * unitPrice,
+      at,
+      cancelledAt: null,
+      baseProductId: null,
+      actorId: input.actor?.id ?? null,
+      actorName: input.actor?.name ?? null,
+      actorUsername: input.actor?.username ?? null,
+      shift: effectiveShift(input.actor?.shift),
+    });
+  } catch (error) {
+    if (immoId) {
+      await adjustImmobilisationQty({ id: immoId, delta: -qty });
+    }
+    throw error;
+  }
 
   const entry: VenteLogEntry = {
     id: insert.insertedId.toHexString(),
@@ -1398,8 +1426,15 @@ export async function undoVente(input: {
     amount: doc.amount,
   };
 
-  // Vente extra : pas de stock à reprendre
+  // Vente extra : reprendre le stock emballage si la ligne pointe une fiche.
   if (doc.kind === "extra") {
+    if (ObjectId.isValid(doc.productId) && String(doc.productId).length === 24) {
+      try {
+        await adjustImmobilisationQty({ id: doc.productId, delta: -doc.qty });
+      } catch {
+        /* extra libre, pas une fiche immobilisation */
+      }
+    }
     const board = await getVenteBoard(input.date, input.site);
     return { board, entry };
   }

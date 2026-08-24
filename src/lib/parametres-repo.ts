@@ -46,13 +46,6 @@ function stripId(doc: ParametresDoc): Parametres {
           ? undefined
           : Math.max(0, Number(d.costPrice) || 0),
     })),
-    combos: (doc.combos ?? []).map((c) => ({
-      ...c,
-      costPrice:
-        c.costPrice === undefined || c.costPrice === null
-          ? undefined
-          : Math.max(0, Number(c.costPrice) || 0),
-    })),
     drinks: (doc.drinks ?? []).map((d) => normalizeDrink(d)),
     localDishes: (doc.localDishes ?? []).map((d) => ({
       ...d,
@@ -137,7 +130,6 @@ export async function saveParametresToDb(
   const updatedAt = new Date().toISOString();
   const payload: Parametres = {
     baseDishes: data.baseDishes,
-    combos: data.combos,
     drinks: data.drinks.map((d) => normalizeDrink(d)),
     localDishes: data.localDishes,
     rawMaterials: normalizeRawMaterials(data.rawMaterials),

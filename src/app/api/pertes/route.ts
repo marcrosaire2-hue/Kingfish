@@ -13,7 +13,6 @@ export const runtime = "nodejs";
 const KINDS: PerteKind[] = [
   "plat",
   "local",
-  "combo",
   "boisson",
   "matiere",
   "immobilisation",

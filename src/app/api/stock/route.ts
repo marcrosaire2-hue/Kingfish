@@ -13,7 +13,11 @@ export async function GET(request: Request) {
     const date = searchParams.get("date") || todayIsoDate();
     const scopeSite = resolveUserSiteScopeFromUser(user);
 
-    const payload = await getStockPayload({ date, scopeSite });
+    const payload = await getStockPayload({
+      date,
+      scopeSite,
+      families: ["plats", "accompagnements", "boissons", "matieres"],
+    });
     return NextResponse.json(payload);
   } catch (error) {
     if (error instanceof Error && error.message.includes("Date invalide")) {

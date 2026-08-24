@@ -50,7 +50,13 @@ type Payload = {
 const CHARGE_FIELDS: {
   key: keyof Omit<
     DayCharges,
-    "date" | "updatedAt" | "pertes" | "achatsStock" | "immobilisations"
+    | "date"
+    | "updatedAt"
+    | "pertes"
+    | "achatsStock"
+    | "immobilisations"
+    | "matieresConsommees"
+    | "amortissements"
   >;
   label: string;
 }[] = [
@@ -82,7 +88,6 @@ const KIND_LABELS: Record<string, string> = {
   local: "Accompagnement",
   boisson: "Boisson",
   extra: "Extra",
-  combo: "Formule (hors résultat)",
 };
 
 function currentMonth(): string {
@@ -118,19 +123,12 @@ function produitsLinesFromCa(t: {
   caExtraZogbo: number;
   caExtraGbegamey: number;
   caTotal: number;
-  caCombos: number;
+  caZogbo: number;
+  caGbegamey: number;
 }): StatementLine[] {
-  const produitsTotal = t.caTotal - t.caCombos;
-  const caZogbo =
-    t.caPlatsZogbo +
-    t.caAccompagnementsZogbo +
-    t.caBoissonsZogbo +
-    t.caExtraZogbo;
-  const caGbegamey =
-    t.caPlatsGbegamey +
-    t.caAccompagnementsGbegamey +
-    t.caBoissonsGbegamey +
-    t.caExtraGbegamey;
+  const produitsTotal = t.caTotal;
+  const caZogbo = t.caZogbo;
+  const caGbegamey = t.caGbegamey;
   return [
     { label: "— Zogbo —", amount: caZogbo, kind: "group" },
     { label: "CA plats Zogbo", amount: t.caPlatsZogbo, kind: "item" },
@@ -170,17 +168,17 @@ function chargesLinesFromBreakdown(
 ): StatementLine[] {
   return [
     {
-      label: "Achats de stock (registre)",
-      amount: c.achatsStock,
+      label: "Matières consommées (CMV)",
+      amount: c.matieresConsommees,
       kind: "item",
     },
     {
-      label: "Immobilisations (acquisitions)",
-      amount: c.immobilisations,
+      label: "Dotations aux amortissements",
+      amount: c.amortissements,
       kind: "item",
     },
     {
-      label: "Achats matières premières",
+      label: "Achats matières premières (hors registre)",
       amount: c.matieresPremieres,
       kind: "item",
     },
@@ -203,9 +201,11 @@ function chargesLinesFromBreakdown(
 }
 
 function buildDayStatement(day: DayPoint, date: string): Statement {
-  const produitsTotal = day.caTotal - day.caCombos;
+  const produitsTotal = day.caTotal;
   const charges: ChargesBreakdown = {
     achatsStock: day.charges.achatsStock ?? 0,
+    matieresConsommees: day.charges.matieresConsommees ?? 0,
+    amortissements: day.charges.amortissements ?? 0,
     immobilisations: day.charges.immobilisations ?? 0,
     matieresPremieres: day.charges.matieresPremieres,
     loyer: day.charges.loyer,
@@ -227,7 +227,8 @@ function buildDayStatement(day: DayPoint, date: string): Statement {
       caExtraZogbo: day.caExtraZogbo,
       caExtraGbegamey: day.caExtraGbegamey,
       caTotal: day.caTotal,
-      caCombos: day.caCombos,
+      caZogbo: day.caZogbo,
+      caGbegamey: day.caGbegamey,
     }),
     charges: chargesLinesFromBreakdown(charges, day.chargesTotal),
     resultat: [
@@ -250,7 +251,7 @@ function buildDayStatement(day: DayPoint, date: string): Statement {
 
 function buildMonthStatement(data: MonthPoint, label: string): Statement {
   const t = data.totals;
-  const produitsTotal = t.caTotal - t.caCombos;
+  const produitsTotal = t.caTotal;
   const charges = sumChargesBreakdown(data.days);
   const activeDays = data.days.filter(
     (d) =>
@@ -276,7 +277,7 @@ function buildMonthStatement(data: MonthPoint, label: string): Statement {
       },
       ...activeDays.map((d) => ({
         label: `Résultat jour ${d.date.slice(8)}`,
-        amount: d.caTotal - d.caCombos - d.chargesTotal,
+        amount: d.caTotal - d.chargesTotal,
         kind: "info" as const,
       })),
     ],
@@ -288,7 +289,7 @@ function buildMonthStatement(data: MonthPoint, label: string): Statement {
 
 function buildYearStatement(data: YearPoint, label: string): Statement {
   const t = data.totals;
-  const produitsTotal = t.caTotal - t.caCombos;
+  const produitsTotal = t.caTotal;
   const monthLines: StatementLine[] = data.months
     .filter((m) => m.caTotal > 0 || m.chargesTotal > 0 || m.daysWithData > 0)
     .flatMap((m) => {
@@ -296,7 +297,7 @@ function buildYearStatement(data: YearPoint, label: string): Statement {
       const items: StatementLine[] = [
         {
           label: `— ${name} —`,
-          amount: m.caTotal - m.caCombos - m.chargesTotal,
+          amount: m.caTotal - m.chargesTotal,
           kind: "group",
         },
         {
@@ -340,13 +341,13 @@ function buildYearStatement(data: YearPoint, label: string): Statement {
           kind: "item",
         },
         {
-          label: `${name} · achats stock`,
-          amount: m.charges.achatsStock,
+          label: `${name} · CMV`,
+          amount: m.charges.matieresConsommees,
           kind: "item",
         },
         {
-          label: `${name} · immobilisations`,
-          amount: m.charges.immobilisations,
+          label: `${name} · amortissements`,
+          amount: m.charges.amortissements,
           kind: "item",
         },
         {
@@ -391,7 +392,7 @@ function buildYearStatement(data: YearPoint, label: string): Statement {
         },
         {
           label: `${name} · résultat`,
-          amount: m.caTotal - m.caCombos - m.chargesTotal,
+          amount: m.caTotal - m.chargesTotal,
           kind: "subtotal",
         },
       ];
@@ -691,7 +692,7 @@ export function CompteResultatPage() {
           <section className="panel pnl-statement">
             <header className="pnl-header">
               <h2>{statement.title}</h2>
-              <p className="muted">Montants en FCFA · Formules historiques exclues</p>
+              <p className="muted">Montants en FCFA</p>
             </header>
 
             <div className="pnl-section-label">I — Produits d’exploitation</div>
@@ -989,7 +990,7 @@ export function CompteResultatPage() {
                           {d.date.slice(8)}
                         </button>
                         <span className="mono">
-                          {formatFcfa(d.caTotal - d.caCombos - d.chargesTotal)}
+                          {formatFcfa(d.caTotal - d.chargesTotal)}
                         </span>
                       </li>
                     ))}

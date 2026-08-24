@@ -255,6 +255,42 @@ export function ecrituresChargeManuelle(input: {
   ];
 }
 
+export function ecrituresPartieDouble(input: {
+  date: string;
+  piece: string;
+  libelle: string;
+  debitCompte: { numero: string; libelle: string };
+  creditCompte: { numero: string; libelle: string };
+  montant: number;
+  confiant?: boolean;
+}): EcritureComptable[] {
+  const montant = round(input.montant);
+  if (montant <= 0) return [];
+  const confiant = input.confiant !== false;
+  return [
+    {
+      date: input.date,
+      piece: input.piece,
+      libelle: input.libelle,
+      compte: input.debitCompte.numero,
+      compteLibelle: input.debitCompte.libelle,
+      debit: montant,
+      credit: 0,
+      confiant,
+    },
+    {
+      date: input.date,
+      piece: input.piece,
+      libelle: input.libelle,
+      compte: input.creditCompte.numero,
+      compteLibelle: input.creditCompte.libelle,
+      debit: 0,
+      credit: montant,
+      confiant,
+    },
+  ];
+}
+
 export function totaux(ecritures: EcritureComptable[]): {
   debit: number;
   credit: number;

@@ -227,7 +227,6 @@ export function isLegalAccompanimentPrice(
 export function zogboCatalogParametresPatch(): {
   baseDishes: { id: string; name: string; unitPrice: number }[];
   localDishes: { id: string; name: string; unitPrice: number }[];
-  combos: [];
 } {
   return {
     baseDishes: ZOGBO_PLATS.map((p) => ({
@@ -240,6 +239,5 @@ export function zogboCatalogParametresPatch(): {
       name: a.name,
       unitPrice: a.unitPrice,
     })),
-    combos: [],
   };
 }

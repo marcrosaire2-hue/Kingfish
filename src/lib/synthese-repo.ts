@@ -1,13 +1,13 @@
 import { getDb } from "@/lib/mongodb";
-import { sumImmobilisationsCostByDate } from "@/lib/immobilisations-repo";
+import { sumAmortissementsByDate } from "@/lib/immobilisations-repo";
 import { getParametres } from "@/lib/parametres-repo";
 import { sumPertesCost } from "@/lib/pertes-repo";
 import type {
   BoissonsDay,
-  CombosDay,
   DayCharges,
   DayPoint,
   GbegameyDay,
+  MatieresLine,
   MatieresMovement,
   MonthPoint,
   ProductRank,
@@ -32,7 +32,6 @@ import type { VenteKind, VenteSite } from "@/lib/types";
 
 type ZogboDoc = Omit<ZogboDay, "date"> & { _id: string };
 type GbegameyDoc = Omit<GbegameyDay, "date"> & { _id: string };
-type CombosDoc = Omit<CombosDay, "date"> & { _id: string };
 type BoissonsDoc = Omit<BoissonsDay, "date"> & { _id: string };
 type ChargesDoc = Omit<DayCharges, "date"> & { _id: string };
 
@@ -52,16 +51,6 @@ function toGbegamey(doc: GbegameyDoc): GbegameyDay {
     status: doc.status ?? "ouverte",
     transferLines: doc.transferLines ?? [],
     localLines: doc.localLines ?? [],
-    updatedAt: doc.updatedAt ?? null,
-  };
-}
-
-function toCombos(doc: CombosDoc): CombosDay {
-  return {
-    date: doc._id,
-    status: doc.status ?? "ouverte",
-    lines: doc.lines ?? [],
-    movements: Array.isArray(doc.movements) ? doc.movements : [],
     updatedAt: doc.updatedAt ?? null,
   };
 }
@@ -132,19 +121,16 @@ async function withPertes(
 }
 
 /**
- * Injecte les achats enregistrés (page Achats) dans les charges du jour. Même
- * principe que les pertes : le registre fait foi, rien n'est recopié dans
- * charges_jours, et annuler un achat allège le résultat immédiatement.
- *
- * La zone ne filtre pas : les achats de stock sont saisis pour la maison, sans
- * distinction Zogbo / Gbégamey — les rattacher à une zone donnerait un
- * résultat faux dès qu'on filtre par site.
+ * Achats du registre : conservés pour l’affichage (stock), hors résultat.
+ * Vue zone : non injectés (maison entière).
  */
 async function withAchatsStock(
   charges: Map<string, DayCharges>,
   start: string,
   end: string,
+  scopeSite?: VenteSite | null,
 ): Promise<Map<string, DayCharges>> {
+  if (scopeSite) return charges;
   const db = await getDb();
   const docs = await db
     .collection<{ _id: string; movements?: MatieresMovement[] }>("matieres_jours")
@@ -164,24 +150,51 @@ async function withAchatsStock(
   return charges;
 }
 
-/**
- * Injecte le coût d’acquisition Immobilisations (qté × prix unitaire) à la
- * date d’entrée. Même principe que pertes / achats : le registre fait foi.
- */
-async function withImmobilisations(
+async function withMatieresConsommees(
   charges: Map<string, DayCharges>,
   start: string,
   end: string,
   scopeSite?: VenteSite | null,
 ): Promise<Map<string, DayCharges>> {
-  const { parJour } = await sumImmobilisationsCostByDate({
+  if (scopeSite) return charges;
+  const parametres = await getParametres();
+  const priceById = new Map(
+    (parametres.rawMaterials ?? []).map((m) => [m.id, m.purchasePrice]),
+  );
+  const db = await getDb();
+  const docs = await db
+    .collection<{ _id: string; lines?: MatieresLine[] }>("matieres_jours")
+    .find({ _id: { $gte: start, $lte: end } })
+    .toArray();
+  for (const doc of docs) {
+    const total = (doc.lines ?? []).reduce((s, line) => {
+      const price = priceById.get(line.productId) ?? 0;
+      return s + Math.max(0, Number(line.consumed) || 0) * price;
+    }, 0);
+    if (total <= 0) continue;
+    const existante = charges.get(doc._id) ?? emptyCharges(doc._id);
+    charges.set(doc._id, {
+      ...existante,
+      matieresConsommees: Math.round(total),
+    });
+  }
+  return charges;
+}
+
+async function withAmortissements(
+  charges: Map<string, DayCharges>,
+  start: string,
+  end: string,
+  scopeSite?: VenteSite | null,
+): Promise<Map<string, DayCharges>> {
+  const { parJour } = await sumAmortissementsByDate({
     from: start,
     to: end,
     site: scopeSite ?? "all",
   });
   for (const [date, cout] of Object.entries(parJour) as [string, number][]) {
     const existante = charges.get(date) ?? emptyCharges(date);
-    charges.set(date, { ...existante, immobilisations: cout });
+    charges.set(date, { ...existante, amortissements: cout });
   }
   return charges;
 }
@@ -189,7 +202,6 @@ async function withImmobilisations(
 type Maps = {
   zogbo: Map<string, ZogboDay>;
   gbegamey: Map<string, GbegameyDay>;
-  combos: Map<string, CombosDay>;
   boissons: Map<string, BoissonsDay>;
   charges: Map<string, DayCharges>;
   ventes: Map<string, VenteTotals>;
@@ -205,9 +217,13 @@ type VenteGroup = {
 /** Lignes qui comptent dans le CA final (comme AquaPro Validé). */
 function caActifMatch(extra: Record<string, unknown> = {}) {
   return {
-    ...extra,
     cancelledAt: null,
     caExcluded: { $ne: true },
+    kind: extra.kind ?? { $ne: "combo" },
+    ...Object.fromEntries(
+      Object.entries(extra).filter(([key]) => key !== "kind"),
+    ),
+    ...(extra.kind !== undefined ? { kind: extra.kind } : {}),
   };
 }
 
@@ -247,15 +263,13 @@ async function loadVenteTotals(
     const totals = out.get(date) ?? emptyVenteTotals();
     const zogbo = site === "zogbo";
 
+    if ((kind as string) === "combo") continue;
     if (kind === "plat") {
       if (zogbo) totals.platsZogbo += row.amount;
       else totals.platsGbegamey += row.amount;
     } else if (kind === "local") {
       if (zogbo) totals.localZogbo += row.amount;
       else totals.localGbegamey += row.amount;
-    } else if (kind === "combo") {
-      if (zogbo) totals.combosZogbo += row.amount;
-      else totals.combosGbegamey += row.amount;
     } else if (kind === "boisson") {
       if (zogbo) totals.boissonsZogbo += row.amount;
       else totals.boissonsGbegamey += row.amount;
@@ -340,7 +354,7 @@ export async function getProductRanking(
     boissons: emptyPair(),
   };
 
-  const [productRows, siteRows] = await Promise.all([
+  const [productRows, siteRows, redRows, grossRows] = await Promise.all([
     db
       .collection("ventes_log")
       .aggregate<ProductAgg>([
@@ -376,14 +390,39 @@ export async function getProductRanking(
         { $sort: { ca: -1 } },
       ])
       .toArray(),
+    db
+      .collection("pos_tickets")
+      .aggregate<{ total: number }>([
+        {
+          $match: {
+            statut: "valide",
+            reduction: { $gt: 0 },
+            ...(match.date ? { date: match.date } : {}),
+            ...(match.site ? { site: match.site } : {}),
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$reduction" } } },
+      ])
+      .toArray(),
+    db
+      .collection("ventes_log")
+      .aggregate<{ ca: number }>([
+        { $match: caActifMatch(match) },
+        { $group: { _id: null, ca: { $sum: "$amount" } } },
+      ])
+      .toArray(),
   ]);
+
+  const gross = Number(grossRows[0]?.ca) || 0;
+  const red = Number(redRows[0]?.total) || 0;
+  const ratio = gross > 0 ? Math.max(0, gross - red) / gross : 1;
 
   const all: ProductRank[] = productRows.map((r) => ({
     productId: String(r._id.productId ?? ""),
     name: String(r.name || "Sans nom"),
     kind: String(r._id.kind || "extra"),
     qty: Number(r.qty) || 0,
-    ca: Number(r.ca) || 0,
+    ca: Math.round((Number(r.ca) || 0) * ratio),
   }));
 
   const sites: SiteRank[] = siteRows.map((r) => ({
@@ -391,7 +430,7 @@ export async function getProductRanking(
     label:
       r._id === "zogbo" ? "Zogbo" : r._id === "gbegamey" ? "Gbégamey" : String(r._id),
     qty: Number(r.qty) || 0,
-    ca: Number(r.ca) || 0,
+    ca: Math.round((Number(r.ca) || 0) * ratio),
   }));
 
   if (all.length === 0) return { ...empty, sites };
@@ -443,7 +482,13 @@ export async function getVenteCancelNotice(
   nAnnule: number;
 }> {
   const db = await getDb();
-  const [actif, exclus] = await Promise.all([
+  const ticketMatch: Record<string, unknown> = {
+    statut: "valide",
+    reduction: { $gt: 0 },
+  };
+  if (match.date) ticketMatch.date = match.date;
+  if (match.site) ticketMatch.site = match.site;
+  const [actif, exclus, red] = await Promise.all([
     db
       .collection("ventes_log")
       .aggregate<{ ca: number; n: number }>([
@@ -463,10 +508,17 @@ export async function getVenteCancelNotice(
         { $group: { _id: null, ca: { $sum: "$amount" }, n: { $sum: 1 } } },
       ])
       .toArray(),
+    db
+      .collection("pos_tickets")
+      .aggregate<{ total: number }>([
+        { $match: ticketMatch },
+        { $group: { _id: null, total: { $sum: "$reduction" } } },
+      ])
+      .toArray(),
   ]);
 
   return {
-    caActif: Number(actif[0]?.ca) || 0,
+    caActif: Math.max(0, (Number(actif[0]?.ca) || 0) - (Number(red[0]?.total) || 0)),
     caAnnule: Number(exclus[0]?.ca) || 0,
     nActif: Number(actif[0]?.n) || 0,
     nAnnule: Number(exclus[0]?.n) || 0,
@@ -569,7 +621,6 @@ async function loadMaps(
     return {
       zogbo: new Map(),
       gbegamey: new Map(),
-      combos: new Map(),
       boissons: new Map(),
       charges: new Map(),
       ventes: new Map(),
@@ -586,7 +637,6 @@ async function loadMaps(
   const [
     zogboDocs,
     gbegameyDocs,
-    combosDocs,
     boissonsDocs,
     chargesDocs,
     ventes,
@@ -598,7 +648,6 @@ async function loadMaps(
     scopeSite === "zogbo"
       ? Promise.resolve([])
       : db.collection<GbegameyDoc>("gbegamey_jours").find(filter).toArray(),
-    db.collection<CombosDoc>("combos_jours").find(filter).toArray(),
     db.collection<BoissonsDoc>("boissons_jours").find(filter).toArray(),
     db.collection<ChargesDoc>("charges_jours").find(filter).toArray(),
     loadVenteTotals(venteMatch),
@@ -609,18 +658,23 @@ async function loadMaps(
   return {
     zogbo: new Map(zogboDocs.map((d) => [d._id, toZogbo(d)])),
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
-    combos: new Map(combosDocs.map((d) => [d._id, toCombos(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: await withImmobilisations(
-      await withAchatsStock(
-        await withPertes(
-          new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+    charges: await withAmortissements(
+      await withMatieresConsommees(
+        await withAchatsStock(
+          await withPertes(
+            new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+            dates[0]!,
+            dates[dates.length - 1]!,
+            scopeSite,
+          ),
           dates[0]!,
           dates[dates.length - 1]!,
           scopeSite,
         ),
         dates[0]!,
         dates[dates.length - 1]!,
+        scopeSite,
       ),
       dates[0]!,
       dates[dates.length - 1]!,
@@ -649,7 +703,6 @@ async function loadRange(
   const [
     zogboDocs,
     gbegameyDocs,
-    combosDocs,
     boissonsDocs,
     chargesDocs,
     ventes,
@@ -661,7 +714,6 @@ async function loadRange(
     scopeSite === "zogbo"
       ? Promise.resolve([])
       : db.collection<GbegameyDoc>("gbegamey_jours").find(filter).toArray(),
-    db.collection<CombosDoc>("combos_jours").find(filter).toArray(),
     db.collection<BoissonsDoc>("boissons_jours").find(filter).toArray(),
     db.collection<ChargesDoc>("charges_jours").find(filter).toArray(),
     loadVenteTotals(venteMatch),
@@ -672,18 +724,23 @@ async function loadRange(
   return {
     zogbo: new Map(zogboDocs.map((d) => [d._id, toZogbo(d)])),
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
-    combos: new Map(combosDocs.map((d) => [d._id, toCombos(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: await withImmobilisations(
-      await withAchatsStock(
-        await withPertes(
-          new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+    charges: await withAmortissements(
+      await withMatieresConsommees(
+        await withAchatsStock(
+          await withPertes(
+            new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+            start,
+            end,
+            scopeSite,
+          ),
           start,
           end,
           scopeSite,
         ),
         start,
         end,
+        scopeSite,
       ),
       start,
       end,
@@ -703,11 +760,9 @@ function pointsFromDates(
     const revenue = computeDayRevenue({
       baseDishes: parametres.baseDishes,
       localDishes: parametres.localDishes,
-      combosCatalog: parametres.combos,
       drinksCatalog: parametres.drinks,
       zogbo: maps.zogbo.get(date) ?? null,
       gbegamey: maps.gbegamey.get(date) ?? null,
-      combos: maps.combos.get(date) ?? null,
       boissons: maps.boissons.get(date) ?? null,
       ventes: maps.ventes.get(date) ?? emptyVenteTotals(),
       scopeSite,

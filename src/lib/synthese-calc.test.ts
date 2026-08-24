@@ -23,8 +23,6 @@ describe("chargesTotal", () => {
   });
 
   it("compte les pertes comme une charge", () => {
-    // Un produit gâté coûte aussi cher qu'un achat : il doit peser sur le
-    // résultat, sinon la marge affichée est fausse.
     const base = { ...emptyCharges("2026-08-12"), matieresPremieres: 10000 };
     expect(chargesTotal(base)).toBe(10000);
     expect(chargesTotal({ ...base, pertes: 4500 })).toBe(14500);
@@ -36,38 +34,22 @@ describe("chargesTotal", () => {
     expect(chargesTotal({ ...base, pertes: -500 })).toBe(0);
   });
 
-  it("compte les achats du registre comme une charge", () => {
-    // Un achat saisi sur la page Achats pèse sur le résultat sans que le
-    // gérant ait à le retaper dans « matières premières ».
+  it("compte les matières consommées (CMV) et ignore les achats encore en stock", () => {
     const base = emptyCharges("2026-08-12");
-    expect(chargesTotal({ ...base, achatsStock: 113850 })).toBe(113850);
-    expect(
-      chargesTotal({ ...base, matieresPremieres: 10000, achatsStock: 5000 }),
-    ).toBe(15000);
-  });
-
-  it("ignore un total d'achats absent ou aberrant", () => {
-    const base = emptyCharges("2026-08-12");
-    expect(chargesTotal({ ...base, achatsStock: undefined })).toBe(0);
-    expect(chargesTotal({ ...base, achatsStock: -500 })).toBe(0);
-  });
-
-  it("compte les immobilisations comme une charge", () => {
-    const base = emptyCharges("2026-08-12");
-    expect(chargesTotal({ ...base, immobilisations: 250000 })).toBe(250000);
+    expect(chargesTotal({ ...base, matieresConsommees: 8000 })).toBe(8000);
     expect(
       chargesTotal({
         ...base,
-        achatsStock: 5000,
-        immobilisations: 10000,
+        achatsStock: 113850,
+        matieresConsommees: 8000,
       }),
-    ).toBe(15000);
+    ).toBe(8000);
   });
 
-  it("ignore un total immobilisations absent ou aberrant", () => {
+  it("compte la dotation d’amortissement, pas l’acquisition d’immobilisation", () => {
     const base = emptyCharges("2026-08-12");
-    expect(chargesTotal({ ...base, immobilisations: undefined })).toBe(0);
-    expect(chargesTotal({ ...base, immobilisations: -100 })).toBe(0);
+    expect(chargesTotal({ ...base, immobilisations: 250000 })).toBe(0);
+    expect(chargesTotal({ ...base, amortissements: 1200 })).toBe(1200);
   });
 
   it("une journée vierge ne coûte rien", () => {
@@ -76,11 +58,6 @@ describe("chargesTotal", () => {
 });
 
 describe("computeDayRevenue — étanchéité des comptes verrouillés sur une zone", () => {
-  // Journée où seul Zogbo a vendu (plats, accompagnements, boissons) ;
-  // Gbégamey n'a rien vendu ce jour-là — exactement le cas qui a révélé le
-  // bug : un compte verrouillé sur Gbégamey voyait le CA boissons de Zogbo
-  // pendant que ses plats/accompagnements Zogbo étaient déjà à zéro, un
-  // mélange incohérent selon la catégorie de produit.
   const ventes = {
     ...emptyVenteTotals(),
     platsZogbo: 2000,
@@ -91,11 +68,9 @@ describe("computeDayRevenue — étanchéité des comptes verrouillés sur une z
   const base = {
     baseDishes: [],
     localDishes: [],
-    combosCatalog: [],
     drinksCatalog: [],
     zogbo: null,
     gbegamey: null,
-    combos: null,
     boissons: null,
     ventes,
   };
@@ -125,5 +100,43 @@ describe("computeDayRevenue — étanchéité des comptes verrouillés sur une z
     expect(r.caZogbo).toBe(6350);
     expect(r.caGbegamey).toBe(0);
     expect(r.caTotal).toBe(6350);
+  });
+
+  it("soustrait les réductions POS du CA net", () => {
+    const r = computeDayRevenue({
+      ...base,
+      ventes: { ...ventes, reductionsZogbo: 350 },
+    });
+    expect(r.caZogbo).toBe(6000);
+    expect(r.caTotal).toBe(6000);
+  });
+
+  it("n’invente plus de CA depuis le catalogue si le journal est vide", () => {
+    const r = computeDayRevenue({
+      ...base,
+      ventes: emptyVenteTotals(),
+      baseDishes: [{ id: "p1", name: "POISSON", unitPrice: 2500 }],
+      zogbo: {
+        date: "2026-08-12",
+        status: "ouverte",
+        lines: [
+          {
+            productId: "p1",
+            name: "POISSON",
+            stock: 10,
+            prepared: 10,
+            sentToGbegamey: 0,
+            sold: 10,
+            pertes: 0,
+            counted: null,
+            observations: "",
+          },
+        ],
+        movements: [],
+        updatedAt: "2026-08-12T12:00:00.000Z",
+      },
+    });
+    expect(r.caZogboPlats).toBe(0);
+    expect(r.caTotal).toBe(0);
   });
 });

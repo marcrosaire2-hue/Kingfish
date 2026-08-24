@@ -1,5 +1,4 @@
 import { computeBoissonsDay } from "@/lib/boissons-calc";
-import { computeCombosDay } from "@/lib/combos-calc";
 import {
   downloadExcel,
   excelFilename,
@@ -29,7 +28,6 @@ import type {
   CaisseMouvement,
   CaisseOverviewItem,
   CaisseSession,
-  CombosDay,
   Drink,
   GbegameyDay,
   LocalDish,
@@ -59,7 +57,6 @@ async function fetchJson<T>(url: string): Promise<T> {
 const KIND_LABELS: Record<string, string> = {
   plat: "Plat",
   local: "Sur place",
-  combo: "Formule",
   boisson: "Boisson",
   extra: "Vente libre",
   matiere: "Matière",
@@ -99,16 +96,6 @@ export function exportParametresExcel(data: Parametres): void {
       })),
     },
     {
-      name: "Formules",
-      rows: data.combos.map((c) => ({
-        Id: c.id,
-        Nom: c.name,
-        "Prix (FCFA)": c.unitPrice,
-        "Prix de revient": c.costPrice ?? "",
-        "Plat de base": c.baseDishName ?? "",
-      })),
-    },
-    {
       name: "Boissons",
       rows: data.drinks.map((d) => ({
         Id: d.id,
@@ -144,14 +131,11 @@ export function exportParametresExcel(data: Parametres): void {
   downloadExcel(excelFilename("parametres"), sheets);
 }
 
-/** Zogbo — plats + combos + boissons du jour */
+/** Zogbo — plats + boissons du jour */
 export async function exportZogboExcel(date: string): Promise<void> {
-  const [zogbo, combos, boissons] = await Promise.all([
+  const [zogbo, boissons] = await Promise.all([
     fetchJson<{ day: ZogboDay; baseDishes: BaseDish[] }>(
       `/api/zogbo?date=${encodeURIComponent(date)}`,
-    ),
-    fetchJson<{ day: CombosDay; combos: { id: string; name: string; unitPrice: number; baseDishName: string | null }[] }>(
-      `/api/combos?date=${encodeURIComponent(date)}&site=zogbo`,
     ),
     fetchJson<{ day: BoissonsDay; drinks: Drink[] }>(
       `/api/boissons?date=${encodeURIComponent(date)}&site=zogbo`,
@@ -159,7 +143,6 @@ export async function exportZogboExcel(date: string): Promise<void> {
   ]);
 
   const z = computeZogboDay(zogbo.day, zogbo.baseDishes);
-  const c = computeCombosDay(combos.day, combos.combos);
   const b = computeBoissonsDay(boissons.day, boissons.drinks);
 
   const sheets: ExcelSheet[] = [
@@ -190,31 +173,19 @@ export async function exportZogboExcel(date: string): Promise<void> {
       })),
     },
     {
-      name: "Formules",
-      rows: c.lines.map((l) => ({
-        Formule: l.name,
-        "Stock Zogbo": l.stockActuelZogbo,
-        Préparé: l.prepared,
-        Envoyé: l.sentToGbegamey,
-        "Vendu Zogbo": l.soldZogbo,
-        "PU (FCFA)": l.unitPrice,
-        "CA Zogbo (FCFA)": l.soldAmountZogbo,
-      })),
-    },
-    {
       name: "Boissons",
       rows: b.lines.map((l) => ({
         Boisson: l.name,
         "Contenance (bt/casier)": l.unitsPerCasier,
-        "Init (bt)": Math.round(l.initialStock * l.unitsPerCasier),
-        "Achats (bt)": Math.round(l.purchases * l.unitsPerCasier),
+        "Init (bt)": Math.round(l.initialStockZogbo * l.unitsPerCasier),
+        "Achats (bt)": Math.round(l.purchasesZogbo * l.unitsPerCasier),
         "Vendu Zogbo (bt)": l.soldZogbo,
         "Stock (bt)": Math.round(
-          Math.max(0, l.theoreticalRemaining) * l.unitsPerCasier,
+          Math.max(0, l.theoreticalRemainingZogbo) * l.unitsPerCasier,
         ),
         "PA/bt": l.purchasePrice,
         "PV/bt": l.salePrice ?? "",
-        Compté: l.counted ?? "",
+        Compté: l.countedZogbo ?? "",
       })),
     },
   ];
@@ -222,18 +193,15 @@ export async function exportZogboExcel(date: string): Promise<void> {
   downloadExcel(excelFilename("zogbo", date), sheets);
 }
 
-/** Gbégamey — reçu + locaux + combos + boissons */
+/** Gbégamey — reçu + locaux + boissons */
 export async function exportGbegameyExcel(date: string): Promise<void> {
-  const [gbe, combos, boissons] = await Promise.all([
+  const [gbe, boissons] = await Promise.all([
     fetchJson<{
       day: GbegameyDay;
       baseDishes: BaseDish[];
       localDishes: LocalDish[];
       sentByProductId: Record<string, number>;
     }>(`/api/gbegamey?date=${encodeURIComponent(date)}`),
-    fetchJson<{ day: CombosDay; combos: { id: string; name: string; unitPrice: number; baseDishName: string | null }[] }>(
-      `/api/combos?date=${encodeURIComponent(date)}&site=gbegamey`,
-    ),
     fetchJson<{ day: BoissonsDay; drinks: Drink[] }>(
       `/api/boissons?date=${encodeURIComponent(date)}&site=gbegamey`,
     ),
@@ -251,7 +219,6 @@ export async function exportGbegameyExcel(date: string): Promise<void> {
   const local = gbe.day.localLines.map((l) =>
     computeLocalLine(l, localPrice.get(l.productId) ?? 0),
   );
-  const c = computeCombosDay(combos.day, combos.combos);
   const b = computeBoissonsDay(boissons.day, boissons.drinks);
 
   const sheets: ExcelSheet[] = [
@@ -289,30 +256,18 @@ export async function exportGbegameyExcel(date: string): Promise<void> {
       })),
     },
     {
-      name: "Formules",
-      rows: c.lines.map((l) => ({
-        Formule: l.name,
-        "Init Gbégamey": l.initialGbegamey,
-        Reçu: l.receivedGbegamey,
-        Vendu: l.soldGbegamey,
-        "Stock actuel": l.stockActuelGbegamey,
-        "PU (FCFA)": l.unitPrice,
-        "CA (FCFA)": l.soldAmountGbegamey,
-      })),
-    },
-    {
       name: "Boissons",
       rows: b.lines.map((l) => ({
         Boisson: l.name,
         "Contenance (bt/casier)": l.unitsPerCasier,
-        "Init (bt)": Math.round(l.initialStock * l.unitsPerCasier),
-        "Achats (bt)": Math.round(l.purchases * l.unitsPerCasier),
+        "Init (bt)": Math.round(l.initialStockGbegamey * l.unitsPerCasier),
+        "Achats (bt)": Math.round(l.purchasesGbegamey * l.unitsPerCasier),
         "Vendu Gbégamey (bt)": l.soldGbegamey,
         "Stock (bt)": Math.round(
-          Math.max(0, l.theoreticalRemaining) * l.unitsPerCasier,
+          Math.max(0, l.theoreticalRemainingGbegamey) * l.unitsPerCasier,
         ),
         "PV/bt": l.salePrice ?? "",
-        Compté: l.counted ?? "",
+        Compté: l.countedGbegamey ?? "",
       })),
     },
   ];
@@ -386,23 +341,33 @@ export async function exportVenteExcel(
   downloadExcel(excelFilename("vente", date, site), sheets);
 }
 
-/** Stock final par zone (plats + accompagnements). */
+const STOCK_KIND_LABELS: Record<string, string> = {
+  plat: "Plat",
+  local: "Accompagnement",
+  boisson: "Boisson",
+  matiere: "Matière première",
+};
+
+/** Stock final par zone (toutes familles : plats, accompagnements, boissons, matières). */
 export function exportStockExcel(
   data: import("@/lib/stock-repo").StockPayload,
 ): void {
   const rows = data.rows.map((row) => ({
     Zone: row.zoneLabel,
     Produit: row.name,
-    Type: row.kind === "plat" ? "Plat" : "Accompagnement",
+    Type: STOCK_KIND_LABELS[row.kind] ?? row.kind,
+    Unité: row.unit === "portions" ? "" : row.unit,
     Ouverture: row.opening,
     Entrées: row.entrees,
     "Envoyé Gbé": row.envoye || "",
     Vendu: row.vendu,
     Pertes: row.pertes,
+    Théorique: row.theorique,
     "Stock final": row.stockFinal,
     Vendable: row.stockVendable ?? "",
     Compté: row.compte ?? "",
     Écart: row.ecart ?? "",
+    Seuil: row.threshold ?? "",
   }));
 
   const synthèse = data.totalsByZone.map((t) => ({
@@ -454,14 +419,12 @@ export async function exportSyntheseExcel(input: {
           Date: String(d.date ?? input.date ?? ""),
           "CA Zogbo plats": Number(d.caZogboPlats) || 0,
           "CA Zogbo accompagnements": Number(d.caAccompagnementsZogbo) || 0,
-          "CA Zogbo formules": Number(d.caCombosZogbo) || 0,
           "CA Zogbo boissons": Number(d.caBoissonsZogbo) || 0,
           "CA Zogbo extra": Number(d.caExtraZogbo) || 0,
           "CA Zogbo total": Number(d.caZogbo) || 0,
           "CA Gbégamey plats": Number(d.caGbegameyPlats) || 0,
           "CA Gbégamey accompagnements":
             Number(d.caAccompagnementsGbegamey) || 0,
-          "CA Gbégamey formules": Number(d.caCombosGbegamey) || 0,
           "CA Gbégamey boissons": Number(d.caBoissonsGbegamey) || 0,
           "CA Gbégamey extra": Number(d.caExtraGbegamey) || 0,
           "CA Gbégamey total": Number(d.caGbegamey) || 0,

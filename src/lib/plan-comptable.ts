@@ -17,6 +17,13 @@ export type CompteComptable = {
 export const COMPTES = {
   // Classe 2 — Actif immobilisé
   IMMOBILISATIONS: { numero: "2181", libelle: "Matériel et mobilier" },
+  AMORTISSEMENTS_CUMULES: {
+    numero: "2818",
+    libelle: "Amortissements du matériel et mobilier",
+  },
+
+  // Classe 3 — Stocks
+  STOCK_MATIERES: { numero: "31", libelle: "Stocks de matières premières" },
 
   // Classe 4 — Tiers
   COMPTE_ATTENTE: {
@@ -31,6 +38,11 @@ export const COMPTES = {
 
   // Classe 6 — Charges des activités ordinaires
   ACHATS_MATIERES: { numero: "601", libelle: "Achats de matières premières" },
+  DOTATIONS_AMORT: {
+    numero: "6811",
+    libelle: "Dotations aux amortissements",
+  },
+  PERTES_STOCK: { numero: "6582", libelle: "Pertes de stocks" },
   CARBURANT: { numero: "6051", libelle: "Fournitures — carburant" },
   ELECTRICITE: { numero: "6052", libelle: "Fournitures — électricité" },
   LOYER: { numero: "622", libelle: "Locations" },
@@ -73,7 +85,7 @@ export const COMPTES = {
 
 /**
  * Sous-compte de vente selon la nature du produit — `kind` absent (imports
- * AquaPro non catégorisés) ou non reconnu ("combo", catalogue retiré) va en
+ * AquaPro non catégorisés) ou non reconnu va en
  * « Autres » plutôt que d'être deviné.
  */
 export function compteVente(kind: string | undefined): CompteComptable {
@@ -107,7 +119,7 @@ export function compteDepense(nature: string): {
     return { compte: COMPTES.IMMOBILISATIONS, confiant: true };
   }
   if (n.startsWith("achat stock ·") || n.startsWith("achat stock :")) {
-    return { compte: COMPTES.ACHATS_MATIERES, confiant: true };
+    return { compte: COMPTES.STOCK_MATIERES, confiant: true };
   }
   if (/\bloyer\b/.test(n)) return { compte: COMPTES.LOYER, confiant: false };
   if (/\bsalaire|\bprime\b/.test(n))

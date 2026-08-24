@@ -49,14 +49,19 @@ export async function PUT(request: Request) {
       lines?: BoissonsLine[];
       site?: "zogbo" | "gbegamey";
     };
-    if (!body.date || !Array.isArray(body.lines)) {
+    if (
+      !body.date ||
+      !Array.isArray(body.lines) ||
+      (body.site !== "zogbo" && body.site !== "gbegamey")
+    ) {
       return NextResponse.json(
-        { error: "Payload invalide (date + lines requis)." },
+        { error: "Payload invalide (date + lines + site requis)." },
         { status: 400 },
       );
     }
     const saved = await saveBoissonsDay({
       date: body.date,
+      site: body.site,
       status: body.status,
       lines: body.lines,
     });
@@ -115,15 +120,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ ...cancelled, exits });
     }
 
-    if (!body.date || !body.productId || body.qty === undefined) {
+    if (
+      !body.date ||
+      !body.productId ||
+      body.qty === undefined ||
+      (body.site !== "zogbo" && body.site !== "gbegamey")
+    ) {
       return NextResponse.json(
-        { error: "date, productId et qty requis." },
+        { error: "date, productId, qty et site requis." },
         { status: 400 },
       );
     }
 
     const result = await applyBoissonsPurchase({
       date: body.date,
+      site: body.site,
       productId: body.productId,
       qty: body.qty,
     });

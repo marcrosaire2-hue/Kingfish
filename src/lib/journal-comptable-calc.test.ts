@@ -3,6 +3,7 @@ import {
   balanceGenerale,
   ecrituresChargeManuelle,
   ecrituresMouvement,
+  ecrituresPartieDouble,
   ecrituresVente,
   ecrituresVersement,
   grandLivre,
@@ -113,6 +114,17 @@ describe("ecrituresMouvement", () => {
     expect(charge.confiant).toBe(true);
   });
 
+  it("route un achat de stock vers le compte 31, pas en charge 601", () => {
+    const lignes = ecrituresMouvement({
+      date: "2026-08-01",
+      caisse: "zogbo",
+      mouvement: mouvement({ nature: "Achat stock · Farine +5", montant: 3000 }),
+    });
+    const debit = lignes.find((l) => l.debit > 0)!;
+    expect(debit.compte).toBe(COMPTES.STOCK_MATIERES.numero);
+    expect(totaux(lignes).equilibre).toBe(true);
+  });
+
   it("route une dépense de nature libre non reconnue vers « à reclasser », non confiant", () => {
     const lignes = ecrituresMouvement({
       date: "2026-08-01",
@@ -162,6 +174,22 @@ describe("ecrituresVersement", () => {
     });
     expect(totaux(lignes)).toEqual({ debit: 15000, credit: 15000, equilibre: true });
     expect(lignes.every((l) => l.compte.startsWith("57"))).toBe(true);
+  });
+});
+
+describe("ecrituresPartieDouble — CMV", () => {
+  it("débité 601 / crédite 31, sans toucher la classe 6 d’achat", () => {
+    const lignes = ecrituresPartieDouble({
+      date: "2026-08-01",
+      piece: "cmv-2026-08-01",
+      libelle: "Consommation matières (CMV)",
+      debitCompte: COMPTES.ACHATS_MATIERES,
+      creditCompte: COMPTES.STOCK_MATIERES,
+      montant: 8000,
+    });
+    expect(totaux(lignes)).toEqual({ debit: 8000, credit: 8000, equilibre: true });
+    expect(lignes.find((l) => l.debit > 0)?.compte).toBe("601");
+    expect(lignes.find((l) => l.credit > 0)?.compte).toBe("31");
   });
 });
 
@@ -247,7 +275,7 @@ describe("balanceGenerale et resultatNetDeBalance", () => {
 
   it("calcule le résultat net (produits − charges) depuis la balance", () => {
     const balance = balanceGenerale(ecrituresExemple);
-    // Ventes 12000 (classe 7, crédit) − achat 3000 (classe 6, débit) = 9000.
-    expect(resultatNetDeBalance(balance)).toBe(9000);
+    // Achat stock → 31 (classe 3), n'entre pas dans le résultat.
+    expect(resultatNetDeBalance(balance)).toBe(12000);
   });
 });

@@ -6,6 +6,7 @@ import type {
   BoissonsLine,
   BoissonsMovement,
   Drink,
+  VenteSite,
 } from "@/lib/types";
 import {
   applyBoissonsPurchaseToState,
@@ -47,7 +48,7 @@ export type BoissonsDayPayload = {
 async function leftoversForDate(
   date: string,
   drinks: Drink[],
-): Promise<Map<string, number>> {
+): Promise<{ zogbo: Map<string, number>; gbegamey: Map<string, number> }> {
   const prev = previousIsoDate(date);
   if (prev) {
     const db = await getDb();
@@ -65,9 +66,13 @@ async function leftoversForDate(
     }
   }
   try {
-    return await loadAquaBoissonOpeningCasiers(drinks);
+    // Import historique AquaPro : un seul relevé (avant la séparation par
+    // site) — reflété à l'identique sur les deux sites, comme toute donnée
+    // combinée héritée (voir `normalizeBoissonsLine`).
+    const combined = await loadAquaBoissonOpeningCasiers(drinks);
+    return { zogbo: combined, gbegamey: new Map(combined) };
   } catch {
-    return new Map();
+    return { zogbo: new Map(), gbegamey: new Map() };
   }
 }
 
@@ -85,7 +90,7 @@ export async function getBoissonsDayPayload(
   if (!existing) {
     const leftovers = await leftoversForDate(date, drinks);
     const day = createEmptyBoissonsDay(date, drinks, leftovers);
-    if (leftovers.size > 0) {
+    if (leftovers.zogbo.size > 0 || leftovers.gbegamey.size > 0) {
       const updatedAt = new Date().toISOString();
       const lines = day.lines.map((l) => {
         // Le report arrive en casiers ; le comptage d'ouverture est en bouteilles.
@@ -96,19 +101,25 @@ export async function getBoissonsDayPayload(
               DEFAULT_UNITS_PER_CASIER,
           ),
         );
+        // Une bouteille ne se compte pas en fractions : le report casiers →
+        // bouteilles est arrondi à l'unité pour chaque site, sans quoi le
+        // résidu de la conversion (casiers stockés à 2 décimales)
+        // réapparaissait tel quel dans le comptage d'ouverture.
+        const hasZogbo = leftovers.zogbo.has(l.productId);
+        const hasGbegamey = leftovers.gbegamey.has(l.productId);
         return {
           ...l,
-          // Une bouteille ne se compte pas en fractions : le report casiers →
-          // bouteilles est arrondi à l'unité. Sans cet arrondi, le résidu de la
-          // conversion (casiers stockés à 2 décimales) réapparaissait tel quel
-          // dans le comptage d'ouverture — « 1.92 bt » — et se reproduisait
-          // à l'identique chaque jour.
-          counted: leftovers.has(l.productId)
-            ? Math.max(0, Math.round(leftovers.get(l.productId)! * upc))
+          countedZogbo: hasZogbo
+            ? Math.max(0, Math.round(leftovers.zogbo.get(l.productId)! * upc))
             : null,
-          observations: leftovers.has(l.productId)
-            ? "Ouverture (dernier inventaire)"
-            : "",
+          countedGbegamey: hasGbegamey
+            ? Math.max(
+                0,
+                Math.round(leftovers.gbegamey.get(l.productId)! * upc),
+              )
+            : null,
+          observations:
+            hasZogbo || hasGbegamey ? "Ouverture (dernier inventaire)" : "",
         };
       });
       await db.collection<BoissonsDoc>("boissons_jours").updateOne(
@@ -140,6 +151,13 @@ export async function getBoissonsDayPayload(
 export async function saveBoissonsDay(
   input: {
     date: string;
+    /**
+     * Point de vente à l'origine de l'enregistrement : seuls ses propres
+     * champs (comptage, achats déjà tracés côté vente) sont pris depuis
+     * `lines` — l'autre site reste intégralement verrouillé sur ce qu'il
+     * avait déjà, comme `lockSold` le fait déjà pour les ventes.
+     */
+    site: VenteSite;
     status?: BoissonsDay["status"];
     lines: BoissonsLine[];
   },
@@ -151,6 +169,7 @@ export async function saveBoissonsDay(
 
   const lockSold = options?.lockSold !== false;
   const directWrite = options?.directWrite === true;
+  const isZogbo = input.site === "zogbo";
   const { drinks } = await getParametres();
 
   return updateDayDocument<BoissonsDoc, BoissonsDayPayload>(
@@ -177,28 +196,42 @@ export async function saveBoissonsDay(
         if (directWrite) {
           return {
             ...normalized,
-            pertes: 0,
+            pertesZogbo: 0,
+            pertesGbegamey: 0,
           };
         }
         const prev = held.get(line.productId);
-        const initialStock = existing
-          ? (prev?.initialStock ?? 0)
-          : (leftovers?.get(line.productId) ?? 0);
-        const purchases = prev?.purchases ?? 0;
+        const initialStockZogbo = existing
+          ? (prev?.initialStockZogbo ?? 0)
+          : (leftovers?.zogbo.get(line.productId) ?? 0);
+        const initialStockGbegamey = existing
+          ? (prev?.initialStockGbegamey ?? 0)
+          : (leftovers?.gbegamey.get(line.productId) ?? 0);
+
         return {
           productId: line.productId,
           name: line.name,
-          initialStock,
-          purchases,
-          soldZogbo: lockSold
-            ? (prev?.soldZogbo ?? 0)
-            : Math.max(0, Number(line.soldZogbo) || 0),
-          soldGbegamey: lockSold
-            ? (prev?.soldGbegamey ?? 0)
-            : Math.max(0, Number(line.soldGbegamey) || 0),
-          pertes: prev?.pertes ?? 0,
-          counted: line.counted,
-          observations: String(line.observations ?? ""),
+          initialStockZogbo,
+          purchasesZogbo: prev?.purchasesZogbo ?? 0,
+          soldZogbo:
+            isZogbo && !lockSold
+              ? Math.max(0, Number(line.soldZogbo) || 0)
+              : (prev?.soldZogbo ?? 0),
+          pertesZogbo: prev?.pertesZogbo ?? 0,
+          countedZogbo: isZogbo
+            ? normalized.countedZogbo
+            : (prev?.countedZogbo ?? null),
+          initialStockGbegamey,
+          purchasesGbegamey: prev?.purchasesGbegamey ?? 0,
+          soldGbegamey:
+            !isZogbo && !lockSold
+              ? Math.max(0, Number(line.soldGbegamey) || 0)
+              : (prev?.soldGbegamey ?? 0),
+          pertesGbegamey: prev?.pertesGbegamey ?? 0,
+          countedGbegamey: !isZogbo
+            ? normalized.countedGbegamey
+            : (prev?.countedGbegamey ?? null),
+          observations: String(line.observations ?? prev?.observations ?? ""),
         };
       });
 
@@ -218,6 +251,7 @@ export async function saveBoissonsDay(
 
 export async function applyBoissonsPurchase(input: {
   date: string;
+  site: VenteSite;
   productId: string;
   qty: number;
 }): Promise<BoissonsDayPayload & { movement: BoissonsMovement }> {
@@ -229,6 +263,7 @@ export async function applyBoissonsPurchase(input: {
     payload.day.movements ?? [],
     {
       productId: input.productId,
+      site: input.site,
       qty: input.qty,
       unitsPerCasier: drink?.unitsPerCasier,
     },

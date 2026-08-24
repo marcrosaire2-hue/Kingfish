@@ -30,8 +30,6 @@ function shortKind(kind: string): string {
       return "Plat";
     case "local":
       return "Accomp.";
-    case "combo":
-      return "Formule";
     case "boisson":
       return "Boisson";
     case "extra":
@@ -654,7 +652,6 @@ export function HorizontalBars({
 export const CHART_COLORS = {
   zogbo: "#005098",
   gbegamey: "#2a7ec8",
-  combos: "#f0b018",
   boissons: "#004080",
   charges: "#dc2626",
   resultat: "#004888",

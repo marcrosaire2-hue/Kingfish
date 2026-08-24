@@ -17,7 +17,6 @@ const KINDS: Array<HistoriqueKind | "all"> = [
   "transfert",
   "zogbo",
   "gbegamey",
-  "combos",
   "boissons",
   "parametres",
   "charges",

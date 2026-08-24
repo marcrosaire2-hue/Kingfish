@@ -242,6 +242,10 @@ export async function validatePosTicket(input: {
           description: line.name || line.productId || "Extra",
           unitPrice: Math.round(Number(line.unitPrice) || 0),
           qty,
+          immobilisationId:
+            line.productId && ObjectId.isValid(line.productId)
+              ? line.productId
+              : null,
           actor,
         });
         createdLogIds.push(result.entry.id);

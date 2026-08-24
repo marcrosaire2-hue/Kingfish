@@ -15,20 +15,6 @@ export type BaseDish = {
   alertThreshold?: number;
 };
 
-export type ComboDish = {
-  id: ProductId;
-  name: string;
-  unitPrice: number;
-  /** Nom du plat de base à déduire du stock, ou null si aucun */
-  baseDishName: string | null;
-  costPrice?: number;
-  /**
-   * Seuil d’alerte : au-dessous, le produit est signalé à réapprovisionner
-   * avant d’être en rupture. 0 ou absent = pas d’alerte.
-   */
-  alertThreshold?: number;
-};
-
 export type Drink = {
   id: ProductId;
   name: string;
@@ -83,7 +69,6 @@ export type Recipe = {
 
 export type Parametres = {
   baseDishes: BaseDish[];
-  combos: ComboDish[];
   drinks: Drink[];
   localDishes: LocalDish[];
   rawMaterials?: RawMaterial[];
@@ -123,7 +108,6 @@ export const PERTE_MOTIF_LABELS: Record<PerteMotif, string> = {
 export type PerteKind =
   | "plat"
   | "local"
-  | "combo"
   | "boisson"
   | "matiere"
   | "immobilisation"
@@ -315,9 +299,17 @@ export type DayCharges = {
    */
   achatsStock?: number;
   /**
-   * Acquisitions Immobilisations (actifs + emballages), valorisées
-   * qté × prix unitaire à la date d’entrée. Calculé depuis le registre, jamais
-   * saisi ici.
+   * Coût des matières consommées (qty consommée × prix d’achat), hors
+   * achats encore en stock. Calcule le CMV du jour.
+   */
+  matieresConsommees?: number;
+  /**
+   * Dotation d’amortissement du jour (actifs avec durée d’utilité).
+   */
+  amortissements?: number;
+  /**
+   * @deprecated Les acquisitions d’immobilisations ne sont plus une charge
+   * d’exploitation : elles restent à l’actif, avec dotation 681.
    */
   immobilisations?: number;
   updatedAt: string | null;
@@ -332,19 +324,16 @@ export type DayRevenue = {
   caAccompagnementsZogbo: number;
   /** CA accompagnements Gbégamey (plats locaux : attiéké, placali…) */
   caAccompagnementsGbegamey: number;
-  caCombosZogbo: number;
-  caCombosGbegamey: number;
   caBoissonsZogbo: number;
   caBoissonsGbegamey: number;
   /** Ventes extraordinaires (description libre) */
   caExtraZogbo: number;
   caExtraGbegamey: number;
-  /** Point zone Zogbo = plats + accompagnements + combos + boissons + extra */
+  /** Point zone Zogbo = plats + accompagnements + boissons + extra − réductions */
   caZogbo: number;
-  /** Point zone Gbégamey = plats + accompagnements + combos + boissons + extra */
+  /** Point zone Gbégamey = plats + accompagnements + boissons + extra − réductions */
   caGbegamey: number;
   caAccompagnements: number;
-  caCombos: number;
   caBoissons: number;
   caExtra: number;
   caTotal: number;
@@ -361,7 +350,6 @@ export type DayPoint = DayRevenue & {
   resultat: number;
   hasZogboData: boolean;
   hasGbegameyData: boolean;
-  hasCombosData: boolean;
   hasBoissonsData: boolean;
 };
 
@@ -397,87 +385,39 @@ export type ProductRanking = {
   boissons: RankPair;
 };
 
-/** Ventes + stock combos du jour (préparés à Zogbo, envoyés à Gbégamey) */
-export type CombosLine = {
+/**
+ * Inventaire boissons du jour — stock/achats en casiers, ventes en
+ * bouteilles. Stock physiquement séparé par point de vente (chaque site a
+ * son propre frigo/réserve), dupliqué par site plutôt qu'un pot commun —
+ * vendre à Zogbo ne doit jamais faire bouger le stock affiché à Gbégamey.
+ */
+export type BoissonsLine = {
   productId: ProductId;
   name: string;
-  /** Info catalogue (plat associé) — n’impacte plus le stock */
-  baseDishName: string | null;
-  /** Dispo Zogbo = préparés − envoyés (comme les plats) */
-  stockZogbo: number;
-  prepared: number;
-  sentToGbegamey: number;
+  /** Stock reporté en casiers, côté Zogbo */
+  initialStockZogbo: number;
+  /** Achats du jour en casiers, côté Zogbo */
+  purchasesZogbo: number;
+  /** Ventes Zogbo en bouteilles */
   soldZogbo: number;
-  /** Sorties déclarées hors vente, côté Zogbo */
+  /** Sorties déclarées hors vente à Zogbo, en bouteilles */
   pertesZogbo: number;
+  /** Comptage physique à Zogbo, en bouteilles */
   countedZogbo: number | null;
-  /** Reste Gbégamey en début de jour */
-  initialGbegamey: number;
+  /** Stock reporté en casiers, côté Gbégamey */
+  initialStockGbegamey: number;
+  /** Achats du jour en casiers, côté Gbégamey */
+  purchasesGbegamey: number;
+  /** Ventes Gbégamey en bouteilles */
   soldGbegamey: number;
-  /** Sorties déclarées hors vente, côté Gbégamey */
+  /** Sorties déclarées hors vente à Gbégamey, en bouteilles */
   pertesGbegamey: number;
+  /** Comptage physique à Gbégamey, en bouteilles */
   countedGbegamey: number | null;
   observations: string;
 };
 
-export type CombosMovementType = "prepare" | "send";
-
-export type CombosMovement = {
-  id: string;
-  at: string;
-  type: CombosMovementType;
-  productId: ProductId;
-  name: string;
-  qty: number;
-  /** Dispo Zogbo après le mouvement */
-  stockAfter: number;
-  cancelledAt: string | null;
-};
-
-export type CombosDay = {
-  date: string;
-  status: DayStatus;
-  lines: CombosLine[];
-  movements: CombosMovement[];
-  updatedAt: string | null;
-};
-
-export type CombosLineComputed = CombosLine & {
-  unitPrice: number;
-  /** Reçu Gbégamey = envoyé depuis Zogbo */
-  receivedGbegamey: number;
-  availableZogbo: number;
-  availableGbegamey: number;
-  stockActuelZogbo: number;
-  stockActuelGbegamey: number;
-  soldTotal: number;
-  soldAmount: number;
-  soldAmountZogbo: number;
-  soldAmountGbegamey: number;
-  varianceZogbo: number | null;
-  varianceGbegamey: number | null;
-};
-
-/** Inventaire boissons du jour — stock/achats en casiers, ventes en bouteilles */
-export type BoissonsLine = {
-  productId: ProductId;
-  name: string;
-  /** Stock reporté en casiers */
-  initialStock: number;
-  /** Achats du jour en casiers (somme des mouvements purchase actifs) */
-  purchases: number;
-  /** Ventes Zogbo en bouteilles */
-  soldZogbo: number;
-  /** Ventes Gbégamey en bouteilles */
-  soldGbegamey: number;
-  /** Sorties déclarées hors vente, en bouteilles */
-  pertes: number;
-  /** Comptage physique en bouteilles */
-  counted: number | null;
-  observations: string;
-};
-
-/** Entrée de stock boissons (achat) — traçable et annulable */
+/** Entrée de stock boissons (achat) — traçable et annulable, par site */
 export type BoissonsMovementType = "purchase";
 
 export type BoissonsMovement = {
@@ -486,9 +426,11 @@ export type BoissonsMovement = {
   type: BoissonsMovementType;
   productId: ProductId;
   name: string;
+  /** Point de vente ayant reçu cet achat */
+  site: VenteSite;
   /** Quantité achetée en casiers */
   qty: number;
-  /** Stock restant en casiers après ce mouvement */
+  /** Stock restant en casiers après ce mouvement, pour ce site */
   stockAfter: number;
   cancelledAt: string | null;
 };
@@ -505,21 +447,26 @@ export type BoissonsLineComputed = BoissonsLine & {
   purchasePrice: number;
   salePrice: number | null;
   unitsPerCasier: number;
-  /** Solde casiers (init + achats) */
-  available: number;
-  /** Ventes totales en bouteilles */
+  /** Solde casiers (init + achats), Zogbo */
+  availableZogbo: number;
+  /** Solde casiers (init + achats), Gbégamey */
+  availableGbegamey: number;
+  /** Ventes totales en bouteilles (deux sites) */
   soldTotal: number;
-  /** Ventes totales converties en casiers */
-  soldCasiers: number;
   soldAmount: number;
   soldAmountZogbo: number;
   soldAmountGbegamey: number;
   margin: number | null;
-  /** Reste théorique en casiers */
-  theoreticalRemaining: number;
-  /** Reste théorique en bouteilles (pour la vente) */
-  stockBottles: number;
-  variance: number | null;
+  /** Reste théorique en casiers, Zogbo */
+  theoreticalRemainingZogbo: number;
+  /** Reste théorique en casiers, Gbégamey */
+  theoreticalRemainingGbegamey: number;
+  /** Reste théorique en bouteilles (pour la vente), Zogbo */
+  stockBottlesZogbo: number;
+  /** Reste théorique en bouteilles (pour la vente), Gbégamey */
+  stockBottlesGbegamey: number;
+  varianceZogbo: number | null;
+  varianceGbegamey: number | null;
 };
 
 export type MonthPoint = {
@@ -537,7 +484,6 @@ export type MonthPoint = {
     caExtraGbegamey: number;
     caZogbo: number;
     caGbegamey: number;
-    caCombos: number;
     caBoissons: number;
     caTotal: number;
     chargesTotal: number;
@@ -548,6 +494,8 @@ export type MonthPoint = {
 /** Agrégat des postes de charges (période mois / année). */
 export type ChargesBreakdown = {
   achatsStock: number;
+  matieresConsommees: number;
+  amortissements: number;
   immobilisations: number;
   matieresPremieres: number;
   loyer: number;
@@ -563,7 +511,6 @@ export type YearPoint = {
   months: {
     month: number;
     caTotal: number;
-    caCombos: number;
     caPlatsZogbo: number;
     caPlatsGbegamey: number;
     caAccompagnementsZogbo: number;
@@ -588,7 +535,6 @@ export type YearPoint = {
     caExtraGbegamey: number;
     caZogbo: number;
     caGbegamey: number;
-    caCombos: number;
     caBoissons: number;
     caTotal: number;
     charges: ChargesBreakdown;
@@ -609,7 +555,7 @@ export type CompteResultatDetailLine = {
 };
 
 export type VenteSite = "zogbo" | "gbegamey";
-export type VenteKind = "plat" | "combo" | "boisson" | "local" | "extra";
+export type VenteKind = "plat" | "boisson" | "local" | "extra";
 
 export type VenteProduct = {
   kind: VenteKind;
@@ -618,7 +564,7 @@ export type VenteProduct = {
   unitPrice: number;
   soldToday: number;
   hint?: string | null;
-  /** Stock restant vendable (plat / local / combo lié à une base) ; null = non plafonné */
+  /** Stock restant vendable (plat / local) ; null = non plafonné */
   stockLeft?: number | null;
   /**
    * Stock encore vendable mais sous le seuil d’alerte : à réapprovisionner
@@ -702,6 +648,10 @@ export type Immobilisation = {
    * encore reçu cette information.
    */
   dureeUtiliteAnnees: number | null;
+  /** Quantité figée à l’acquisition (les pertes ne la réécrivent pas). */
+  acquisitionQty?: number;
+  /** Montant figé à l’acquisition (base d’amortissement). */
+  acquisitionAmount?: number;
 };
 
 /** Modules comptables avancés, désactivés par défaut — activables par marc. */

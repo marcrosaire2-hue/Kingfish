@@ -16,7 +16,6 @@ export function loadParametres(): Parametres {
     if (
       !parsed ||
       !Array.isArray(parsed.baseDishes) ||
-      !Array.isArray(parsed.combos) ||
       !Array.isArray(parsed.drinks) ||
       !Array.isArray(parsed.localDishes)
     ) {

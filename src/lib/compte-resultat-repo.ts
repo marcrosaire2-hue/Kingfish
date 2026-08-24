@@ -91,7 +91,8 @@ function caActifMatch(extra: Record<string, unknown> = {}) {
 
 /**
  * Détail produit par produit (qté, tickets, CA) pour la période.
- * Combos exclus : plus vendus, hors compte de résultat courant.
+ * `$ne: "combo"` : filet de sécurité pour d’anciennes lignes Mongo
+ * (catalogue formules retiré, plus vendu).
  */
 export async function listDetailProduits(input: {
   dateFrom: string;
@@ -106,32 +107,66 @@ export async function listDetailProduits(input: {
   };
   if (input.scopeSite) match.site = input.scopeSite;
 
-  const rows = await db
-    .collection("ventes_log")
-    .aggregate<{
-      _id: { site: string; kind: string; productId: string };
-      name: string;
-      qty: number;
-      amount: number;
-      tickets: number;
-    }>([
-      { $match: caActifMatch(match) },
-      {
-        $group: {
-          _id: {
-            site: "$site",
-            kind: "$kind",
-            productId: "$productId",
+  const siteFilter = input.scopeSite ? { site: input.scopeSite } : {};
+  const [rows, redRows, grossRows] = await Promise.all([
+    db
+      .collection("ventes_log")
+      .aggregate<{
+        _id: { site: string; kind: string; productId: string };
+        name: string;
+        qty: number;
+        amount: number;
+        tickets: number;
+      }>([
+        { $match: caActifMatch(match) },
+        {
+          $group: {
+            _id: {
+              site: "$site",
+              kind: "$kind",
+              productId: "$productId",
+            },
+            name: { $last: "$name" },
+            qty: { $sum: "$qty" },
+            amount: { $sum: "$amount" },
+            tickets: { $sum: 1 },
           },
-          name: { $last: "$name" },
-          qty: { $sum: "$qty" },
-          amount: { $sum: "$amount" },
-          tickets: { $sum: 1 },
         },
-      },
-      { $sort: { amount: -1, qty: -1 } },
-    ])
-    .toArray();
+        { $sort: { amount: -1, qty: -1 } },
+      ])
+      .toArray(),
+    db
+      .collection("pos_tickets")
+      .aggregate<{ total: number }>([
+        {
+          $match: {
+            date: { $gte: input.dateFrom, $lte: input.dateTo },
+            statut: "valide",
+            reduction: { $gt: 0 },
+            ...siteFilter,
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$reduction" } } },
+      ])
+      .toArray(),
+    db
+      .collection("ventes_log")
+      .aggregate<{ ca: number }>([
+        {
+          $match: caActifMatch({
+            date: { $gte: input.dateFrom, $lte: input.dateTo },
+            kind: { $ne: "combo" },
+            ...siteFilter,
+          }),
+        },
+        { $group: { _id: null, ca: { $sum: "$amount" } } },
+      ])
+      .toArray(),
+  ]);
+
+  const gross = Number(grossRows[0]?.ca) || 0;
+  const red = Number(redRows[0]?.total) || 0;
+  const ratio = gross > 0 ? Math.max(0, gross - red) / gross : 1;
 
   return rows.map((r) => ({
     site: String(r._id.site || ""),
@@ -139,7 +174,7 @@ export async function listDetailProduits(input: {
     productId: String(r._id.productId || ""),
     name: String(r.name || "Sans nom"),
     qty: Number(r.qty) || 0,
-    amount: Number(r.amount) || 0,
+    amount: Math.round((Number(r.amount) || 0) * ratio),
     tickets: Number(r.tickets) || 0,
   }));
 }

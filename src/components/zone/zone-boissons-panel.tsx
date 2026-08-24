@@ -226,8 +226,10 @@ export function ZoneBoissonsPanel({
       : computed.totals.soldGbegamey
     : 0;
   const siteExits = exits.filter((e) => e.site === site);
-  const movementCount =
-    (computed?.movements.length ?? 0) + siteExits.length;
+  // Achats désormais propres à chaque site : un achat fait à Gbégamey ne
+  // doit ni s'afficher ni s'annuler depuis l'écran Zogbo.
+  const siteMovements = computed?.movements.filter((m) => m.site === site) ?? [];
+  const movementCount = siteMovements.length + siteExits.length;
 
   return (
     <div className="zone-panel">
@@ -282,7 +284,7 @@ export function ZoneBoissonsPanel({
 
       <div className="stat-row">
         <div className="stat-chip">
-          <span className="stat-label">Stock actuel (bt)</span>
+          <span className="stat-label">Stock actuel {siteLabel} (bt)</span>
           <span className="stat-value mono">
             {computed
               ? computed.lines.reduce(
@@ -290,7 +292,11 @@ export function ZoneBoissonsPanel({
                     s +
                     Math.max(
                       0,
-                      Math.round(l.theoreticalRemaining * l.unitsPerCasier),
+                      Math.round(
+                        (site === "zogbo"
+                          ? l.theoreticalRemainingZogbo
+                          : l.theoreticalRemainingGbegamey) * l.unitsPerCasier,
+                      ),
                     ),
                   0,
                 )
@@ -298,11 +304,16 @@ export function ZoneBoissonsPanel({
           </span>
         </div>
         <div className="stat-chip">
-          <span className="stat-label">Achats (bt)</span>
+          <span className="stat-label">Achats {siteLabel} (bt)</span>
           <span className="stat-value mono">
             {computed
               ? computed.lines.reduce(
-                  (s, l) => s + Math.round(l.purchases * l.unitsPerCasier),
+                  (s, l) =>
+                    s +
+                    Math.round(
+                      (site === "zogbo" ? l.purchasesZogbo : l.purchasesGbegamey) *
+                        l.unitsPerCasier,
+                    ),
                   0,
                 )
               : 0}
@@ -364,8 +375,23 @@ export function ZoneBoissonsPanel({
               computed.lines.map((line) => {
                 const qty =
                   site === "zogbo" ? line.soldZogbo : line.soldGbegamey;
-                const hasVariance =
-                  line.variance !== null && line.variance !== 0;
+                const initialStock =
+                  site === "zogbo"
+                    ? line.initialStockZogbo
+                    : line.initialStockGbegamey;
+                const purchases =
+                  site === "zogbo" ? line.purchasesZogbo : line.purchasesGbegamey;
+                const available =
+                  site === "zogbo" ? line.availableZogbo : line.availableGbegamey;
+                const theoreticalRemaining =
+                  site === "zogbo"
+                    ? line.theoreticalRemainingZogbo
+                    : line.theoreticalRemainingGbegamey;
+                const counted =
+                  site === "zogbo" ? line.countedZogbo : line.countedGbegamey;
+                const variance =
+                  site === "zogbo" ? line.varianceZogbo : line.varianceGbegamey;
+                const hasVariance = variance !== null && variance !== 0;
                 const missingPv = line.salePrice === null;
                 const buyBusy = busyId === `buy-${line.productId}`;
                 return (
@@ -378,10 +404,10 @@ export function ZoneBoissonsPanel({
                     <td className="cell-name">
                       {line.name}
                       <span className="cell-sub mono">
-                        init. {Math.round(line.initialStock * line.unitsPerCasier)}{" "}
+                        init. {Math.round(initialStock * line.unitsPerCasier)}{" "}
                         bt · achats{" "}
-                        {Math.round(line.purchases * line.unitsPerCasier)} bt ·
-                        solde {Math.round(line.available * line.unitsPerCasier)}{" "}
+                        {Math.round(purchases * line.unitsPerCasier)} bt ·
+                        solde {Math.round(available * line.unitsPerCasier)}{" "}
                         bt
                         {" · "}
                         PA {formatFcfa(line.purchasePrice)}/bt
@@ -444,30 +470,30 @@ export function ZoneBoissonsPanel({
                           Math.max(
                             0,
                             Math.round(
-                              line.theoreticalRemaining * line.unitsPerCasier,
+                              theoreticalRemaining * line.unitsPerCasier,
                             ),
                           ),
                         )}
-                        value={line.counted ?? ""}
+                        value={counted ?? ""}
                         onChange={(e) => {
                           const raw = e.target.value.trim().replace(",", ".");
-                          if (raw === "") {
-                            patchLine(line.productId, { counted: null });
-                            return;
-                          }
-                          const n = Math.max(0, Number(raw) || 0);
-                          patchLine(line.productId, {
-                            counted: Math.round(n),
-                          });
+                          const n =
+                            raw === "" ? null : Math.max(0, Math.round(Number(raw) || 0));
+                          patchLine(
+                            line.productId,
+                            site === "zogbo"
+                              ? { countedZogbo: n }
+                              : { countedGbegamey: n },
+                          );
                         }}
                       />
-                      {line.counted !== null ? (
+                      {counted !== null ? (
                         <span className="cell-sub muted">
                           théo.{" "}
                           {Math.max(
                             0,
                             Math.round(
-                              line.theoreticalRemaining * line.unitsPerCasier,
+                              theoreticalRemaining * line.unitsPerCasier,
                             ),
                           )}{" "}
                           bt
@@ -510,14 +536,14 @@ export function ZoneBoissonsPanel({
               </tr>
             </thead>
             <tbody>
-              {!computed || computed.movements.length === 0 ? (
+              {siteMovements.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="muted">
                     Aucun achat pour l’instant.
                   </td>
                 </tr>
               ) : (
-                computed.movements.map((m) => {
+                siteMovements.map((m) => {
                   const cancelled = !!m.cancelledAt;
                   return (
                     <tr

@@ -9,7 +9,6 @@ export type ProductIconKey =
   | "sauce"
   | "rice"
   | "local"
-  | "combo"
   | "drink";
 
 function normalizeName(name: string): string {
@@ -25,7 +24,6 @@ export function resolveProductIconKey(
   name: string,
 ): ProductIconKey {
   if (kind === "boisson") return "drink";
-  if (kind === "combo") return "combo";
   if (kind === "local") return "local";
   if (kind === "extra") return "dish";
 
@@ -143,17 +141,6 @@ function IconLocal() {
   );
 }
 
-function IconCombo() {
-  return (
-    <Svg>
-      <path d="M5 8h14" {...stroke} />
-      <path d="M7 8c.4 3.2 2.3 5.2 5 5.2S16.6 11.2 17 8" {...stroke} />
-      <path d="M5 14.5h14" {...stroke} />
-      <path d="M7.5 14.5c.35 2.6 1.9 4.2 4.5 4.2s4.15-1.6 4.5-4.2" {...stroke} />
-    </Svg>
-  );
-}
-
 function IconDrink() {
   return (
     <Svg>
@@ -175,7 +162,6 @@ const ICONS: Record<ProductIconKey, () => ReactNode> = {
   sauce: IconSauce,
   rice: IconRice,
   local: IconLocal,
-  combo: IconCombo,
   drink: IconDrink,
 };
 

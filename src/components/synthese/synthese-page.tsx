@@ -17,7 +17,7 @@ import { PriceInput } from "@/components/parametres/price-input";
 import { formatFcfa } from "@/lib/format";
 import { APP_SITES_LABEL } from "@/lib/brand";
 import { exportSyntheseExcel } from "@/lib/page-exports";
-import { emptyCharges } from "@/lib/synthese-calc";
+import { chargesTotal, emptyCharges } from "@/lib/synthese-calc";
 import type { EpuiseRow } from "@/lib/stock-repo";
 import type {
   DayCharges,
@@ -49,7 +49,13 @@ const CHARGE_FIELDS: {
   // « pertes » est calculé depuis le journal des pertes : jamais saisi ici.
   key: keyof Omit<
     DayCharges,
-    "date" | "updatedAt" | "pertes" | "achatsStock" | "immobilisations"
+    | "date"
+    | "updatedAt"
+    | "pertes"
+    | "achatsStock"
+    | "immobilisations"
+    | "matieresConsommees"
+    | "amortissements"
   >;
   label: string;
 }[] = [
@@ -241,13 +247,15 @@ export function SynthesePage() {
 
   const dayResultat = useMemo(() => {
     if (!day) return null;
-    const chargesTotal = CHARGE_FIELDS.reduce(
-      (s, f) => s + (Number(chargesDraft[f.key]) || 0),
-      0,
-    );
+    const total = chargesTotal({
+      ...chargesDraft,
+      pertes: day.charges.pertes,
+      matieresConsommees: day.charges.matieresConsommees,
+      amortissements: day.charges.amortissements,
+    });
     return {
-      chargesTotal,
-      resultat: day.caTotal - chargesTotal,
+      chargesTotal: total,
+      resultat: day.caTotal - total,
     };
   }, [day, chargesDraft]);
 
@@ -543,12 +551,6 @@ function GeneralDayDashboard({
       color: CHART_COLORS.accompagnements,
     },
     {
-      key: "combos",
-      label: "Formules",
-      value: day.caCombos,
-      color: CHART_COLORS.combos,
-    },
-    {
       key: "boissons",
       label: "Boissons",
       value: day.caBoissons,
@@ -640,16 +642,14 @@ function GeneralDayDashboard({
           <div className="dash-breakdown">
             <p>
               <strong>Zogbo</strong> — plats {formatFcfa(day.caZogboPlats)} ·
-              acc. {formatFcfa(day.caAccompagnementsZogbo)} · formules{" "}
-              {formatFcfa(day.caCombosZogbo)} · boissons{" "}
+              acc. {formatFcfa(day.caAccompagnementsZogbo)} · boissons{" "}
               {formatFcfa(day.caBoissonsZogbo)} · extra{" "}
               {formatFcfa(day.caExtraZogbo)}
             </p>
             <p>
               <strong>Gbégamey</strong> — plats{" "}
               {formatFcfa(day.caGbegameyPlats)} · acc.{" "}
-              {formatFcfa(day.caAccompagnementsGbegamey)} · formules{" "}
-              {formatFcfa(day.caCombosGbegamey)} · boissons{" "}
+              {formatFcfa(day.caAccompagnementsGbegamey)} · boissons{" "}
               {formatFcfa(day.caBoissonsGbegamey)} · extra{" "}
               {formatFcfa(day.caExtraGbegamey)}
             </p>
@@ -713,7 +713,13 @@ function DayDashboard({
   onChargeChange: (
     key: keyof Omit<
       DayCharges,
-      "date" | "updatedAt" | "pertes" | "achatsStock" | "immobilisations"
+      | "date"
+      | "updatedAt"
+      | "pertes"
+      | "achatsStock"
+      | "immobilisations"
+      | "matieresConsommees"
+      | "amortissements"
     >,
     value: number | null,
   ) => void;
@@ -733,12 +739,6 @@ function DayDashboard({
       label: "Accompagnements",
       value: day.caAccompagnements,
       color: CHART_COLORS.accompagnements,
-    },
-    {
-      key: "combos",
-      label: "Formules",
-      value: day.caCombos,
-      color: CHART_COLORS.combos,
     },
     {
       key: "boissons",
@@ -769,12 +769,32 @@ function DayDashboard({
     },
   ];
 
-  const chargeBars = CHARGE_FIELDS.map((f) => ({
-    key: f.key,
-    label: f.label,
-    value: Number(chargesDraft[f.key]) || 0,
-    color: CHART_COLORS.charges,
-  })).filter((r) => r.value > 0);
+  const chargeBars = [
+    ...CHARGE_FIELDS.map((f) => ({
+      key: f.key,
+      label: f.label,
+      value: Number(chargesDraft[f.key]) || 0,
+      color: CHART_COLORS.charges,
+    })),
+    {
+      key: "matieresConsommees",
+      label: "Matières consommées (CMV)",
+      value: day.charges.matieresConsommees ?? 0,
+      color: CHART_COLORS.charges,
+    },
+    {
+      key: "amortissements",
+      label: "Dotations aux amortissements",
+      value: day.charges.amortissements ?? 0,
+      color: CHART_COLORS.charges,
+    },
+    {
+      key: "pertes",
+      label: "Pertes déclarées",
+      value: day.charges.pertes ?? 0,
+      color: CHART_COLORS.charges,
+    },
+  ].filter((r) => r.value > 0);
 
   return (
     <div className="dash">
@@ -832,16 +852,14 @@ function DayDashboard({
           <div className="dash-breakdown">
             <p>
               <strong>Zogbo</strong> — plats {formatFcfa(day.caZogboPlats)} ·
-              acc. {formatFcfa(day.caAccompagnementsZogbo)} · formules{" "}
-              {formatFcfa(day.caCombosZogbo)} · boissons{" "}
+              acc. {formatFcfa(day.caAccompagnementsZogbo)} · boissons{" "}
               {formatFcfa(day.caBoissonsZogbo)} · extra{" "}
               {formatFcfa(day.caExtraZogbo)}
             </p>
             <p>
               <strong>Gbégamey</strong> — plats{" "}
               {formatFcfa(day.caGbegameyPlats)} · acc.{" "}
-              {formatFcfa(day.caAccompagnementsGbegamey)} · formules{" "}
-              {formatFcfa(day.caCombosGbegamey)} · boissons{" "}
+              {formatFcfa(day.caAccompagnementsGbegamey)} · boissons{" "}
               {formatFcfa(day.caBoissonsGbegamey)} · extra{" "}
               {formatFcfa(day.caExtraGbegamey)}
             </p>
@@ -895,6 +913,24 @@ function DayDashboard({
                   </td>
                 </tr>
               ))}
+              <tr>
+                <td>Matières consommées (CMV)</td>
+                <td className="mono cell-readonly">
+                  {formatFcfa(day.charges.matieresConsommees ?? 0)}
+                </td>
+              </tr>
+              <tr>
+                <td>Dotations aux amortissements</td>
+                <td className="mono cell-readonly">
+                  {formatFcfa(day.charges.amortissements ?? 0)}
+                </td>
+              </tr>
+              <tr>
+                <td>Pertes déclarées</td>
+                <td className="mono cell-readonly">
+                  {formatFcfa(day.charges.pertes ?? 0)}
+                </td>
+              </tr>
             </tbody>
             <tfoot>
               <tr>
@@ -965,12 +1001,6 @@ function MonthDashboard({
   ].filter((s) => s.value > 0);
 
   const categoryBars = [
-    {
-      key: "combos",
-      label: "Formules",
-      value: data.totals.caCombos,
-      color: CHART_COLORS.combos,
-    },
     {
       key: "boissons",
       label: "Boissons",
@@ -1045,7 +1075,7 @@ function MonthDashboard({
           )}
         </section>
         <section className="panel dash-card">
-          <h2 className="panel-title">Formules · Boissons · Charges</h2>
+          <h2 className="panel-title">Boissons · Charges</h2>
           <HorizontalBars rows={categoryBars} />
         </section>
       </div>
@@ -1090,7 +1120,6 @@ function MonthDashboard({
               const active =
                 d.hasZogboData ||
                 d.hasGbegameyData ||
-                d.hasCombosData ||
                 d.hasBoissonsData ||
                 d.chargesTotal > 0;
               return (

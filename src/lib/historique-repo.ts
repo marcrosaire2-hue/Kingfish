@@ -56,7 +56,6 @@ type VenteLogDoc = {
 const KIND_VENTE: Record<VenteKind, string> = {
   plat: "plat",
   local: "plat local",
-  combo: "combo",
   boisson: "boisson",
   extra: "extraordinaire",
 };

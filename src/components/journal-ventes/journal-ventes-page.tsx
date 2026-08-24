@@ -57,7 +57,7 @@ function siteLabel(site: string): string {
 type VenteCategory = "plat" | "accompagnement" | "boisson" | "autre";
 
 function venteCategory(kind?: string): VenteCategory {
-  if (kind === "plat" || kind === "combo") return "plat";
+  if (kind === "plat" || (kind as string) === "combo") return "plat";
   if (kind === "local") return "accompagnement";
   if (kind === "boisson") return "boisson";
   return "autre";

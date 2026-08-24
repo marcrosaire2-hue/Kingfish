@@ -88,7 +88,6 @@ export const SEED_PARAMETRES: Parametres = {
       unitPrice: 1000,
     },
   ],
-  combos: [],
   drinks: [
     {
       id: "drink-awoyo",

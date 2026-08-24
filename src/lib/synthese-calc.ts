@@ -2,8 +2,6 @@ import type {
   BaseDish,
   BoissonsDay,
   ChargesBreakdown,
-  ComboDish,
-  CombosDay,
   DayCharges,
   DayPoint,
   Drink,
@@ -15,7 +13,6 @@ import type {
   ZogboDay,
 } from "@/lib/types";
 import { computeBoissonsDay } from "@/lib/boissons-calc";
-import { computeCombosDay } from "@/lib/combos-calc";
 import { computeGbegameyDay } from "@/lib/gbegamey-calc";
 import { computeZogboDay } from "@/lib/zogbo-calc";
 
@@ -30,6 +27,8 @@ export function emptyCharges(date: string): DayCharges {
     reparations: 0,
     pertes: 0,
     achatsStock: 0,
+    matieresConsommees: 0,
+    amortissements: 0,
     immobilisations: 0,
     updatedAt: null,
   };
@@ -43,14 +42,10 @@ export function chargesTotal(c: DayCharges): number {
     c.electricite +
     c.carburant +
     c.reparations +
-    // Un produit gâté est une charge réelle, au même titre qu'un achat.
     Math.max(0, Number(c.pertes) || 0) +
-    // Ce qui est acheté sur la page Achats est une charge : sans cette ligne,
-    // un achat saisi ne pesait sur le résultat que si le gérant le retapait
-    // à la main dans « matières premières ».
-    Math.max(0, Number(c.achatsStock) || 0) +
-    // Acquisitions Immobilisations (actifs + emballages) à la date d’entrée.
-    Math.max(0, Number(c.immobilisations) || 0)
+    // CMV : matières sorties du stock, pas les achats encore en réserve.
+    Math.max(0, Number(c.matieresConsommees) || 0) +
+    Math.max(0, Number(c.amortissements) || 0)
   );
 }
 
@@ -65,8 +60,6 @@ export type VenteTotals = {
   /** Accompagnements locaux (frites, attiéké…) : vendus « sur place » */
   localZogbo: number;
   localGbegamey: number;
-  combosZogbo: number;
-  combosGbegamey: number;
   boissonsZogbo: number;
   boissonsGbegamey: number;
   extraZogbo: number;
@@ -84,8 +77,6 @@ export function emptyVenteTotals(): VenteTotals {
     platsGbegamey: 0,
     localZogbo: 0,
     localGbegamey: 0,
-    combosZogbo: 0,
-    combosGbegamey: 0,
     boissonsZogbo: 0,
     boissonsGbegamey: 0,
     extraZogbo: 0,
@@ -100,11 +91,9 @@ export function emptyVenteTotals(): VenteTotals {
 export function computeDayRevenue(input: {
   baseDishes: BaseDish[];
   localDishes: LocalDish[];
-  combosCatalog: ComboDish[];
   drinksCatalog: Drink[];
   zogbo: ZogboDay | null;
   gbegamey: GbegameyDay | null;
-  combos: CombosDay | null;
   boissons: BoissonsDay | null;
   /** Source unique du CA — le journal des ventes */
   ventes: VenteTotals;
@@ -112,41 +101,25 @@ export function computeDayRevenue(input: {
    * Compte verrouillé sur une zone : la vue ne doit rien laisser passer de
    * l'autre zone. Plats et accompagnements vivent dans des documents séparés
    * par zone (zogbo_jours / gbegamey_jours), déjà exclus en amont — mais
-   * boissons et combos partagent un seul document pour les deux zones, avec
-   * les deux totaux dedans. Sans ce filtre final, un compte Gbégamey voyait
-   * le CA boissons de Zogbo (chiffre réel, mais qui n'a rien à faire sur son
-   * tableau de bord) alors que ses plats Zogbo étaient déjà correctement à
-   * zéro — un mélange incohérent selon la catégorie de produit.
+   * boissons partagent un seul document pour les deux zones.
    */
   scopeSite?: VenteSite | null;
 }) {
   const {
     baseDishes,
     localDishes,
-    combosCatalog,
     drinksCatalog,
     zogbo,
     gbegamey,
-    combos,
     boissons,
     ventes,
     scopeSite,
   } = input;
 
-  /*
-   * Le CA vient du journal des ventes, qui porte les prix réellement
-   * pratiqués. Repli pour les journées antérieures à l’écran Vente : leur
-   * journal est vide, on recalcule alors depuis les compteurs du jour et le
-   * catalogue courant (ancien comportement) plutôt que d’afficher 0.
-   */
-  const fromJournal = ventes.count > 0;
-
   const zogboTotals = zogbo
     ? computeZogboDay(zogbo, baseDishes).totals
     : null;
-  const caZogboPlats = fromJournal
-    ? ventes.platsZogbo
-    : (zogboTotals?.soldAmount ?? 0);
+  const caZogboPlats = ventes.platsZogbo;
   const varianceZogbo = zogboTotals?.varianceCount ?? 0;
   const hasZogboData = !!zogbo?.updatedAt;
 
@@ -156,78 +129,48 @@ export function computeDayRevenue(input: {
   const gbegameyTotals = gbegamey
     ? computeGbegameyDay(gbegamey, baseDishes, localDishes, sent).totals
     : null;
-  const caGbegameyPlats = fromJournal
-    ? ventes.platsGbegamey
-    : (gbegameyTotals?.transferSoldAmount ?? 0);
-  const caAccompagnementsZogbo = fromJournal
-    ? ventes.localZogbo
-    : // Avant l'écran Vente, les accompagnements Zogbo n'étaient pas tracés.
-      0;
-  const caAccompagnementsGbegamey = fromJournal
-    ? ventes.localGbegamey
-    : (gbegameyTotals?.localSoldAmount ?? 0);
+  const caGbegameyPlats = ventes.platsGbegamey;
+  const caAccompagnementsZogbo = ventes.localZogbo;
+  const caAccompagnementsGbegamey = ventes.localGbegamey;
   const varianceGbegamey = gbegameyTotals?.varianceCount ?? 0;
   const hasGbegameyData = !!gbegamey?.updatedAt;
-
-  const combosTotals = combos
-    ? computeCombosDay(combos, combosCatalog).totals
-    : null;
-  const caCombosZogbo = fromJournal
-    ? ventes.combosZogbo
-    : (combosTotals?.soldAmountZogbo ?? 0);
-  const caCombosGbegamey = fromJournal
-    ? ventes.combosGbegamey
-    : (combosTotals?.soldAmountGbegamey ?? 0);
-  const hasCombosData = !!combos?.updatedAt;
 
   const boissonsTotals = boissons
     ? computeBoissonsDay(boissons, drinksCatalog).totals
     : null;
-  const caBoissonsZogbo = fromJournal
-    ? ventes.boissonsZogbo
-    : (boissonsTotals?.soldAmountZogbo ?? 0);
-  const caBoissonsGbegamey = fromJournal
-    ? ventes.boissonsGbegamey
-    : (boissonsTotals?.soldAmountGbegamey ?? 0);
-  const caExtraZogbo = fromJournal ? ventes.extraZogbo : 0;
-  const caExtraGbegamey = fromJournal ? ventes.extraGbegamey : 0;
-  const margeBoissons = fromJournal
-    ? ventes.margeBoissons
-    : (boissonsTotals?.margin ?? 0);
-  const varianceBoissons = boissonsTotals?.varianceCount ?? 0;
+  const caBoissonsZogbo = ventes.boissonsZogbo;
+  const caBoissonsGbegamey = ventes.boissonsGbegamey;
+  const caExtraZogbo = ventes.extraZogbo;
+  const caExtraGbegamey = ventes.extraGbegamey;
+  const margeBoissons = ventes.margeBoissons;
   const hasBoissonsData = !!boissons?.updatedAt;
 
-  // Compte verrouillé sur une zone : rien de l'autre zone ne doit transpirer,
-  // catégorie par catégorie. Plats/accompagnements le sont déjà de fait (leur
-  // document source est exclu en amont), mais boissons et combos vivent dans
-  // un document partagé aux deux zones — sans ce filtre, leur moitié
-  // « autre zone » restait visible alors que le reste du jour était à zéro.
   let zPlats = caZogboPlats,
     zAcc = caAccompagnementsZogbo,
-    zCombos = caCombosZogbo,
     zBoissons = caBoissonsZogbo,
     zExtra = caExtraZogbo,
-    zReductions = fromJournal ? ventes.reductionsZogbo : 0;
+    zReductions = ventes.reductionsZogbo,
+    zVarianceBoissons = boissonsTotals?.varianceCountZogbo ?? 0;
   let gPlats = caGbegameyPlats,
     gAcc = caAccompagnementsGbegamey,
-    gCombos = caCombosGbegamey,
     gBoissons = caBoissonsGbegamey,
     gExtra = caExtraGbegamey,
-    gReductions = fromJournal ? ventes.reductionsGbegamey : 0;
+    gReductions = ventes.reductionsGbegamey,
+    gVarianceBoissons = boissonsTotals?.varianceCountGbegamey ?? 0;
   if (scopeSite === "gbegamey") {
-    zPlats = zAcc = zCombos = zBoissons = zExtra = zReductions = 0;
+    zPlats = zAcc = zBoissons = zExtra = zReductions = zVarianceBoissons = 0;
   } else if (scopeSite === "zogbo") {
-    gPlats = gAcc = gCombos = gBoissons = gExtra = gReductions = 0;
+    gPlats = gAcc = gBoissons = gExtra = gReductions = gVarianceBoissons = 0;
   }
+  const varianceBoissons = zVarianceBoissons + gVarianceBoissons;
 
-  const caCombos = zCombos + gCombos;
   const caBoissons = zBoissons + gBoissons;
   const caExtra = zExtra + gExtra;
   const caAccompagnements = zAcc + gAcc;
   const caZogbo =
-    zPlats + zAcc + zCombos + zBoissons + zExtra - Math.max(0, zReductions);
+    zPlats + zAcc + zBoissons + zExtra - Math.max(0, zReductions);
   const caGbegamey =
-    gPlats + gAcc + gCombos + gBoissons + gExtra - Math.max(0, gReductions);
+    gPlats + gAcc + gBoissons + gExtra - Math.max(0, gReductions);
   const caTotal = caZogbo + caGbegamey;
 
   return {
@@ -235,8 +178,6 @@ export function computeDayRevenue(input: {
     caGbegameyPlats: gPlats,
     caAccompagnementsZogbo: zAcc,
     caAccompagnementsGbegamey: gAcc,
-    caCombosZogbo: zCombos,
-    caCombosGbegamey: gCombos,
     caBoissonsZogbo: zBoissons,
     caBoissonsGbegamey: gBoissons,
     caExtraZogbo: zExtra,
@@ -244,7 +185,6 @@ export function computeDayRevenue(input: {
     caZogbo,
     caGbegamey,
     caAccompagnements,
-    caCombos,
     caBoissons,
     caExtra,
     caTotal,
@@ -254,7 +194,6 @@ export function computeDayRevenue(input: {
     margeBoissons,
     hasZogboData,
     hasGbegameyData,
-    hasCombosData,
     hasBoissonsData,
   };
 }
@@ -288,6 +227,8 @@ export function daysInMonth(year: number, month: number): string[] {
 export function emptyChargesBreakdown(): ChargesBreakdown {
   return {
     achatsStock: 0,
+    matieresConsommees: 0,
+    amortissements: 0,
     immobilisations: 0,
     matieresPremieres: 0,
     loyer: 0,
@@ -305,6 +246,8 @@ export function sumChargesBreakdown(days: DayPoint[]): ChargesBreakdown {
     (acc, d) => {
       const c = d.charges;
       acc.achatsStock += Math.max(0, Number(c.achatsStock) || 0);
+      acc.matieresConsommees += Math.max(0, Number(c.matieresConsommees) || 0);
+      acc.amortissements += Math.max(0, Number(c.amortissements) || 0);
       acc.immobilisations += Math.max(0, Number(c.immobilisations) || 0);
       acc.matieresPremieres += Math.max(0, Number(c.matieresPremieres) || 0);
       acc.loyer += Math.max(0, Number(c.loyer) || 0);
@@ -332,7 +275,6 @@ export function sumMonth(days: DayPoint[]): MonthPoint["totals"] {
       acc.caExtraGbegamey += d.caExtraGbegamey;
       acc.caZogbo += d.caZogbo;
       acc.caGbegamey += d.caGbegamey;
-      acc.caCombos += d.caCombos;
       acc.caBoissons += d.caBoissons;
       acc.caTotal += d.caTotal;
       acc.chargesTotal += d.chargesTotal;
@@ -350,7 +292,6 @@ export function sumMonth(days: DayPoint[]): MonthPoint["totals"] {
       caExtraGbegamey: 0,
       caZogbo: 0,
       caGbegamey: 0,
-      caCombos: 0,
       caBoissons: 0,
       caTotal: 0,
       chargesTotal: 0,
@@ -368,7 +309,6 @@ export function buildYearPoint(
     return {
       month: m.month,
       caTotal: m.totals.caTotal,
-      caCombos: m.totals.caCombos,
       caPlatsZogbo: m.totals.caPlatsZogbo,
       caPlatsGbegamey: m.totals.caPlatsGbegamey,
       caAccompagnementsZogbo: m.totals.caAccompagnementsZogbo,
@@ -384,7 +324,6 @@ export function buildYearPoint(
         (d) =>
           d.hasZogboData ||
           d.hasGbegameyData ||
-          d.hasCombosData ||
           d.hasBoissonsData ||
           d.chargesTotal > 0,
       ).length,
@@ -401,9 +340,10 @@ export function buildYearPoint(
       acc.caBoissonsGbegamey += r.caBoissonsGbegamey;
       acc.caExtraZogbo += r.caExtraZogbo;
       acc.caExtraGbegamey += r.caExtraGbegamey;
-      acc.caCombos += r.caCombos;
       acc.caTotal += r.caTotal;
       acc.charges.achatsStock += r.charges.achatsStock;
+      acc.charges.matieresConsommees += r.charges.matieresConsommees;
+      acc.charges.amortissements += r.charges.amortissements;
       acc.charges.immobilisations += r.charges.immobilisations;
       acc.charges.matieresPremieres += r.charges.matieresPremieres;
       acc.charges.loyer += r.charges.loyer;
@@ -427,7 +367,6 @@ export function buildYearPoint(
       caExtraGbegamey: 0,
       caZogbo: 0,
       caGbegamey: 0,
-      caCombos: 0,
       caBoissons: 0,
       caTotal: 0,
       charges: emptyChargesBreakdown(),
@@ -456,7 +395,6 @@ export function dayHasActivity(d: DayPoint): boolean {
   return (
     d.hasZogboData ||
     d.hasGbegameyData ||
-    d.hasCombosData ||
     d.hasBoissonsData ||
     d.chargesTotal > 0
   );
