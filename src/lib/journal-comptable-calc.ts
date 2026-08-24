@@ -174,6 +174,54 @@ export function ecrituresMouvement(input: {
 }
 
 /**
+ * Fraction d’une dépense de caisse qui solde une charge manuelle déjà
+ * passée en classe 6 : débit 4711 / crédit 57, sans second 6.
+ */
+export function splitCaisseDepenseAgainstManual(input: {
+  montant: number;
+  alreadyCharged: number;
+}): { reglement: number; charge: number } {
+  const montant = round(Math.max(0, input.montant));
+  const already = round(Math.max(0, input.alreadyCharged));
+  const reglement = Math.min(montant, already);
+  return { reglement, charge: montant - reglement };
+}
+
+export function ecrituresReglementCharge(input: {
+  date: string;
+  piece: string;
+  libelle: string;
+  caisse: CaisseKeySimple;
+  montant: number;
+}): EcritureComptable[] {
+  const montant = round(input.montant);
+  if (montant <= 0) return [];
+  const caisseCompte = compteCaisse(input.caisse);
+  return [
+    {
+      date: input.date,
+      piece: input.piece,
+      libelle: input.libelle,
+      compte: COMPTES.COMPTE_ATTENTE.numero,
+      compteLibelle: COMPTES.COMPTE_ATTENTE.libelle,
+      debit: montant,
+      credit: 0,
+      confiant: true,
+    },
+    {
+      date: input.date,
+      piece: input.piece,
+      libelle: input.libelle,
+      compte: caisseCompte.numero,
+      compteLibelle: caisseCompte.libelle,
+      debit: 0,
+      credit: montant,
+      confiant: true,
+    },
+  ];
+}
+
+/**
  * Versement entre caisses : un pur mouvement de trésorerie, construit à
  * partir de la jambe « sortie » uniquement (elle porte la caisse de
  * destination dans `contrepartie`) — la jambe « entree » est son miroir et

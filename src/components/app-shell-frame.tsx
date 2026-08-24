@@ -25,6 +25,13 @@ const NAV_ITEMS: {
     groupLabel: "Accueil",
   },
   {
+    href: "/analyse",
+    label: "Analyse",
+    key: "analyse",
+    mark: "A",
+    group: "home",
+  },
+  {
     href: "/compte-resultat",
     label: "Compte de résultat",
     key: "compte-resultat",

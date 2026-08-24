@@ -111,6 +111,7 @@ export function SynthesePage() {
   const [caCumuls, setCaCumuls] = useState<{
     jour: number;
     mois: number;
+    annee?: number;
     total: number;
   } | null>(null);
 
@@ -176,6 +177,7 @@ export function SynthesePage() {
           (body.caCumuls as {
             jour: number;
             mois: number;
+            annee?: number;
             total: number;
           } | null) ?? null,
         );
@@ -251,6 +253,8 @@ export function SynthesePage() {
       ...chargesDraft,
       pertes: day.charges.pertes,
       matieresConsommees: day.charges.matieresConsommees,
+      cmvBoissons: day.charges.cmvBoissons,
+      cmvEmballages: day.charges.cmvEmballages,
       amortissements: day.charges.amortissements,
     });
     return {
@@ -415,7 +419,7 @@ export function SynthesePage() {
                     ? caCumuls.jour
                     : viewMode === "month"
                       ? caCumuls.mois
-                      : caCumuls.total),
+                      : (caCumuls.annee ?? caCumuls.total)),
               )}
             </strong>
             <span className="dash-ca-final-hint">
@@ -780,6 +784,18 @@ function DayDashboard({
       key: "matieresConsommees",
       label: "Matières consommées (CMV)",
       value: day.charges.matieresConsommees ?? 0,
+      color: CHART_COLORS.charges,
+    },
+    {
+      key: "cmvBoissons",
+      label: "CMV boissons",
+      value: day.charges.cmvBoissons ?? 0,
+      color: CHART_COLORS.charges,
+    },
+    {
+      key: "cmvEmballages",
+      label: "CMV emballages",
+      value: day.charges.cmvEmballages ?? 0,
       color: CHART_COLORS.charges,
     },
     {

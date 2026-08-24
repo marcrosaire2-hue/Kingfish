@@ -30,10 +30,15 @@ function immo(over: Partial<Immobilisation> = {}): Immobilisation {
 }
 
 describe("brutAmortissable / valeurNette", () => {
-  it("amortit sur le montant d’acquisition, pas sur la qty après pertes", () => {
+  it("garde le brut d’acquisition figé, même si qty = 0", () => {
     const perdu = immo({ qty: 0 });
     expect(brutAmortissable(perdu)).toBe(250000);
-    expect(valeurNette(perdu, "2026-01-01")).toBe(250000);
+  });
+
+  it("une perte totale (qty 0) annule VNC et dotation, sans réécrire le brut", () => {
+    const perdu = immo({ qty: 0 });
+    expect(valeurNette(perdu, "2026-01-01")).toBe(0);
+    expect(dotationJour(perdu, "2026-01-01")).toBe(0);
   });
 
   it("après un an, la VNC d’un actif 5 ans est les 4/5 du brut", () => {
@@ -60,5 +65,20 @@ describe("dotationJour", () => {
   it("n’amortit pas avant la mise en service ni un emballage", () => {
     expect(dotationJour(immo(), "2025-12-31")).toBe(0);
     expect(dotationJour(immo({ kind: "emballage" }), "2026-06-01")).toBe(0);
+  });
+
+  it("conserve la dotation historique avant inactiveSince, puis s’arrête", () => {
+    const fiche = immo({ inactiveSince: "2026-07-01" });
+    expect(dotationJour(fiche, "2026-06-30")).toBeGreaterThan(0);
+    expect(dotationJour(fiche, "2026-07-01")).toBe(0);
+  });
+
+  it("gèle la VNC à inactiveSince : plus d’amortissement après la sortie", () => {
+    const fiche = immo({ inactiveSince: "2026-07-01" });
+    const vncSortie = valeurNette(fiche, "2026-06-30");
+    expect(valeurNette(fiche, "2026-07-01")).toBe(vncSortie);
+    expect(valeurNette(fiche, "2026-12-31")).toBe(vncSortie);
+    expect(vncSortie).toBeGreaterThan(0);
+    expect(vncSortie).toBeLessThan(250000);
   });
 });

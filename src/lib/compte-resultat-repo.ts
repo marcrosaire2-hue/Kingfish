@@ -4,7 +4,12 @@ import {
   type CaisseDepensesRecettesRow,
 } from "@/lib/caisse-repo";
 import { sumMatieresPurchasesForDate } from "@/lib/matieres-repo";
+import {
+  allocatedReductionsByProduct,
+  productNetKey,
+} from "@/lib/ca-allocation";
 import { getDb } from "@/lib/mongodb";
+import type { PosTicket } from "@/lib/types";
 import {
   getDayPoint,
   getMonthPoint,
@@ -108,7 +113,7 @@ export async function listDetailProduits(input: {
   if (input.scopeSite) match.site = input.scopeSite;
 
   const siteFilter = input.scopeSite ? { site: input.scopeSite } : {};
-  const [rows, redRows, grossRows] = await Promise.all([
+  const [rows, tickets] = await Promise.all([
     db
       .collection("ventes_log")
       .aggregate<{
@@ -136,47 +141,41 @@ export async function listDetailProduits(input: {
       ])
       .toArray(),
     db
-      .collection("pos_tickets")
-      .aggregate<{ total: number }>([
-        {
-          $match: {
-            date: { $gte: input.dateFrom, $lte: input.dateTo },
-            statut: "valide",
-            reduction: { $gt: 0 },
-            ...siteFilter,
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$reduction" } } },
-      ])
-      .toArray(),
-    db
-      .collection("ventes_log")
-      .aggregate<{ ca: number }>([
-        {
-          $match: caActifMatch({
-            date: { $gte: input.dateFrom, $lte: input.dateTo },
-            kind: { $ne: "combo" },
-            ...siteFilter,
-          }),
-        },
-        { $group: { _id: null, ca: { $sum: "$amount" } } },
-      ])
+      .collection<PosTicket>("pos_tickets")
+      .find({
+        date: { $gte: input.dateFrom, $lte: input.dateTo },
+        statut: "valide",
+        reduction: { $gt: 0 },
+        ...siteFilter,
+      }, { projection: { reduction: 1, lines: 1 } })
       .toArray(),
   ]);
 
-  const gross = Number(grossRows[0]?.ca) || 0;
-  const red = Number(redRows[0]?.total) || 0;
-  const ratio = gross > 0 ? Math.max(0, gross - red) / gross : 1;
+  const redByProduct = allocatedReductionsByProduct(
+    tickets.map((t) => ({
+      reduction: Number(t.reduction) || 0,
+      lines: (t.lines ?? []).map((l) => ({
+        productId: String(l.productId || ""),
+        kind: String(l.kind || "extra"),
+        amount: Number(l.amount) || 0,
+      })),
+    })),
+  );
 
-  return rows.map((r) => ({
-    site: String(r._id.site || ""),
-    kind: String(r._id.kind || "extra"),
-    productId: String(r._id.productId || ""),
-    name: String(r.name || "Sans nom"),
-    qty: Number(r.qty) || 0,
-    amount: Math.round((Number(r.amount) || 0) * ratio),
-    tickets: Number(r.tickets) || 0,
-  }));
+  return rows.map((r) => {
+    const kind = String(r._id.kind || "extra");
+    const productId = String(r._id.productId || "");
+    const allocated = redByProduct.get(productNetKey(kind, productId)) ?? 0;
+    return {
+      site: String(r._id.site || ""),
+      kind,
+      productId,
+      name: String(r.name || "Sans nom"),
+      qty: Number(r.qty) || 0,
+      amount: Math.max(0, Math.round((Number(r.amount) || 0) - allocated)),
+      tickets: Number(r.tickets) || 0,
+    };
+  });
 }
 
 export async function getCompteResultatDay(

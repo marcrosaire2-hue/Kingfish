@@ -12,6 +12,7 @@ import type {
   YearPoint,
   ZogboDay,
 } from "@/lib/types";
+import { netAfterProrate } from "@/lib/ca-allocation";
 import { computeBoissonsDay } from "@/lib/boissons-calc";
 import { computeGbegameyDay } from "@/lib/gbegamey-calc";
 import { computeZogboDay } from "@/lib/zogbo-calc";
@@ -28,23 +29,34 @@ export function emptyCharges(date: string): DayCharges {
     pertes: 0,
     achatsStock: 0,
     matieresConsommees: 0,
+    cmvBoissons: 0,
+    cmvEmballages: 0,
     amortissements: 0,
     immobilisations: 0,
     updatedAt: null,
   };
 }
 
+/**
+ * CMV stock (matières consommées) est la source normative dès qu’il est
+ * renseigné : la saisie manuelle « matières premières » ne s’y additionne
+ * plus, pour éviter de compter deux fois la même consommation.
+ */
 export function chargesTotal(c: DayCharges): number {
+  const cmvMatieres = Math.max(0, Number(c.matieresConsommees) || 0);
+  const mpManuelle =
+    cmvMatieres > 0 ? 0 : Math.max(0, Number(c.matieresPremieres) || 0);
   return (
-    c.matieresPremieres +
+    mpManuelle +
     c.loyer +
     c.salaires +
     c.electricite +
     c.carburant +
     c.reparations +
     Math.max(0, Number(c.pertes) || 0) +
-    // CMV : matières sorties du stock, pas les achats encore en réserve.
-    Math.max(0, Number(c.matieresConsommees) || 0) +
+    cmvMatieres +
+    Math.max(0, Number(c.cmvBoissons) || 0) +
+    Math.max(0, Number(c.cmvEmballages) || 0) +
     Math.max(0, Number(c.amortissements) || 0)
   );
 }
@@ -164,26 +176,37 @@ export function computeDayRevenue(input: {
   }
   const varianceBoissons = zVarianceBoissons + gVarianceBoissons;
 
-  const caBoissons = zBoissons + gBoissons;
-  const caExtra = zExtra + gExtra;
-  const caAccompagnements = zAcc + gAcc;
-  const caZogbo =
-    zPlats + zAcc + zBoissons + zExtra - Math.max(0, zReductions);
-  const caGbegamey =
-    gPlats + gAcc + gBoissons + gExtra - Math.max(0, gReductions);
+  const zRed = Math.max(0, zReductions);
+  const gRed = Math.max(0, gReductions);
+  const [nzPlats, nzAcc, nzBoissons, nzExtra] = netAfterProrate(
+    [zPlats, zAcc, zBoissons, zExtra],
+    zRed,
+  );
+  const [ngPlats, ngAcc, ngBoissons, ngExtra] = netAfterProrate(
+    [gPlats, gAcc, gBoissons, gExtra],
+    gRed,
+  );
+
+  const caBoissons = nzBoissons + ngBoissons;
+  const caExtra = nzExtra + ngExtra;
+  const caAccompagnements = nzAcc + ngAcc;
+  const caZogbo = nzPlats + nzAcc + nzBoissons + nzExtra;
+  const caGbegamey = ngPlats + ngAcc + ngBoissons + ngExtra;
   const caTotal = caZogbo + caGbegamey;
 
   return {
-    caZogboPlats: zPlats,
-    caGbegameyPlats: gPlats,
-    caAccompagnementsZogbo: zAcc,
-    caAccompagnementsGbegamey: gAcc,
-    caBoissonsZogbo: zBoissons,
-    caBoissonsGbegamey: gBoissons,
-    caExtraZogbo: zExtra,
-    caExtraGbegamey: gExtra,
+    caZogboPlats: nzPlats,
+    caGbegameyPlats: ngPlats,
+    caAccompagnementsZogbo: nzAcc,
+    caAccompagnementsGbegamey: ngAcc,
+    caBoissonsZogbo: nzBoissons,
+    caBoissonsGbegamey: ngBoissons,
+    caExtraZogbo: nzExtra,
+    caExtraGbegamey: ngExtra,
     caZogbo,
     caGbegamey,
+    caReductionsZogbo: zRed,
+    caReductionsGbegamey: gRed,
     caAccompagnements,
     caBoissons,
     caExtra,
@@ -228,6 +251,8 @@ export function emptyChargesBreakdown(): ChargesBreakdown {
   return {
     achatsStock: 0,
     matieresConsommees: 0,
+    cmvBoissons: 0,
+    cmvEmballages: 0,
     amortissements: 0,
     immobilisations: 0,
     matieresPremieres: 0,
@@ -247,9 +272,14 @@ export function sumChargesBreakdown(days: DayPoint[]): ChargesBreakdown {
       const c = d.charges;
       acc.achatsStock += Math.max(0, Number(c.achatsStock) || 0);
       acc.matieresConsommees += Math.max(0, Number(c.matieresConsommees) || 0);
+      acc.cmvBoissons += Math.max(0, Number(c.cmvBoissons) || 0);
+      acc.cmvEmballages += Math.max(0, Number(c.cmvEmballages) || 0);
       acc.amortissements += Math.max(0, Number(c.amortissements) || 0);
       acc.immobilisations += Math.max(0, Number(c.immobilisations) || 0);
-      acc.matieresPremieres += Math.max(0, Number(c.matieresPremieres) || 0);
+      acc.matieresPremieres +=
+        Math.max(0, Number(c.matieresConsommees) || 0) > 0
+          ? 0
+          : Math.max(0, Number(c.matieresPremieres) || 0);
       acc.loyer += Math.max(0, Number(c.loyer) || 0);
       acc.salaires += Math.max(0, Number(c.salaires) || 0);
       acc.electricite += Math.max(0, Number(c.electricite) || 0);
@@ -343,6 +373,8 @@ export function buildYearPoint(
       acc.caTotal += r.caTotal;
       acc.charges.achatsStock += r.charges.achatsStock;
       acc.charges.matieresConsommees += r.charges.matieresConsommees;
+      acc.charges.cmvBoissons += r.charges.cmvBoissons;
+      acc.charges.cmvEmballages += r.charges.cmvEmballages;
       acc.charges.amortissements += r.charges.amortissements;
       acc.charges.immobilisations += r.charges.immobilisations;
       acc.charges.matieresPremieres += r.charges.matieresPremieres;

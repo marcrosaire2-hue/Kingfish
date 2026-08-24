@@ -528,6 +528,20 @@ export type ShiftRangeSummary = {
   totals: Record<UserShift, number> & { total: number };
 };
 
+/** Retranche les réductions POS du CA brut par jour et équipe (CA net). */
+export function applyShiftReductions(
+  byDate: Map<string, Record<UserShift, number>>,
+  reductions: Map<string, Record<UserShift, number>>,
+): void {
+  for (const [date, byShift] of reductions) {
+    const bucket = byDate.get(date) ?? { jour: 0, nuit: 0, aucune: 0 };
+    bucket.jour -= byShift.jour;
+    bucket.nuit -= byShift.nuit;
+    bucket.aucune -= byShift.aucune;
+    byDate.set(date, bucket);
+  }
+}
+
 /** CA réparti par équipe sur une période — une ligne par jour ouvert. */
 export async function sumCaByShiftRange(
   from: string,
@@ -566,6 +580,9 @@ export async function sumCaByShiftRange(
     bucket[shift] += row.total;
     byDate.set(date, bucket);
   }
+
+  const reductions = await sumPosReductionsByShiftRange(from, to, site);
+  applyShiftReductions(byDate, reductions);
 
   const days: ShiftDayRow[] = [];
   const totals: Record<UserShift, number> = { jour: 0, nuit: 0, aucune: 0 };
@@ -633,6 +650,44 @@ export async function sumPosReductionsByShift(
   const out: Record<UserShift, number> = { jour: 0, nuit: 0, aucune: 0 };
   for (const row of rows) {
     out[effectiveShift(row._id)] += row.total;
+  }
+  return out;
+}
+
+/** Réductions POS d’une période, groupées par jour et équipe du ticket. */
+export async function sumPosReductionsByShiftRange(
+  from: string,
+  to: string,
+  site: VenteSite | "all",
+): Promise<Map<string, Record<UserShift, number>>> {
+  const db = await getDb();
+  const match: Record<string, unknown> = {
+    date: { $gte: from, $lte: to },
+    statut: "valide",
+    reduction: { $gt: 0 },
+  };
+  if (site !== "all") match.site = site;
+  const rows = await db
+    .collection("pos_tickets")
+    .aggregate<{
+      _id: { date: string; shift: UserShift | null };
+      total: number;
+    }>([
+      { $match: match },
+      {
+        $group: {
+          _id: { date: "$date", shift: "$shift" },
+          total: { $sum: "$reduction" },
+        },
+      },
+    ])
+    .toArray();
+  const out = new Map<string, Record<UserShift, number>>();
+  for (const row of rows) {
+    const date = row._id.date;
+    const bucket = out.get(date) ?? { jour: 0, nuit: 0, aucune: 0 };
+    bucket[effectiveShift(row._id.shift)] += row.total;
+    out.set(date, bucket);
   }
   return out;
 }
@@ -1299,8 +1354,14 @@ export async function recordExtraVente(input: {
     input.immobilisationId && ObjectId.isValid(input.immobilisationId)
       ? input.immobilisationId
       : null;
+  let costPrice = 0;
   if (immoId) {
-    await adjustImmobilisationQty({ id: immoId, delta: qty, siteScope: input.site });
+    const { cost } = await adjustImmobilisationQty({
+      id: immoId,
+      delta: qty,
+      siteScope: input.site,
+    });
+    costPrice = Math.max(0, Math.round(Number(cost) || 0));
   }
 
   const at = new Date().toISOString();
@@ -1317,7 +1378,7 @@ export async function recordExtraVente(input: {
       name: description,
       qty,
       unitPrice,
-      costPrice: 0,
+      costPrice,
       amount: qty * unitPrice,
       at,
       cancelledAt: null,

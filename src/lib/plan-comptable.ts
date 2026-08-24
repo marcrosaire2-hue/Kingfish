@@ -24,6 +24,11 @@ export const COMPTES = {
 
   // Classe 3 — Stocks
   STOCK_MATIERES: { numero: "31", libelle: "Stocks de matières premières" },
+  STOCK_BOISSONS: { numero: "32", libelle: "Stocks de boissons" },
+  STOCK_EMBALLAGES: {
+    numero: "323",
+    libelle: "Stocks d’emballages commerciaux",
+  },
 
   // Classe 4 — Tiers
   COMPTE_ATTENTE: {
@@ -38,6 +43,8 @@ export const COMPTES = {
 
   // Classe 6 — Charges des activités ordinaires
   ACHATS_MATIERES: { numero: "601", libelle: "Achats de matières premières" },
+  ACHATS_BOISSONS: { numero: "602", libelle: "Achats de boissons (CMV)" },
+  ACHATS_EMBALLAGES: { numero: "604", libelle: "Achats d’emballages (CMV)" },
   DOTATIONS_AMORT: {
     numero: "6811",
     libelle: "Dotations aux amortissements",

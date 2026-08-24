@@ -19,6 +19,7 @@ export function emptyMatieresLine(
     pertes: 0,
     counted: null,
     observations: "",
+    unitCost: 0,
   };
 }
 
@@ -37,6 +38,7 @@ export function normalizeMatieresLine(
         ? null
         : Math.max(0, Number(line.counted) || 0),
     observations: String(line.observations ?? ""),
+    unitCost: Math.max(0, Number(line.unitCost) || 0),
   };
 }
 
@@ -138,8 +140,15 @@ export function applyMatieresPurchaseToState(
   if (idx < 0) throw new Error("Matière introuvable");
 
   const line = normalizeMatieresLine(lines[idx]!);
+  const prevQty = stockOf(line);
+  const incoming = unitPrice;
+  const prevCost =
+    line.unitCost && line.unitCost > 0 ? line.unitCost : incoming;
   const purchases = line.purchases + qty;
-  const nextLine = { ...line, purchases };
+  const nextQty = prevQty + qty;
+  const unitCost =
+    nextQty > 0 ? (prevQty * prevCost + qty * incoming) / nextQty : incoming;
+  const nextLine = { ...line, purchases, unitCost };
   const stockAfter = stockOf(nextLine);
 
   const movement: MatieresMovement = {
@@ -410,4 +419,71 @@ export function computeMatieresDay(
     lines,
     alerts: lines.filter((l) => l.belowThreshold),
   };
+}
+
+/**
+ * Coût unitaire d’une ligne : CUMP stocké, sinon moyenne des achats du jour,
+ * sinon prix catalogue (données anciennes sans historique).
+ */
+export function unitCostOfMatieresLine(
+  line: MatieresLine,
+  movements: MatieresMovement[] | undefined,
+  catalogPrice: number,
+): number {
+  const stored = Math.max(0, Number(line.unitCost) || 0);
+  if (stored > 0) return stored;
+  const purchases = (movements ?? []).filter(
+    (m) =>
+      m.productId === line.productId &&
+      !m.cancelledAt &&
+      (m.type === "purchase" || m.type === "autre") &&
+      (Number(m.unitPrice) || 0) > 0,
+  );
+  const qty = purchases.reduce((s, m) => s + (Number(m.qty) || 0), 0);
+  const val = purchases.reduce(
+    (s, m) => s + (Number(m.qty) || 0) * (Number(m.unitPrice) || 0),
+    0,
+  );
+  if (qty > 0) return val / qty;
+  return Math.max(0, Number(catalogPrice) || 0);
+}
+
+export function valueMatieresConsumed(
+  lines: MatieresLine[] | undefined,
+  movements: MatieresMovement[] | undefined,
+  catalogPriceById: Map<string, number>,
+): number {
+  let total = 0;
+  for (const raw of lines ?? []) {
+    const line = normalizeMatieresLine(raw);
+    const consumed = Math.max(0, Number(line.consumed) || 0);
+    if (consumed <= 0) continue;
+    const cost = unitCostOfMatieresLine(
+      line,
+      movements,
+      catalogPriceById.get(line.productId) ?? 0,
+    );
+    total += consumed * cost;
+  }
+  return Math.round(total);
+}
+
+export function valueMatieresLinePertes(
+  lines: MatieresLine[] | undefined,
+  movements: MatieresMovement[] | undefined,
+  catalogPriceById: Map<string, number>,
+): number {
+  let total = 0;
+  for (const raw of lines ?? []) {
+    const line = normalizeMatieresLine(raw);
+    const pertes = Math.max(0, Number(line.pertes) || 0);
+    if (pertes <= 0) continue;
+    const cost = unitCostOfMatieresLine(
+      line,
+      movements,
+      catalogPriceById.get(line.productId) ?? 0,
+    );
+    total += pertes * cost;
+  }
+  return Math.round(total);
 }

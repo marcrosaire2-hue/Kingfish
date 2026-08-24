@@ -1,7 +1,15 @@
 import { getDb } from "@/lib/mongodb";
+import { shiftIsoDate } from "@/lib/zogbo-calc";
 import { sumAmortissementsByDate } from "@/lib/immobilisations-repo";
 import { getParametres } from "@/lib/parametres-repo";
 import { sumPertesCost } from "@/lib/pertes-repo";
+import {
+  allocatedReductionsByProduct,
+  allocatedReductionsBySite,
+  productNetKey,
+} from "@/lib/ca-allocation";
+import type { PosTicket } from "@/lib/types";
+import { valueMatieresConsumed } from "@/lib/matieres-calc";
 import type {
   BoissonsDay,
   DayCharges,
@@ -76,6 +84,19 @@ function toCharges(doc: ChargesDoc | null, date: string): DayCharges {
     carburant: Number(doc.carburant) || 0,
     reparations: Number(doc.reparations) || 0,
     updatedAt: doc.updatedAt ?? null,
+  };
+}
+
+/** Loyer, salaires… sont des charges de la maison, pas d’une zone. */
+function stripMaisonCharges(c: DayCharges): DayCharges {
+  return {
+    ...c,
+    matieresPremieres: 0,
+    loyer: 0,
+    salaires: 0,
+    electricite: 0,
+    carburant: 0,
+    reparations: 0,
   };
 }
 
@@ -163,20 +184,77 @@ async function withMatieresConsommees(
   );
   const db = await getDb();
   const docs = await db
-    .collection<{ _id: string; lines?: MatieresLine[] }>("matieres_jours")
+    .collection<{
+      _id: string;
+      lines?: MatieresLine[];
+      movements?: MatieresMovement[];
+    }>("matieres_jours")
     .find({ _id: { $gte: start, $lte: end } })
     .toArray();
   for (const doc of docs) {
-    const total = (doc.lines ?? []).reduce((s, line) => {
-      const price = priceById.get(line.productId) ?? 0;
-      return s + Math.max(0, Number(line.consumed) || 0) * price;
-    }, 0);
+    const total = valueMatieresConsumed(
+      doc.lines,
+      doc.movements,
+      priceById,
+    );
     if (total <= 0) continue;
     const existante = charges.get(doc._id) ?? emptyCharges(doc._id);
     charges.set(doc._id, {
       ...existante,
-      matieresConsommees: Math.round(total),
+      matieresConsommees: total,
     });
+  }
+  return charges;
+}
+
+async function withCmvFromVentes(
+  charges: Map<string, DayCharges>,
+  start: string,
+  end: string,
+  scopeSite?: VenteSite | null,
+): Promise<Map<string, DayCharges>> {
+  const db = await getDb();
+  const match: Record<string, unknown> = {
+    date: { $gte: start, $lte: end },
+    cancelledAt: null,
+    caExcluded: { $ne: true },
+    kind: { $in: ["boisson", "extra"] },
+  };
+  if (scopeSite) match.site = scopeSite;
+  const rows = await db
+    .collection("ventes_log")
+    .aggregate<{ _id: { date: string; kind: string }; cost: number }>([
+      { $match: match },
+      {
+        $group: {
+          _id: { date: "$date", kind: "$kind" },
+          cost: {
+            $sum: {
+              $multiply: [
+                { $ifNull: ["$qty", 0] },
+                { $ifNull: ["$costPrice", 0] },
+              ],
+            },
+          },
+        },
+      },
+    ])
+    .toArray();
+  for (const row of rows) {
+    const cost = Math.max(0, Math.round(Number(row.cost) || 0));
+    if (cost <= 0) continue;
+    const existante = charges.get(row._id.date) ?? emptyCharges(row._id.date);
+    if (row._id.kind === "boisson") {
+      charges.set(row._id.date, {
+        ...existante,
+        cmvBoissons: (existante.cmvBoissons ?? 0) + cost,
+      });
+    } else if (row._id.kind === "extra") {
+      charges.set(row._id.date, {
+        ...existante,
+        cmvEmballages: (existante.cmvEmballages ?? 0) + cost,
+      });
+    }
   }
   return charges;
 }
@@ -354,7 +432,14 @@ export async function getProductRanking(
     boissons: emptyPair(),
   };
 
-  const [productRows, siteRows, redRows, grossRows] = await Promise.all([
+  const ticketMatch: Record<string, unknown> = {
+    statut: "valide",
+    reduction: { $gt: 0 },
+  };
+  if (match.date) ticketMatch.date = match.date;
+  if (match.site) ticketMatch.site = match.site;
+
+  const [productRows, siteRows, tickets] = await Promise.all([
     db
       .collection("ventes_log")
       .aggregate<ProductAgg>([
@@ -391,47 +476,58 @@ export async function getProductRanking(
       ])
       .toArray(),
     db
-      .collection("pos_tickets")
-      .aggregate<{ total: number }>([
-        {
-          $match: {
-            statut: "valide",
-            reduction: { $gt: 0 },
-            ...(match.date ? { date: match.date } : {}),
-            ...(match.site ? { site: match.site } : {}),
-          },
-        },
-        { $group: { _id: null, total: { $sum: "$reduction" } } },
-      ])
-      .toArray(),
-    db
-      .collection("ventes_log")
-      .aggregate<{ ca: number }>([
-        { $match: caActifMatch(match) },
-        { $group: { _id: null, ca: { $sum: "$amount" } } },
-      ])
+      .collection<PosTicket>("pos_tickets")
+      .find(ticketMatch, { projection: { site: 1, reduction: 1, lines: 1 } })
       .toArray(),
   ]);
 
-  const gross = Number(grossRows[0]?.ca) || 0;
-  const red = Number(redRows[0]?.total) || 0;
-  const ratio = gross > 0 ? Math.max(0, gross - red) / gross : 1;
+  const redByProduct = allocatedReductionsByProduct(
+    tickets.map((t) => ({
+      reduction: Number(t.reduction) || 0,
+      lines: (t.lines ?? []).map((l) => ({
+        productId: String(l.productId || ""),
+        kind: String(l.kind || "extra"),
+        amount: Number(l.amount) || 0,
+      })),
+    })),
+  );
+  const redBySite = allocatedReductionsBySite(
+    tickets.map((t) => ({
+      site: String(t.site || ""),
+      reduction: Number(t.reduction) || 0,
+    })),
+  );
 
-  const all: ProductRank[] = productRows.map((r) => ({
-    productId: String(r._id.productId ?? ""),
-    name: String(r.name || "Sans nom"),
-    kind: String(r._id.kind || "extra"),
-    qty: Number(r.qty) || 0,
-    ca: Math.round((Number(r.ca) || 0) * ratio),
-  }));
+  const all: ProductRank[] = productRows.map((r) => {
+    const kind = String(r._id.kind || "extra");
+    const productId = String(r._id.productId ?? "");
+    const allocated = redByProduct.get(productNetKey(kind, productId)) ?? 0;
+    return {
+      productId,
+      name: String(r.name || "Sans nom"),
+      kind,
+      qty: Number(r.qty) || 0,
+      ca: Math.max(0, Math.round((Number(r.ca) || 0) - allocated)),
+    };
+  });
+  all.sort((a, b) => b.ca - a.ca || b.qty - a.qty);
 
-  const sites: SiteRank[] = siteRows.map((r) => ({
-    site: String(r._id || ""),
-    label:
-      r._id === "zogbo" ? "Zogbo" : r._id === "gbegamey" ? "Gbégamey" : String(r._id),
-    qty: Number(r.qty) || 0,
-    ca: Math.round((Number(r.ca) || 0) * ratio),
-  }));
+  const sites: SiteRank[] = siteRows.map((r) => {
+    const site = String(r._id || "");
+    const allocated = redBySite.get(site) ?? 0;
+    return {
+      site,
+      label:
+        site === "zogbo"
+          ? "Zogbo"
+          : site === "gbegamey"
+            ? "Gbégamey"
+            : site,
+      qty: Number(r.qty) || 0,
+      ca: Math.max(0, Math.round((Number(r.ca) || 0) - allocated)),
+    };
+  });
+  sites.sort((a, b) => b.ca - a.ca);
 
   if (all.length === 0) return { ...empty, sites };
 
@@ -525,6 +621,32 @@ export async function getVenteCancelNotice(
   };
 }
 
+/** Dernier jour calendaire du mois (YYYY-MM), y compris février bissextile. */
+export function lastIsoDayOfMonth(yearMonth: string): string {
+  const [yearRaw, monthRaw] = yearMonth.split("-");
+  const year = Number(yearRaw);
+  const month = Number(monthRaw);
+  const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  return `${yearMonth}-${String(last).padStart(2, "0")}`;
+}
+
+/** Fenêtres de cumul calées sur la date de vue, pas sur aujourd’hui. */
+export function caCumulWindows(date: string): {
+  monthStart: string;
+  monthEnd: string;
+  yearStart: string;
+  yearEnd: string;
+} {
+  const monthPrefix = date.slice(0, 7);
+  const yearPrefix = date.slice(0, 4);
+  return {
+    monthStart: `${monthPrefix}-01`,
+    monthEnd: lastIsoDayOfMonth(monthPrefix),
+    yearStart: `${yearPrefix}-01-01`,
+    yearEnd: `${yearPrefix}-12-31`,
+  };
+}
+
 /** Cumuls CA final hors annulées / en cours (jour / mois / historique). */
 export async function getCaCumuls(
   date: string,
@@ -532,12 +654,14 @@ export async function getCaCumuls(
 ): Promise<{
   jour: number;
   mois: number;
+  annee: number;
   total: number;
 }> {
   const db = await getDb();
-  const monthPrefix = date.slice(0, 7);
+  const { monthStart, monthEnd, yearStart, yearEnd } = caCumulWindows(date);
   const siteFilter = scopeSite ? { site: scopeSite } : {};
-  const [jour, mois, total, redJour, redMois, redTotal] = await Promise.all([
+  const [jour, mois, annee, total, redJour, redMois, redAnnee, redTotal] =
+    await Promise.all([
     db
       .collection("ventes_log")
       .aggregate<{ ca: number }>([
@@ -550,7 +674,19 @@ export async function getCaCumuls(
       .aggregate<{ ca: number }>([
         {
           $match: caActifMatch({
-            date: { $gte: `${monthPrefix}-01`, $lte: `${monthPrefix}-31` },
+            date: { $gte: monthStart, $lte: monthEnd },
+            ...siteFilter,
+          }),
+        },
+        { $group: { _id: null, ca: { $sum: "$amount" } } },
+      ])
+      .toArray(),
+    db
+      .collection("ventes_log")
+      .aggregate<{ ca: number }>([
+        {
+          $match: caActifMatch({
+            date: { $gte: yearStart, $lte: yearEnd },
             ...siteFilter,
           }),
         },
@@ -583,7 +719,21 @@ export async function getCaCumuls(
       .aggregate<{ total: number }>([
         {
           $match: {
-            date: { $gte: `${monthPrefix}-01`, $lte: `${monthPrefix}-31` },
+            date: { $gte: monthStart, $lte: monthEnd },
+            statut: "valide",
+            reduction: { $gt: 0 },
+            ...siteFilter,
+          },
+        },
+        { $group: { _id: null, total: { $sum: "$reduction" } } },
+      ])
+      .toArray(),
+    db
+      .collection("pos_tickets")
+      .aggregate<{ total: number }>([
+        {
+          $match: {
+            date: { $gte: yearStart, $lte: yearEnd },
             statut: "valide",
             reduction: { $gt: 0 },
             ...siteFilter,
@@ -609,6 +759,7 @@ export async function getCaCumuls(
   return {
     jour: (Number(jour[0]?.ca) || 0) - (Number(redJour[0]?.total) || 0),
     mois: (Number(mois[0]?.ca) || 0) - (Number(redMois[0]?.total) || 0),
+    annee: (Number(annee[0]?.ca) || 0) - (Number(redAnnee[0]?.total) || 0),
     total: (Number(total[0]?.ca) || 0) - (Number(redTotal[0]?.total) || 0),
   };
 }
@@ -660,10 +811,22 @@ async function loadMaps(
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
     charges: await withAmortissements(
-      await withMatieresConsommees(
-        await withAchatsStock(
-          await withPertes(
-            new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+      await withCmvFromVentes(
+        await withMatieresConsommees(
+          await withAchatsStock(
+            await withPertes(
+              new Map(
+                chargesDocs.map((d) => [
+                  d._id,
+                  scopeSite
+                    ? stripMaisonCharges(toCharges(d, d._id))
+                    : toCharges(d, d._id),
+                ]),
+              ),
+              dates[0]!,
+              dates[dates.length - 1]!,
+              scopeSite,
+            ),
             dates[0]!,
             dates[dates.length - 1]!,
             scopeSite,
@@ -726,10 +889,22 @@ async function loadRange(
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
     charges: await withAmortissements(
-      await withMatieresConsommees(
-        await withAchatsStock(
-          await withPertes(
-            new Map(chargesDocs.map((d) => [d._id, toCharges(d, d._id)])),
+      await withCmvFromVentes(
+        await withMatieresConsommees(
+          await withAchatsStock(
+            await withPertes(
+              new Map(
+                chargesDocs.map((d) => [
+                  d._id,
+                  scopeSite
+                    ? stripMaisonCharges(toCharges(d, d._id))
+                    : toCharges(d, d._id),
+                ]),
+              ),
+              start,
+              end,
+              scopeSite,
+            ),
             start,
             end,
             scopeSite,
@@ -812,6 +987,24 @@ export async function getYearPoint(
   }
 
   return buildYearPoint(year, months);
+}
+
+/** Jours d’une plage [from, to], mêmes règles que le jour / le mois (G1–G16). */
+export async function getPointsInRange(
+  from: string,
+  to: string,
+  scopeSite?: VenteSite | null,
+): Promise<DayPoint[]> {
+  const dates: string[] = [];
+  let cursor: string | null = from;
+  while (cursor && cursor <= to) {
+    dates.push(cursor);
+    cursor = shiftIsoDate(cursor, 1);
+  }
+  if (dates.length === 0) return [];
+  const parametres = await getParametres();
+  const maps = await loadRange(from, to, scopeSite);
+  return pointsFromDates(dates, parametres, maps, scopeSite);
 }
 
 export async function saveDayCharges(

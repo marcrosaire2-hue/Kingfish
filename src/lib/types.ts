@@ -299,10 +299,14 @@ export type DayCharges = {
    */
   achatsStock?: number;
   /**
-   * Coût des matières consommées (qty consommée × prix d’achat), hors
-   * achats encore en stock. Calcule le CMV du jour.
+   * Coût des matières consommées (qty consommée × coût historique), hors
+   * achats encore en stock. Calcule le CMV matières du jour.
    */
   matieresConsommees?: number;
+  /** CMV boissons vendues (qty × costPrice figé à la vente). */
+  cmvBoissons?: number;
+  /** CMV emballages vendus (qty × coût de la fiche). */
+  cmvEmballages?: number;
   /**
    * Dotation d’amortissement du jour (actifs avec durée d’utilité).
    */
@@ -333,6 +337,9 @@ export type DayRevenue = {
   caZogbo: number;
   /** Point zone Gbégamey = plats + accompagnements + boissons + extra − réductions */
   caGbegamey: number;
+  /** Réductions POS déjà imputées aux lignes de CA (info, non additionnée). */
+  caReductionsZogbo: number;
+  caReductionsGbegamey: number;
   caAccompagnements: number;
   caBoissons: number;
   caExtra: number;
@@ -495,6 +502,8 @@ export type MonthPoint = {
 export type ChargesBreakdown = {
   achatsStock: number;
   matieresConsommees: number;
+  cmvBoissons: number;
+  cmvEmballages: number;
   amortissements: number;
   immobilisations: number;
   matieresPremieres: number;
@@ -652,6 +661,11 @@ export type Immobilisation = {
   acquisitionQty?: number;
   /** Montant figé à l’acquisition (base d’amortissement). */
   acquisitionAmount?: number;
+  /**
+   * Date (YYYY-MM-DD) à partir de laquelle une fiche inactive ne produit
+   * plus de dotation. L’amortissement antérieur reste dû.
+   */
+  inactiveSince?: string | null;
 };
 
 /** Modules comptables avancés, désactivés par défaut — activables par marc. */
@@ -843,6 +857,8 @@ export type MatieresLine = {
   pertes: number;
   counted: number | null;
   observations: string;
+  /** Coût unitaire de stock (CUMP) — valorise consommations et pertes. */
+  unitCost?: number;
 };
 
 export type MatieresMovement = {

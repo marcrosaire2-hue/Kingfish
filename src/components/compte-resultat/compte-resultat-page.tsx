@@ -173,13 +173,24 @@ function chargesLinesFromBreakdown(
       kind: "item",
     },
     {
+      label: "CMV boissons",
+      amount: c.cmvBoissons ?? 0,
+      kind: "item",
+    },
+    {
+      label: "CMV emballages",
+      amount: c.cmvEmballages ?? 0,
+      kind: "item",
+    },
+    {
       label: "Dotations aux amortissements",
       amount: c.amortissements,
       kind: "item",
     },
     {
       label: "Achats matières premières (hors registre)",
-      amount: c.matieresPremieres,
+      amount:
+        (c.matieresConsommees ?? 0) > 0 ? 0 : c.matieresPremieres,
       kind: "item",
     },
     { label: "Charge locative", amount: c.loyer, kind: "item" },
@@ -205,6 +216,8 @@ function buildDayStatement(day: DayPoint, date: string): Statement {
   const charges: ChargesBreakdown = {
     achatsStock: day.charges.achatsStock ?? 0,
     matieresConsommees: day.charges.matieresConsommees ?? 0,
+    cmvBoissons: day.charges.cmvBoissons ?? 0,
+    cmvEmballages: day.charges.cmvEmballages ?? 0,
     amortissements: day.charges.amortissements ?? 0,
     immobilisations: day.charges.immobilisations ?? 0,
     matieresPremieres: day.charges.matieresPremieres,

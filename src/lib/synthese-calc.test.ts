@@ -52,8 +52,22 @@ describe("chargesTotal", () => {
     expect(chargesTotal({ ...base, amortissements: 1200 })).toBe(1200);
   });
 
-  it("une journée vierge ne coûte rien", () => {
-    expect(chargesTotal(emptyCharges("2026-08-12"))).toBe(0);
+  it("n’additionne pas la saisie manuelle matières si le CMV stock est présent", () => {
+    const base = emptyCharges("2026-08-12");
+    expect(
+      chargesTotal({
+        ...base,
+        matieresPremieres: 10000,
+        matieresConsommees: 8000,
+      }),
+    ).toBe(8000);
+  });
+
+  it("inclut le CMV boissons et emballages dans le résultat", () => {
+    const base = emptyCharges("2026-08-12");
+    expect(
+      chargesTotal({ ...base, cmvBoissons: 1500, cmvEmballages: 400 }),
+    ).toBe(1900);
   });
 });
 
@@ -109,6 +123,12 @@ describe("computeDayRevenue — étanchéité des comptes verrouillés sur une z
     });
     expect(r.caZogbo).toBe(6000);
     expect(r.caTotal).toBe(6000);
+    expect(
+      r.caZogboPlats +
+        r.caAccompagnementsZogbo +
+        r.caBoissonsZogbo +
+        r.caExtraZogbo,
+    ).toBe(r.caTotal);
   });
 
   it("n’invente plus de CA depuis le catalogue si le journal est vide", () => {

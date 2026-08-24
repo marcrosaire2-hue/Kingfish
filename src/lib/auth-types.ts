@@ -148,6 +148,7 @@ export function canManageUsers(user: {
 
 const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "synthese",
+  "analyse",
   "compte-resultat",
   "comptabilite",
   "journal-ventes",
@@ -249,6 +250,7 @@ export type NavKey =
   | "zogbo"
   | "gbegamey"
   | "synthese"
+  | "analyse"
   | "compte-resultat"
   | "comptabilite"
   | "historique"
@@ -262,6 +264,7 @@ export type NavKey =
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
   gerant: [
     "synthese",
+    "analyse",
     "vente",
     "caisse",
     "zogbo",
@@ -280,6 +283,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
   // et immobilisations (emballages / actifs).
   comptable: [
     "synthese",
+    "analyse",
     "compte-resultat",
     "comptabilite",
     "caisse",
@@ -295,6 +299,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
   // Même périmètre qu’admin, sans la page Équipe (gestion des comptes).
   daf: [
     "synthese",
+    "analyse",
     "compte-resultat",
     "comptabilite",
     "vente",
@@ -314,6 +319,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
   ],
   admin: [
     "synthese",
+    "analyse",
     "compte-resultat",
     "comptabilite",
     "vente",
@@ -436,6 +442,7 @@ export function canAccessPath(
     return allowed.includes("zogbo") || allowed.includes("gbegamey");
   }
   if (pathname.startsWith("/synthese")) return allowed.includes("synthese");
+  if (pathname.startsWith("/analyse")) return allowed.includes("analyse");
   if (pathname.startsWith("/compte-resultat")) {
     return allowed.includes("compte-resultat");
   }

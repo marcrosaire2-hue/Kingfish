@@ -106,7 +106,9 @@ export async function buildBilan(input: {
     }),
     getCaissesOverview(),
     listImmobilisations({
-      active: true,
+      // Fiches inactives : l’historique 2181/2818 reste au journal, la VNC
+      // (gelée à inactiveSince) doit donc rester à l’actif tant que qty > 0.
+      active: "all",
       site: input.scopeSite ?? "all",
       includeUnscoped: !input.scopeSite,
     }),

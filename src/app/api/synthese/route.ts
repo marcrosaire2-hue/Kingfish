@@ -75,7 +75,7 @@ export async function GET(request: Request) {
         getMonthPoint(year, month, scopeSite),
         getProductRanking(match),
         getVenteCancelNotice(match),
-        getCaCumuls(todayIsoDate(), scopeSite),
+        getCaCumuls(`${period.month}-01`, scopeSite),
       ]);
       return NextResponse.json({
         view: "month",
@@ -98,7 +98,7 @@ export async function GET(request: Request) {
       getYearPoint(yearNum, scopeSite),
       getProductRanking(match),
       getVenteCancelNotice(match),
-      getCaCumuls(todayIsoDate(), scopeSite),
+      getCaCumuls(`${yearNum}-12-31`, scopeSite),
     ]);
     return NextResponse.json({
       view: "year",

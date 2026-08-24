@@ -48,7 +48,7 @@ export type MatieresDayPayload = {
 async function leftoversForDate(
   date: string,
   materials: RawMaterial[],
-): Promise<Map<string, number>> {
+): Promise<{ qty: Map<string, number>; unitCost: Map<string, number> }> {
   const prev = previousIsoDate(date);
   if (prev) {
     const db = await getDb();
@@ -59,17 +59,27 @@ async function leftoversForDate(
       .limit(1)
       .next();
     if (prevDoc?.lines?.length) {
-      return leftoverFromMatieresLines(
+      const qty = leftoverFromMatieresLines(
         prevDoc.lines.map((l) => normalizeMatieresLine(l)),
       );
+      const unitCost = new Map<string, number>();
+      for (const l of prevDoc.lines) {
+        unitCost.set(
+          l.productId,
+          Math.max(0, Number(l.unitCost) || 0),
+        );
+      }
+      return { qty, unitCost };
     }
   }
-  // Cutover : stock final AquaPro si aucune journée King Fish
   try {
     const stocks = await loadAquaAlimentStocks();
-    return openingForMaterials(materials, stocks);
+    return {
+      qty: openingForMaterials(materials, stocks),
+      unitCost: new Map(),
+    };
   } catch {
-    return new Map();
+    return { qty: new Map(), unitCost: new Map() };
   }
 }
 
@@ -102,14 +112,20 @@ export async function getMatieresDayPayload(
 
   if (!existing) {
     const leftovers = await leftoversForDate(date, rawMaterials);
-    const day = createEmptyMatieresDay(date, rawMaterials, leftovers);
+    const day = createEmptyMatieresDay(date, rawMaterials, leftovers.qty);
+    const stamped = day.lines.map((l) => ({
+      ...l,
+      unitCost: leftovers.unitCost.get(l.productId) ?? l.unitCost ?? 0,
+    }));
     // Persiste l’ouverture AquaPro pour que le stock reste géré dans le site
-    if (leftovers.size > 0) {
+    if (leftovers.qty.size > 0) {
       const updatedAt = new Date().toISOString();
-      const lines = day.lines.map((l) => ({
+      const lines = stamped.map((l) => ({
         ...l,
-        counted: leftovers.has(l.productId) ? leftovers.get(l.productId)! : null,
-        observations: leftovers.has(l.productId)
+        counted: leftovers.qty.has(l.productId)
+          ? leftovers.qty.get(l.productId)!
+          : null,
+        observations: leftovers.qty.has(l.productId)
           ? "Ouverture (stock final)"
           : "",
       }));
@@ -132,7 +148,7 @@ export async function getMatieresDayPayload(
         materials: rawMaterials,
       };
     }
-    return { day, materials: rawMaterials };
+    return { day: { ...day, lines: stamped }, materials: rawMaterials };
   }
 
   const day = toDay(existing);
@@ -172,7 +188,7 @@ export async function saveMatieresDay(input: {
         const prev = held.get(line.productId);
         const initialStock = existing
           ? (prev?.initialStock ?? 0)
-          : (leftovers?.get(line.productId) ?? 0);
+          : (leftovers?.qty.get(line.productId) ?? 0);
         const purchases = prev?.purchases ?? 0;
         const consumed = prev?.consumed ?? 0;
         return {
@@ -185,6 +201,10 @@ export async function saveMatieresDay(input: {
           pertes: prev?.pertes ?? 0,
           counted: line.counted,
           observations: String(line.observations ?? ""),
+          unitCost:
+            prev?.unitCost ??
+            leftovers?.unitCost.get(line.productId) ??
+            0,
         };
       });
 

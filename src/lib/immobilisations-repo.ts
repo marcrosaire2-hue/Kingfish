@@ -154,6 +154,7 @@ function toEntry(doc: ImmobilisationDoc): Immobilisation {
       doc.acquisitionAmount === null || doc.acquisitionAmount === undefined
         ? undefined
         : Math.max(0, Math.round(Number(doc.acquisitionAmount) || 0)),
+    inactiveSince: doc.inactiveSince ?? null,
   };
 }
 
@@ -447,6 +448,9 @@ export async function setImmobilisationActive(input: {
       {
         $set: {
           active: Boolean(input.active),
+          inactiveSince: input.active
+            ? null
+            : (existing.inactiveSince ?? todayIsoDate()),
           updatedAt: new Date().toISOString(),
         },
       },
@@ -527,28 +531,51 @@ export function brutAmortissable(item: Immobilisation): number {
   return Math.max(0, item.qty * item.cost);
 }
 
-/** VNC linéaire sur la base d’acquisition, pas sur la qty après pertes. */
+/** Base encore amortissable : brut historique × qty restante / qty d’acquisition. */
+export function remainingAmortizableBase(item: Immobilisation): number {
+  const brut = brutAmortissable(item);
+  const acqQty = item.acquisitionQty;
+  if (acqQty != null && acqQty > 0) {
+    return Math.round(brut * (Math.max(0, item.qty) / acqQty));
+  }
+  return item.qty > 0 ? brut : 0;
+}
+
+function isoDayBefore(iso: string): string {
+  const d = new Date(`${iso}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+/** VNC linéaire sur la base restante, pas sur un brut d’unités disparues. */
 export function valeurNette(item: Immobilisation, asOf: string): number {
   if (item.kind === "emballage") {
     return Math.max(0, item.qty * item.cost);
   }
-  const brut = brutAmortissable(item);
-  if (!item.dureeUtiliteAnnees || item.dureeUtiliteAnnees <= 0) return brut;
-  const anneesEcoulees = joursEntre(item.date, asOf) / 365;
-  const dotationAnnuelle = brut / item.dureeUtiliteAnnees;
+  const base = remainingAmortizableBase(item);
+  if (!item.dureeUtiliteAnnees || item.dureeUtiliteAnnees <= 0) return base;
+  // Aligné sur dotationJour : plus d’amortissement à compter de inactiveSince.
+  const until =
+    item.inactiveSince && asOf >= item.inactiveSince
+      ? isoDayBefore(item.inactiveSince)
+      : asOf;
+  const anneesEcoulees = joursEntre(item.date, until) / 365;
+  const dotationAnnuelle = base / item.dureeUtiliteAnnees;
   const amortissementCumule = Math.min(
-    brut,
+    base,
     dotationAnnuelle * Math.max(0, anneesEcoulees),
   );
-  return Math.max(0, brut - amortissementCumule);
+  return Math.max(0, base - amortissementCumule);
 }
 
 export function dotationJour(item: Immobilisation, date: string): number {
   if (item.kind !== "actif") return 0;
   if (!item.dureeUtiliteAnnees || item.dureeUtiliteAnnees <= 0) return 0;
   if (date < item.date) return 0;
-  const brut = brutAmortissable(item);
-  const daily = brut / item.dureeUtiliteAnnees / 365;
+  if (item.inactiveSince && date >= item.inactiveSince) return 0;
+  const base = remainingAmortizableBase(item);
+  if (base <= 0) return 0;
+  const daily = base / item.dureeUtiliteAnnees / 365;
   const vnc = valeurNette(item, date);
   return Math.max(0, Math.round(Math.min(daily, vnc)));
 }
@@ -560,7 +587,7 @@ export async function sumAmortissementsByDate(input: {
 }): Promise<{ total: number; parJour: Record<string, number> }> {
   const items = await listImmobilisations({
     kind: "actif",
-    active: true,
+    active: "all",
     site: input.site && input.site !== "all" ? input.site : "all",
     includeUnscoped: !input.site || input.site === "all",
   });

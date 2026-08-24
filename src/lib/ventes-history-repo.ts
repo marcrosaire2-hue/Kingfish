@@ -210,6 +210,20 @@ function ticketsFromVentesLog(
   return out;
 }
 
+export function aquaproTicketKey(date: string, numero: string): string {
+  return `${date}|${String(numero).trim()}`;
+}
+
+export function shouldSkipAquaproDuplicate(
+  existingKeys: Set<string>,
+  date: string,
+  numero: string,
+): boolean {
+  const n = String(numero).trim();
+  if (!n) return false;
+  return existingKeys.has(aquaproTicketKey(date, n));
+}
+
 export async function listVentesHistory(
   filters: VenteHistoryFilters,
 ): Promise<VenteHistoryResult> {
@@ -430,6 +444,18 @@ export async function listVentesHistory(
             .filter(Boolean)
             .join(" ");
           if (!matchesText(blob, q)) continue;
+        }
+
+        if (
+          shouldSkipAquaproDuplicate(
+            new Set(
+              tickets.map((t) => aquaproTicketKey(t.date, t.numero)),
+            ),
+            ticket.date,
+            ticket.numero,
+          )
+        ) {
+          continue;
         }
 
         tickets.push(ticket);

@@ -13,6 +13,7 @@ describe("rôle Comptable", () => {
     const menu = navForUser("comptable", "tous");
     expect(menu).toEqual([
       "synthese",
+      "analyse",
       "compte-resultat",
       "comptabilite",
       "caisse",
@@ -169,6 +170,7 @@ describe("l'API suit les droits de l'écran", () => {
     const menu = navForUser("admin", "tous", "marc");
     expect(menu).toEqual([
       "synthese",
+      "analyse",
       "compte-resultat",
       "comptabilite",
       "journal-ventes",
@@ -176,6 +178,7 @@ describe("l'API suit les droits de l'écran", () => {
       "historique",
       "admin",
     ]);
+    expect(canAccessPath("admin", "/analyse", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/compte-resultat", "tous", "marc")).toBe(
       true,
