@@ -111,6 +111,7 @@ export function JournalVentesPage() {
   const [busyTicketId, setBusyTicketId] = useState<string | null>(null);
   const [busyLineId, setBusyLineId] = useState<string | null>(null);
   const [canManagePast, setCanManagePast] = useState(false);
+  const [canPurge, setCanPurge] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -144,6 +145,7 @@ export function JournalVentesPage() {
         setLockedSite(!!body.lockedSite);
       }
       setCanManagePast(!!body.canManagePast);
+      setCanPurge(!!body.canPurge);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
       setResult(EMPTY_RESULT);
@@ -548,6 +550,7 @@ export function JournalVentesPage() {
               busyTicketId={busyTicketId}
               busyLineId={busyLineId}
               canManagePast={canManagePast}
+              canPurge={canPurge}
               onCancel={(l) => void annulerTicket(l)}
               onEdit={(l) => void modifierLigne(l)}
               onDeleteLine={(l) => void supprimerLigne(l)}
@@ -566,6 +569,7 @@ function JournalDayBlock({
   busyTicketId,
   busyLineId,
   canManagePast,
+  canPurge,
   onCancel,
   onEdit,
   onDeleteLine,
@@ -577,6 +581,7 @@ function JournalDayBlock({
   busyTicketId: string | null;
   busyLineId: string | null;
   canManagePast: boolean;
+  canPurge: boolean;
   onCancel: (line: JournalVenteLine) => void;
   onEdit: (line: JournalVenteLine) => void;
   onDeleteLine: (line: JournalVenteLine) => void;
@@ -618,6 +623,7 @@ function JournalDayBlock({
         busyTicketId={busyTicketId}
         busyLineId={busyLineId}
         canManagePast={canManagePast}
+        canPurge={canPurge}
         onCancel={onCancel}
         onEdit={onEdit}
         onDeleteLine={onDeleteLine}
@@ -634,6 +640,7 @@ function JournalLinesTable({
   busyTicketId,
   busyLineId,
   canManagePast,
+  canPurge,
   onCancel,
   onEdit,
   onDeleteLine,
@@ -645,6 +652,7 @@ function JournalLinesTable({
   busyTicketId: string | null;
   busyLineId: string | null;
   canManagePast: boolean;
+  canPurge: boolean;
   onCancel: (line: JournalVenteLine) => void;
   onEdit: (line: JournalVenteLine) => void;
   onDeleteLine: (line: JournalVenteLine) => void;
@@ -718,29 +726,28 @@ function JournalLinesTable({
                   </span>
                 </td>
                 <td>
-                  {canManagePast ? (
-                    <span className="reg-actions">
-                      {l.statut === "valide" && l.venteLogId ? (
-                        <button
-                          type="button"
-                          className="btn-link"
-                          disabled={busyLineId === l.venteLogId}
-                          onClick={() => onEdit(l)}
-                        >
-                          {busyLineId === l.venteLogId ? "…" : "Qty"}
-                        </button>
-                      ) : null}
-                      {l.venteLogId ? (
-                        <button
-                          type="button"
-                          className="btn-link btn-link-danger"
-                          disabled={busyLineId === l.venteLogId}
-                          onClick={() => onDeleteLine(l)}
-                        >
-                          Suppr.
-                        </button>
-                      ) : null}
-                      {l.ticketId ? (
+                  <span className="reg-actions">
+                    {canManagePast && l.statut === "valide" && l.venteLogId ? (
+                      <button
+                        type="button"
+                        className="btn-link"
+                        disabled={busyLineId === l.venteLogId}
+                        onClick={() => onEdit(l)}
+                      >
+                        {busyLineId === l.venteLogId ? "…" : "Qty"}
+                      </button>
+                    ) : null}
+                    {canPurge && l.venteLogId ? (
+                      <button
+                        type="button"
+                        className="btn-link btn-link-danger"
+                        disabled={busyLineId === l.venteLogId}
+                        onClick={() => onDeleteLine(l)}
+                      >
+                        Suppr.
+                      </button>
+                    ) : null}
+                    {canPurge && l.ticketId ? (
                         <button
                           type="button"
                           className="btn-link btn-link-danger"
@@ -764,18 +771,6 @@ function JournalLinesTable({
                       ) : null}
                       {!l.venteLogId && !l.ticketId ? "—" : null}
                     </span>
-                  ) : l.statut === "valide" && l.ticketId ? (
-                    <button
-                      type="button"
-                      className="btn-link"
-                      disabled={busyTicketId === l.ticketId}
-                      onClick={() => onCancel(l)}
-                    >
-                      {busyTicketId === l.ticketId ? "…" : "Annuler"}
-                    </button>
-                  ) : (
-                    "—"
-                  )}
                 </td>
               </tr>
             ))}

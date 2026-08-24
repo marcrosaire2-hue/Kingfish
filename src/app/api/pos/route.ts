@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
-import { logActivity } from "@/lib/log-activity";
+import {
+  authorizeRequestedSite,
+  authorizeDestructiveSale,
+  canCorrectClosedFinancialData,
+  canPurgeFinancialData,
+  containsMongoOperator,
+} from "@/lib/security-policy";
+import { consumeRateLimit, rateLimitResponse } from "@/lib/security-rate-limit";
+import { logActivity, logCriticalActivity } from "@/lib/log-activity";
 import {
   cancelPosTicket,
   deletePosTicketPermanently,
@@ -14,12 +22,30 @@ import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
-function resolveSite(
-  requested: VenteSite | null,
-  userSite: "zogbo" | "gbegamey" | "tous",
-): VenteSite {
-  if (userSite === "zogbo" || userSite === "gbegamey") return userSite;
-  return requested === "gbegamey" ? "gbegamey" : "zogbo";
+async function tooMany(
+  key: string,
+  limit: number,
+  windowMs: number,
+  failClosed: boolean,
+) {
+  try {
+    const hit = await consumeRateLimit({ key, limit, windowMs });
+    if (!hit.allowed) {
+      return NextResponse.json(rateLimitResponse(hit.retryAfterSec), {
+        status: 429,
+        headers: { "Retry-After": String(hit.retryAfterSec) },
+      });
+    }
+    return null;
+  } catch {
+    if (failClosed) {
+      return NextResponse.json(
+        { error: "Contrôle de débit indisponible." },
+        { status: 503 },
+      );
+    }
+    return null;
+  }
 }
 
 export async function GET(request: Request) {
@@ -27,11 +53,14 @@ export async function GET(request: Request) {
     const user = await requireUser();
     const { searchParams } = new URL(request.url);
     const requested = searchParams.get("date") || todayIsoDate();
-    const requestedSite = (searchParams.get("site") || "gbegamey") as VenteSite;
-    const site = resolveSite(requestedSite, user.site);
-    if (!canUseSite(user.site, site)) {
-      return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
+    const siteDecision = authorizeRequestedSite(user.site, searchParams.get("site"));
+    if (!siteDecision.ok) {
+      return NextResponse.json(
+        { error: siteDecision.error },
+        { status: siteDecision.status },
+      );
     }
+    const site = siteDecision.site;
     const ctx = await getPosContext({
       date: requested,
       site,
@@ -40,6 +69,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       ...ctx,
       canManagePast: canManagePastVentes(user.role),
+      canPurge: canPurgeFinancialData(user.role),
       lockedSite: user.site !== "tous",
       allowedSites:
         user.site === "tous"
@@ -72,12 +102,22 @@ export async function POST(request: Request) {
         qty: number;
         unitPrice?: number;
       }>;
+      reason?: string;
+      confirm?: boolean;
     };
 
-    const site = resolveSite(body.site ?? null, user.site);
-    if (!canUseSite(user.site, site)) {
-      return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
+    if (containsMongoOperator(body)) {
+      return NextResponse.json({ error: "Requête invalide." }, { status: 400 });
     }
+
+    const siteDecision = authorizeRequestedSite(user.site, body.site);
+    if (!siteDecision.ok) {
+      return NextResponse.json(
+        { error: siteDecision.error },
+        { status: siteDecision.status },
+      );
+    }
+    const site = siteDecision.site;
 
     if (body.action === "validate") {
       const result = await validatePosTicket({
@@ -133,14 +173,13 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "delete") {
-      if (!canManagePastVentes(user.role)) {
-        return NextResponse.json(
-          {
-            error:
-              "Suppression définitive réservée au gérant ou à l'administrateur.",
-          },
-          { status: 403 },
-        );
+      const gate = authorizeDestructiveSale({
+        role: user.role,
+        action: "delete",
+        reason: body.reason,
+      });
+      if (!gate.ok) {
+        return NextResponse.json({ error: gate.error }, { status: gate.status });
       }
       if (!body.id || !body.date) {
         return NextResponse.json(
@@ -148,17 +187,19 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
+      const limited = await tooMany(`pos-delete:${user.id}`, 20, 60 * 60 * 1000, true);
+      if (limited) return limited;
       const result = await deletePosTicketPermanently({
         id: body.id,
         date: body.date,
         site,
-        bypassClosedDay: true,
+        bypassClosedDay: canCorrectClosedFinancialData(user.role),
       });
-      await logActivity({
+      await logCriticalActivity({
         user,
         kind: "pos",
         title: `Suppression définitive ticket · ${result.ticket.numero}`,
-        detail: `${result.ticket.deletedLines} ligne(s) journal`,
+        detail: `Motif : ${String(body.reason).trim()} · ${result.ticket.deletedLines} ligne(s) journal`,
         date: body.date,
         site,
         amount: -result.ticket.montant,

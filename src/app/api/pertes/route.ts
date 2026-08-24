@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canManagePastVentes, canUseSite, effectiveSite } from "@/lib/auth-types";
+import { canCorrectClosedFinancialData } from "@/lib/security-policy";
 import { logActivity } from "@/lib/log-activity";
 import { cancelPerte, listPertes, recordPerte } from "@/lib/pertes-repo";
 import { reportError } from "@/lib/report-error";
@@ -73,7 +74,7 @@ export async function POST(request: Request) {
       const entry = await cancelPerte({
         id: body.id,
         actor,
-        bypassClosedDay: canManagePastVentes(user.role),
+        bypassClosedDay: canCorrectClosedFinancialData(user.role),
       });
       await logActivity({
         user,
@@ -116,8 +117,7 @@ export async function POST(request: Request) {
       motif: body.motif,
       commentaire: body.commentaire,
       actor,
-      bypassClosedDay:
-        canManagePastVentes(user.role) && date < todayIsoDate(),
+      bypassClosedDay: canCorrectClosedFinancialData(user.role) && date < todayIsoDate(),
       sourceDate: body.sourceDate,
     });
 

@@ -789,16 +789,6 @@ export function RegularisationPage() {
                                       >
                                         Qty
                                       </button>
-                                      <button
-                                        type="button"
-                                        className="btn-link btn-link-danger"
-                                        disabled={busy}
-                                        onClick={() =>
-                                          void supprimerLigne(t, l)
-                                        }
-                                      >
-                                        Suppr.
-                                      </button>
                                     </>
                                   ) : null}
                                 </li>
@@ -828,25 +818,8 @@ export function RegularisationPage() {
                                 >
                                   Annuler
                                 </button>
-                                <button
-                                  type="button"
-                                  className="btn-link btn-link-danger"
-                                  disabled={busy}
-                                  onClick={() => void supprimerTicket(t)}
-                                >
-                                  Suppr. déf.
-                                </button>
                               </span>
-                            ) : (
-                              <button
-                                type="button"
-                                className="btn-link btn-link-danger"
-                                disabled={busy}
-                                onClick={() => void supprimerTicket(t)}
-                              >
-                                Suppr. déf.
-                              </button>
-                            )}
+                            ) : null}
                           </td>
                         </tr>
                       ))}

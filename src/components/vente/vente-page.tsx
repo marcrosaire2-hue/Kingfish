@@ -16,6 +16,7 @@ import {
   marquerRejetsTraites,
   nombreEnAttente,
   rejetsEnAttente,
+  setOfflineQueueUser,
   surRejet,
   type VenteRejetee,
 } from "@/lib/offline-queue";
@@ -540,7 +541,7 @@ type TicketsListProps = {
   tickets: PosTicket[];
   busyKey: string | null;
   canViewHistory: boolean;
-  canManagePast: boolean;
+  canPurge: boolean;
   onFacture: (ticket: PosTicket) => void;
   onCancel: (ticket: PosTicket) => void;
   onDeletePermanent: (ticket: PosTicket) => void;
@@ -550,7 +551,7 @@ const TicketsList = memo(function TicketsList({
   tickets,
   busyKey,
   canViewHistory,
-  canManagePast,
+  canPurge,
   onFacture,
   onCancel,
   onDeletePermanent,
@@ -597,7 +598,7 @@ const TicketsList = memo(function TicketsList({
                   >
                     Annuler
                   </button>
-                  {canManagePast ? (
+                  {canPurge ? (
                     <button
                       type="button"
                       className="btn-link btn-link-danger"
@@ -662,6 +663,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   /** Alerte transitoire quand un produit vient de s'épuiser (rupture). */
   const [ruptureAlert, setRuptureAlert] = useState<string | null>(null);
   const [canManagePast, setCanManagePast] = useState(false);
+  const [canPurge, setCanPurge] = useState(false);
   /** Ruptures connues au dernier chargement (pour ne signaler que les nouvelles). */
   const prevRuptures = useRef<Set<string> | null>(null);
   const ruptureAlertTimer = useRef<number | null>(null);
@@ -743,6 +745,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
 
       setBoard(venteBody as Board);
       setCanManagePast(Boolean(venteBody.canManagePast));
+      setCanPurge(Boolean(venteBody.canPurge));
       if (venteBody.site) setSite(venteBody.site as VenteSite);
       setAllowedSites(
         (venteBody.allowedSites as VenteSite[] | undefined) ?? [],
@@ -935,7 +938,12 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         const res = await fetch("/api/auth/me", { cache: "no-store" });
         if (!res.ok) return;
         const body = await res.json();
-        if (!annule) setOperateur(body.user?.name ?? null);
+        if (!annule) {
+          setOperateur(body.user?.name ?? null);
+          if (typeof body.user?.id === "string") {
+            setOfflineQueueUser(body.user.id);
+          }
+        }
       } catch {
         /* le serveur renverra de toute façon le nom sur le ticket */
       }
@@ -1289,6 +1297,13 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       ) {
         return;
       }
+      const reason = window.prompt(
+        "Motif d'audit (obligatoire, 8 caractères minimum) :",
+      );
+      if (!reason || reason.trim().length < 8) {
+        setError("Motif d'audit requis pour une suppression définitive.");
+        return;
+      }
       setBusyKey(`del:${ticket.id}`);
       setError(null);
       try {
@@ -1300,6 +1315,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             id: ticket.id,
             date,
             site,
+            reason: reason.trim(),
           }),
         });
         const body = await res.json();
@@ -1326,6 +1342,13 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       ) {
         return;
       }
+      const reason = window.prompt(
+        "Motif d'audit (obligatoire, 8 caractères minimum) :",
+      );
+      if (!reason || reason.trim().length < 8) {
+        setError("Motif d'audit requis pour une suppression définitive.");
+        return;
+      }
       setBusyKey(`del:${entry.id}`);
       setError(null);
       try {
@@ -1337,6 +1360,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             id: entry.id,
             date,
             site,
+            reason: reason.trim(),
           }),
         });
         const body = await res.json();
@@ -1933,7 +1957,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   tickets={tickets}
                   busyKey={busyKey}
                   canViewHistory={canViewHistory}
-                  canManagePast={canManagePast}
+                  canPurge={canPurge}
                   onFacture={openFacture}
                   onCancel={cancelTicket}
                   onDeletePermanent={deleteTicketPermanent}
@@ -2098,7 +2122,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   >
                     Annuler
                   </button>
-                  {canManagePast ? (
+                  {canPurge ? (
                     <button
                       type="button"
                       className="btn-link btn-link-danger"

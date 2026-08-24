@@ -26,7 +26,15 @@ export type VenteEnAttente = {
   creeA: string;
   /** Nombre de tentatives de renvoi déjà effectuées. */
   tentatives: number;
+  /** Compte qui a encaissé — le serveur reste l'autorité à la synchro. */
+  userId?: string;
 };
+
+let currentUserId: string | null = null;
+
+export function setOfflineQueueUser(userId: string | null): void {
+  currentUserId = userId;
+}
 
 type Ecouteur = (file: VenteEnAttente[]) => void;
 
@@ -83,6 +91,7 @@ export function ajouterEnAttente(
     corps,
     creeA: new Date().toISOString(),
     tentatives: 0,
+    userId: currentUserId ?? undefined,
   };
   ecrire([...lire(), entree]);
   return entree;
@@ -195,6 +204,13 @@ export async function synchroniser(): Promise<ResultatSynchro> {
 
   try {
     for (const entree of lire()) {
+      if (
+        currentUserId &&
+        entree.userId &&
+        entree.userId !== currentUserId
+      ) {
+        continue;
+      }
       let reponse: Response;
       try {
         reponse = await fetch("/api/pos", {

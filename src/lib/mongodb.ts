@@ -13,6 +13,12 @@ function getUri(): string {
   return uri;
 }
 
+/**
+ * La production Atlas / mongodb+srv active TLS via l'URI.
+ * Un hôte `localhost` reste en clair pour le développement.
+ * Les identifiants ne doivent jamais être dans le code source.
+ */
+
 function getDbName(): string {
   return process.env.MONGODB_DB || "gestion_restaurant";
 }

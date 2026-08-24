@@ -18,7 +18,8 @@ const nextConfig: NextConfig = {
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           {
             key: "Content-Security-Policy",
-            value: "frame-ancestors 'self'",
+            value:
+              "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'",
           },
           // Ne pas fuiter l'origine de navigation vers des sites tiers.
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

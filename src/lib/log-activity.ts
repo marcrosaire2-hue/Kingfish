@@ -40,3 +40,23 @@ export async function logActivity(input: {
     console.error("historique log failed", error);
   }
 }
+
+export async function logCriticalActivity(input: {
+  user?: SessionUser | null;
+  kind: Exclude<HistoriqueKind, "vente">;
+  title: string;
+  detail: string;
+  date?: string | null;
+  site?: HistoriqueSite;
+  amount?: number | null;
+}): Promise<void> {
+  await appendHistorique({
+    kind: input.kind,
+    title: input.title,
+    detail: input.detail,
+    date: input.date,
+    site: input.site,
+    amount: input.amount,
+    actor: actorOf(input.user),
+  });
+}

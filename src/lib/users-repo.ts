@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { ObjectId } from "mongodb";
@@ -11,6 +13,7 @@ import {
   type UserShift,
   type UserSite,
 } from "@/lib/auth-types";
+import { shouldRevokeSessions } from "@/lib/security-policy";
 
 type UserDoc = {
   _id: ObjectId;
@@ -97,10 +100,16 @@ export async function ensureDefaultAdmin(): Promise<void> {
     createdAt: now,
     updatedAt: now,
   });
-  // Seul endroit où ce mot de passe existe en clair : les logs serveur, au
-  // tout premier démarrage. Jamais renvoyé par une API, jamais stocké ailleurs.
+  const dir = path.join(process.cwd(), "data");
+  await mkdir(dir, { recursive: true });
+  const file = path.join(dir, "bootstrap-admin-once.txt");
+  await writeFile(
+    file,
+    `username=${DEFAULT_ADMIN.username}\npassword=${password}\ncreatedAt=${now}\n`,
+    { mode: 0o600 },
+  );
   console.log(
-    `[bootstrap] Compte admin créé : identifiant "${DEFAULT_ADMIN.username}", mot de passe "${password}" — à changer immédiatement via Réglages.`,
+    `[bootstrap] Compte admin créé (identifiant "${DEFAULT_ADMIN.username}"). Mot de passe initial écrit dans ${file} — à changer immédiatement via Réglages.`,
   );
 }
 
@@ -257,9 +266,18 @@ export async function updateUser(
     assertValidRoleSite(nextRole, nextSite);
   }
 
-  // Révocation des sessions existantes : changement de mot de passe ou
-  // désactivation invalident immédiatement les JWT déjà émis.
-  let revokeSessions = false;
+  // Révocation : mot de passe, rôle, site, équipe ou activation.
+  const revokeSessions = shouldRevokeSessions({
+    roleChanged:
+      input.role !== undefined && input.role !== existing.role,
+    siteChanged:
+      input.site !== undefined && input.site !== existing.site,
+    shiftChanged:
+      input.shift !== undefined && input.shift !== existing.shift,
+    activeChanged:
+      input.active !== undefined && input.active !== existing.active,
+    passwordChanged: Boolean(input.password),
+  });
   const updatedAt = new Date().toISOString();
   const $set: Partial<UserDoc> = { updatedAt };
 
@@ -282,7 +300,6 @@ export async function updateUser(
       throw new Error("Impossible de désactiver le compte admin principal.");
     }
     $set.active = input.active;
-    if (input.active === false) revokeSessions = true;
   }
   if (input.password) {
     if (input.password.length < MIN_PASSWORD_LENGTH) {
@@ -291,7 +308,6 @@ export async function updateUser(
       );
     }
     $set.passwordHash = await bcrypt.hash(input.password, BCRYPT_COST);
-    revokeSessions = true;
   }
 
   await col.updateOne(

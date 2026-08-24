@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/mongodb";
-import { isExecutiveAdminAccount } from "@/lib/auth-types";
+import { isGlobalAdmin } from "@/lib/auth-types";
 import type { SessionUser } from "@/lib/auth-types";
 import type { ModulesComptables, ParametresComptables } from "@/lib/types";
 
@@ -25,12 +25,11 @@ const DEFAUT: ParametresComptables = {
 };
 
 /**
- * Seul le compte direction (marc) active ces modules : chacun engage un
- * changement de méthode comptable (capitalisation, amortissement, créances à
- * crédit) qui dépasse la correction opérationnelle du quotidien.
+ * Activation des modules avancés : administrateur global uniquement
+ * (rôle + site, pas un identifiant en dur).
  */
 export function peutActiverModulesComptables(user: SessionUser): boolean {
-  return isExecutiveAdminAccount(user.username);
+  return isGlobalAdmin(user);
 }
 
 function toParametres(doc: ParametresComptablesDoc | null): ParametresComptables {

@@ -1773,7 +1773,7 @@ async function syncPosTicketAfterVenteDelete(input: {
 }
 
 /**
- * Suppression physique d'une ligne ventes_log (gérant / admin).
+ * Suppression physique d'une ligne ventes_log (admin uniquement via l'API).
  * Reprend le stock si la vente est encore active ; met à jour ou supprime le
  * ticket POS lié sauf si `skipPosUpdate`.
  */
@@ -1797,7 +1797,7 @@ export async function deleteVentePermanently(input: {
 
   if (venteLogStockActive(doc)) {
     await assertDayNotClosed(doc.date, doc.site, doc.kind, {
-      bypassClosedDay: input.bypassClosedDay ?? true,
+      bypassClosedDay: input.bypassClosedDay ?? false,
     });
     await applySoldDelta({
       date: doc.date,

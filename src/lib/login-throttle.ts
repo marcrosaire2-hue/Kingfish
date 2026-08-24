@@ -42,6 +42,8 @@ function keyFor(username: string, ip: string): string {
  * anti-bruteforce) — seul le dernier, posé par notre propre proxy, est fiable.
  */
 export function clientIpFrom(request: Request): string {
+  const real = request.headers.get("x-real-ip")?.trim();
+  if (real) return real;
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
     const parts = forwarded.split(",").map((p) => p.trim()).filter(Boolean);

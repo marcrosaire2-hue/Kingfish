@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
+import { canPurgeFinancialData } from "@/lib/security-policy";
 import {
   listJournalVentes,
   type VenteHistorySource,
@@ -57,6 +58,7 @@ export async function GET(request: Request) {
       site,
       lockedSite: user.site !== "tous",
       canManagePast: canManagePastVentes(user.role),
+      canPurge: canPurgeFinancialData(user.role),
     });
   } catch (error) {
     return authErrorResponse(error);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canManagePastVentes, type SessionUser } from "@/lib/auth-types";
+import { canCorrectClosedFinancialData } from "@/lib/security-policy";
 import { logActivity } from "@/lib/log-activity";
 import { getPosConfig } from "@/lib/pos-config-repo";
 import {
@@ -165,7 +166,7 @@ export async function POST(request: Request) {
       const payload = await cancelMatieresMovement({
         date: body.date,
         movementId: body.movementId,
-        bypassClosedDay: bypass,
+        bypassClosedDay: canCorrectClosedFinancialData(user.role),
       });
       const cancelled = payload.day.movements.find(
         (m) => m.id === body.movementId,
@@ -220,7 +221,7 @@ export async function POST(request: Request) {
         fournisseurId: fournisseur?.id ?? null,
         fournisseurNom: fournisseur?.nom ?? null,
         newDate: body.newDate,
-        bypassClosedDay: editBypass,
+        bypassClosedDay: canCorrectClosedFinancialData(user.role),
       });
       const resolvedDate = payload.day.date;
       const resolvedBypass = managerBypass(user, resolvedDate);
@@ -296,7 +297,7 @@ export async function POST(request: Request) {
             unitPrice: body.unitPrice,
             fournisseurId: fournisseur?.id ?? null,
             fournisseurNom: fournisseur?.nom ?? null,
-            bypassClosedDay: bypass,
+            bypassClosedDay: canCorrectClosedFinancialData(user.role),
           })
         : await applyMatieresPurchase({
             date: body.date,
@@ -305,7 +306,7 @@ export async function POST(request: Request) {
             unitPrice: body.unitPrice,
             fournisseurId: fournisseur?.id ?? null,
             fournisseurNom: fournisseur?.nom ?? null,
-            bypassClosedDay: bypass,
+            bypassClosedDay: canCorrectClosedFinancialData(user.role),
           });
 
     const montant = Math.round(

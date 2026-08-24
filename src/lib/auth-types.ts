@@ -135,7 +135,11 @@ export function isPrincipalAdminAccount(username: string): boolean {
  * d'utilisateurs — sans les écrans opérationnels (vente, caisse, stocks zone…).
  */
 export function isExecutiveAdminAccount(username: string): boolean {
-  return username.trim().toLowerCase() === "marc";
+  const listed = (process.env.EXECUTIVE_ADMIN_USERNAMES ?? "marc")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  return listed.includes(username.trim().toLowerCase());
 }
 
 /** Peut ouvrir /admin (Équipe) et appeler /api/admin/users. */
@@ -497,8 +501,9 @@ export function canUseSite(
 }
 
 /**
- * Gérant, DAF, admin et comptable : saisir / corriger sur un jour passé
- * (ventes, stock, achats, pertes — y compris journée ou caisse clôturée).
+ * Gérant, DAF, admin et comptable : saisir / corriger un jour *ouvert* passé
+ * (ventes, stock, achats, pertes). Ne contourne pas une clôture :
+ * voir canCorrectClosedFinancialData.
  */
 export function canManagePastVentes(role: UserRole): boolean {
   return (

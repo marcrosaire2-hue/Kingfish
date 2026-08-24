@@ -20,6 +20,16 @@ describe("clientIpFrom", () => {
     expect(clientIpFrom(request)).toBe("41.85.1.2");
   });
 
+  it("préfère x-real-ip posé par le proxy de confiance", () => {
+    const request = new Request("http://x", {
+      headers: {
+        "x-forwarded-for": "6.6.6.6",
+        "x-real-ip": "10.0.0.1",
+      },
+    });
+    expect(clientIpFrom(request)).toBe("10.0.0.1");
+  });
+
   it("retombe sur x-real-ip en l'absence de x-forwarded-for", () => {
     const request = new Request("http://x", {
       headers: { "x-real-ip": "41.85.9.9" },
