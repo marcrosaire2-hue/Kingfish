@@ -56,6 +56,8 @@ const CHARGE_FIELDS: {
     | "immobilisations"
     | "matieresConsommees"
     | "amortissements"
+    | "cmvBoissons"
+    | "cmvEmballages"
   >;
   label: string;
 }[] = [

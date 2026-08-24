@@ -237,7 +237,11 @@ async function lignesDuJour(
     return (existing.lines ?? []).map((l) => normalizeMatieresLine(l));
   }
   const leftovers = await leftoversForDate(date, rawMaterials);
-  return createEmptyMatieresDay(date, rawMaterials, leftovers).lines;
+  const day = createEmptyMatieresDay(date, rawMaterials, leftovers.qty);
+  return day.lines.map((l) => ({
+    ...l,
+    unitCost: leftovers.unitCost.get(l.productId) ?? l.unitCost ?? 0,
+  }));
 }
 
 function mouvementsDuJour(existing: MatieresDoc | null): MatieresMovement[] {
