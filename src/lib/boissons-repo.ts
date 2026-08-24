@@ -1,4 +1,4 @@
-import { updateDayDocument } from "@/lib/day-doc";
+import { assertDayOpen, isValidDate, updateDayDocument } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import type {
@@ -22,10 +22,6 @@ import { loadAquaBoissonOpeningCasiers } from "@/lib/aquapro-opening-stock";
 import { previousIsoDate } from "@/lib/zogbo-calc";
 
 type BoissonsDoc = Omit<BoissonsDay, "date"> & { _id: string; rev?: number };
-
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
-}
 
 function toDay(doc: BoissonsDoc): BoissonsDay {
   const movements = (doc.movements ?? [])
@@ -258,90 +254,111 @@ export async function applyBoissonsPurchase(input: {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getBoissonsDayPayload(input.date);
   const drink = payload.drinks.find((d) => d.id === input.productId);
-  const applied = applyBoissonsPurchaseToState(
-    payload.day.lines,
-    payload.day.movements ?? [],
-    {
-      productId: input.productId,
-      site: input.site,
-      qty: input.qty,
-      unitsPerCasier: drink?.unitsPerCasier,
+
+  // Écriture sous verrou optimiste : une vente ou un comptage simultané ne
+  // peut plus être écrasé par la réécriture du document complet.
+  return updateDayDocument<BoissonsDoc, BoissonsDayPayload & { movement: BoissonsMovement }>(
+    "boissons_jours",
+    input.date,
+    async (existing) => {
+      assertDayOpen(
+        existing?.status,
+        "Journée clôturée : achat boissons impossible.",
+      );
+
+      const leftovers = existing ? null : await leftoversForDate(input.date, payload.drinks);
+      const baseLines = existing
+        ? (existing.lines ?? []).map((l) => normalizeBoissonsLine(l))
+        : createEmptyBoissonsDay(
+            input.date,
+            payload.drinks,
+            leftovers ?? { zogbo: new Map(), gbegamey: new Map() },
+          ).lines;
+      const baseMovements = (existing?.movements ?? [])
+        .map((m) => normalizeBoissonsMovement(m))
+        .filter((m): m is BoissonsMovement => !!m);
+
+      const applied = applyBoissonsPurchaseToState(
+        baseLines,
+        baseMovements,
+        {
+          productId: input.productId,
+          site: input.site,
+          qty: input.qty,
+          unitsPerCasier: drink?.unitsPerCasier,
+        },
+      );
+
+      const updatedAt = new Date().toISOString();
+      const status = existing?.status ?? "ouverte";
+      return {
+        set: { status, lines: applied.lines, movements: applied.movements, updatedAt },
+        result: {
+          day: {
+            date: input.date,
+            status,
+            lines: syncBoissonsLines(applied.lines, payload.drinks),
+            movements: applied.movements,
+            updatedAt,
+          },
+          drinks: payload.drinks,
+          movement: applied.movement,
+        },
+      };
     },
   );
-
-  const db = await getDb();
-  const updatedAt = new Date().toISOString();
-  const status = payload.day.status;
-  await db.collection<BoissonsDoc>("boissons_jours").updateOne(
-    { _id: input.date },
-    {
-      $set: {
-        status,
-        lines: applied.lines,
-        movements: applied.movements,
-        updatedAt,
-      },
-      $setOnInsert: { _id: input.date },
-    },
-    { upsert: true },
-  );
-
-  return {
-    day: {
-      date: input.date,
-      status,
-      lines: syncBoissonsLines(applied.lines, payload.drinks),
-      movements: applied.movements,
-      updatedAt,
-    },
-    drinks: payload.drinks,
-    movement: applied.movement,
-  };
 }
 
 export async function cancelBoissonsMovement(input: {
   date: string;
   movementId: string;
+  /** Périmètre du compte : un mouvement d'un autre point de vente est traité comme introuvable. */
+  site?: VenteSite | null;
 }): Promise<BoissonsDayPayload & { movement: BoissonsMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   const payload = await getBoissonsDayPayload(input.date);
-  const target = (payload.day.movements ?? []).find(
+  const drinkFound = (payload.day.movements ?? []).find(
     (m) => m.id === input.movementId,
   );
-  const drink = target
-    ? payload.drinks.find((d) => d.id === target.productId)
+  const drink = drinkFound
+    ? payload.drinks.find((d) => d.id === drinkFound.productId)
     : undefined;
-  const cancelled = cancelBoissonsMovementInState(
-    payload.day.lines,
-    payload.day.movements ?? [],
-    input.movementId,
-    drink?.unitsPerCasier,
-  );
 
-  const db = await getDb();
-  const updatedAt = new Date().toISOString();
-  const status = payload.day.status;
-  await db.collection<BoissonsDoc>("boissons_jours").updateOne(
-    { _id: input.date },
-    {
-      $set: {
-        status,
-        lines: cancelled.lines,
-        movements: cancelled.movements,
-        updatedAt,
-      },
+  return updateDayDocument<BoissonsDoc, BoissonsDayPayload & { movement: BoissonsMovement }>(
+    "boissons_jours",
+    input.date,
+    async (existing) => {
+      const baseMovements = (existing?.movements ?? [])
+        .map((m) => normalizeBoissonsMovement(m))
+        .filter((m): m is BoissonsMovement => !!m);
+      const target = baseMovements.find((m) => m.id === input.movementId);
+      if (!target || (input.site && target.site !== input.site)) {
+        throw new Error("Mouvement introuvable.");
+      }
+
+      const cancelled = cancelBoissonsMovementInState(
+        (existing?.lines ?? []).map((l) => normalizeBoissonsLine(l)),
+        baseMovements,
+        input.movementId,
+        drink?.unitsPerCasier,
+      );
+
+      const updatedAt = new Date().toISOString();
+      const status = existing?.status ?? "ouverte";
+      return {
+        set: { status, lines: cancelled.lines, movements: cancelled.movements, updatedAt },
+        result: {
+          day: {
+            date: input.date,
+            status,
+            lines: syncBoissonsLines(cancelled.lines, payload.drinks),
+            movements: cancelled.movements,
+            updatedAt,
+          },
+          drinks: payload.drinks,
+          movement: cancelled.movement,
+        },
+      };
     },
   );
-
-  return {
-    day: {
-      date: input.date,
-      status,
-      lines: syncBoissonsLines(cancelled.lines, payload.drinks),
-      movements: cancelled.movements,
-      updatedAt,
-    },
-    drinks: payload.drinks,
-    movement: cancelled.movement,
-  };
 }

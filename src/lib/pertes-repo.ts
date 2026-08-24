@@ -1,5 +1,5 @@
 import { ObjectId } from "mongodb";
-import { assertDayOpen } from "@/lib/day-doc";
+import { assertDayOpen, isValidDate } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import { unitsPerCasierOf } from "@/lib/boissons-calc";
@@ -22,10 +22,6 @@ import type {
 type PerteDoc = Omit<PerteEntry, "id"> & { _id: ObjectId };
 
 export type PerteActor = { id: string; name: string };
-
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
-}
 
 const MOTIFS: PerteMotif[] = [
   "gate",
@@ -299,6 +295,7 @@ export async function recordPerte(input: {
     const res = await adjustImmobilisationQty({
       id: input.productId,
       delta: qty,
+      siteScope: input.site,
     });
     name = res.name;
     unitCost = res.cost;
@@ -367,7 +364,11 @@ export async function cancelPerte(input: {
   if (!doc) throw new Error("Perte introuvable ou déjà annulée");
 
   if (doc.kind === "immobilisation") {
-    await adjustImmobilisationQty({ id: doc.productId, delta: -doc.qty });
+    await adjustImmobilisationQty({
+      id: doc.productId,
+      delta: -doc.qty,
+      siteScope: doc.site,
+    });
   } else if (doc.kind === "libre") {
     if (!doc.sourceRef) throw new Error("Achat source introuvable.");
     await applyMatieresMovementPerte({

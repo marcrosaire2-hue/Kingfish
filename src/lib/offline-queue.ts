@@ -14,6 +14,7 @@
  */
 
 const CLE = "kingfish.ventes-en-attente";
+const CLE_REJETS = "kingfish.ventes-rejetees";
 const MAX = 200;
 
 export type VenteEnAttente = {
@@ -97,6 +98,76 @@ function incrementerTentative(id: string): void {
   );
 }
 
+/**
+ * Ventes définitivement refusées par le serveur au rejeu (stock épuisé
+ * entre-temps, caisse fermée…). Elles sortent de la file d'attente mais ne
+ * disparaissent pas sans trace : le registre alimente une alerte visible à
+ * l'écran de vente, pour ressaisie ou vérification en caisse.
+ */
+export type VenteRejetee = {
+  /** Identifiant de la vente initiale. */
+  id: string;
+  /** Horodatage de la vente réelle. */
+  creeA: string;
+  /** Motif renvoyé par le serveur, lisible par le caissier. */
+  raison: string;
+  /** Moment du refus définitif. */
+  rejeteA: string;
+};
+
+type EcouteurRejet = (rejets: VenteRejetee[]) => void;
+
+const ecouteursRejet = new Set<EcouteurRejet>();
+
+function lireRejets(): VenteRejetee[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const brut = window.localStorage.getItem(CLE_REJETS);
+    const parsed = brut ? JSON.parse(brut) : [];
+    return Array.isArray(parsed) ? (parsed as VenteRejetee[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function ecrireRejets(rejets: VenteRejetee[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(CLE_REJETS, JSON.stringify(rejets.slice(-MAX)));
+  } catch {
+    /* quota dépassé : tant pis pour le registre */
+  }
+  for (const ecouteur of ecouteursRejet) ecouteur(rejets);
+}
+
+export function rejetsEnAttente(): VenteRejetee[] {
+  return lireRejets();
+}
+
+export function surRejet(ecouteur: EcouteurRejet): () => void {
+  ecouteursRejet.add(ecouteur);
+  return () => {
+    ecouteursRejet.delete(ecouteur);
+  };
+}
+
+/** Efface le registre après prise en charge par le caissier ou le gérant. */
+export function marquerRejetsTraites(): void {
+  ecrireRejets([]);
+}
+
+async function raisonDuRefus(reponse: Response): Promise<string> {
+  try {
+    const body = (await reponse.json()) as { error?: unknown };
+    if (body && typeof body.error === "string" && body.error.trim()) {
+      return body.error;
+    }
+  } catch {
+    /* corps illisible : message générique */
+  }
+  return `Refusée par le serveur (erreur ${reponse.status}).`;
+}
+
 export type ResultatSynchro = {
   envoyees: number;
   echecs: number;
@@ -109,10 +180,10 @@ let synchroEnCours = false;
  * Rejoue les ventes en attente, dans l'ordre où elles ont été encaissées.
  *
  * On s'arrête à la première panne réseau : inutile de marteler un serveur
- * injoignable, et l'ordre chronologique des ventes doit être préservé. En
- * revanche un refus métier (400) ne disparaîtra pas tout seul — la vente est
- * retirée de la file après plusieurs tentatives, pour ne pas la bloquer
- * indéfiniment.
+ * injoignable, et l'ordre chronologique des ventes doit être préservé. Un
+ * refus métier (400) ne bloque pas la file au-delà de trois tentatives :
+ * la vente sort alors de la file et rejoint le registre des rejets,
+ * affiché en alerte à l'écran de vente.
  */
 export async function synchroniser(): Promise<ResultatSynchro> {
   if (synchroEnCours) {
@@ -153,10 +224,23 @@ export async function synchroniser(): Promise<ResultatSynchro> {
       }
 
       // Refus métier : stock épuisé entre-temps, caisse fermée… Après trois
-      // tentatives on sort la vente de la file pour ne pas figer les suivantes.
+      // tentatives on sort la vente de la file pour ne pas figer les suivantes
+      // — mais elle rejoint le registre des rejets, affiché en alerte à
+      // l'écran : une commande perdue sans rien dire n'est pas acceptable.
       incrementerTentative(entree.id);
       echecs += 1;
-      if (entree.tentatives + 1 >= 3) retirer(entree.id);
+      if (entree.tentatives + 1 >= 3) {
+        retirer(entree.id);
+        ecrireRejets([
+          ...lireRejets(),
+          {
+            id: entree.id,
+            creeA: entree.creeA,
+            raison: await raisonDuRefus(reponse),
+            rejeteA: new Date().toISOString(),
+          },
+        ]);
+      }
     }
   } finally {
     synchroEnCours = false;

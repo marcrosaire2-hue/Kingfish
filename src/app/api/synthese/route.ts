@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { DayCharges } from "@/lib/types";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { resolveUserSiteScope } from "@/lib/auth-types";
+import { hasFinanceAccess, resolveUserSiteScope } from "@/lib/auth-types";
 import {
   chargesTotal,
   daysInMonth,
@@ -19,7 +19,7 @@ import {
 } from "@/lib/synthese-repo";
 import { sumCaByShift } from "@/lib/vente-repo";
 import { getEpuises } from "@/lib/stock-repo";
-import { todayIsoDate } from "@/lib/zogbo-calc";
+import { isValidCalendarDate, todayIsoDate } from "@/lib/zogbo-calc";
 import { logActivity } from "@/lib/log-activity";
 
 export const runtime = "nodejs";
@@ -123,11 +123,46 @@ export async function PUT(request: Request) {
       date?: string;
     };
 
-    if (!body.date) {
+    // `date` est utilisé comme _id du document de charges : un objet JSON
+    // malveillant (ex. {"$regex": "^2026-08"}) ne doit jamais atteindre la
+    // requête Mongo — type et forme calendaire exigés.
+    if (!isValidCalendarDate(body.date)) {
       return NextResponse.json(
-        { error: "date requise pour enregistrer les charges." },
+        { error: "date invalide (jour calendaire attendu, YYYY-MM-DD)." },
         { status: 400 },
       );
+    }
+
+    // Les charges sont globales (loyer, salaires… des deux restaurants) :
+    // leur écriture fausse le compte de résultat entier, elle est donc
+    // réservée à la direction — comme l'affichage du bouton côté écran.
+    if (!hasFinanceAccess(user.role)) {
+      return NextResponse.json(
+        {
+          error:
+            "Enregistrement des charges réservé au comptable, au DAF ou à l'administrateur.",
+        },
+        { status: 403 },
+      );
+    }
+
+    for (const value of [
+      body.matieresPremieres,
+      body.loyer,
+      body.salaires,
+      body.electricite,
+      body.carburant,
+      body.reparations,
+    ]) {
+      if (
+        value !== undefined &&
+        (!Number.isFinite(Number(value)) || Number(value) < 0)
+      ) {
+        return NextResponse.json(
+          { error: "Montants invalides : nombres positifs attendus." },
+          { status: 400 },
+        );
+      }
     }
 
     const charges = {

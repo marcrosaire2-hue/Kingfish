@@ -91,6 +91,7 @@ export async function POST(request: Request) {
       const item = await setImmobilisationActive({
         id: body.id,
         active: body.active,
+        user,
       });
       await logActivity({
         user,

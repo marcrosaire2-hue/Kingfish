@@ -398,6 +398,28 @@ export function previousIsoDate(isoDate: string): string | null {
   return shiftIsoDate(isoDate, -1);
 }
 
+/**
+ * Format ET calendrier : « 2026-02-30 » ou « 2026-13-01 » passent une regex
+ * de forme mais produisent des dates invalides (NaN dans les calculs
+ * d'amortissement, _id de charges absurdes). On reconstruit la date et on
+ * compare les composantes — seul un vrai jour du calendrier se reforme à
+ * l'identique.
+ */
+export function isValidCalendarDate(
+  date: unknown,
+): date is string {
+  if (typeof date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return false;
+  }
+  const [y, m, d] = date.split("-").map(Number);
+  const rebuilt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    rebuilt.getUTCFullYear() === y &&
+    rebuilt.getUTCMonth() === m - 1 &&
+    rebuilt.getUTCDate() === d
+  );
+}
+
 /** Calendrier civil au Bénin, pas celui du serveur (souvent UTC). */
 export function isoDateInTimeZone(
   instant: Date,

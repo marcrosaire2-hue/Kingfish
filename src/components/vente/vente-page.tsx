@@ -13,7 +13,11 @@ import { formatFcfa, parseMoneyInput } from "@/lib/format";
 import {
   ajouterEnAttente,
   installerSupportHorsLigne,
+  marquerRejetsTraites,
   nombreEnAttente,
+  rejetsEnAttente,
+  surRejet,
+  type VenteRejetee,
 } from "@/lib/offline-queue";
 import { exportVenteExcel } from "@/lib/page-exports";
 import {
@@ -625,6 +629,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [allowedSites, setAllowedSites] = useState<VenteSite[]>([]);
   /** Ventes encaissées hors ligne, en attente d'envoi au serveur. */
   const [enAttente, setEnAttente] = useState(0);
+  const [rejets, setRejets] = useState<VenteRejetee[]>([]);
   const [cat, setCat] = useState<CatKey>("plat");
   const [board, setBoard] = useState<Board | null>(null);
   const [config, setConfig] = useState<PosConfig | null>(null);
@@ -901,8 +906,24 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   }, [board, plats.length, accompagnements.length]);
 
   // Service worker + rejeu des ventes encaissées pendant une coupure.
+  // Les refus définitifs au rejeu (stock épuisé entre-temps, caisse fermée…)
+  // remontent en alerte : une vente perdue ne doit jamais rester silencieuse.
   useEffect(() => {
-    return installerSupportHorsLigne((file) => setEnAttente(file.length));
+    const desabonnerRejet = surRejet((liste) => setRejets(liste));
+    const desabonnerFile = installerSupportHorsLigne((file) =>
+      setEnAttente(file.length),
+    );
+    // Lecture initiale des rejets déjà connus, hors du corps synchrone de
+    // l'effet (un setState direct ici provoquerait un rendu en cascade).
+    let lu = false;
+    void Promise.resolve().then(() => {
+      if (!lu) setRejets(rejetsEnAttente());
+    });
+    return () => {
+      lu = true;
+      desabonnerRejet();
+      desabonnerFile();
+    };
   }, []);
 
   // Compte connecté : affiché sur le panier et repris sur la facture, pour
@@ -1588,6 +1609,30 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             )}
           </div>
         </div>
+
+        {rejets.length > 0 ? (
+          <div className="error-banner" role="alert">
+            <p>
+              <strong>
+                {rejets.length} vente{rejets.length > 1 ? "s" : ""} enregistrée
+                {rejets.length > 1 ? "s" : ""} hors ligne refusée
+                {rejets.length > 1 ? "s" : ""} par le serveur.
+              </strong>{" "}
+              {rejets[0]?.raison} — à ressaisir ou à vérifier en caisse, elle
+              n&apos;est pas comptabilisée.
+            </p>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={() => {
+                marquerRejetsTraites();
+                setRejets([]);
+              }}
+            >
+              J&apos;ai pris en charge
+            </button>
+          </div>
+        ) : null}
 
         {!loading &&
         caisseActive &&

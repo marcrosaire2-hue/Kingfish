@@ -1,17 +1,27 @@
 name: Sauvegarde quotidienne
 
 # Render ne propose les tâches planifiées qu'en offre payante : la sauvegarde
-# tourne donc ici, gratuitement. Elle produit une archive téléchargeable depuis
-# l'onglet Actions du dépôt.
+# tourne donc ici, gratuitement. L'archive est CHIFFRÉE avant d'être déposée
+# dans l'onglet Actions — le dépôt étant public, un dump en clair exposerait
+# les hash de mots de passe et toute la comptabilité.
 #
-# Prérequis : ajouter le secret MONGODB_URI dans
-# Settings > Secrets and variables > Actions.
+# Prérequis :
+#   1. ajouter le secret MONGODB_URI dans Settings > Secrets and variables > Actions
+#   2. ajouter le secret BACKUP_PASSPHRASE (longue phrase aléatoire, à conserver
+#      hors GitHub : sans elle, les archives sont indéchiffrables)
+#
+# Restauration locale :
+#   gpg --decrypt sauvegarde-XXXX.tar.gz.gpg > sauvegarde.tar.gz
+#   tar xzf sauvegarde.tar.gz && node scripts/restaurer.mjs
 
 on:
   schedule:
     # 03h00 UTC, soit 04h00 à Cotonou — hors service.
     - cron: "0 3 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   sauvegarder:
@@ -26,6 +36,15 @@ jobs:
 
       - run: npm ci
 
+      - name: Vérifier la passphrase de chiffrement
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::Secret BACKUP_PASSPHRASE manquant : refus d'archiver un dump en clair sur un dépôt public."
+            exit 1
+          fi
+
       - name: Exporter la base
         run: node scripts/sauvegarde.mjs
         env:
@@ -33,9 +52,22 @@ jobs:
           MONGODB_DB: gestion_restaurant
           BACKUP_DIR: sauvegardes
 
-      - name: Archiver
+      - name: Chiffrer l'archive
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          STAMP=$(ls -1 sauvegardes | sort | tail -n 1)
+          tar czf "sauvegarde-${STAMP}.tar.gz" -C sauvegardes "$STAMP"
+          gpg --batch --yes --cipher-algo AES256 \
+            --passphrase "$BACKUP_PASSPHRASE" \
+            --symmetric --output "sauvegarde-${STAMP}.tar.gz.gpg" \
+            "sauvegarde-${STAMP}.tar.gz"
+          rm -f "sauvegarde-${STAMP}.tar.gz"
+          echo "ARCHIVE=sauvegarde-${STAMP}.tar.gz.gpg" >> "$GITHUB_ENV"
+
+      - name: Archiver (chiffrée)
         uses: actions/upload-artifact@v4
         with:
-          name: sauvegarde-${{ github.run_id }}
-          path: sauvegardes/
+          name: sauvegarde-chiffree
+          path: ${{ env.ARCHIVE }}
           retention-days: 30

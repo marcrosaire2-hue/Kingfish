@@ -16,10 +16,7 @@ import { listChargesManuellesByDateRange } from "@/lib/synthese-repo";
 import { getDb } from "@/lib/mongodb";
 import type { MatieresLine, MatieresMovement, VenteSite } from "@/lib/types";
 import { listVentesHistory } from "@/lib/ventes-history-repo";
-
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
-}
+import { isValidDate } from "@/lib/day-doc";
 
 export type Anomalie = {
   date: string;

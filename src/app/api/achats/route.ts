@@ -19,14 +19,11 @@ import {
 import { logActivity } from "@/lib/log-activity";
 import type { CaisseKey, VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { isValidDate } from "@/lib/day-doc";
 
 export const runtime = "nodejs";
 
 const ZONE_CAISSES: CaisseKey[] = ["zogbo", "gbegamey"];
-
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
-}
 
 /** Caisse de zone par défaut : le site du compte, sinon Zogbo. */
 function defaultZoneCaisse(user: SessionUser): CaisseKey {

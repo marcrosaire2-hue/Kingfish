@@ -37,8 +37,21 @@ function isDuplicateKey(error: unknown): boolean {
   );
 }
 
+/**
+ * Date calendaire réelle, pas seulement bien formée : « 2025-02-30 » ou
+ * « 2025-02-29 » passent le regex mais font produire des calculs NaN partout
+ * où la date alimente une différence en jours (bilan, amortissements). On
+ * reconstruit la date en UTC et on compare : tout débordement de mois triche.
+ */
 export function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const [y, m, d] = date.split("-").map(Number) as [number, number, number];
+  const rebuilt = new Date(Date.UTC(y, m - 1, d));
+  return (
+    rebuilt.getUTCFullYear() === y &&
+    rebuilt.getUTCMonth() === m - 1 &&
+    rebuilt.getUTCDate() === d
+  );
 }
 
 export function assertValidDate(date: string): void {

@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import { getDb } from "@/lib/mongodb";
-import type { SessionUser } from "@/lib/auth-types";
+import { effectiveSite, type SessionUser } from "@/lib/auth-types";
 import {
   addCaisseMouvement,
   cancelCaisseMouvement,
@@ -8,6 +8,7 @@ import {
 } from "@/lib/caisse-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import type { Immobilisation, ImmobilisationKind, VenteSite } from "@/lib/types";
+import { isValidDate } from "@/lib/day-doc";
 
 type ImmobilisationDoc = Omit<Immobilisation, "id"> & {
   _id: ObjectId;
@@ -36,6 +37,21 @@ function depenseSite(
   if (itemSite === "zogbo" || itemSite === "gbegamey") return itemSite;
   if (user.site === "zogbo" || user.site === "gbegamey") return user.site;
   return "zogbo";
+}
+
+/**
+ * Gestion d'une fiche (création, modification, activation) : un compte
+ * rattaché à un point de vente ne touche que les fiches de son site — pas
+ * celles de l'autre zone, ni les fiches « tous sites » pilotées par la
+ * direction. Le contrôle porte sur la fiche *cible*, pas seulement sur le
+ * `site` envoyé par le client.
+ */
+function assertFicheInScope(user: SessionUser, targetSite: VenteSite | null): void {
+  const scope = effectiveSite(user.role, user.site);
+  if (scope === "tous") return;
+  if (targetSite !== scope) {
+    throw new Error("Fiche hors de votre périmètre.");
+  }
 }
 
 /**
@@ -93,10 +109,6 @@ async function detachDepense(
   } catch {
     /* best effort : la fiche reste corrigée même si la dépense liée ne l'est pas */
   }
-}
-
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
 }
 
 function normalizeUnit(raw: string | undefined | null): string {
@@ -213,6 +225,7 @@ export async function createImmobilisation(input: {
 
   const site =
     input.site === "zogbo" || input.site === "gbegamey" ? input.site : null;
+  assertFicheInScope(input.user, site);
   const dureeUtiliteAnnees =
     input.dureeUtiliteAnnees === null || input.dureeUtiliteAnnees === undefined
       ? null
@@ -271,6 +284,10 @@ export async function updateImmobilisation(input: {
     .collection<ImmobilisationDoc>("immobilisations")
     .findOne({ _id: new ObjectId(input.id) });
   if (!existing) throw new Error("Fiche introuvable.");
+
+  // La fiche ciblée doit appartenir au périmètre du compte — et un compte de
+  // zone ne peut pas non plus déplacer une fiche hors de son site.
+  assertFicheInScope(input.user, existing.site ?? null);
 
   const patch: Partial<ImmobilisationDoc> = {
     updatedAt: new Date().toISOString(),
@@ -380,10 +397,20 @@ export async function updateImmobilisation(input: {
 export async function adjustImmobilisationQty(input: {
   id: string;
   delta: number;
+  /**
+   * Périmètre du mouvement à l'origine de l'ajustement (vente, perte). Une
+   * fiche rattachée à l'autre point de vente est traitée comme introuvable ;
+   * les fiches « tous sites » restent accessibles depuis n'importe quelle
+   * caisse, comme dans le listage des emballages vendables.
+   */
+  siteScope?: VenteSite | null;
 }): Promise<{ name: string; cost: number }> {
   if (!ObjectId.isValid(input.id)) throw new Error("Fiche introuvable.");
   const db = await getDb();
   const filter: Record<string, unknown> = { _id: new ObjectId(input.id) };
+  if (input.siteScope) {
+    filter.$or = [{ site: input.siteScope }, { site: null }];
+  }
   if (input.delta > 0) filter.qty = { $gte: input.delta };
   const updated = await db
     .collection<ImmobilisationDoc>("immobilisations")
@@ -404,9 +431,15 @@ export async function adjustImmobilisationQty(input: {
 export async function setImmobilisationActive(input: {
   id: string;
   active: boolean;
+  user: SessionUser;
 }): Promise<Immobilisation> {
   if (!ObjectId.isValid(input.id)) throw new Error("Fiche introuvable.");
   const db = await getDb();
+  const existing = await db
+    .collection<ImmobilisationDoc>("immobilisations")
+    .findOne({ _id: new ObjectId(input.id) });
+  if (!existing) throw new Error("Fiche introuvable.");
+  assertFicheInScope(input.user, existing.site ?? null);
   const result = await db
     .collection<ImmobilisationDoc>("immobilisations")
     .findOneAndUpdate(
@@ -480,6 +513,7 @@ export async function sumImmobilisationsCostByDate(input: {
 function joursEntre(from: string, to: string): number {
   const a = new Date(`${from}T00:00:00Z`).getTime();
   const b = new Date(`${to}T00:00:00Z`).getTime();
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 0;
   return Math.max(0, (b - a) / (1000 * 60 * 60 * 24));
 }
 

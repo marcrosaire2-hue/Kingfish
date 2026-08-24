@@ -20,6 +20,7 @@ import type {
   VenteSite,
   VentesDaySummary,
 } from "@/lib/types";
+import { isValidDate } from "@/lib/day-doc";
 
 export type { VenteKind, VenteLogEntry, VenteProduct, VenteSite, VentesDaySummary };
 
@@ -89,10 +90,6 @@ const ACTIVE = {
 /** Document « jour » quelconque, adressé par date — lignes accédées dynamiquement. */
 type DayCounterDoc = { _id: string; rev?: number; updatedAt?: string };
 
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
-}
-
 /**
  * Refuse vente et annulation sur un jour clôturé (reprise) : les écritures
  * post-clôture contrediraient l'inventaire et le contrôle de caisse déjà
@@ -106,20 +103,21 @@ async function assertDayNotClosed(
 ): Promise<void> {
   if (options?.bypassClosedDay) return;
   if (kind === "extra") return;
+  // Pas de try/catch ici : une erreur de lecture (réseau, base, date
+  // invalide) ne doit pas être interprétée comme « journée ouverte ».
+  // Les payloads gèrent déjà les jours sans document en renvoyant un jour
+  // neuf ; tout ce qui arrive jusqu'ici est anormal et doit bloquer l'écriture
+  // plutôt que risquer de vendre sur une journée clôturée.
   let status: string | null = null;
-  try {
-    if (kind === "plat" || kind === "local") {
-      const payload =
-        site === "zogbo"
-          ? await getZogboDayPayload(date)
-          : await getGbegameyDayPayload(date);
-      status = payload.day.status;
-    } else if (kind === "boisson") {
-      const payload = await getBoissonsDayPayload(date);
-      status = payload.day.status;
-    }
-  } catch {
-    return;
+  if (kind === "plat" || kind === "local") {
+    const payload =
+      site === "zogbo"
+        ? await getZogboDayPayload(date)
+        : await getGbegameyDayPayload(date);
+    status = payload.day.status;
+  } else if (kind === "boisson") {
+    const payload = await getBoissonsDayPayload(date);
+    status = payload.day.status;
   }
   if (status === "cloturee") {
     throw new Error("Journée clôturée : vente ou annulation impossible.");
@@ -1302,7 +1300,7 @@ export async function recordExtraVente(input: {
       ? input.immobilisationId
       : null;
   if (immoId) {
-    await adjustImmobilisationQty({ id: immoId, delta: qty });
+    await adjustImmobilisationQty({ id: immoId, delta: qty, siteScope: input.site });
   }
 
   const at = new Date().toISOString();
@@ -1331,7 +1329,7 @@ export async function recordExtraVente(input: {
     });
   } catch (error) {
     if (immoId) {
-      await adjustImmobilisationQty({ id: immoId, delta: -qty });
+      await adjustImmobilisationQty({ id: immoId, delta: -qty, siteScope: input.site });
     }
     throw error;
   }
@@ -1430,7 +1428,11 @@ export async function undoVente(input: {
   if (doc.kind === "extra") {
     if (ObjectId.isValid(doc.productId) && String(doc.productId).length === 24) {
       try {
-        await adjustImmobilisationQty({ id: doc.productId, delta: -doc.qty });
+        await adjustImmobilisationQty({
+          id: doc.productId,
+          delta: -doc.qty,
+          siteScope: input.site,
+        });
       } catch {
         /* extra libre, pas une fiche immobilisation */
       }

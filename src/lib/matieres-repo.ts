@@ -1,4 +1,4 @@
-import { assertDayOpen, updateDayDocument } from "@/lib/day-doc";
+import { assertDayOpen, isValidDate, updateDayDocument } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import {
@@ -23,13 +23,9 @@ import type {
   MatieresMovement,
   RawMaterial,
 } from "@/lib/types";
-import { previousIsoDate } from "@/lib/zogbo-calc";
+import { isValidCalendarDate, previousIsoDate } from "@/lib/zogbo-calc";
 
 type MatieresDoc = Omit<MatieresDay, "date"> & { _id: string; rev?: number };
-
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
-}
 
 function toDay(doc: MatieresDoc): MatieresDay {
   const movements = (doc.movements ?? [])
@@ -206,6 +202,30 @@ export async function saveMatieresDay(input: {
   );
 }
 
+/**
+ * Lignes de base du jour, sans écrire : celles du document existant, ou un
+ * jour neuf alimenté par le report J-1 / l'ouverture AquaPro. Utilisée dans
+ * le verrou optimiste des achats — la construction doit rester une fonction
+ * pure du document lu.
+ */
+async function lignesDuJour(
+  existing: MatieresDoc | null,
+  date: string,
+  rawMaterials: RawMaterial[],
+): Promise<MatieresLine[]> {
+  if (existing) {
+    return (existing.lines ?? []).map((l) => normalizeMatieresLine(l));
+  }
+  const leftovers = await leftoversForDate(date, rawMaterials);
+  return createEmptyMatieresDay(date, rawMaterials, leftovers).lines;
+}
+
+function mouvementsDuJour(existing: MatieresDoc | null): MatieresMovement[] {
+  return (existing?.movements ?? [])
+    .map((m) => normalizeMatieresMovement(m))
+    .filter((m): m is MatieresMovement => !!m);
+}
+
 export async function applyMatieresPurchase(input: {
   date: string;
   productId: string;
@@ -217,57 +237,53 @@ export async function applyMatieresPurchase(input: {
   bypassClosedDay?: boolean;
 }): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
-  const payload = await getMatieresDayPayload(input.date);
-  assertDayOpen(
-    payload.day.status,
-    "Journée clôturée : achat matière impossible.",
-    { bypass: input.bypassClosedDay },
-  );
-  const mat = payload.materials.find((m) => m.id === input.productId);
+  const { rawMaterials = [] } = await getParametres();
+  const mat = rawMaterials.find((m) => m.id === input.productId);
   const unitPrice = input.unitPrice ?? mat?.purchasePrice ?? 0;
   if (unitPrice <= 0) {
     throw new Error("Prix d'achat obligatoire : saisissez le prix unitaire.");
   }
-  const applied = applyMatieresPurchaseToState(
-    payload.day.lines,
-    payload.day.movements ?? [],
-    {
-      productId: input.productId,
-      qty: input.qty,
-      unitPrice,
-      fournisseurId: input.fournisseurId,
-      fournisseurNom: input.fournisseurNom,
-    },
-  );
 
-  const db = await getDb();
-  const updatedAt = new Date().toISOString();
-  const status = payload.day.status;
-  await db.collection<MatieresDoc>("matieres_jours").updateOne(
-    { _id: input.date },
-    {
-      $set: {
-        status,
-        lines: applied.lines,
-        movements: applied.movements,
-        updatedAt,
+  // Écriture sous verrou optimiste (rev) : une vente ou une perte déclarée en
+  // parallèle ne peut plus être écrasée par la réécriture du document complet,
+  // comme lors de la course findOne → updateOne qu'avaient corrigée les ventes.
+  return updateDayDocument<
+    MatieresDoc,
+    MatieresDayPayload & { movement: MatieresMovement }
+  >("matieres_jours", input.date, async (existing) => {
+    assertDayOpen(
+      existing?.status,
+      "Journée clôturée : achat matière impossible.",
+      { bypass: input.bypassClosedDay },
+    );
+    const applied = applyMatieresPurchaseToState(
+      await lignesDuJour(existing, input.date, rawMaterials),
+      mouvementsDuJour(existing),
+      {
+        productId: input.productId,
+        qty: input.qty,
+        unitPrice,
+        fournisseurId: input.fournisseurId,
+        fournisseurNom: input.fournisseurNom,
       },
-      $setOnInsert: { _id: input.date },
-    },
-    { upsert: true },
-  );
-
-  return {
-    day: {
-      date: input.date,
-      status,
-      lines: syncMatieresLines(applied.lines, payload.materials),
-      movements: applied.movements,
-      updatedAt,
-    },
-    materials: payload.materials,
-    movement: applied.movement,
-  };
+    );
+    const updatedAt = new Date().toISOString();
+    const status = existing?.status ?? "ouverte";
+    return {
+      set: { status, lines: applied.lines, movements: applied.movements, updatedAt },
+      result: {
+        day: {
+          date: input.date,
+          status,
+          lines: syncMatieresLines(applied.lines, rawMaterials),
+          movements: applied.movements,
+          updatedAt,
+        },
+        materials: rawMaterials,
+        movement: applied.movement,
+      },
+    };
+  });
 }
 
 /**
@@ -286,52 +302,46 @@ export async function applyMatieresOtherPurchase(input: {
   bypassClosedDay?: boolean;
 }): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
-  const payload = await getMatieresDayPayload(input.date);
-  assertDayOpen(
-    payload.day.status,
-    "Journée clôturée : achat matière impossible.",
-    { bypass: input.bypassClosedDay },
-  );
-  const applied = applyMatieresOtherPurchaseToState(
-    payload.day.lines,
-    payload.day.movements ?? [],
-    {
-      name: input.name,
-      qty: input.qty,
-      unitPrice: input.unitPrice ?? 0,
-      fournisseurId: input.fournisseurId,
-      fournisseurNom: input.fournisseurNom,
-    },
-  );
+  const { rawMaterials = [] } = await getParametres();
 
-  const db = await getDb();
-  const updatedAt = new Date().toISOString();
-  const status = payload.day.status;
-  await db.collection<MatieresDoc>("matieres_jours").updateOne(
-    { _id: input.date },
-    {
-      $set: {
-        status,
-        lines: applied.lines,
-        movements: applied.movements,
-        updatedAt,
+  // Même verrou optimiste que les achats du catalogue (voir ci-dessus).
+  return updateDayDocument<
+    MatieresDoc,
+    MatieresDayPayload & { movement: MatieresMovement }
+  >("matieres_jours", input.date, async (existing) => {
+    assertDayOpen(
+      existing?.status,
+      "Journée clôturée : achat matière impossible.",
+      { bypass: input.bypassClosedDay },
+    );
+    const applied = applyMatieresOtherPurchaseToState(
+      await lignesDuJour(existing, input.date, rawMaterials),
+      mouvementsDuJour(existing),
+      {
+        name: input.name,
+        qty: input.qty,
+        unitPrice: input.unitPrice ?? 0,
+        fournisseurId: input.fournisseurId,
+        fournisseurNom: input.fournisseurNom,
       },
-      $setOnInsert: { _id: input.date },
-    },
-    { upsert: true },
-  );
-
-  return {
-    day: {
-      date: input.date,
-      status,
-      lines: syncMatieresLines(applied.lines, payload.materials),
-      movements: applied.movements,
-      updatedAt,
-    },
-    materials: payload.materials,
-    movement: applied.movement,
-  };
+    );
+    const updatedAt = new Date().toISOString();
+    const status = existing?.status ?? "ouverte";
+    return {
+      set: { status, lines: applied.lines, movements: applied.movements, updatedAt },
+      result: {
+        day: {
+          date: input.date,
+          status,
+          lines: syncMatieresLines(applied.lines, rawMaterials),
+          movements: applied.movements,
+          updatedAt,
+        },
+        materials: rawMaterials,
+        movement: applied.movement,
+      },
+    };
+  });
 }
 export async function linkMatieresMovementDepense(input: {
   date: string;
@@ -379,43 +389,41 @@ export async function cancelMatieresMovement(input: {
   bypassClosedDay?: boolean;
 }): Promise<MatieresDayPayload> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
-  const payload = await getMatieresDayPayload(input.date);
-  assertDayOpen(
-    payload.day.status,
-    "Journée clôturée : annulation d'achat impossible.",
-    { bypass: input.bypassClosedDay },
-  );
-  const applied = cancelMatieresMovementInState(
-    payload.day.lines,
-    payload.day.movements ?? [],
-    input.movementId,
-  );
+  const { rawMaterials = [] } = await getParametres();
 
-  const db = await getDb();
-  const updatedAt = new Date().toISOString();
-  const status = payload.day.status;
-  await db.collection<MatieresDoc>("matieres_jours").updateOne(
-    { _id: input.date },
-    {
-      $set: {
-        status,
-        lines: applied.lines,
-        movements: applied.movements,
-        updatedAt,
-      },
+  // Verrou optimiste : l'annulation ne peut plus écraser une vente ou un
+  // comptage enregistrés entre la lecture et l'écriture.
+  return updateDayDocument<MatieresDoc, MatieresDayPayload>(
+    "matieres_jours",
+    input.date,
+    async (existing) => {
+      assertDayOpen(
+        existing?.status,
+        "Journée clôturée : annulation d'achat impossible.",
+        { bypass: input.bypassClosedDay },
+      );
+      const applied = cancelMatieresMovementInState(
+        await lignesDuJour(existing, input.date, rawMaterials),
+        mouvementsDuJour(existing),
+        input.movementId,
+      );
+      const updatedAt = new Date().toISOString();
+      const status = existing?.status ?? "ouverte";
+      return {
+        set: { status, lines: applied.lines, movements: applied.movements, updatedAt },
+        result: {
+          day: {
+            date: input.date,
+            status,
+            lines: syncMatieresLines(applied.lines, rawMaterials),
+            movements: applied.movements,
+            updatedAt,
+          },
+          materials: rawMaterials,
+        },
+      };
     },
   );
-
-  return {
-    day: {
-      date: input.date,
-      status,
-      lines: syncMatieresLines(applied.lines, payload.materials),
-      movements: applied.movements,
-      updatedAt,
-    },
-    materials: payload.materials,
-  };
 }
 
 /**
@@ -432,29 +440,23 @@ export async function applyMatieresMovementPerte(input: {
   delta: number;
 }): Promise<{ movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
-  const db = await getDb();
-  const doc = await db
-    .collection<MatieresDoc>("matieres_jours")
-    .findOne({ _id: input.date });
-  if (!doc) throw new Error("Achat introuvable");
-
-  const applied = applyMatieresMovementPerteInState(
-    doc.movements ?? [],
-    input.movementId,
-    input.delta,
-  );
-
-  await db.collection<MatieresDoc>("matieres_jours").updateOne(
-    { _id: input.date },
-    {
-      $set: {
-        movements: applied.movements,
-        updatedAt: new Date().toISOString(),
-      },
+  // Verrou optimiste, sans garde de journée : un achat libre ne participe à
+  // aucune réconciliation de stock quotidienne (voir commentaire d'origine).
+  return updateDayDocument<MatieresDoc, { movement: MatieresMovement }>(
+    "matieres_jours",
+    input.date,
+    async (existing) => {
+      const applied = applyMatieresMovementPerteInState(
+        mouvementsDuJour(existing),
+        input.movementId,
+        input.delta,
+      );
+      return {
+        set: { movements: applied.movements, updatedAt: new Date().toISOString() },
+        result: { movement: applied.movement },
+      };
     },
   );
-
-  return { movement: applied.movement };
 }
 
 /**
@@ -480,100 +482,115 @@ export async function editMatieresMovement(input: {
   bypassClosedDay?: boolean;
 }): Promise<MatieresDayPayload & { movement: MatieresMovement }> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
-  const payload = await getMatieresDayPayload(input.date);
-  assertDayOpen(
-    payload.day.status,
-    "Journée clôturée : correction d'achat impossible.",
-    { bypass: input.bypassClosedDay },
-  );
-  const applied = editMatieresMovementInState(
-    payload.day.lines,
-    payload.day.movements ?? [],
-    {
-      movementId: input.movementId,
-      qty: input.qty,
-      unitPrice: input.unitPrice,
-      name: input.name,
-      fournisseurId: input.fournisseurId,
-      fournisseurNom: input.fournisseurNom,
-    },
-  );
-
-  const db = await getDb();
-  const updatedAt = new Date().toISOString();
-  const status = payload.day.status;
-
+  const { rawMaterials = [] } = await getParametres();
   const changeDate =
     input.newDate && input.newDate !== input.date ? input.newDate : null;
 
+  // Validations qui doivent refuser AVANT toute écriture : un déplacement de
+  // jour ne concerne que les achats libres (un achat de catalogue touche le
+  // compteur `purchases` de sa journée d'origine).
   if (changeDate) {
-    if (!isValidDate(changeDate)) throw new Error("Date invalide");
-    if (applied.movement.type !== "autre") {
+    if (!isValidCalendarDate(changeDate)) throw new Error("Date invalide");
+    const db = await getDb();
+    const doc = await db
+      .collection<MatieresDoc>("matieres_jours")
+      .findOne({ _id: input.date });
+    const cible = mouvementsDuJour(doc).find((m) => m.id === input.movementId);
+    if (!cible) throw new Error("Achat introuvable");
+    if (cible.type !== "autre") {
       throw new Error("Seul un achat libre peut changer de date.");
     }
-    const remainingSource = applied.movements.filter(
-      (m) => m.id !== applied.movement.id,
-    );
-    await db.collection<MatieresDoc>("matieres_jours").updateOne(
-      { _id: input.date },
-      { $set: { status, lines: applied.lines, movements: remainingSource, updatedAt } },
-    );
+  }
 
-    const target = await getMatieresDayPayload(changeDate);
+  // Verrou optimiste sur le jour source : la correction ne peut plus écraser
+  // ce qui aurait été écrit en parallèle (vente, perte, comptage).
+  const applied = await updateDayDocument<
+    MatieresDoc,
+    MatieresDayPayload & { movement: MatieresMovement }
+  >("matieres_jours", input.date, async (existing) => {
     assertDayOpen(
-      target.day.status,
-      "Journée cible clôturée : correction d'achat impossible.",
+      existing?.status,
+      "Journée clôturée : correction d'achat impossible.",
       { bypass: input.bypassClosedDay },
     );
-    const targetMovements = [applied.movement, ...(target.day.movements ?? [])];
-    await db.collection<MatieresDoc>("matieres_jours").updateOne(
-      { _id: changeDate },
+    const result = editMatieresMovementInState(
+      await lignesDuJour(existing, input.date, rawMaterials),
+      mouvementsDuJour(existing),
       {
-        $set: {
-          status: target.day.status,
-          lines: target.day.lines,
-          movements: targetMovements,
+        movementId: input.movementId,
+        qty: input.qty,
+        unitPrice: input.unitPrice,
+        name: input.name,
+        fournisseurId: input.fournisseurId,
+        fournisseurNom: input.fournisseurNom,
+      },
+    );
+    // Déplacement : le mouvement quitte ce document.
+    const restants = changeDate
+      ? result.movements.filter((m) => m.id !== result.movement.id)
+      : result.movements;
+    const updatedAt = new Date().toISOString();
+    const status = existing?.status ?? "ouverte";
+    return {
+      set: { status, lines: result.lines, movements: restants, updatedAt },
+      result: {
+        day: {
+          date: input.date,
+          status,
+          lines: syncMatieresLines(result.lines, rawMaterials),
+          movements: restants,
           updatedAt,
         },
-        $setOnInsert: { _id: changeDate },
+        materials: rawMaterials,
+        movement: result.movement,
       },
-      { upsert: true },
-    );
+    };
+  });
 
+  if (!changeDate) {
     return {
-      day: {
-        date: changeDate,
-        status: target.day.status,
-        lines: syncMatieresLines(target.day.lines, target.materials),
-        movements: targetMovements,
-        updatedAt,
-      },
-      materials: target.materials,
+      day: applied.day,
+      materials: applied.materials,
       movement: applied.movement,
     };
   }
 
-  await db.collection<MatieresDoc>("matieres_jours").updateOne(
-    { _id: input.date },
-    {
-      $set: {
-        status,
-        lines: applied.lines,
-        movements: applied.movements,
-        updatedAt,
+  // Jour cible sous verrou aussi : les mouvements y sont relus au dernier
+  // état pour ne rien perdre en route.
+  const cible = await updateDayDocument<
+    MatieresDoc,
+    MatieresDayPayload & { movement: MatieresMovement }
+  >("matieres_jours", changeDate, async (existingTarget) => {
+    assertDayOpen(
+      existingTarget?.status,
+      "Journée cible clôturée : correction d'achat impossible.",
+      { bypass: input.bypassClosedDay },
+    );
+    const targetMovements = [applied.movement, ...mouvementsDuJour(existingTarget)];
+    const updatedAt = new Date().toISOString();
+    const status = existingTarget?.status ?? "ouverte";
+    return {
+      set: { status, movements: targetMovements, updatedAt },
+      result: {
+        day: {
+          date: changeDate,
+          status,
+          lines: syncMatieresLines(
+            await lignesDuJour(existingTarget, changeDate, rawMaterials),
+            rawMaterials,
+          ),
+          movements: targetMovements,
+          updatedAt,
+        },
+        materials: rawMaterials,
+        movement: applied.movement,
       },
-    },
-  );
+    };
+  });
 
   return {
-    day: {
-      date: input.date,
-      status,
-      lines: syncMatieresLines(applied.lines, payload.materials),
-      movements: applied.movements,
-      updatedAt,
-    },
-    materials: payload.materials,
-    movement: applied.movement,
+    day: cible.day,
+    materials: cible.materials,
+    movement: cible.movement,
   };
 }

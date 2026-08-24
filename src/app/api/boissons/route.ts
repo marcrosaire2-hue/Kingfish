@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
 import type { BoissonsLine } from "@/lib/types";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
+import { canUseSite, effectiveSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import {
   applyBoissonsPurchase,
@@ -16,13 +17,19 @@ export const runtime = "nodejs";
 
 export async function GET(request: Request) {
   try {
-    await requireUser();
+    const user = await requireUser();
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date") || todayIsoDate();
     const site = (searchParams.get("site") || "all") as
       | "zogbo"
       | "gbegamey"
       | "all";
+    if (
+      (site === "zogbo" || site === "gbegamey") &&
+      !canUseSite(effectiveSite(user.role, user.site), site)
+    ) {
+      return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
+    }
     const payload = await getBoissonsDayPayload(date);
     const exits = await listVentesByKind({
       date,
@@ -58,6 +65,9 @@ export async function PUT(request: Request) {
         { error: "Payload invalide (date + lines + site requis)." },
         { status: 400 },
       );
+    }
+    if (!canUseSite(effectiveSite(user.role, user.site), body.site)) {
+      return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
     }
     const saved = await saveBoissonsDay({
       date: body.date,
@@ -99,9 +109,11 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
+      const scope = effectiveSite(user.role, user.site);
       const cancelled = await cancelBoissonsMovement({
         date: body.date,
         movementId: body.movementId,
+        site: scope === "tous" ? null : scope,
       });
       const m = cancelled.movement;
       await logActivity({
@@ -130,6 +142,9 @@ export async function POST(request: Request) {
         { error: "date, productId, qty et site requis." },
         { status: 400 },
       );
+    }
+    if (!canUseSite(effectiveSite(user.role, user.site), body.site)) {
+      return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
     }
 
     const result = await applyBoissonsPurchase({

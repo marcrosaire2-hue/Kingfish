@@ -18,6 +18,7 @@ import {
   type StockKind,
   type StockZone,
 } from "@/lib/stock-meta";
+import { isValidDate } from "@/lib/day-doc";
 
 export {
   STOCK_FAMILY_META,
@@ -146,10 +147,6 @@ export async function getEpuises(input: {
         a.zoneLabel.localeCompare(b.zoneLabel, "fr") ||
         a.name.localeCompare(b.name, "fr"),
     );
-}
-
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
 }
 
 /** Ouverture brute (peut être négative si survente : c'est voulu, ça alerte). */

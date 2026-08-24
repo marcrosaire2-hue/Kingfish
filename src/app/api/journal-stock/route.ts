@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/api-auth";
+import { resolveUserSiteScopeFromUser } from "@/lib/auth-types";
 import {
   buildJournalBalance,
   buildJournalTotals,
@@ -7,14 +8,11 @@ import {
   type JournalStockInput,
   type JournalType,
 } from "@/lib/journal-stock-repo";
+import { isValidDate } from "@/lib/day-doc";
 
 export const runtime = "nodejs";
 
 const TYPES: JournalType[] = ["vente", "achat", "perte", "reception"];
-
-function isValidDate(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date);
-}
 
 /**
  * Journal des mouvements de stock. Tous les paramètres sont optionnels :
@@ -22,11 +20,11 @@ function isValidDate(date: string): boolean {
  */
 export async function GET(request: Request) {
   try {
-    await requireAdmin();
+    const user = await requireAdmin();
     const url = new URL(request.url);
     const from = url.searchParams.get("from");
     const to = url.searchParams.get("to");
-    const siteParam = url.searchParams.get("site") ?? "tous";
+    let siteParam = url.searchParams.get("site") ?? "tous";
     const typeParam = url.searchParams.get("type") ?? "tous";
 
     if (from && !isValidDate(from)) {
@@ -43,6 +41,12 @@ export async function GET(request: Request) {
     }
     if (!["tous", "zogbo", "gbegamey"].includes(siteParam)) {
       return NextResponse.json({ error: "Site invalide." }, { status: 400 });
+    }
+    // Un compte rattaché à un site ne lit jamais le journal de l'autre :
+    // la demande « tous » ou cross-site est ramenée à son périmètre.
+    const scope = resolveUserSiteScopeFromUser(user);
+    if (scope && siteParam !== scope) {
+      siteParam = scope;
     }
     if (typeParam !== "tous" && !TYPES.includes(typeParam as JournalType)) {
       return NextResponse.json({ error: "Type de mouvement invalide." }, { status: 400 });

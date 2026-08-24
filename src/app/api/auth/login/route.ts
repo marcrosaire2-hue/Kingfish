@@ -80,7 +80,7 @@ export async function POST(request: Request) {
       site: user.site,
       shift: user.shift,
     };
-    const token = await createSessionToken(sessionUser);
+    const token = await createSessionToken(sessionUser, user.tokenVersion);
 
     const response = NextResponse.json({
       user: sessionUser,

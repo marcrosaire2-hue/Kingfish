@@ -2,7 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ajouterEnAttente,
   fileEnAttente,
+  marquerRejetsTraites,
   nombreEnAttente,
+  rejetsEnAttente,
+  surRejet,
   synchroniser,
 } from "@/lib/offline-queue";
 
@@ -115,5 +118,80 @@ describe("synchronisation", () => {
     // Sans cette sortie, une vente définitivement refusée figerait toutes
     // les suivantes.
     expect(nombreEnAttente()).toBe(0);
+  });
+});
+
+describe("registre des rejets", () => {
+  it("consigne une vente refusée au rejeu avec la raison du serveur", async () => {
+    ajouterEnAttente({ n: 1 }, "pos-rejet-1");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "Stock insuffisant" }),
+      }),
+    );
+
+    await synchroniser();
+    await synchroniser();
+    await synchroniser();
+
+    const rejets = rejetsEnAttente();
+    expect(rejets).toHaveLength(1);
+    expect(rejets[0]!.id).toBe("pos-rejet-1");
+    expect(rejets[0]!.raison).toContain("Stock insuffisant");
+  });
+
+  it("notifie l'interface au moment du rejet et à l'abonnement", async () => {
+    const ecouteur = vi.fn();
+    const desabonner = surRejet(ecouteur);
+
+    ajouterEnAttente({ n: 1 }, "pos-rejet-2");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400 }));
+
+    await synchroniser();
+    await synchroniser();
+    await synchroniser();
+
+    // Appelé par ecrireRejets au moment du refus définitif.
+    expect(ecouteur).toHaveBeenCalledTimes(1);
+    const dernier = ecouteur.mock.lastCall![0] as unknown[];
+    expect(dernier).toHaveLength(1);
+    desabonner();
+  });
+
+  it("purge le registre quand le gérant accuse réception", async () => {
+    ajouterEnAttente({ n: 1 }, "pos-rejet-3");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 400 }));
+    await synchroniser();
+    await synchroniser();
+    await synchroniser();
+    expect(rejetsEnAttente()).toHaveLength(1);
+
+    marquerRejetsTraites();
+    expect(rejetsEnAttente()).toHaveLength(0);
+  });
+
+  it("n'inscrit pas une vente qui finit par passer", async () => {
+    ajouterEnAttente({ n: 1 }, "pos-repas-4");
+    let echecs = 2;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation(async () => {
+        if (echecs > 0) {
+          echecs -= 1;
+          return { ok: false, status: 500 };
+        }
+        return { ok: true, status: 200 };
+      }),
+    );
+
+    await synchroniser();
+    await synchroniser();
+    await synchroniser();
+
+    expect(nombreEnAttente()).toBe(0);
+    expect(rejetsEnAttente()).toHaveLength(0);
   });
 });

@@ -13,6 +13,7 @@ import {
 } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getPosConfig } from "@/lib/pos-config-repo";
+import { reportError } from "@/lib/report-error";
 import {
   assertSameTeamCancellation,
   deleteVentePermanently,
@@ -69,6 +70,50 @@ function toTicket(doc: TicketDoc): PosTicket {
 }
 
 type CounterDoc = { _id: string; count: number };
+
+const CLIENT_REF_INDEX = "pos_tickets_clientref_site_unique";
+let clientRefIndexReady: Promise<boolean> | null = null;
+
+function isDuplicateKeyError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: number }).code === 11000
+  );
+}
+
+/**
+ * Index UNIQUE partiel sur (clientRef, site). Le contrôle de dédoublonnage
+ * « findOne puis insert » laisse une fenêtre à deux rejouements simultanés de
+ * la même vente hors ligne (deux onglets, deux postes) : sans contrainte en
+ * base, les deux passes aboutissent et la commande est encaissée deux fois.
+ * L'index transforme le second insert en erreur 11000 — gérée plus bas en
+ * renvoyant le ticket déjà créé. Si des doublons historiques empêchent sa
+ * création, on continue avec le seul contrôle préalable plutôt que de
+ * bloquer les ventes.
+ */
+async function ensureClientRefUniqueIndex(): Promise<boolean> {
+  const db = await getDb();
+  try {
+    await db.collection<TicketDoc>("pos_tickets").createIndex(
+      { clientRef: 1, site: 1 },
+      {
+        name: CLIENT_REF_INDEX,
+        unique: true,
+        partialFilterExpression: { clientRef: { $type: "string" } },
+      },
+    );
+    return true;
+  } catch (error) {
+    reportError("ensureClientRefUniqueIndex", error);
+    return false;
+  }
+}
+
+export function ensurePosIdempotenceGuard(): Promise<boolean> {
+  clientRefIndexReady ??= ensureClientRefUniqueIndex();
+  return clientRefIndexReady;
+}
 
 export function formatTicketNumero(date: string, count: number): string {
   return `T-${date.replace(/-/g, "").slice(2)}-${String(count).padStart(3, "0")}`;
@@ -138,6 +183,7 @@ export async function validatePosTicket(input: {
   // par référence de poste ET site — une référence d'un autre point ne peut
   // pas absorber la vente de celui-ci.
   if (input.clientRef) {
+    await ensurePosIdempotenceGuard();
     const db = await getDb();
     const existant = await db
       .collection<TicketDoc>("pos_tickets")
@@ -347,6 +393,25 @@ export async function validatePosTicket(input: {
       }
     }
   } catch (error) {
+    // Un replay simultané de la même référence vient de créer le ticket :
+    // on reprend NOS lignes puis on renvoie LEUR ticket — la vente n'est
+    // comptée qu'une fois, et l'utilisateur voit sa commande aboutie.
+    if (
+      input.clientRef &&
+      isDuplicateKeyError(error)
+    ) {
+      await reprendreLignes();
+      const gagnant = await db
+        .collection<TicketDoc>("pos_tickets")
+        .findOne({ clientRef: input.clientRef, site: input.site });
+      if (gagnant) {
+        return {
+          ticket: toTicket(gagnant),
+          board: await getVenteBoard(gagnant.date, gagnant.site),
+          caisseId: gagnant.caisseId,
+        };
+      }
+    }
     if (doc) {
       try {
         await db

@@ -21,9 +21,25 @@ type UserDoc = {
   site: UserSite;
   shift?: UserShift;
   active: boolean;
+  /**
+   * Incrémentée à chaque changement de mot de passe ou désactivation :
+   * les sessions JWT émises avant portent l'ancienne version et sont
+   * refusées par getSessionUser (voir auth-token.ts).
+   */
+  tokenVersion?: number;
   createdAt: string;
   updatedAt: string;
 };
+
+/**
+ * Coût bcrypt : 10 était le plancher historique ; 12 multiplie par ~4 le
+ * coût d'une attaque hors ligne si la base fuit. ~250 ms par hachage sur le
+ * matériel du site — invisible pour un login humain.
+ */
+const BCRYPT_COST = 12;
+
+/** Longueur minimale d'un mot de passe, création comme modification. */
+export const MIN_PASSWORD_LENGTH = 8;
 
 const DEFAULT_ADMIN = {
   username: "admin",
@@ -72,11 +88,12 @@ export async function ensureDefaultAdmin(): Promise<void> {
     _id: new ObjectId(),
     username: DEFAULT_ADMIN.username,
     name: DEFAULT_ADMIN.name,
-    passwordHash: await bcrypt.hash(password, 10),
+    passwordHash: await bcrypt.hash(password, BCRYPT_COST),
     role: DEFAULT_ADMIN.role,
     site: DEFAULT_ADMIN.site,
     shift: "aucune",
     active: true,
+    tokenVersion: 1,
     createdAt: now,
     updatedAt: now,
   });
@@ -90,7 +107,7 @@ export async function ensureDefaultAdmin(): Promise<void> {
 export async function authenticateUser(
   username: string,
   password: string,
-): Promise<AppUser | null> {
+): Promise<(AppUser & { tokenVersion: number }) | null> {
   await ensureDefaultAdmin();
   const db = await getDb();
   const doc = await db.collection<UserDoc>("users").findOne({
@@ -99,7 +116,7 @@ export async function authenticateUser(
   if (!doc || !doc.active) return null;
   const ok = await bcrypt.compare(password, doc.passwordHash);
   if (!ok) return null;
-  return toAppUser(doc);
+  return { ...toAppUser(doc), tokenVersion: doc.tokenVersion ?? 1 };
 }
 
 export async function listUsers(): Promise<AppUser[]> {
@@ -122,6 +139,25 @@ export async function getUserById(id: string): Promise<AppUser | null> {
   return doc ? toAppUser(doc) : null;
 }
 
+/**
+ * Recharge l'utilisateur depuis la base pour valider une session : compte
+ * toujours actif et version de token à jour. C'est ce qui permet la
+ * révocation immédiate (changement de mot de passe, désactivation) et fait
+ * prendre en compte un changement de rôle/site sans attendre l'expiration
+ * du JWT.
+ */
+export async function getSessionAuthState(
+  id: string,
+): Promise<{ user: AppUser; tokenVersion: number } | null> {
+  if (!ObjectId.isValid(id)) return null;
+  const db = await getDb();
+  const doc = await db.collection<UserDoc>("users").findOne({
+    _id: new ObjectId(id),
+  });
+  if (!doc || !doc.active) return null;
+  return { user: toAppUser(doc), tokenVersion: doc.tokenVersion ?? 1 };
+}
+
 export async function createUser(input: {
   username: string;
   name: string;
@@ -134,8 +170,10 @@ export async function createUser(input: {
   if (!username || username.length < 3) {
     throw new Error("Identifiant trop court (min. 3 caractères).");
   }
-  if (!input.password || input.password.length < 6) {
-    throw new Error("Mot de passe trop court (min. 6 caractères).");
+  if (!input.password || input.password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `Mot de passe trop court (min. ${MIN_PASSWORD_LENGTH} caractères).`,
+    );
   }
   if (!input.name.trim()) throw new Error("Le nom est requis.");
   assertValidRoleSite(input.role, input.site);
@@ -150,11 +188,12 @@ export async function createUser(input: {
     _id: new ObjectId(),
     username,
     name: input.name.trim(),
-    passwordHash: await bcrypt.hash(input.password, 10),
+    passwordHash: await bcrypt.hash(input.password, BCRYPT_COST),
     role: input.role,
     site: input.site,
     shift: effectiveShift(input.shift),
     active: true,
+    tokenVersion: 1,
     createdAt: now,
     updatedAt: now,
   };
@@ -218,6 +257,9 @@ export async function updateUser(
     assertValidRoleSite(nextRole, nextSite);
   }
 
+  // Révocation des sessions existantes : changement de mot de passe ou
+  // désactivation invalident immédiatement les JWT déjà émis.
+  let revokeSessions = false;
   const updatedAt = new Date().toISOString();
   const $set: Partial<UserDoc> = { updatedAt };
 
@@ -240,15 +282,24 @@ export async function updateUser(
       throw new Error("Impossible de désactiver le compte admin principal.");
     }
     $set.active = input.active;
+    if (input.active === false) revokeSessions = true;
   }
   if (input.password) {
-    if (input.password.length < 6) {
-      throw new Error("Mot de passe trop court (min. 6 caractères).");
+    if (input.password.length < MIN_PASSWORD_LENGTH) {
+      throw new Error(
+        `Mot de passe trop court (min. ${MIN_PASSWORD_LENGTH} caractères).`,
+      );
     }
-    $set.passwordHash = await bcrypt.hash(input.password, 10);
+    $set.passwordHash = await bcrypt.hash(input.password, BCRYPT_COST);
+    revokeSessions = true;
   }
 
-  await col.updateOne({ _id }, { $set });
+  await col.updateOne(
+    { _id },
+    revokeSessions
+      ? { $set, $inc: { tokenVersion: 1 } }
+      : { $set },
+  );
   const doc = await col.findOne({ _id });
   if (!doc) throw new Error("Utilisateur introuvable.");
   return toAppUser(doc);
@@ -267,8 +318,10 @@ export async function changeOwnPassword(input: {
   if (!ObjectId.isValid(input.id)) {
     throw new Error("Utilisateur introuvable.");
   }
-  if (input.newPassword.length < 8) {
-    throw new Error("Le nouveau mot de passe doit faire au moins 8 caractères.");
+  if (input.newPassword.length < MIN_PASSWORD_LENGTH) {
+    throw new Error(
+      `Le nouveau mot de passe doit faire au moins ${MIN_PASSWORD_LENGTH} caractères.`,
+    );
   }
   if (input.newPassword === input.currentPassword) {
     throw new Error("Le nouveau mot de passe doit être différent de l’ancien.");
@@ -287,9 +340,12 @@ export async function changeOwnPassword(input: {
     { _id },
     {
       $set: {
-        passwordHash: await bcrypt.hash(input.newPassword, 10),
+        passwordHash: await bcrypt.hash(input.newPassword, BCRYPT_COST),
         updatedAt: new Date().toISOString(),
       },
+      // Toutes les autres sessions de cet utilisateur (autre téléphone,
+      // autre poste) deviennent invalides immédiatement.
+      $inc: { tokenVersion: 1 },
     },
   );
 }

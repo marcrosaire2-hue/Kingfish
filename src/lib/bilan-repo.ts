@@ -155,6 +155,8 @@ export async function buildBilan(input: {
       libelle: "Trésorerie (caisses)",
       montant: Math.round(tresorerie),
       fiable: true,
+      note:
+        "Argent présent dans les tiroirs des caisses actuellement ouvertes. À la fermeture d'une session, le solde quitte le périmètre de l'application (versement en banque ou remise au propriétaire) : il n'apparaît plus ici.",
     },
   ];
 

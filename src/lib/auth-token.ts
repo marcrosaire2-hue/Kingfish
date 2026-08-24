@@ -23,7 +23,10 @@ function getSecret() {
   return new TextEncoder().encode(secret);
 }
 
-export async function createSessionToken(user: SessionUser): Promise<string> {
+export async function createSessionToken(
+  user: SessionUser,
+  tokenVersion = 1,
+): Promise<string> {
   return new SignJWT({
     id: user.id,
     username: user.username,
@@ -31,6 +34,10 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
     role: user.role,
     site: user.site,
     shift: user.shift ?? "aucune",
+    // Version de token : incrémentée en base à chaque changement de mot de
+    // passe ou désactivation. Une session déjà émise devient invalide sans
+    // attendre son expiration (voir verifySessionTokenWithVersion).
+    tv: tokenVersion,
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -38,30 +45,57 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
     .sign(getSecret());
 }
 
+function extractPayload(payload: Record<string, unknown>): SessionUser | null {
+  if (
+    typeof payload.id !== "string" ||
+    typeof payload.username !== "string" ||
+    typeof payload.name !== "string" ||
+    typeof payload.role !== "string" ||
+    typeof payload.site !== "string"
+  ) {
+    return null;
+  }
+  return {
+    id: payload.id,
+    username: payload.username,
+    name: payload.name,
+    role: payload.role as SessionUser["role"],
+    site: payload.site as SessionUser["site"],
+    // Absent des sessions ouvertes avant l'introduction des équipes : la
+    // vente sera simplement rattachée à « hors équipe ».
+    shift: effectiveShift(payload.shift as SessionUser["shift"]),
+  };
+}
+
 export async function verifySessionToken(
   token: string,
 ): Promise<SessionUser | null> {
   try {
     const { payload } = await jwtVerify(token, getSecret());
-    if (
-      typeof payload.id !== "string" ||
-      typeof payload.username !== "string" ||
-      typeof payload.name !== "string" ||
-      typeof payload.role !== "string" ||
-      typeof payload.site !== "string"
-    ) {
-      return null;
-    }
-    return {
-      id: payload.id,
-      username: payload.username,
-      name: payload.name,
-      role: payload.role as SessionUser["role"],
-      site: payload.site as SessionUser["site"],
-      // Absent des sessions ouvertes avant l'introduction des équipes : la
-      // vente sera simplement rattachée à « hors équipe ».
-      shift: effectiveShift(payload.shift as SessionUser["shift"]),
-    };
+    return extractPayload(payload as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Vérifie la signature et renvoie aussi la version de token (`tv`). Le
+ * middleware tourne sur l'edge runtime sans accès MongoDB et n'utilise que
+ * la signature ; les routes API, elles, comparent cette version à celle de
+ * l'utilisateur en base pour révoquer immédiatement une session.
+ */
+export async function verifySessionTokenWithVersion(
+  token: string,
+): Promise<{ user: SessionUser; tv: number } | null> {
+  try {
+    const { payload } = await jwtVerify(token, getSecret());
+    const user = extractPayload(payload as Record<string, unknown>);
+    if (!user) return null;
+    const tv =
+      typeof payload.tv === "number" && Number.isFinite(payload.tv)
+        ? payload.tv
+        : 1;
+    return { user, tv };
   } catch {
     return null;
   }
