@@ -47,11 +47,10 @@ function formatWhen(iso: string): string {
 
 export function RegularisationPage() {
   const [date, setDate] = useState(() => todayIsoDate());
+  /** Remplacé dès /api/auth/me pour coller à la zone du compte (Zogbo/Gbégamey). */
   const [site, setSite] = useState<VenteSite>("zogbo");
-  const [allowedSites, setAllowedSites] = useState<VenteSite[]>([
-    "zogbo",
-    "gbegamey",
-  ]);
+  const [sessionReady, setSessionReady] = useState(false);
+  const [allowedSites, setAllowedSites] = useState<VenteSite[]>([]);
   const [board, setBoard] = useState<Board | null>(null);
   const [tickets, setTickets] = useState<PosTicket[]>([]);
   const [emballages, setEmballages] = useState<Immobilisation[]>([]);
@@ -133,8 +132,45 @@ export function RegularisationPage() {
   }, [date, site]);
 
   useEffect(() => {
+    let annule = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!res.ok) {
+          if (!annule) {
+            setAllowedSites(["zogbo", "gbegamey"]);
+            setSessionReady(true);
+          }
+          return;
+        }
+        const body = await res.json();
+        if (annule) return;
+        const userSite = body.user?.site as VenteSite | "tous" | undefined;
+        if (userSite === "zogbo" || userSite === "gbegamey") {
+          setSite(userSite);
+          setAllowedSites([userSite]);
+        } else if (Array.isArray(body.allowedSites) && body.allowedSites.length) {
+          setAllowedSites(body.allowedSites as VenteSite[]);
+          const first = body.allowedSites[0];
+          if (first === "zogbo" || first === "gbegamey") setSite(first);
+        } else {
+          setAllowedSites(["zogbo", "gbegamey"]);
+        }
+      } catch {
+        if (!annule) setAllowedSites(["zogbo", "gbegamey"]);
+      } finally {
+        if (!annule) setSessionReady(true);
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!sessionReady) return;
     void load();
-  }, [load]);
+  }, [load, sessionReady]);
 
   useEffect(() => {
     if (kind === "extra") {
@@ -328,86 +364,13 @@ export function RegularisationPage() {
     }
   }
 
-  async function supprimerLigne(
-    t: PosTicket,
-    line: PosTicket["lines"][number],
-  ) {
-    if (!line.venteLogId) {
-      setError("Cette ligne n’a pas de journal lié — actualisez la page.");
-      return;
-    }
-    if (
-      !window.confirm(
-        `Supprimer définitivement « ${line.name} × ${line.qty} » ?\nCette action est irréversible.`,
-      )
-    ) {
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setFlash(null);
-    try {
-      const res = await fetch("/api/vente", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "delete",
-          id: line.venteLogId,
-          date: t.date,
-          site: t.site,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Suppression impossible");
-      setFlash(`« ${line.name} » supprimé définitivement`);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Suppression impossible");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function supprimerTicket(t: PosTicket) {
-    if (
-      !window.confirm(
-        `Supprimer définitivement le ticket ${t.numero} (${formatFcfa(t.montant)}) ?\nCette action est irréversible.`,
-      )
-    ) {
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    setFlash(null);
-    try {
-      const res = await fetch("/api/pos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "delete",
-          id: t.id,
-          date: t.date,
-          site: t.site,
-        }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Suppression impossible");
-      setFlash(`Ticket ${t.numero} supprimé définitivement`);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Suppression impossible");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
   const isPast = date < todayIsoDate();
 
   return (
     <AppShell
       title="Régularisation"
-      subtitle="Corriger ou saisir des ventes d’un jour passé — réservé au gérant."
+      subtitle={`Corriger ou saisir des ventes d’un jour passé — ${siteLabel} (indépendant de l’autre site).`}
       actions={
         <>
           <Link href="/journal-ventes" className="btn btn-ghost">

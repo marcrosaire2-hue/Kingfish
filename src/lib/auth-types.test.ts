@@ -143,6 +143,20 @@ describe("l'API suit les droits de l'écran", () => {
     }
   });
 
+  it("donne Régularisation à Zogbo et à Gbégamey (gérant / DAF / admin)", () => {
+    for (const site of ["zogbo", "gbegamey"] as const) {
+      expect(navForUser("gerant", site)).toContain("regularisation");
+      expect(canAccessPath("gerant", "/regularisation", site)).toBe(true);
+    }
+    expect(canAccessPath("daf", "/regularisation", "tous")).toBe(true);
+    expect(canAccessPath("admin", "/regularisation", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/regularisation", "tous")).toBe(false);
+    // Compte direction (Marc) : pas de saisie opérationnelle.
+    expect(canAccessPath("admin", "/regularisation", "tous", "marc")).toBe(
+      false,
+    );
+  });
+
   it("réserve la correction des ventes passées au gérant et à l'admin", () => {
     expect(canManagePastVentes("gerant")).toBe(true);
     expect(canManagePastVentes("admin")).toBe(true);
