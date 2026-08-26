@@ -65,8 +65,8 @@ export function authorizeRequestedSite(
   }
 
   if (requested === undefined || requested === null || requested === "") {
-    // Aligné sur l'écran Vente / l'ancien défaut POS.
-    return { ok: true, site: "gbegamey" };
+    // Aligné sur defaultCaisse / écran Vente (Zogbo en premier pour multi-sites).
+    return { ok: true, site: "zogbo" };
   }
   if (typeof requested !== "string") {
     return { ok: false, status: 400, error: "Site invalide." };

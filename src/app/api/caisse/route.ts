@@ -114,7 +114,7 @@ export async function POST(request: Request) {
     };
 
     if (body.action === "open") {
-      const caisse = body.caisse;
+      let caisse = body.caisse;
       if (!isZoneCaisse(caisse)) {
         return NextResponse.json(
           {
@@ -122,6 +122,16 @@ export async function POST(request: Request) {
               "Caisse inconnue ou centrale désactivée. Utilisez Zogbo ou Gbégamey.",
           },
           { status: 400 },
+        );
+      }
+      // Compte rattaché à une zone : toujours sa caisse (l'UI Vente démarrait
+      // parfois sur Gbégamey et provoquait « Accès refusé » pour Zogbo).
+      if (user.site === "zogbo" || user.site === "gbegamey") {
+        caisse = user.site;
+      } else if (!canUseCaisse(user, caisse)) {
+        return NextResponse.json(
+          { error: `Accès refusé à la ${CAISSE_LABELS[caisse].toLowerCase()}.` },
+          { status: 403 },
         );
       }
       const date = body.date || todayIsoDate();

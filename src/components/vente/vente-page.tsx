@@ -9,6 +9,7 @@ import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
 import { RegistreDrawer } from "@/components/registre-drawer";
+import { useSession } from "@/components/session-provider";
 import { formatFcfa, parseMoneyInput } from "@/lib/format";
 import {
   ajouterEnAttente,
@@ -625,10 +626,13 @@ const TicketsList = memo(function TicketsList({
 
 export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean }) {
   const pathname = usePathname();
+  const { user: sessionUser, ready: sessionReady } = useSession();
   const [date, setDate] = useState(() => todayIsoDate());
-  /** Remplacé dès /api/auth/me : évite un premier fetch Zogbo→gbegamey. */
-  const [site, setSite] = useState<VenteSite>("gbegamey");
-  const [sessionReady, setSessionReady] = useState(false);
+  /**
+   * Null tant que la session n'a pas parlé : un défaut « gbegamey » faisait
+   * afficher / ouvrir la mauvaise caisse pour les comptes Zogbo (accès refusé).
+   */
+  const [site, setSite] = useState<VenteSite | null>(null);
   const [allowedSites, setAllowedSites] = useState<VenteSite[]>([]);
   /** Ventes encaissées hors ligne, en attente d'envoi au serveur. */
   const [enAttente, setEnAttente] = useState(0);
@@ -721,7 +725,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
    *  rapide de date dans le calendrier). */
   const loadSeq = useRef(0);
 
-  async function load(nextDate = date, nextSite = site) {
+  async function load(nextDate = date, nextSite: VenteSite) {
     const seq = ++loadSeq.current;
     // Rechargement silencieux quand la page affiche déjà des données : pas de
     // gel sur un loader, les produits restent sous le doigt pendant la mise
@@ -748,7 +752,16 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       setBoard(venteBody as Board);
       setCanManagePast(Boolean(venteBody.canManagePast));
       setCanPurge(Boolean(venteBody.canPurge));
-      if (venteBody.site) setSite(venteBody.site as VenteSite);
+      // Toujours aligner l'UI sur le site autorisé par le serveur (anti-IDOR).
+      const resolvedSite =
+        (venteBody.site as VenteSite | undefined) ??
+        (Array.isArray(venteBody.allowedSites) &&
+        venteBody.allowedSites.length === 1
+          ? (venteBody.allowedSites[0] as VenteSite)
+          : null);
+      if (resolvedSite === "zogbo" || resolvedSite === "gbegamey") {
+        setSite(resolvedSite);
+      }
       setAllowedSites(
         (venteBody.allowedSites as VenteSite[] | undefined) ?? [],
       );
@@ -804,6 +817,13 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
 
   /** Ouvre la caisse de la zone sans quitter l'écran de vente. */
   async function openCaisseHere() {
+    const caisseSite =
+      (sessionUser?.site === "zogbo" || sessionUser?.site === "gbegamey"
+        ? sessionUser.site
+        : null) ??
+      board?.site ??
+      site;
+    if (!caisseSite) return;
     setOpeningCaisse(true);
     setError(null);
     try {
@@ -813,7 +833,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         body: JSON.stringify({
           action: "open",
           date,
-          caisse: site,
+          caisse: caisseSite,
           soldeInitial: 0,
         }),
       });
@@ -823,13 +843,13 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         // Tiroir déjà ouvert ailleurs : on se rattache au lieu d'afficher
         // « fermée » + erreur contradictoire.
         if (/déjà ouverte/i.test(msg)) {
-          await load(date, site);
+          await load(date, caisseSite);
           setFlash(msg.replace(/\.$/, "") + " — session reprise.");
           return;
         }
         throw new Error(msg);
       }
-      await load(date, site);
+      await load(date, caisseSite);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ouverture caisse impossible");
     } finally {
@@ -844,12 +864,13 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   }
 
   useEffect(() => {
-    if (!sessionReady) return;
+    if (!sessionReady || !site) return;
     void load(date, site);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, site, pathname, sessionReady]);
 
   useEffect(() => {
+    if (!site) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -932,41 +953,27 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     };
   }, []);
 
-  // Compte connecté : zone POS avant le premier chargement + opérateur facture.
+  // Zone POS + opérateur facture : issus de SessionProvider (déjà chargé
+  // pour le menu) — pas de second /api/auth/me qui laissait un défaut Gbégamey.
   useEffect(() => {
-    let annule = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/me", { cache: "no-store" });
-        if (!res.ok) {
-          if (!annule) setSessionReady(true);
-          return;
-        }
-        const body = await res.json();
-        if (annule) return;
-        setOperateur(body.user?.name ?? null);
-        if (typeof body.user?.id === "string") {
-          setOfflineQueueUser(body.user.id);
-        }
-        const userSite = body.user?.site as VenteSite | "tous" | undefined;
-        if (userSite === "zogbo" || userSite === "gbegamey") {
-          setSite(userSite);
-          setAllowedSites([userSite]);
-        } else if (Array.isArray(body.allowedSites) && body.allowedSites.length) {
-          setAllowedSites(body.allowedSites as VenteSite[]);
-          const first = body.allowedSites[0];
-          if (first === "zogbo" || first === "gbegamey") setSite(first);
-        }
-      } catch {
-        /* le serveur renverra de toute façon le nom sur le ticket */
-      } finally {
-        if (!annule) setSessionReady(true);
+    if (!sessionReady) return;
+    if (sessionUser) {
+      setOperateur(sessionUser.name ?? null);
+      if (typeof sessionUser.id === "string") {
+        setOfflineQueueUser(sessionUser.id);
       }
-    })();
-    return () => {
-      annule = true;
-    };
-  }, []);
+      if (sessionUser.site === "zogbo" || sessionUser.site === "gbegamey") {
+        setSite(sessionUser.site);
+        setAllowedSites([sessionUser.site]);
+      } else {
+        setAllowedSites(["zogbo", "gbegamey"]);
+        setSite((prev) => prev ?? "zogbo");
+      }
+    } else {
+      // Session absente : on laisse le chargement échouer proprement côté API.
+      setSite((prev) => prev ?? "zogbo");
+    }
+  }, [sessionReady, sessionUser]);
 
   const composerPlat = useMemo(
     () => plats.find((p) => p.productId === composerPlatId) ?? null,
@@ -1165,7 +1172,9 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     backdateMode,
   ]);
 
-  const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
+  /** Site réellement affiché / utilisé : board serveur > session > état local. */
+  const activeSite: VenteSite = board?.site ?? site ?? "zogbo";
+  const siteLabel = activeSite === "zogbo" ? "Zogbo" : "Gbégamey";
   const recentCount = board?.recent.length ?? 0;
   const cartTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const reductionN = Math.max(
@@ -1177,6 +1186,10 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const validateCart = useCallback(async () => {
     if (!cart.length) {
       setError("Panier vide");
+      return;
+    }
+    if (!site) {
+      setError("Site en cours de préparation…");
       return;
     }
     if (!canSell) {
@@ -1279,7 +1292,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             action: "cancel",
             id: ticket.id,
             date,
-            site,
+            site: activeSite,
           }),
         });
         const body = await res.json();
@@ -1300,7 +1313,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         setBusyKey(null);
       }
     },
-    [date, site],
+    [date, activeSite],
   );
 
   const deleteTicketPermanent = useCallback(
@@ -1329,7 +1342,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             action: "delete",
             id: ticket.id,
             date,
-            site,
+            site: activeSite,
             reason: reason.trim(),
           }),
         });
@@ -1374,7 +1387,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             action: "delete",
             id: entry.id,
             date,
-            site,
+            site: activeSite,
             reason: reason.trim(),
           }),
         });
@@ -1404,7 +1417,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             action: "undo",
             id: entry.id,
             date,
-            site,
+            site: activeSite,
           }),
         });
         const body = await res.json();
@@ -1496,7 +1509,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             </button>
           </div>
           <ExportExcelButton
-            onExport={() => exportVenteExcel(date, site)}
+            onExport={() => exportVenteExcel(date, activeSite)}
             disabled={loading}
           />
           {canViewHistory ? (
@@ -1537,7 +1550,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
               {ruptureCount > 1 ? "s" : ""}
             </strong>
             <span>
-              {site === "gbegamey"
+              {activeSite === "gbegamey"
                 ? "— souvent : pas encore reçu de Zogbo, ou stock épuisé. Voyez le motif sous chaque article."
                 : "— souvent : pas encore préparé, ou stock épuisé. Voyez le motif sous chaque article."}
             </span>
@@ -1597,7 +1610,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                     <button
                       key={s}
                       type="button"
-                      className={`site-btn${site === s ? " is-active" : ""}`}
+                      className={`site-btn${activeSite === s ? " is-active" : ""}`}
                       onClick={() => setSite(s)}
                     >
                       {s === "zogbo" ? "Zogbo" : "Gbégamey"}
@@ -1607,7 +1620,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
               ) : null}
             {loading ? null : caisse ? (
               <Link
-                href={`/caisse?caisse=${site}`}
+                href={`/caisse?caisse=${activeSite}`}
                 className="btn btn-ghost vente-hero-cta"
               >
                 Voir la caisse
@@ -1679,7 +1692,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             Caisse du {caisseActive.date.slice(8)}/{caisseActive.date.slice(5, 7)}{" "}
             encore ouverte (ouverte par {caisseActive.userName}). Pour démarrer
             aujourd&apos;hui, fermez-la sur{" "}
-            <Link href={`/caisse?caisse=${site}`}>Caisse</Link>.
+            <Link href={`/caisse?caisse=${activeSite}`}>Caisse</Link>.
           </p>
         ) : null}
 
@@ -1698,7 +1711,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
               </button>
             ) : null}
             {" · "}
-            <Link href={`/caisse?caisse=${site}`}>Voir la caisse</Link>
+            <Link href={`/caisse?caisse=${activeSite}`}>Voir la caisse</Link>
           </p>
         ) : null}
 

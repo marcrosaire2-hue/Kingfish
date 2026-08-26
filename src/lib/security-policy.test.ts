@@ -68,10 +68,10 @@ describe("IDOR de site", () => {
     });
   });
 
-  it("par défaut place un compte multi-sites sur Gbégamey", () => {
+  it("par défaut place un compte multi-sites sur Zogbo", () => {
     expect(authorizeRequestedSite("tous", null)).toEqual({
       ok: true,
-      site: "gbegamey",
+      site: "zogbo",
     });
   });
 
