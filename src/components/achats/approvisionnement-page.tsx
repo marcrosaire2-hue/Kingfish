@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
@@ -347,39 +348,44 @@ export function ApprovisionnementPage() {
   return (
     <AppShell
       title="Approvisionnement"
-      subtitle="Stock des matières et achats du catalogue"
+      subtitle="Matières du catalogue uniquement. Les achats hors catalogue se saisissent dans Achats."
       actions={
-        <ExportExcelButton
-          disabled={loading || !computed}
-          onExport={() => {
-            if (!computed) return Promise.resolve();
-            downloadExcel(excelFilename("approvisionnement", date), [
-              {
-                name: "Achats du jour",
-                subtitle: date,
-                rows: movementRows(
-                  catalogMovements.map((movement) => ({ date, movement })),
-                ),
-              },
-              {
-                name: "Historique",
-                subtitle: `${historiqueRange} derniers jours`,
-                rows: movementRows(catalogHistorique),
-              },
-              {
-                name: "Stock",
-                rows: computed.lines.map((l) => ({
-                  Matière: l.name,
-                  Unité: l.unit,
-                  Initial: l.initialStock,
-                  Achats: l.purchases,
-                  Stock: l.stock,
-                })),
-              },
-            ]);
-            return Promise.resolve();
-          }}
-        />
+        <>
+          <Link href="/achats" className="btn btn-ghost">
+            Achats libres
+          </Link>
+          <ExportExcelButton
+            disabled={loading || !computed}
+            onExport={() => {
+              if (!computed) return Promise.resolve();
+              downloadExcel(excelFilename("approvisionnement", date), [
+                {
+                  name: "Achats du jour",
+                  subtitle: date,
+                  rows: movementRows(
+                    catalogMovements.map((movement) => ({ date, movement })),
+                  ),
+                },
+                {
+                  name: "Historique",
+                  subtitle: `${historiqueRange} derniers jours`,
+                  rows: movementRows(catalogHistorique),
+                },
+                {
+                  name: "Stock",
+                  rows: computed.lines.map((l) => ({
+                    Matière: l.name,
+                    Unité: l.unit,
+                    Initial: l.initialStock,
+                    Achats: l.purchases,
+                    Stock: l.stock,
+                  })),
+                },
+              ]);
+              return Promise.resolve();
+            }}
+          />
+        </>
       }
     >
       <ContextBar date={date} onDateChange={setDate} />

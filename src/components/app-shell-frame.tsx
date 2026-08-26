@@ -40,6 +40,13 @@ const NAV_ITEMS: {
     group: "home",
   },
   {
+    href: "/controle",
+    label: "Contrôle écarts",
+    key: "controle",
+    mark: "≠",
+    group: "home",
+  },
+  {
     href: "/compte-resultat",
     label: "Compte de résultat",
     key: "compte-resultat",

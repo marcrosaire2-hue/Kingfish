@@ -255,20 +255,25 @@ export function AchatsPage() {
   return (
     <AppShell
       title="Achats"
-      subtitle="Achats libres, hors catalogue de matières — une date passée est autorisée pour le gérant"
+      subtitle="Hors catalogue uniquement. Les matières du catalogue se saisissent dans Approvisionnement. Les sorties de caisse liées restent dans Caisse."
       actions={
-        <ExportExcelButton
-          disabled={loading}
-          onExport={() => {
-            downloadExcel(excelFilename("achats-libres", todayIsoDate()), [
-              {
-                name: "Achats",
-                rows: movementRows(sorted),
-              },
-            ]);
-            return Promise.resolve();
-          }}
-        />
+        <>
+          <Link href="/appro" className="btn btn-ghost">
+            Approvisionnement
+          </Link>
+          <ExportExcelButton
+            disabled={loading}
+            onExport={() => {
+              downloadExcel(excelFilename("achats-libres", todayIsoDate()), [
+                {
+                  name: "Achats",
+                  rows: movementRows(sorted),
+                },
+              ]);
+              return Promise.resolve();
+            }}
+          />
+        </>
       }
     >
       {error ? <p className="error-banner" role="alert">{error}</p> : null}

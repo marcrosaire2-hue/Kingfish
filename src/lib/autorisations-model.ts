@@ -78,6 +78,15 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view"],
   },
   {
+    id: "controle",
+    navKey: "controle",
+    label: "Contrôle écarts",
+    path: "/controle",
+    category: "accueil",
+    description: "Écarts de transport Zogbo → Gbégamey.",
+    actions: ["access", "view"],
+  },
+  {
     id: "compte-resultat",
     navKey: "compte-resultat",
     label: "Compte de résultat",
