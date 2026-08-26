@@ -65,7 +65,7 @@ export function RegularisationPage() {
   const [productId, setProductId] = useState("");
   const [qty, setQty] = useState("1");
   const [extraName, setExtraName] = useState("");
-  /** Montant total de la ligne (FCFA) — articles hors catalogue. */
+  /** Prix unitaire (FCFA) — articles hors catalogue ; total = PU × quantité. */
   const [extraMontant, setExtraMontant] = useState("");
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
   /** Articles accumulés avant validation groupée en une seule facture. */
@@ -193,25 +193,24 @@ export function RegularisationPage() {
     setFlash(null);
     if (kind === "extra") {
       const name = extraName.trim();
-      const montant = Math.round(Number(extraMontant) || 0);
+      const unitPrice = Math.round(Number(extraMontant) || 0);
       if (name.length < 2) {
         setError("Indiquez le nom du produit / article.");
         return;
       }
-      if (montant <= 0) {
-        setError("Montant invalide (FCFA).");
+      if (unitPrice <= 0) {
+        setError("Prix unitaire invalide (FCFA).");
         return;
       }
-      const label = q > 1 ? `${name} × ${q}` : name;
       setPanier((prev) => [
         ...prev,
         {
           key: `extra-${Date.now()}`,
           kind: "extra",
           productId: `extra-${Date.now()}`,
-          name: label,
-          qty: 1,
-          unitPrice: montant,
+          name,
+          qty: q,
+          unitPrice,
         },
       ]);
       setExtraName("");
@@ -246,6 +245,14 @@ export function RegularisationPage() {
     Math.min(panierTotal, Math.round(Number(reduction) || 0)),
   );
   const panierNet = panierTotal - reductionN;
+
+  const qtyN = Math.max(0, Math.round(Number(qty) || 0));
+  const lignePreview =
+    kind === "extra"
+      ? qtyN * Math.max(0, Math.round(Number(extraMontant) || 0))
+      : selected
+        ? qtyN * selected.unitPrice
+        : 0;
 
   /** Valide toutes les lignes accumulées d'un coup, sur une seule facture. */
   async function validerFacture() {
@@ -466,7 +473,7 @@ export function RegularisationPage() {
                       setKind(e.target.value as typeof kind)
                     }
                   >
-                    <option value="extra">Hors catalogue (article + montant)</option>
+                    <option value="extra">Hors catalogue (article + prix unitaire)</option>
                     <option value="plat">Catalogue · Plat</option>
                     <option value="local">Catalogue · Accompagnement</option>
                     <option value="boisson">Catalogue · Boisson</option>
@@ -525,7 +532,7 @@ export function RegularisationPage() {
                       />
                     </label>
                     <label className="date-field">
-                      <span>Montant total (FCFA)</span>
+                      <span>Prix unitaire (FCFA)</span>
                       <input
                         type="number"
                         min={0}
@@ -536,12 +543,19 @@ export function RegularisationPage() {
                       />
                     </label>
 
-                    {Math.round(Number(extraMontant) || 0) > 0 ? (
+                    {lignePreview > 0 ? (
                       <p className="muted reg-field-full reg-hint">
-                        Encaissé :{" "}
+                        Total ligne :{" "}
                         <strong className="mono">
-                          {formatFcfa(Math.round(Number(extraMontant) || 0))}
+                          {formatFcfa(lignePreview)}
                         </strong>
+                        {qtyN > 1 ? (
+                          <span>
+                            {" "}
+                            ({qtyN} ×{" "}
+                            {formatFcfa(Math.round(Number(extraMontant) || 0))})
+                          </span>
+                        ) : null}
                       </p>
                     ) : null}
                   </>
@@ -584,6 +598,18 @@ export function RegularisationPage() {
                           <strong className="mono">
                             {formatFcfa(selected.unitPrice)}
                           </strong>
+                          {qtyN > 0 ? (
+                            <>
+                              {" "}
+                              · Total :{" "}
+                              <strong className="mono">
+                                {formatFcfa(lignePreview)}
+                              </strong>
+                              {qtyN > 1
+                                ? ` (${qtyN} × ${formatFcfa(selected.unitPrice)})`
+                                : ""}
+                            </>
+                          ) : null}
                           {selected.stockLeft != null
                             ? ` · stock ${selected.stockLeft}`
                             : ""}
