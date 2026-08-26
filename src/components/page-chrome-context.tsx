@@ -9,38 +9,52 @@ import {
   type ReactNode,
 } from "react";
 
-export type PageChrome = {
+export type PageChromeMeta = {
   title: string;
   subtitle?: string;
-  actions?: ReactNode;
   mainClassName?: string;
 };
 
-const DEFAULT_CHROME: PageChrome = {
+const DEFAULT_META: PageChromeMeta = {
   title: "King Fish",
 };
 
 type PageChromeContextValue = {
-  chrome: PageChrome;
-  setChrome: (chrome: PageChrome) => void;
+  meta: PageChromeMeta;
+  setMeta: (meta: PageChromeMeta) => void;
+  /** Emplacement DOM de la barre d’actions (Excel, etc.) — rendu via portail. */
+  actionsSlot: HTMLElement | null;
+  setActionsSlot: (el: HTMLElement | null) => void;
 };
 
 const PageChromeContext = createContext<PageChromeContextValue | null>(null);
 
 export function PageChromeProvider({ children }: { children: ReactNode }) {
-  const [chrome, setChromeState] = useState<PageChrome>(DEFAULT_CHROME);
+  const [meta, setMetaState] = useState<PageChromeMeta>(DEFAULT_META);
+  const [actionsSlot, setActionsSlot] = useState<HTMLElement | null>(null);
 
-  const setChrome = useCallback((next: PageChrome) => {
-    setChromeState(next);
+  const setMeta = useCallback((next: PageChromeMeta) => {
+    setMetaState((prev) => {
+      if (
+        prev.title === next.title &&
+        prev.subtitle === next.subtitle &&
+        prev.mainClassName === next.mainClassName
+      ) {
+        return prev;
+      }
+      return next;
+    });
   }, []);
 
   const value = useMemo(
-    () => ({ chrome, setChrome }),
-    [chrome, setChrome],
+    () => ({ meta, setMeta, actionsSlot, setActionsSlot }),
+    [meta, setMeta, actionsSlot],
   );
 
   return (
-    <PageChromeContext.Provider value={value}>{children}</PageChromeContext.Provider>
+    <PageChromeContext.Provider value={value}>
+      {children}
+    </PageChromeContext.Provider>
   );
 }
 
@@ -51,3 +65,6 @@ export function usePageChrome() {
   }
   return ctx;
 }
+
+/** Ancien type conservé pour les imports éventuels. */
+export type PageChrome = PageChromeMeta & { actions?: ReactNode };

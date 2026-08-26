@@ -1,38 +1,43 @@
 "use client";
 
-import { useLayoutEffect, useRef, type ReactNode } from "react";
+import { useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { usePageChrome } from "@/components/page-chrome-context";
 
+type AppShellProps = {
+  title: string;
+  subtitle?: string;
+  actions?: React.ReactNode;
+  mainClassName?: string;
+  children: React.ReactNode;
+};
+
 /**
- * Déclare le titre / actions de la page courante.
- * Le cadre (menu + en-tête) est fourni par `(main)/layout.tsx` et reste
- * monté entre les navigations.
+ * Remonte titre / sous-titre / actions dans le chrome sticky (barre + header).
+ * Les actions sont portées via portal vers le slot du frame — ainsi un
+ * ExportExcelButton qui n'existe qu'après le chargement du board apparaît
+ * aussi bien sur mobile que sur desktop (l'ancien setChrome omettait `actions`
+ * des deps et figait souvent `undefined`).
  */
 export function AppShell({
-  children,
   title,
   subtitle,
   actions,
   mainClassName,
-}: {
-  children: ReactNode;
-  title: string;
-  subtitle?: string;
-  actions?: ReactNode;
-  mainClassName?: string;
-}) {
-  const { setChrome } = usePageChrome();
-  const actionsRef = useRef(actions);
-  actionsRef.current = actions;
+  children,
+}: AppShellProps) {
+  const { setMeta, actionsSlot } = usePageChrome();
 
   useLayoutEffect(() => {
-    setChrome({
-      title,
-      subtitle,
-      actions: actionsRef.current,
-      mainClassName,
-    });
-  }, [title, subtitle, mainClassName, setChrome]);
+    setMeta({ title, subtitle, mainClassName });
+  }, [title, subtitle, mainClassName, setMeta]);
 
-  return <>{children}</>;
+  return (
+    <>
+      {actions && actionsSlot
+        ? createPortal(actions, actionsSlot)
+        : null}
+      {children}
+    </>
+  );
 }
