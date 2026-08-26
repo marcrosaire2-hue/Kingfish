@@ -230,17 +230,26 @@ const ProductGrid = memo(function ProductGrid({
         const badgeLabel =
           outOfStock && p.blockReason?.toLowerCase().includes("pas encore reçu")
             ? "PAS REÇU"
-            : outOfStock && p.blockReason?.toLowerCase().includes("pas encore préparé")
+            : outOfStock &&
+                p.blockReason?.toLowerCase().includes("pas encore préparé")
               ? "À PRÉPARER"
               : outOfStock
-                ? "ÉPUISÉ"
+                ? "RUPTURE"
                 : null;
+        const seuil =
+          typeof p.alertThreshold === "number" && p.alertThreshold > 0
+            ? p.alertThreshold
+            : null;
+        const resteAffiche =
+          p.stockLeft !== null && p.stockLeft !== undefined
+            ? p.stockLeft
+            : null;
         return (
           <article
             key={`${p.kind}-${p.productId}`}
             className={`vente-card${blocked ? " is-disabled" : ""}${
               p.lowStock && !outOfStock ? " is-low" : ""
-            }`}
+            }${outOfStock ? " is-rupture" : ""}`}
             title={reason ?? p.hint ?? undefined}
           >
             <div className="vente-card-media" aria-hidden>
@@ -250,13 +259,13 @@ const ProductGrid = memo(function ProductGrid({
                   className={`vente-out-badge${
                     badgeLabel === "PAS REÇU" || badgeLabel === "À PRÉPARER"
                       ? " is-wait"
-                      : ""
+                      : " is-rupture"
                   }`}
                 >
-                  {badgeLabel}
+                  {badgeLabel === "RUPTURE" ? "RUPTURE DE STOCK" : badgeLabel}
                 </span>
               ) : p.lowStock && !outOfStock ? (
-                <span className="vente-low-badge">Bientôt épuisé</span>
+                <span className="vente-low-badge">STOCK FAIBLE</span>
               ) : null}
             </div>
             <div className="vente-card-body">
@@ -264,9 +273,23 @@ const ProductGrid = memo(function ProductGrid({
               <span className="vente-price mono">
                 {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
               </span>
+              {resteAffiche !== null ? (
+                <p
+                  className={`vente-stock-meta${
+                    outOfStock
+                      ? " is-rupture"
+                      : p.lowStock
+                        ? " is-low"
+                        : ""
+                  }`}
+                >
+                  Reste {resteAffiche}
+                  {seuil !== null ? ` · seuil ${seuil}` : ""}
+                </p>
+              ) : null}
               {reason ? (
                 <p className="vente-unavailable-reason">{reason}</p>
-              ) : p.hint ? (
+              ) : p.hint && resteAffiche === null ? (
                 <p className="vente-hint">{p.hint}</p>
               ) : null}
             </div>
@@ -670,12 +693,14 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [ruptureAlert, setRuptureAlert] = useState<string | null>(null);
   const [canManagePast, setCanManagePast] = useState(false);
   const [canPurge, setCanPurge] = useState(false);
+  /** Masquer temporairement les produits en rupture (gérant / encadrement). */
+  const [hideUnavailable, setHideUnavailable] = useState(false);
   /** Ruptures connues au dernier chargement (pour ne signaler que les nouvelles). */
   const prevRuptures = useRef<Set<string> | null>(null);
   const ruptureAlertTimer = useRef<number | null>(null);
 
   /** Produits actuellement à zéro (plats/boissons suivis). Accompagnements : jamais bloqués. */
-  const ruptureCount = useMemo(
+  const ruptureProducts = useMemo(
     () =>
       board?.products.filter(
         (p) =>
@@ -683,9 +708,30 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
           p.stockLeft !== null &&
           p.stockLeft !== undefined &&
           p.stockLeft <= 0,
-      ).length ?? 0,
+      ) ?? [],
     [board],
   );
+  const ruptureCount = ruptureProducts.length;
+
+  const lowStockProducts = useMemo(
+    () =>
+      board?.products.filter(
+        (p) =>
+          Boolean(p.lowStock) &&
+          (p.stockLeft === null ||
+            p.stockLeft === undefined ||
+            p.stockLeft > 0),
+      ) ?? [],
+    [board],
+  );
+
+  const topVentesJour = useMemo(() => {
+    if (!board?.products.length) return [];
+    return [...board.products]
+      .filter((p) => (p.soldToday ?? 0) > 0)
+      .sort((a, b) => (b.soldToday ?? 0) - (a.soldToday ?? 0))
+      .slice(0, 5);
+  }, [board]);
 
   useEffect(() => {
     if (!board) return;
@@ -710,7 +756,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     prevRuptures.current = ruptures;
     if (nouvelles.length === 0) return;
     setRuptureAlert(
-      `${nouvelles.length === 1 ? "ÉPUISÉ :" : "ÉPUISÉS :"} ${nouvelles.join(", ")}`,
+      `${nouvelles.length === 1 ? "RUPTURE DE STOCK :" : "RUPTURES DE STOCK :"} ${nouvelles.join(", ")}`,
     );
     if (ruptureAlertTimer.current !== null) {
       window.clearTimeout(ruptureAlertTimer.current);
@@ -909,11 +955,20 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
 
   const products = useMemo(() => {
     if (!board || cat === "extra") return [];
-    if (cat === "plat") return plats;
-    if (cat === "accompagnement") return accompagnements;
-    const kind = CAT_KIND[cat];
-    return board.products.filter((p) => p.kind === kind);
-  }, [board, cat, plats, accompagnements]);
+    let list: VenteProduct[];
+    if (cat === "plat") list = plats;
+    else if (cat === "accompagnement") list = accompagnements;
+    else {
+      const kind = CAT_KIND[cat];
+      list = board.products.filter((p) => p.kind === kind);
+    }
+    if (!hideUnavailable || backdateMode) return list;
+    return list.filter((p) => {
+      if (p.kind === "local") return true;
+      if (p.stockLeft === null || p.stockLeft === undefined) return true;
+      return p.stockLeft > 0;
+    });
+  }, [board, cat, plats, accompagnements, hideUnavailable, backdateMode]);
 
   const categories = useMemo(() => {
     const keys: CatKey[] = ["plat", "accompagnement", "boisson", "extra"];
@@ -1543,18 +1598,102 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
           </div>
         ) : null}
 
-        {ruptureCount > 0 ? (
-          <div className="vente-rupture-bar" role="status">
-            <strong>
-              {ruptureCount} produit{ruptureCount > 1 ? "s" : ""} non vendable
-              {ruptureCount > 1 ? "s" : ""}
-            </strong>
-            <span>
-              {activeSite === "gbegamey"
-                ? "— souvent : pas encore reçu de Zogbo, ou stock épuisé. Voyez le motif sous chaque article."
-                : "— souvent : pas encore préparé, ou stock épuisé. Voyez le motif sous chaque article."}
-            </span>
+        {ruptureCount > 0 || lowStockProducts.length > 0 ? (
+          <div className="vente-stock-alerts" role="status">
+            {ruptureCount > 0 ? (
+              <div className="vente-rupture-bar">
+                <div className="vente-stock-alerts-main">
+                  <strong>
+                    RUPTURE DE STOCK · {ruptureCount} produit
+                    {ruptureCount > 1 ? "s" : ""}
+                  </strong>
+                  <span>
+                    {activeSite === "gbegamey"
+                      ? "Site Gbégamey — stock local uniquement."
+                      : "Site Zogbo — stock local uniquement."}
+                  </span>
+                  <span className="vente-stock-alerts-names">
+                    {ruptureProducts
+                      .slice(0, 4)
+                      .map((p) => p.name)
+                      .join(", ")}
+                    {ruptureProducts.length > 4
+                      ? ` +${ruptureProducts.length - 4}`
+                      : ""}
+                  </span>
+                </div>
+                <div className="vente-stock-alerts-actions">
+                  <Link href="/stock" className="btn btn-ghost">
+                    Voir le stock
+                  </Link>
+                  {canManagePast ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => setHideUnavailable((v) => !v)}
+                    >
+                      {hideUnavailable
+                        ? "Afficher indisponibles"
+                        : "Masquer indisponibles"}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+            {lowStockProducts.length > 0 ? (
+              <div className="vente-low-bar">
+                <strong>
+                  STOCK FAIBLE · {lowStockProducts.length} produit
+                  {lowStockProducts.length > 1 ? "s" : ""}
+                </strong>
+                <span className="vente-stock-alerts-names">
+                  {lowStockProducts
+                    .slice(0, 5)
+                    .map((p) => {
+                      const reste =
+                        p.stockLeft !== null && p.stockLeft !== undefined
+                          ? p.stockLeft
+                          : "?";
+                      const seuil =
+                        typeof p.alertThreshold === "number" &&
+                        p.alertThreshold > 0
+                          ? p.alertThreshold
+                          : null;
+                      return seuil !== null
+                        ? `${p.name} (${reste}/${seuil})`
+                        : `${p.name} (${reste})`;
+                    })
+                    .join(" · ")}
+                </span>
+                <Link href="/stock" className="btn btn-ghost">
+                  Consulter le stock
+                </Link>
+              </div>
+            ) : null}
           </div>
+        ) : null}
+
+        {topVentesJour.length > 0 ? (
+          <section
+            className="vente-top-strip"
+            aria-label="Top ventes du jour"
+          >
+            <header>
+              <strong>Top ventes du jour</strong>
+              <span className="muted">
+                {activeSite === "zogbo" ? "Zogbo" : "Gbégamey"} · quantités
+              </span>
+            </header>
+            <ul>
+              {topVentesJour.map((p, i) => (
+                <li key={`${p.kind}-${p.productId}`}>
+                  <span className="vente-top-rank">{i + 1}</span>
+                  <span className="vente-top-name">{p.name}</span>
+                  <strong className="mono">{p.soldToday}</strong>
+                </li>
+              ))}
+            </ul>
+          </section>
         ) : null}
 
         <div className={`vente-hero${canSell ? " is-ready" : " is-idle"}`}>

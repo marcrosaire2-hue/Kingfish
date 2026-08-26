@@ -354,6 +354,7 @@ export async function getVenteBoard(
         soldToday: soldById.get(dish.id) ?? 0,
         stockLeft,
         lowStock: isLowStock(stockLeft, dish.alertThreshold),
+        alertThreshold: dish.alertThreshold ?? null,
         hint: status.hint,
         blockReason: status.blockReason,
       });
@@ -372,6 +373,7 @@ export async function getVenteBoard(
         soldToday: line?.sold ?? 0,
         stockLeft,
         lowStock: isLowStock(stockLeft, dish?.alertThreshold),
+        alertThreshold: dish.alertThreshold ?? null,
         hint: tracked
           ? `Accompagnement · reste ${stockLeft ?? 0}`
           : "Accompagnement · stock non inventorié",
@@ -402,6 +404,7 @@ export async function getVenteBoard(
         soldToday: line?.sold ?? 0,
         stockLeft,
         lowStock: isLowStock(stockLeft, dish.alertThreshold),
+        alertThreshold: dish.alertThreshold ?? null,
         hint: status.hint,
         blockReason: status.blockReason,
       });
@@ -419,6 +422,7 @@ export async function getVenteBoard(
         soldToday: line?.sold ?? 0,
         stockLeft,
         lowStock: isLowStock(stockLeft, dish?.alertThreshold),
+        alertThreshold: dish.alertThreshold ?? null,
         hint: tracked
           ? `Accompagnement · reste ${stockLeft ?? 0}`
           : "Accompagnement · stock non inventorié",
@@ -465,6 +469,7 @@ export async function getVenteBoard(
         drink.salePrice !== null &&
         !untracked &&
         isLowStock(stockLeft, drink.alertThreshold),
+      alertThreshold: drink.alertThreshold ?? null,
       hint:
         drink.salePrice === null
           ? "PV manquant"

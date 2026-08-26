@@ -580,6 +580,8 @@ export type VenteProduct = {
    * avant la rupture, plutôt qu’une fois le stock à zéro.
    */
   lowStock?: boolean;
+  /** Seuil d'alerte catalogue (unités) — pour affichage sur la carte Vente. */
+  alertThreshold?: number | null;
   /**
    * Motif affiché quand le produit est grisé (pas seulement « ÉPUISÉ »).
    * Ex. « Aucun envoi Zogbo », « Ouvrez la caisse », « PV manquant ».
