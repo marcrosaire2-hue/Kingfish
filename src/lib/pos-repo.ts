@@ -347,8 +347,14 @@ export async function validatePosTicket(input: {
   // Le ticket lui-même : tant qu'il n'est pas écrit et la caisse créditée, les
   // lignes vendues n'ont aucune commande en face — le moindre échec ici doit
   // les reprendre, sinon le stock et le CA du jour partent en vrille.
+  //
+  // Atomicité multi-collections (stock + ticket + caisse) : Mongo transactions
+  // exigeraient un replica set et de propager la session à tous les repos.
+  // En attendant, compensation stricte : en cas d'échec après les lignes,
+  // suppression du ticket partiel + undoVente de chaque ligne.
   const db = await getDb();
   let doc: TicketDoc | null = null;
+  let caisseCredited = false;
   try {
     doc = {
       _id: new ObjectId(),
@@ -392,6 +398,7 @@ export async function validatePosTicket(input: {
       } else {
         await adjustCaisseVenteAmount(caisseId, montant);
       }
+      caisseCredited = true;
     }
   } catch (error) {
     // Un replay simultané de la même référence vient de créer le ticket :
@@ -411,6 +418,13 @@ export async function validatePosTicket(input: {
           board: await getVenteBoard(gagnant.date, gagnant.site),
           caisseId: gagnant.caisseId,
         };
+      }
+    }
+    if (caisseCredited && caisseId) {
+      try {
+        await adjustCaisseVenteAmount(caisseId, -montant);
+      } catch {
+        /* best effort rollback caisse */
       }
     }
     if (doc) {

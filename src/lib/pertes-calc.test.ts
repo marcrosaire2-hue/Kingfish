@@ -78,6 +78,20 @@ describe("plats Gbégamey", () => {
     };
     expect(computeLocalLine(ligne, 1000).theoreticalRemaining).toBe(5);
   });
+
+  it("accompagnements Zogbo : même formule de stock que sur place", () => {
+    const ligne: GbegameyLocalLine = {
+      productId: "a",
+      name: "Alloco",
+      initialStock: 8,
+      prepared: 4,
+      sold: 1,
+      pertes: 2,
+      counted: null,
+      observations: "",
+    };
+    expect(computeLocalLine(ligne, 300).theoreticalRemaining).toBe(9);
+  });
 });
 
 describe("boissons", () => {

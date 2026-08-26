@@ -344,8 +344,7 @@ export function PertesPage() {
       </div>
 
       <div className="section-tabs" role="tablist" aria-label="Famille">
-        {FAMILLES.filter((f) => !(f.key === "local" && site === "zogbo")).map(
-          (f) => (
+        {FAMILLES.map((f) => (
             <button
               key={f.key}
               type="button"
@@ -359,8 +358,7 @@ export function PertesPage() {
             >
               {f.label}
             </button>
-          ),
-        )}
+          ))}
       </div>
 
       <form className="panel stack-form" onSubmit={declarer}>

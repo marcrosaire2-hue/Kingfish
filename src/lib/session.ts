@@ -35,5 +35,11 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     role: u.role,
     site: u.site,
     shift: u.shift,
+    // Menu figé dans le JWT (autorisations) — requis pour navForSession /
+    // pages serveur (ex. immobilisations). Sans cela, le middleware et le
+    // serveur recalculaient des menus différents.
+    ...(verified.user.nav && verified.user.nav.length
+      ? { nav: verified.user.nav }
+      : {}),
   };
 }

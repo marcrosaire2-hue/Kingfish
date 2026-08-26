@@ -1,8 +1,12 @@
 import { MongoClient, type Db } from "mongodb";
+import { MONGO_INDEXES } from "@/lib/mongo-indexes";
+import { reportError } from "@/lib/report-error";
 
 declare global {
   // eslint-disable-next-line no-var
   var _mongoClientPromise: Promise<MongoClient> | undefined;
+  // eslint-disable-next-line no-var
+  var _mongoIndexesPromise: Promise<void> | undefined;
 }
 
 function getUri(): string {
@@ -28,10 +32,44 @@ function createClient(): Promise<MongoClient> {
   return client.connect();
 }
 
-export async function getDb(): Promise<Db> {
+/** Client Mongo partagé (transactions éventuelles, index). */
+export async function getMongoClient(): Promise<MongoClient> {
   if (!global._mongoClientPromise) {
     global._mongoClientPromise = createClient();
   }
-  const client = await global._mongoClientPromise;
-  return client.db(getDbName());
+  return global._mongoClientPromise;
+}
+
+/**
+ * Crée les index manquants une fois par process. Les erreurs (doublons sur
+ * unique, droits) sont journalisées sans bloquer le démarrage.
+ */
+async function ensureMongoIndexes(db: Db): Promise<void> {
+  for (const def of MONGO_INDEXES) {
+    try {
+      await db.collection(def.collection).createIndex(def.index, {
+        name: def.name,
+        background: true,
+        ...(def.unique ? { unique: true } : {}),
+        ...(def.partialFilterExpression
+          ? { partialFilterExpression: def.partialFilterExpression }
+          : {}),
+      });
+    } catch (error) {
+      reportError(`ensureMongoIndexes ${def.collection}.${def.name}`, error);
+    }
+  }
+}
+
+export async function getDb(): Promise<Db> {
+  const client = await getMongoClient();
+  const db = client.db(getDbName());
+  if (!global._mongoIndexesPromise) {
+    global._mongoIndexesPromise = ensureMongoIndexes(db).catch((error) => {
+      reportError("ensureMongoIndexes", error);
+      // Permet un nouvel essai au prochain getDb si le premier a échoué net.
+      global._mongoIndexesPromise = undefined;
+    });
+  }
+  return db;
 }
