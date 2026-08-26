@@ -19,6 +19,7 @@ import type {
   BaseDish,
   GbegameyDay,
   GbegameyLocalLine,
+  GbegameyReceiptMovement,
   GbegameyTransferLine,
   LocalDish,
   VenteLogEntry,
@@ -71,6 +72,96 @@ export function GbegameyPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [backdate, setBackdate] = useState(false);
+  const [receiveQty, setReceiveQty] = useState<Record<string, string>>({});
+  const [receiveNote, setReceiveNote] = useState<Record<string, string>>({});
+  const [receiveBusy, setReceiveBusy] = useState<string | null>(null);
+
+  function applyPayload(body: Payload) {
+    setDay(body.day);
+    setBaseDishes(body.baseDishes);
+    setLocalDishes(body.localDishes);
+    setSentByProductId(body.sentByProductId);
+    setOpeningEditable(!!body.openingEditable);
+    if (body.caJournal != null) setCaJournal(Number(body.caJournal) || 0);
+    if (body.ventes) setVentes(body.ventes);
+    if (body.ventesSummary) setVentesSummary(body.ventesSummary);
+    setDirty(false);
+  }
+
+  async function confirmReceive(productId: string, sent: number, name: string) {
+    const raw = receiveQty[productId];
+    const qty =
+      raw === undefined || raw === ""
+        ? sent
+        : Math.round(Number(String(raw).replace(",", ".")) || 0);
+    const note = receiveNote[productId] ?? "";
+    setReceiveBusy(productId);
+    setError(null);
+    try {
+      const res = await fetch("/api/gbegamey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "receive",
+          date,
+          productId,
+          qty,
+          note,
+        }),
+      });
+      const body = (await res.json()) as Payload & { error?: string };
+      if (!res.ok) throw new Error(body.error || "Réception impossible");
+      applyPayload(body);
+      setReceiveQty((prev) => {
+        const next = { ...prev };
+        delete next[productId];
+        return next;
+      });
+      setReceiveNote((prev) => {
+        const next = { ...prev };
+        delete next[productId];
+        return next;
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : `Réception impossible pour ${name}`,
+      );
+    } finally {
+      setReceiveBusy(null);
+    }
+  }
+
+  async function cancelReceive(receipt: GbegameyReceiptMovement) {
+    if (
+      !window.confirm(
+        `Annuler la réception de ${receipt.qty} × ${receipt.name} ?`,
+      )
+    ) {
+      return;
+    }
+    setReceiveBusy(receipt.id);
+    setError(null);
+    try {
+      const res = await fetch("/api/gbegamey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel-receive",
+          date,
+          receiptId: receipt.id,
+        }),
+      });
+      const body = (await res.json()) as Payload & { error?: string };
+      if (!res.ok) throw new Error(body.error || "Annulation impossible");
+      applyPayload(body);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Annulation impossible");
+    } finally {
+      setReceiveBusy(null);
+    }
+  }
 
   function setSection(next: SectionKey) {
     const params = new URLSearchParams(searchParams.toString());
@@ -110,16 +201,11 @@ export function GbegameyPage() {
         };
         if (!res.ok) throw new Error(body.error || "Erreur de chargement");
         if (!cancelled) {
-          setDay(body.day);
-          setBaseDishes(body.baseDishes);
-          setLocalDishes(body.localDishes);
+          applyPayload(body);
           setCaJournal(Number(body.caJournal) || 0);
-          setSentByProductId(body.sentByProductId);
-          setOpeningEditable(!!body.openingEditable);
           setVentes(body.ventes ?? []);
           setVentesSummary(body.ventesSummary ?? null);
-          setBackdate(Boolean(body.backdate));
-          setDirty(false);
+          setBackdate(!!body.backdate);
         }
       } catch (e) {
         if (!cancelled) {
@@ -379,6 +465,153 @@ export function GbegameyPage() {
       </div>
 
       {section === "transfer" ? (
+        <>
+          {!loading && computed ? (
+            <section className="panel receipt-board">
+              <h2 className="panel-title">Réceptions Zogbo → Gbégamey</h2>
+              <p className="muted sales-board-sub">
+                Confirmez chaque envoi. Un écart (envoyé ≠ reçu) exige une
+                justification.
+              </p>
+              <ul className="site-rank-list">
+                {computed.transfers
+                  .filter((l) => l.sentFromZogbo > 0 || l.received !== null)
+                  .map((line) => {
+                    const pending = line.received === null && line.sentFromZogbo > 0;
+                    const qtyStr =
+                      receiveQty[line.productId] ??
+                      (pending ? String(line.sentFromZogbo) : "");
+                    const noteStr = receiveNote[line.productId] ?? "";
+                    const previewQty =
+                      qtyStr === ""
+                        ? line.sentFromZogbo
+                        : Math.round(Number(qtyStr.replace(",", ".")) || 0);
+                    const previewVar = line.sentFromZogbo - previewQty;
+                    return (
+                      <li
+                        key={`recv-${line.productId}`}
+                        className={`site-rank-card${
+                          line.transportVariance ? " is-warn" : ""
+                        }`}
+                      >
+                        <div className="site-rank-top">
+                          <div className="site-rank-main">
+                            <strong className="site-rank-name">{line.name}</strong>
+                            <span className="site-rank-qty muted">
+                              {pending
+                                ? "En attente de confirmation"
+                                : `Reçu ${line.received} · envoyé ${line.sentFromZogbo}`}
+                              {line.transportVariance
+                                ? ` · écart ${
+                                    line.transportVariance > 0 ? "-" : "+"
+                                  }${Math.abs(line.transportVariance)}`
+                                : ""}
+                            </span>
+                          </div>
+                          <span
+                            className={`rank-badge ${
+                              pending ? "rank-badge-worst" : "rank-badge-best"
+                            }`}
+                          >
+                            {pending ? "À recevoir" : "Reçu"}
+                          </span>
+                        </div>
+                        {pending ? (
+                          <div className="receipt-form">
+                            <label>
+                              Qté reçue
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={0}
+                                step={1}
+                                value={qtyStr}
+                                onChange={(e) =>
+                                  setReceiveQty((prev) => ({
+                                    ...prev,
+                                    [line.productId]: e.target.value,
+                                  }))
+                                }
+                              />
+                            </label>
+                            {previewVar !== 0 ? (
+                              <label>
+                                Motif de l’écart
+                                <input
+                                  type="text"
+                                  value={noteStr}
+                                  placeholder="Ex. 2 cassés en route"
+                                  onChange={(e) =>
+                                    setReceiveNote((prev) => ({
+                                      ...prev,
+                                      [line.productId]: e.target.value,
+                                    }))
+                                  }
+                                />
+                              </label>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="btn btn-primary"
+                              disabled={receiveBusy === line.productId}
+                              onClick={() =>
+                                void confirmReceive(
+                                  line.productId,
+                                  line.sentFromZogbo,
+                                  line.name,
+                                )
+                              }
+                            >
+                              {receiveBusy === line.productId
+                                ? "…"
+                                : "Confirmer la réception"}
+                            </button>
+                          </div>
+                        ) : null}
+                      </li>
+                    );
+                  })}
+              </ul>
+              {(day?.receipts ?? []).some((r) => !r.cancelledAt) ? (
+                <div className="receipt-history">
+                  <h3 className="panel-title">Historique du jour</h3>
+                  <ul className="rank-list">
+                    {(day?.receipts ?? [])
+                      .filter((r) => !r.cancelledAt)
+                      .slice()
+                      .reverse()
+                      .map((r) => (
+                        <li key={r.id} className="rank-row">
+                          <div className="rank-body">
+                            <div className="rank-meta">
+                              <strong className="rank-name">{r.name}</strong>
+                              <span className="rank-kind">
+                                reçu {r.qty} / envoyé {r.sentFromZogbo}
+                              </span>
+                            </div>
+                            <div className="rank-stats">
+                              <span className="muted">
+                                {r.actorName ?? "—"}
+                                {r.note ? ` · ${r.note}` : ""}
+                              </span>
+                              <button
+                                type="button"
+                                className="btn-link"
+                                disabled={receiveBusy === r.id}
+                                onClick={() => void cancelReceive(r)}
+                              >
+                                Annuler
+                              </button>
+                            </div>
+                          </div>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+
         <section className="panel panel-wide">
           <table className="data-table zogbo-table">
             <thead>
@@ -523,6 +756,7 @@ export function GbegameyPage() {
             ) : null}
           </table>
         </section>
+        </>
       ) : (
         <section className="panel panel-wide">
           <table className="data-table zogbo-table">

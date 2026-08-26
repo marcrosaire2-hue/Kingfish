@@ -130,6 +130,7 @@ export function createEmptyGbegameyDay(
     localLines: localDishes.map((d) =>
       emptyLocalLine(d, localMap.get(d.id) ?? 0),
     ),
+    receipts: [],
     updatedAt: null,
   };
 }
