@@ -23,6 +23,7 @@ describe("rôle Comptable", () => {
       "stock",
       "immobilisations",
       "journal-ventes",
+      "quantites-vendues",
       "journal-stock",
       "historique",
     ]);
@@ -81,9 +82,11 @@ describe("étanchéité des zones", () => {
 
   it("le gérant accède au journal des ventes de SA zone", () => {
     expect(canAccessPath("gerant", "/journal-ventes", "zogbo")).toBe(true);
+    expect(canAccessPath("gerant", "/quantites-vendues", "zogbo")).toBe(true);
     expect(canAccessPath("gerant", "/historique-ventes", "zogbo")).toBe(true);
     const menu = navForUser("gerant", "zogbo");
     expect(menu).toContain("journal-ventes");
+    expect(menu).toContain("quantites-vendues");
     expect(menu).not.toContain("historique-ventes");
     expect(navForUser("gerant", "zogbo")).not.toContain("gbegamey");
   });
@@ -188,6 +191,7 @@ describe("l'API suit les droits de l'écran", () => {
       "compte-resultat",
       "comptabilite",
       "journal-ventes",
+      "quantites-vendues",
       "journal-stock",
       "historique",
       "admin",

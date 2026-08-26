@@ -708,6 +708,53 @@ type HistoriqueVentesExportTicket = Parameters<
  * sans la limite d'affichage : relit l'API avec `limit=all`.
  * Feuille principale = articles (noms), sans numéros de ticket.
  */
+
+/** Quantités vendues par article sur une période. */
+export function exportQuantitesVenduesExcel(
+  data: import("@/lib/quantites-vendues-repo").QuantitesVenduesPayload,
+): void {
+  const zone = data.site === "all" ? "tous" : data.site;
+  const periode = `${siteLabel(zone)} · du ${data.from} au ${data.to}`;
+  const showSites = data.site === "all";
+  downloadExcel(excelFilename("quantites_vendues", data.from, data.to, zone), [
+    {
+      name: "Articles",
+      subtitle: periode,
+      totals: ["Qté", "Montant (FCFA)"],
+      rows: data.rows.map((r) => {
+        const row: Record<string, string | number> = {
+          Article: r.name,
+          Famille: kindLabel(r.kind),
+          Qté: r.qty,
+          "Montant (FCFA)": r.amount,
+          Lignes: r.lignes,
+          "Première vente": r.firstDate,
+          "Dernière vente": r.lastDate,
+        };
+        if (showSites) {
+          row["Qté Zogbo"] = r.bySite.zogbo ?? 0;
+          row["Qté Gbégamey"] = r.bySite.gbegamey ?? 0;
+        }
+        return row;
+      }),
+    },
+    {
+      name: "Totaux",
+      subtitle: periode,
+      rows: [
+        {
+          Articles: data.totals.articles,
+          Qté: data.totals.qty,
+          "Montant (FCFA)": data.totals.amount,
+          Lignes: data.totals.lignes,
+          Recherche: data.q || "",
+          Famille: data.kind === "all" ? "Toutes" : kindLabel(data.kind),
+        },
+      ],
+    },
+  ]);
+}
+
 export async function exportAllHistoriqueVentesExcel(input: {
   from: string;
   to: string;
