@@ -235,6 +235,24 @@ export type ZogboLineComputed = ZogboLine & {
   variance: number | null;
 };
 
+/** Mouvement de réception Gbégamey (confirmation d’un envoi Zogbo) */
+export type GbegameyReceiptMovement = {
+  id: string;
+  at: string;
+  productId: ProductId;
+  name: string;
+  /** Quantité constatée à l’arrivée */
+  qty: number;
+  /** Envoi Zogbo déclaré au moment de la confirmation */
+  sentFromZogbo: number;
+  /** sentFromZogbo − qty (positif = manquant) */
+  variance: number;
+  /** Obligatoire si variance ≠ 0 */
+  note: string;
+  actorName: string | null;
+  cancelledAt: string | null;
+};
+
 /** Ligne reçue de Zogbo — le stock reçu est lu depuis Zogbo, pas saisi ici */
 export type GbegameyTransferLine = {
   productId: ProductId;
@@ -272,6 +290,8 @@ export type GbegameyDay = {
   status: DayStatus;
   transferLines: GbegameyTransferLine[];
   localLines: GbegameyLocalLine[];
+  /** Historique des confirmations de réception (envoyés → reçus → écart) */
+  receipts?: GbegameyReceiptMovement[];
   updatedAt: string | null;
 };
 

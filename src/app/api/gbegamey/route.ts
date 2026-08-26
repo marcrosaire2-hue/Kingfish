@@ -5,9 +5,12 @@ import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import {
+  cancelGbegameyReceipt,
+  confirmGbegameyReceipt,
   getGbegameyDayPayload,
   saveGbegameyDay,
 } from "@/lib/gbegamey-repo";
+import { canCorrectClosedFinancialData } from "@/lib/security-policy";
 import {
   listVentesForSite,
   summarizeVentesForSite,
@@ -113,6 +116,97 @@ export async function PUT(request: Request) {
           error instanceof Error
             ? error.message
             : "Impossible d’enregistrer Gbégamey.",
+      },
+      { status: 500 },
+    );
+  }
+}
+
+/** Réceptions : confirmer / annuler (workflow envoyé → reçu → écart). */
+export async function POST(request: Request) {
+  try {
+    const user = await requireGbegameyAccess();
+    const body = (await request.json()) as {
+      action?: "receive" | "cancel-receive";
+      date?: string;
+      productId?: string;
+      qty?: number;
+      note?: string;
+      receiptId?: string;
+    };
+
+    if (!body.date) {
+      return NextResponse.json({ error: "Date requise." }, { status: 400 });
+    }
+
+    const actor = { id: user.id, name: user.name };
+    const bypass = canCorrectClosedFinancialData(user.role);
+
+    if (body.action === "cancel-receive") {
+      if (!body.receiptId) {
+        return NextResponse.json(
+          { error: "receiptId requis." },
+          { status: 400 },
+        );
+      }
+      const saved = await cancelGbegameyReceipt({
+        date: body.date,
+        receiptId: body.receiptId,
+        bypassClosedDay: bypass,
+      });
+      await logActivity({
+        user,
+        kind: "transfert",
+        title: "Annulation réception Gbégamey",
+        detail: body.receiptId,
+        date: body.date,
+        site: "gbegamey",
+      });
+      return NextResponse.json(saved);
+    }
+
+    if (body.action !== "receive" || !body.productId || body.qty == null) {
+      return NextResponse.json(
+        { error: "action receive + productId + qty requis." },
+        { status: 400 },
+      );
+    }
+
+    const saved = await confirmGbegameyReceipt({
+      date: body.date,
+      productId: body.productId,
+      qty: body.qty,
+      note: body.note,
+      actor,
+      bypassClosedDay: bypass,
+    });
+    const receipt = (saved.day.receipts ?? [])
+      .filter((r) => !r.cancelledAt && r.productId === body.productId)
+      .at(-1);
+    await logActivity({
+      user,
+      kind: "transfert",
+      title: "Réception confirmée Gbégamey",
+      detail: receipt
+        ? `${receipt.name} · reçu ${receipt.qty} / envoyé ${receipt.sentFromZogbo}${
+            receipt.variance
+              ? ` · écart ${receipt.variance > 0 ? "-" : "+"}${Math.abs(receipt.variance)}`
+              : ""
+          }`
+        : body.productId,
+      date: body.date,
+      site: "gbegamey",
+    });
+    return NextResponse.json(saved);
+  } catch (error) {
+    if (error instanceof AuthError) return authErrorResponse(error);
+    reportError("POST /api/gbegamey", error);
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Impossible d’enregistrer la réception.",
       },
       { status: 500 },
     );

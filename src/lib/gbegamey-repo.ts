@@ -1,10 +1,12 @@
-import { isValidDate, updateDayDocument } from "@/lib/day-doc";
+import { ObjectId } from "mongodb";
+import { assertDayOpen, isValidDate, updateDayDocument } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import type {
   BaseDish,
   GbegameyDay,
   GbegameyLocalLine,
+  GbegameyReceiptMovement,
   GbegameyTransferLine,
   LocalDish,
 } from "@/lib/types";
@@ -43,6 +45,7 @@ function toDay(doc: GbegameyDoc): GbegameyDay {
       normalizeTransferLine(l),
     ),
     localLines: (doc.localLines ?? []).map((l) => normalizeLocalLine(l)),
+    receipts: Array.isArray(doc.receipts) ? doc.receipts : [],
     updatedAt: doc.updatedAt ?? null,
   };
 }
@@ -364,15 +367,210 @@ export async function saveGbegameyDay(
       const updatedAt = new Date().toISOString();
       const status = input.status ?? "ouverte";
       const sentByProductId = await loadSentMap(input.date);
+      const receipts = existing?.receipts ?? [];
 
       return {
-        set: { status, transferLines, localLines, updatedAt },
+        set: { status, transferLines, localLines, receipts, updatedAt },
         result: {
           day: {
             date: input.date,
             status,
             transferLines,
             localLines,
+            receipts,
+            updatedAt,
+          },
+          baseDishes,
+          localDishes,
+          sentByProductId,
+          openingEditable,
+        },
+      };
+    },
+  );
+}
+
+export type ReceiptActor = { id: string; name: string };
+
+/**
+ * Confirme la réception d’un plat envoyé par Zogbo.
+ * Statut : en_attente (received null) → reçu (received saisi) + écart journalisé.
+ */
+export async function confirmGbegameyReceipt(input: {
+  date: string;
+  productId: string;
+  qty: number;
+  note?: string;
+  actor?: ReceiptActor | null;
+  bypassClosedDay?: boolean;
+}): Promise<GbegameyDayPayload> {
+  if (!isValidDate(input.date)) {
+    throw new Error("Date invalide (attendu YYYY-MM-DD)");
+  }
+  const qty = Math.round(Number(input.qty) || 0);
+  if (!Number.isFinite(qty) || qty < 0) {
+    throw new Error("Quantité reçue invalide.");
+  }
+
+  const { baseDishes, localDishes } = await getParametres();
+  const openingEditable = await isOpeningDay(input.date);
+
+  return updateDayDocument<GbegameyDoc, GbegameyDayPayload>(
+    "gbegamey_jours",
+    input.date,
+    async (existing) => {
+      if (!existing) {
+        throw new Error("Journée Gbégamey introuvable — rechargez la page.");
+      }
+      assertDayOpen(
+        existing.status ?? "ouverte",
+        "Journée clôturée : réception impossible.",
+        { bypass: input.bypassClosedDay },
+      );
+
+      const sentByProductId = await loadSentMap(input.date);
+      const sent = sentByProductId[input.productId] ?? 0;
+      if (sent <= 0 && qty <= 0) {
+        throw new Error("Aucun envoi Zogbo à confirmer pour ce plat.");
+      }
+
+      const transferLines = syncTransferLines(
+        (existing.transferLines ?? []).map((l) => normalizeTransferLine(l)),
+        baseDishes,
+      );
+      const line = transferLines.find((l) => l.productId === input.productId);
+      if (!line) throw new Error("Plat introuvable dans le transfert.");
+
+      const variance = sent - qty;
+      const note = String(input.note ?? "").trim().slice(0, 300);
+      if (variance !== 0 && note.length < 3) {
+        throw new Error(
+          "Écart de transport : précisez la cause (casse, oubli, erreur de compte…).",
+        );
+      }
+
+      const receipt: GbegameyReceiptMovement = {
+        id: new ObjectId().toHexString(),
+        at: new Date().toISOString(),
+        productId: input.productId,
+        name: line.name,
+        qty,
+        sentFromZogbo: sent,
+        variance,
+        note,
+        actorName: input.actor?.name ?? null,
+        cancelledAt: null,
+      };
+
+      const nextTransfers = transferLines.map((l) =>
+        l.productId === input.productId ? { ...l, received: qty } : l,
+      );
+      const localLines = syncLocalLines(
+        (existing.localLines ?? []).map((l) => normalizeLocalLine(l)),
+        localDishes,
+      );
+      const receipts = [...(existing.receipts ?? []), receipt];
+      const updatedAt = new Date().toISOString();
+      const status = existing.status ?? "ouverte";
+
+      return {
+        set: {
+          status,
+          transferLines: nextTransfers,
+          localLines,
+          receipts,
+          updatedAt,
+        },
+        result: {
+          day: {
+            date: input.date,
+            status,
+            transferLines: nextTransfers,
+            localLines,
+            receipts,
+            updatedAt,
+          },
+          baseDishes,
+          localDishes,
+          sentByProductId,
+          openingEditable,
+        },
+      };
+    },
+  );
+}
+
+/** Annule une confirmation de réception (remet le constaté au précédent actif). */
+export async function cancelGbegameyReceipt(input: {
+  date: string;
+  receiptId: string;
+  bypassClosedDay?: boolean;
+}): Promise<GbegameyDayPayload> {
+  if (!isValidDate(input.date)) {
+    throw new Error("Date invalide (attendu YYYY-MM-DD)");
+  }
+
+  const { baseDishes, localDishes } = await getParametres();
+  const openingEditable = await isOpeningDay(input.date);
+
+  return updateDayDocument<GbegameyDoc, GbegameyDayPayload>(
+    "gbegamey_jours",
+    input.date,
+    async (existing) => {
+      if (!existing) throw new Error("Journée Gbégamey introuvable.");
+      assertDayOpen(
+        existing.status ?? "ouverte",
+        "Journée clôturée : annulation impossible.",
+        { bypass: input.bypassClosedDay },
+      );
+
+      const receipts = [...(existing.receipts ?? [])];
+      const idx = receipts.findIndex((r) => r.id === input.receiptId);
+      if (idx < 0) throw new Error("Réception introuvable.");
+      const target = receipts[idx]!;
+      if (target.cancelledAt) throw new Error("Réception déjà annulée.");
+
+      receipts[idx] = {
+        ...target,
+        cancelledAt: new Date().toISOString(),
+      };
+
+      const activeForProduct = receipts
+        .filter((r) => r.productId === target.productId && !r.cancelledAt)
+        .sort((a, b) => a.at.localeCompare(b.at));
+      const last = activeForProduct[activeForProduct.length - 1];
+
+      const transferLines = syncTransferLines(
+        (existing.transferLines ?? []).map((l) => normalizeTransferLine(l)),
+        baseDishes,
+      ).map((l) =>
+        l.productId === target.productId
+          ? { ...l, received: last ? last.qty : null }
+          : l,
+      );
+      const localLines = syncLocalLines(
+        (existing.localLines ?? []).map((l) => normalizeLocalLine(l)),
+        localDishes,
+      );
+      const sentByProductId = await loadSentMap(input.date);
+      const updatedAt = new Date().toISOString();
+      const status = existing.status ?? "ouverte";
+
+      return {
+        set: {
+          status,
+          transferLines,
+          localLines,
+          receipts,
+          updatedAt,
+        },
+        result: {
+          day: {
+            date: input.date,
+            status,
+            transferLines,
+            localLines,
+            receipts,
             updatedAt,
           },
           baseDishes,
