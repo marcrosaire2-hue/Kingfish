@@ -10,6 +10,9 @@ import {
   ZONE_CAISSES,
   CAISSE_LABELS,
   CAISSE_SHORT_LABELS,
+  CAISSE_STATUT_LABELS,
+  canReceiveCaisseSales,
+  ecartCaisse,
   soldeTheorique as theo,
 } from "@/lib/caisse-model";
 import { formatFcfa } from "@/lib/format";
@@ -99,6 +102,7 @@ export function CaissePage() {
   const [soldeInitial, setSoldeInitial] = useState("0");
   const [soldePhysique, setSoldePhysique] = useState("");
   const [commentaire, setCommentaire] = useState("");
+  const [justificationEcart, setJustificationEcart] = useState("");
   const [mNature, setMNature] = useState("");
   const [mBenef, setMBenef] = useState("");
   const [mMontant, setMMontant] = useState("");
@@ -178,18 +182,69 @@ export function CaissePage() {
 
   async function closeCaisse() {
     if (!board?.active) return;
+    const physique = Math.max(0, Math.round(Number(soldePhysique) || 0));
+    const ecart = physique - theoActive;
+    if (ecart !== 0 && justificationEcart.trim().length < 5) {
+      setError(
+        "Justification obligatoire (5 caractères min.) lorsque l'écart n'est pas nul.",
+      );
+      return;
+    }
+    const recap = [
+      `Théorique : ${formatFcfa(theoActive)}`,
+      `Réel compté : ${formatFcfa(physique)}`,
+      `Écart : ${formatFcfa(ecart)}`,
+      ecart !== 0 ? `Justification : ${justificationEcart.trim()}` : null,
+      "Confirmer la clôture ? La session ne pourra plus être modifiée.",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (!window.confirm(recap)) return;
+
     const ok = await post(
       {
         action: "close",
         id: board.active.id,
-        soldePhysique: Number(soldePhysique) || 0,
+        soldePhysique: physique,
         commentaire,
+        justificationEcart: justificationEcart.trim() || null,
       },
       "Échec fermeture",
     );
     if (ok) {
       setSoldePhysique("");
       setCommentaire("");
+      setJustificationEcart("");
+      setFlash("Caisse clôturée — écart et soldes enregistrés.");
+    }
+  }
+
+  async function startComptage() {
+    if (!board?.active) return;
+    const ok = await post(
+      { action: "start-comptage", id: board.active.id },
+      "Échec démarrage comptage",
+    );
+    if (ok) {
+      setFlash("Comptage démarré — encaissements suspendus.");
+    }
+  }
+
+  async function cancelComptage() {
+    if (!board?.active) return;
+    if (
+      !window.confirm(
+        "Annuler le comptage et reprendre les encaissements ?",
+      )
+    ) {
+      return;
+    }
+    const ok = await post(
+      { action: "cancel-comptage", id: board.active.id },
+      "Échec annulation comptage",
+    );
+    if (ok) {
+      setFlash("Comptage annulé — caisse réouverte.");
     }
   }
 
@@ -234,7 +289,11 @@ export function CaissePage() {
   const resolved: CaisseKey = board?.caisse ?? allowed[0] ?? "zogbo";
   const label = CAISSE_LABELS[resolved];
   const ecartPreview =
-    soldePhysique === "" ? null : Number(soldePhysique) - theoActive;
+    soldePhysique === ""
+      ? null
+      : Math.round(Number(soldePhysique) || 0) - theoActive;
+  const enComptage = active?.statut === "en_comptage";
+  const peutMouvements = active ? canReceiveCaisseSales(active.statut) : false;
 
   return (
     <AppShell
@@ -348,7 +407,7 @@ export function CaissePage() {
                 <div className="caisse-hero-main">
                   <span className="caisse-status">
                     <span className="caisse-status-dot" aria-hidden />
-                    {label} ouverte
+                    {label} · {CAISSE_STATUT_LABELS[active.statut]}
                   </span>
                   <span className="caisse-hero-label">Solde théorique</span>
                   <strong className="caisse-hero-value mono">
@@ -447,8 +506,18 @@ export function CaissePage() {
                 <section className="caisse-panel">
                   <header className="caisse-panel-head">
                     <h2>Mouvement</h2>
-                    <p>Dépense ou autre recette hors tickets POS</p>
+                    <p>
+                      {peutMouvements
+                        ? "Dépense ou autre recette hors tickets POS"
+                        : "Suspendu pendant le comptage"}
+                    </p>
                   </header>
+                  {!peutMouvements ? (
+                    <p className="muted caisse-hint">
+                      Terminez ou annulez le comptage pour saisir un mouvement.
+                    </p>
+                  ) : (
+                    <>
                   <div className="caisse-kind-switch" role="tablist">
                     <button
                       type="button"
@@ -499,52 +568,159 @@ export function CaissePage() {
                   >
                     Enregistrer
                   </button>
+                    </>
+                  )}
                 </section>
 
                 <section className="caisse-panel caisse-panel-close">
                   <header className="caisse-panel-head">
-                    <h2>Fermeture</h2>
-                    <p>Comptez le tiroir puis clôturez la session</p>
+                    <h2>Clôture de caisse</h2>
+                    <p>
+                      Théorique → réel → écart → justification → validation
+                    </p>
                   </header>
+
+                  <ol className="caisse-cloture-steps" aria-label="Étapes">
+                    <li className={enComptage || soldePhysique !== "" ? "is-done" : "is-current"}>
+                      1. Comptage
+                    </li>
+                    <li className={soldePhysique !== "" ? "is-current" : ""}>
+                      2. Fond réel
+                    </li>
+                    <li
+                      className={
+                        ecartPreview !== null &&
+                        (ecartPreview === 0 ||
+                          justificationEcart.trim().length >= 5)
+                          ? "is-current"
+                          : ""
+                      }
+                    >
+                      3. Validation
+                    </li>
+                  </ol>
+
+                  <div className="caisse-cloture-recap">
+                    <div>
+                      <span>Fond théorique</span>
+                      <strong className="mono">{formatFcfa(theoActive)}</strong>
+                    </div>
+                    <div>
+                      <span>Fond réel</span>
+                      <strong className="mono">
+                        {soldePhysique === ""
+                          ? "—"
+                          : formatFcfa(Math.round(Number(soldePhysique) || 0))}
+                      </strong>
+                    </div>
+                    <div>
+                      <span>Écart</span>
+                      <strong
+                        className={`mono${
+                          ecartPreview !== null && ecartPreview !== 0
+                            ? " text-danger"
+                            : ""
+                        }`}
+                      >
+                        {ecartPreview === null
+                          ? "—"
+                          : formatFcfa(ecartPreview)}
+                      </strong>
+                    </div>
+                  </div>
+
+                  <p className="muted caisse-hint">
+                    Vérifiez le montant théorique avant de compter le fond
+                    réel.
+                  </p>
+
+                  <div className="caisse-cloture-actions">
+                    {!enComptage ? (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        disabled={busy}
+                        onClick={() => void startComptage()}
+                      >
+                        Démarrer le comptage
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        disabled={busy}
+                        onClick={() => void cancelComptage()}
+                      >
+                        Annuler le comptage
+                      </button>
+                    )}
+                  </div>
+
                   <label className="caisse-field">
-                    <span>Solde physique compté</span>
+                    <span>Solde physique compté (FCFA)</span>
                     <input
                       type="number"
+                      min={0}
                       value={soldePhysique}
                       onChange={(e) => setSoldePhysique(e.target.value)}
                       placeholder={String(theoActive)}
+                      inputMode="numeric"
                     />
                   </label>
+
                   {ecartPreview !== null ? (
                     <div
                       className={`caisse-ecart${ecartPreview === 0 ? " is-ok" : " is-warn"}`}
                     >
-                      <span>Écart</span>
+                      <span>
+                        {ecartPreview === 0
+                          ? "Écart nul — caisse juste"
+                          : ecartPreview > 0
+                            ? "Surplus à justifier"
+                            : "Manque à justifier"}
+                      </span>
                       <strong className="mono">
                         {formatFcfa(ecartPreview)}
                       </strong>
                     </div>
-                  ) : (
-                    <p className="muted caisse-hint">
-                      Attendu : {formatFcfa(theoActive)}
-                    </p>
-                  )}
+                  ) : null}
+
+                  {ecartPreview !== null && ecartPreview !== 0 ? (
+                    <label className="caisse-field">
+                      <span>Justification de l&apos;écart (obligatoire)</span>
+                      <textarea
+                        rows={3}
+                        value={justificationEcart}
+                        onChange={(e) => setJustificationEcart(e.target.value)}
+                        placeholder="Ex. billet manquant, erreur de rendu…"
+                        required
+                      />
+                    </label>
+                  ) : null}
+
                   <label className="caisse-field">
-                    <span>Observation</span>
+                    <span>Observation (optionnelle)</span>
                     <textarea
                       rows={2}
                       value={commentaire}
                       onChange={(e) => setCommentaire(e.target.value)}
-                      placeholder="Optionnel"
+                      placeholder="Note libre"
                     />
                   </label>
+
                   <button
                     type="button"
                     className="btn btn-primary"
-                    disabled={busy || soldePhysique === ""}
+                    disabled={
+                      busy ||
+                      soldePhysique === "" ||
+                      (ecartPreview !== null &&
+                        ecartPreview !== 0 &&
+                        justificationEcart.trim().length < 5)
+                    }
                     onClick={() => void closeCaisse()}
                   >
-                    Fermer la caisse
+                    Valider la clôture
                   </button>
                 </section>
 
@@ -589,6 +765,7 @@ export function CaissePage() {
                             {formatFcfa(m.montant)}
                           </span>
                           {!m.cancelledAt &&
+                          peutMouvements &&
                           (m.kind === "depense" || m.kind === "recette") ? (
                             <button
                               type="button"
@@ -609,8 +786,8 @@ export function CaissePage() {
 
             <section className="caisse-panel caisse-history">
               <header className="caisse-panel-head">
-                <h2>Historique des sessions</h2>
-                <p>{label} · jours précédents</p>
+                <h2>Historique des clôtures</h2>
+                <p>{label} · théorique, réel, écart, justification</p>
               </header>
               {!board?.historique?.length ? (
                 <p className="muted">Pas encore de session enregistrée.</p>
@@ -621,19 +798,20 @@ export function CaissePage() {
                       <tr>
                         <th>Date</th>
                         <th>Statut</th>
-                        <th>Ouverte par</th>
-                        <th className="col-money">Ventes</th>
-                        <th className="col-money">Solde th.</th>
+                        <th>Ouverte / clôturée</th>
+                        <th className="col-money">Théorique</th>
+                        <th className="col-money">Réel</th>
                         <th className="col-money">Écart</th>
+                        <th>Justification</th>
                       </tr>
                     </thead>
                     <tbody>
                       {board.historique.map((s) => {
-                        const t = theo(s);
-                        const ecart =
-                          s.soldePhysique === null
-                            ? null
-                            : s.soldePhysique - t;
+                        const t =
+                          typeof s.soldeTheoriqueCloture === "number"
+                            ? s.soldeTheoriqueCloture
+                            : theo(s);
+                        const ecart = ecartCaisse(s);
                         return (
                           <tr key={s.id}>
                             <td>{s.date}</td>
@@ -642,21 +820,40 @@ export function CaissePage() {
                                 className={
                                   s.statut === "ouverte"
                                     ? "caisse-pill is-open"
-                                    : "caisse-pill"
+                                    : s.statut === "en_comptage"
+                                      ? "caisse-pill is-count"
+                                      : "caisse-pill"
                                 }
                               >
-                                {s.statut === "ouverte" ? "Ouverte" : "Fermée"}
+                                {CAISSE_STATUT_LABELS[s.statut]}
                               </span>
                             </td>
-                            <td>{s.userName}</td>
-                            <td className="mono col-money">
-                              {formatFcfa(s.totalVente)}
+                            <td>
+                              <span>{s.userName}</span>
+                              {s.closedByName ? (
+                                <>
+                                  <br />
+                                  <span className="muted">
+                                    → {s.closedByName}
+                                  </span>
+                                </>
+                              ) : null}
                             </td>
                             <td className="mono col-money">{formatFcfa(t)}</td>
+                            <td className="mono col-money">
+                              {s.soldePhysique === null
+                                ? "—"
+                                : formatFcfa(s.soldePhysique)}
+                            </td>
                             <td
                               className={`mono col-money${ecart !== null && ecart !== 0 ? " text-danger" : ""}`}
                             >
                               {ecart === null ? "—" : formatFcfa(ecart)}
+                            </td>
+                            <td className="caisse-justif-cell">
+                              {s.justificationEcart?.trim() ||
+                                s.commentaire?.trim() ||
+                                "—"}
                             </td>
                           </tr>
                         );

@@ -54,6 +54,13 @@ const NAV_ITEMS: {
     group: "ops",
     groupLabel: "Quotidien",
   },
+  {
+    href: "/caisse",
+    label: "Caisse",
+    key: "caisse",
+    mark: "€",
+    group: "ops",
+  },
   { href: "/zogbo", label: "Zogbo", key: "zogbo", mark: "Z", group: "ops" },
   {
     href: "/gbegamey",

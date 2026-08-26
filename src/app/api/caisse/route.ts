@@ -7,17 +7,20 @@ import {
   canUseCaisse,
   defaultCaisse,
   isZoneCaisse,
+  soldeTheorique,
 } from "@/lib/caisse-model";
 import { logActivity } from "@/lib/log-activity";
 import {
   addCaisseMouvement,
   cancelCaisseMouvement,
+  cancelComptageCaisse,
   closeCaisse,
   getActiveCaisse,
   getCaisseDetail,
   getCaissesOverview,
   listCaisses,
   openCaisse,
+  startComptageCaisse,
 } from "@/lib/caisse-repo";
 import type { CaisseKey, CaisseMouvementKind } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -31,6 +34,12 @@ function resolveCaisse(
 ): "zogbo" | "gbegamey" {
   if (isZoneCaisse(requested) && canUseCaisse(user, requested)) return requested;
   return defaultCaisse(user);
+}
+
+function formatEcartLine(ecart: number): string {
+  if (ecart === 0) return "Écart : 0 FCFA";
+  const signe = ecart > 0 ? "+" : "−";
+  return `Écart : ${signe}${Math.abs(ecart)} FCFA`;
 }
 
 export async function GET(request: Request) {
@@ -98,7 +107,14 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as {
-      action?: "open" | "close" | "mouvement" | "versement" | "annuler-mouvement";
+      action?:
+        | "open"
+        | "close"
+        | "start-comptage"
+        | "cancel-comptage"
+        | "mouvement"
+        | "versement"
+        | "annuler-mouvement";
       mouvementId?: string;
       date?: string;
       caisse?: CaisseKey;
@@ -107,6 +123,7 @@ export async function POST(request: Request) {
       soldeInitial?: number;
       soldePhysique?: number;
       commentaire?: string;
+      justificationEcart?: string;
       kind?: CaisseMouvementKind;
       nature?: string;
       beneficiaire?: string;
@@ -153,6 +170,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ session });
     }
 
+    if (body.action === "start-comptage") {
+      if (!body.id) {
+        return NextResponse.json({ error: "id requis" }, { status: 400 });
+      }
+      const session = await startComptageCaisse({ id: body.id, user });
+      await logActivity({
+        user,
+        kind: "caisse",
+        title: `Comptage · ${CAISSE_LABELS[session.caisse]}`,
+        detail: `Solde théorique ${soldeTheorique(session)} FCFA — encaissements suspendus`,
+        date: session.date,
+        site: session.site ?? "tous",
+        amount: soldeTheorique(session),
+      });
+      return NextResponse.json({ session });
+    }
+
+    if (body.action === "cancel-comptage") {
+      if (!body.id) {
+        return NextResponse.json({ error: "id requis" }, { status: 400 });
+      }
+      const session = await cancelComptageCaisse({ id: body.id, user });
+      await logActivity({
+        user,
+        kind: "caisse",
+        title: `Reprise · ${CAISSE_LABELS[session.caisse]}`,
+        detail: "Comptage annulé — encaissements réouverts",
+        date: session.date,
+        site: session.site ?? "tous",
+      });
+      return NextResponse.json({ session });
+    }
+
     if (body.action === "close") {
       if (!body.id) {
         return NextResponse.json({ error: "id requis" }, { status: 400 });
@@ -162,12 +212,27 @@ export async function POST(request: Request) {
         user,
         soldePhysique: Number(body.soldePhysique) || 0,
         commentaire: body.commentaire ?? null,
+        justificationEcart: body.justificationEcart ?? null,
       });
+      const theo = session.soldeTheoriqueCloture ?? soldeTheorique(session);
+      const ecart = session.ecart ?? 0;
+      const justif = session.justificationEcart?.trim();
       await logActivity({
         user,
         kind: "caisse",
         title: `Clôture · ${CAISSE_LABELS[session.caisse]}`,
-        detail: body.commentaire?.trim() || "Caisse fermée",
+        detail: [
+          `Théorique ${theo} FCFA`,
+          `Réel ${session.soldePhysique ?? 0} FCFA`,
+          formatEcartLine(ecart),
+          justif ? `Justification : ${justif}` : null,
+          body.commentaire?.trim() &&
+          body.commentaire.trim() !== justif
+            ? `Observation : ${body.commentaire.trim()}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         date: session.date,
         site: session.site ?? "tous",
         amount: Number(body.soldePhysique) || 0,

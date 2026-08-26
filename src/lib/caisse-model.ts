@@ -94,3 +94,69 @@ export function soldeTheorique(s: CaisseSession): number {
     (Number(s.totalVersementSorti) || 0)
   );
 }
+
+export const CAISSE_STATUT_LABELS: Record<
+  CaisseSession["statut"],
+  string
+> = {
+  ouverte: "Ouverte",
+  en_comptage: "En comptage",
+  fermee: "Clôturée",
+};
+
+/** Session encore « active » (affichable / gérable) — pas encore clôturée. */
+export function isCaisseSessionActive(
+  statut: CaisseSession["statut"],
+): boolean {
+  return statut === "ouverte" || statut === "en_comptage";
+}
+
+/** Seule une caisse ouverte encaisse encore (POS, dépenses, recettes). */
+export function canReceiveCaisseSales(
+  statut: CaisseSession["statut"],
+): boolean {
+  return statut === "ouverte";
+}
+
+/**
+ * Écart = réel − théorique.
+ * Préfère l'écart persisté à la clôture ; sinon calcule si le physique est connu.
+ */
+export function ecartCaisse(s: CaisseSession): number | null {
+  if (typeof s.ecart === "number" && Number.isFinite(s.ecart)) {
+    return Math.round(s.ecart);
+  }
+  if (s.soldePhysique === null || s.soldePhysique === undefined) return null;
+  const theo =
+    typeof s.soldeTheoriqueCloture === "number" &&
+    Number.isFinite(s.soldeTheoriqueCloture)
+      ? Math.round(s.soldeTheoriqueCloture)
+      : soldeTheorique(s);
+  return Math.round(s.soldePhysique) - theo;
+}
+
+/**
+ * Règles de clôture : montants entiers FCFA, justification si écart ≠ 0.
+ * Ne mute rien — pure validation avant écriture Mongo.
+ */
+export function assertClotureValide(input: {
+  soldeTheorique: number;
+  soldePhysique: number;
+  justificationEcart?: string | null;
+}): { soldeTheorique: number; soldePhysique: number; ecart: number } {
+  const soldeTheorique = Math.round(Number(input.soldeTheorique) || 0);
+  const soldePhysique = Math.max(
+    0,
+    Math.round(Number(input.soldePhysique) || 0),
+  );
+  const ecart = soldePhysique - soldeTheorique;
+  if (ecart !== 0) {
+    const motif = (input.justificationEcart ?? "").trim();
+    if (motif.length < 5) {
+      throw new Error(
+        "Justification obligatoire (5 caractères min.) lorsque l'écart de caisse n'est pas nul.",
+      );
+    }
+  }
+  return { soldeTheorique, soldePhysique, ecart };
+}

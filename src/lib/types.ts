@@ -729,7 +729,12 @@ export type PosConfig = {
   updatedAt: string | null;
 };
 
-export type CaisseStatut = "ouverte" | "fermee";
+/**
+ * Cycle de vie d'une session de caisse :
+ * ouverte → en_comptage → fermee (clôturée, figée).
+ * `fermee` = clôture validée (libellé UI « Clôturée »).
+ */
+export type CaisseStatut = "ouverte" | "en_comptage" | "fermee";
 
 /**
  * Les caisses du réseau : le coffre central et une caisse par zone. Une caisse
@@ -791,7 +796,15 @@ export type CaisseSession = {
   totalVersementRecu: number;
   soldePhysique: number | null;
   soldeFermeture: number | null;
+  /** Solde théorique figé au moment de la clôture (indépendant des lectures ultérieures). */
+  soldeTheoriqueCloture?: number | null;
+  /** Écart réel − théorique, persisté à la clôture. */
+  ecart?: number | null;
+  /** Obligatoire si |écart| > 0 ; motif du manque / surplus. */
+  justificationEcart?: string | null;
   commentaire: string | null;
+  /** Passage en phase de comptage (avant validation finale). */
+  comptageStartedAt?: string | null;
   openedAt: string;
   closedAt: string | null;
   closedById: string | null;

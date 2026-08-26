@@ -5672,13 +5672,88 @@ body {
   background: color-mix(in srgb, #1f7a3f 12%, var(--surface));
 }
 
-.caisse-ecart.is-warn {
+.FAKESECRET_e1f2g3h4i5j6k7l8m9n0 {
   background: color-mix(in srgb, var(--warn, #b45309) 14%, var(--surface));
 }
 
 .caisse-hint {
   margin: 0;
   font-size: 0.88rem;
+}
+
+.caisse-cloture-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.caisse-cloture-steps li {
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--paper) 80%, var(--surface));
+  color: var(--muted, #64748b);
+}
+
+.caisse-cloture-steps li.is-current {
+  background: color-mix(in srgb, var(--accent, #005098) 16%, var(--surface));
+  color: var(--ink, #0f172a);
+}
+
+.caisse-cloture-steps li.is-done {
+  background: color-mix(in srgb, #1f7a3f 14%, var(--surface));
+  color: #166534;
+}
+
+.caisse-cloture-recap {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.75rem;
+}
+
+.caisse-cloture-recap > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--paper) 70%, var(--surface));
+  font-size: 0.78rem;
+}
+
+.caisse-cloture-recap strong {
+  font-size: 0.95rem;
+}
+
+.caisse-cloture-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.caisse-pill.is-count {
+  background: color-mix(in srgb, var(--warn, #b45309) 18%, transparent);
+  color: #92400e;
+}
+
+.caisse-justif-cell {
+  max-width: 14rem;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+@media (max-width: 640px) {
+  .caisse-cloture-recap {
+    grid-template-columns: 1fr;
+  }
 }
 
 .caisse-mouvements {

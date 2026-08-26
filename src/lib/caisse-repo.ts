@@ -4,9 +4,12 @@ import { newId } from "@/lib/format";
 import {
   CAISSE_LABELS,
   ZONE_CAISSES,
+  assertClotureValide,
   assertIndependentCaisseTransfer,
+  canReceiveCaisseSales,
   caisseZone,
   canUseCaisse,
+  isCaisseSessionActive,
   isZoneCaisse,
   soldeTheorique as calcSoldeTheorique,
 } from "@/lib/caisse-model";
@@ -56,7 +59,18 @@ function toSession(doc: CaisseDoc): CaisseSession {
       doc.soldeFermeture === null || doc.soldeFermeture === undefined
         ? null
         : Number(doc.soldeFermeture),
+    soldeTheoriqueCloture:
+      doc.soldeTheoriqueCloture === null ||
+      doc.soldeTheoriqueCloture === undefined
+        ? null
+        : Number(doc.soldeTheoriqueCloture),
+    ecart:
+      doc.ecart === null || doc.ecart === undefined
+        ? null
+        : Number(doc.ecart),
+    justificationEcart: doc.justificationEcart ?? null,
     commentaire: doc.commentaire ?? null,
+    comptageStartedAt: doc.comptageStartedAt ?? null,
     openedAt: doc.openedAt,
     closedAt: doc.closedAt ?? null,
     closedById: doc.closedById ?? null,
@@ -124,12 +138,18 @@ async function rolloverStaleCaisse(
   const theo = calcSoldeTheorique(session);
 
   const closeResult = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
-    { _id: new ObjectId(session.id), statut: "ouverte" },
+    {
+      _id: new ObjectId(session.id),
+      statut: { $in: ["ouverte", "en_comptage"] satisfies CaisseStatut[] },
+    },
     {
       $set: {
         statut: "fermee" satisfies CaisseStatut,
         soldePhysique: null,
         soldeFermeture: theo,
+        soldeTheoriqueCloture: theo,
+        ecart: null,
+        justificationEcart: null,
         commentaire:
           "Clôturée automatiquement (changement de jour, décompte physique à faire).",
         closedAt: now,
@@ -160,7 +180,11 @@ async function rolloverStaleCaisse(
     totalVersementRecu: 0,
     soldePhysique: null,
     soldeFermeture: null,
+    soldeTheoriqueCloture: null,
+    ecart: null,
+    justificationEcart: null,
     commentaire: null,
+    comptageStartedAt: null,
     openedAt: now,
     closedAt: null,
     closedById: null,
@@ -181,7 +205,7 @@ export async function getActiveCaisse(
   const db = await getDb();
   const doc = await db.collection<CaisseDoc>("caisses_sessions").findOne({
     ...filtreCaisse(caisse),
-    statut: "ouverte" satisfies CaisseStatut,
+    statut: { $in: ["ouverte", "en_comptage"] satisfies CaisseStatut[] },
   });
   if (!doc) return null;
   const session = toSession(doc);
@@ -209,7 +233,14 @@ export async function ensureActiveCaisseForSite(input: {
   user: SessionUser;
 }): Promise<CaisseSession> {
   const existing = await getActiveCaisseForSite(input.site);
-  if (existing) return existing;
+  if (existing) {
+    if (!canReceiveCaisseSales(existing.statut)) {
+      throw new Error(
+        `${CAISSE_LABELS[existing.caisse]} est en comptage : finalisez la clôture avant d'encaisser.`,
+      );
+    }
+    return existing;
+  }
 
   try {
     return await openCaisse({
@@ -505,7 +536,11 @@ export async function openCaisse(input: {
     totalVersementRecu: 0,
     soldePhysique: null,
     soldeFermeture: null,
+    soldeTheoriqueCloture: null,
+    ecart: null,
+    justificationEcart: null,
     commentaire: null,
+    comptageStartedAt: null,
     openedAt: now,
     closedAt: null,
     closedById: null,
@@ -517,31 +552,119 @@ export async function openCaisse(input: {
   return toSession(doc);
 }
 
+/**
+ * Passe la session en phase de comptage : plus d'encaissement POS ni de
+ * mouvements jusqu'à clôture ou annulation du comptage.
+ */
+export async function startComptageCaisse(input: {
+  id: string;
+  user: SessionUser;
+}): Promise<CaisseSession> {
+  const session = await getCaisseById(input.id);
+  if (!session) throw new Error("Caisse introuvable");
+  assertAcces(input.user, session.caisse);
+  if (session.statut === "fermee") {
+    throw new Error("Caisse déjà clôturée");
+  }
+  if (session.statut === "en_comptage") return session;
+
+  const now = new Date().toISOString();
+  const db = await getDb();
+  const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+    { _id: new ObjectId(input.id), statut: "ouverte" },
+    {
+      $set: {
+        statut: "en_comptage" satisfies CaisseStatut,
+        comptageStartedAt: now,
+        updatedAt: now,
+      },
+    },
+  );
+  if (result.modifiedCount !== 1) {
+    throw new Error("Impossible de démarrer le comptage (caisse déjà modifiée).");
+  }
+  const updated = await getCaisseById(input.id);
+  if (!updated) throw new Error("Caisse introuvable après comptage");
+  return updated;
+}
+
+/** Reprend l'encaissement après un comptage non validé. */
+export async function cancelComptageCaisse(input: {
+  id: string;
+  user: SessionUser;
+}): Promise<CaisseSession> {
+  const session = await getCaisseById(input.id);
+  if (!session) throw new Error("Caisse introuvable");
+  assertAcces(input.user, session.caisse);
+  if (session.statut !== "en_comptage") {
+    throw new Error("La caisse n'est pas en phase de comptage.");
+  }
+
+  const now = new Date().toISOString();
+  const db = await getDb();
+  const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+    { _id: new ObjectId(input.id), statut: "en_comptage" },
+    {
+      $set: {
+        statut: "ouverte" satisfies CaisseStatut,
+        comptageStartedAt: null,
+        updatedAt: now,
+      },
+    },
+  );
+  if (result.modifiedCount !== 1) {
+    throw new Error("Impossible d'annuler le comptage.");
+  }
+  const updated = await getCaisseById(input.id);
+  if (!updated) throw new Error("Caisse introuvable");
+  return updated;
+}
+
 export async function closeCaisse(input: {
   id: string;
   user: SessionUser;
   soldePhysique: number;
   commentaire?: string | null;
+  justificationEcart?: string | null;
 }): Promise<CaisseSession> {
   const session = await getCaisseById(input.id);
   if (!session) throw new Error("Caisse introuvable");
   // Caisse partagée : ce n'est plus l'ouvreur qui ferme, c'est celui qui
   // compte le tiroir. Son nom est consigné.
   assertAcces(input.user, session.caisse);
-  if (session.statut !== "ouverte") throw new Error("Caisse déjà fermée");
+  if (!isCaisseSessionActive(session.statut)) {
+    throw new Error("Caisse déjà clôturée");
+  }
 
-  // Un tiroir physique ne peut pas être négatif : même plancher qu'à l'ouverture.
-  const soldePhysique = Math.max(0, Math.round(Number(input.soldePhysique) || 0));
+  const theo = calcSoldeTheorique(session);
+  const { soldePhysique, ecart, soldeTheorique } = assertClotureValide({
+    soldeTheorique: theo,
+    soldePhysique: input.soldePhysique,
+    justificationEcart: input.justificationEcart ?? input.commentaire,
+  });
+
   const now = new Date().toISOString();
+  const justification =
+    ecart === 0
+      ? null
+      : (input.justificationEcart ?? input.commentaire)?.trim() || null;
+  const observation = input.commentaire?.trim() || null;
+
   const db = await getDb();
-  await db.collection<CaisseDoc>("caisses_sessions").updateOne(
-    { _id: new ObjectId(input.id), statut: "ouverte" },
+  const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+    {
+      _id: new ObjectId(input.id),
+      statut: { $in: ["ouverte", "en_comptage"] satisfies CaisseStatut[] },
+    },
     {
       $set: {
         statut: "fermee" satisfies CaisseStatut,
         soldePhysique,
         soldeFermeture: soldePhysique,
-        commentaire: input.commentaire?.trim() || null,
+        soldeTheoriqueCloture: soldeTheorique,
+        ecart,
+        justificationEcart: justification,
+        commentaire: observation,
         closedAt: now,
         closedById: input.user.id,
         closedByName: input.user.name,
@@ -549,6 +672,9 @@ export async function closeCaisse(input: {
       },
     },
   );
+  if (result.modifiedCount !== 1) {
+    throw new Error("Clôture impossible : la caisse a déjà été modifiée.");
+  }
   const updated = await getCaisseById(input.id);
   if (!updated) throw new Error("Caisse introuvable après fermeture");
   return updated;
@@ -580,6 +706,11 @@ export async function addCaisseMouvement(input: {
   if (!session) throw new Error("Caisse introuvable");
   assertAcces(input.user, session.caisse);
   if (session.statut !== "ouverte" && !input.allowClosed) {
+    if (session.statut === "en_comptage") {
+      throw new Error(
+        "Caisse en comptage : mouvements interdits jusqu'à clôture ou reprise.",
+      );
+    }
     throw new Error("Impossible d’ajouter un mouvement sur une caisse fermée");
   }
   const nature = input.nature.trim();
@@ -691,6 +822,11 @@ export async function cancelCaisseMouvement(input: {
   if (!session) throw new Error("Caisse introuvable");
   assertAcces(input.user, session.caisse);
   if (session.statut !== "ouverte" && !input.allowClosed) {
+    if (session.statut === "en_comptage") {
+      throw new Error(
+        "Caisse en comptage : annulation interdite jusqu'à clôture ou reprise.",
+      );
+    }
     throw new Error("Impossible d’annuler un mouvement sur une caisse fermée");
   }
 
@@ -802,9 +938,17 @@ export async function getCaisseDetail(id: string): Promise<{
   const session = await getCaisseById(id);
   if (!session) throw new Error("Caisse introuvable");
   const mouvements = await listMouvements(id);
-  const theo = calcSoldeTheorique(session);
+  const theo =
+    session.statut === "fermee" &&
+    typeof session.soldeTheoriqueCloture === "number"
+      ? Math.round(session.soldeTheoriqueCloture)
+      : calcSoldeTheorique(session);
   const ecart =
-    session.soldePhysique === null ? null : session.soldePhysique - theo;
+    typeof session.ecart === "number" && Number.isFinite(session.ecart)
+      ? Math.round(session.ecart)
+      : session.soldePhysique === null
+        ? null
+        : session.soldePhysique - theo;
   return { session, mouvements, soldeTheorique: theo, ecart };
 }
 
