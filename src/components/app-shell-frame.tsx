@@ -98,6 +98,13 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
+    href: "/combos",
+    label: "Combos",
+    key: "parametres",
+    mark: "F",
+    group: "ops",
+  },
+  {
     href: "/immobilisations",
     label: "Immobilisations",
     key: "immobilisations",

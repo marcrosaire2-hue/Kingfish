@@ -58,6 +58,7 @@ const KIND_VENTE: Record<VenteKind, string> = {
   plat: "plat",
   local: "plat local",
   boisson: "boisson",
+  combo: "combo",
   extra: "extraordinaire",
 };
 

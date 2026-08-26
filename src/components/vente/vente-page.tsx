@@ -56,19 +56,21 @@ type CartLine = {
   qty: number;
 };
 
-type CatKey = "plat" | "accompagnement" | "boisson" | "extra";
+type CatKey = "plat" | "accompagnement" | "boisson" | "combo" | "extra";
 
 /** Onglet UI → kind API (`extra` = saisie libre). */
 const CAT_KIND: Record<Exclude<CatKey, "extra">, VenteProduct["kind"]> = {
   plat: "plat",
   accompagnement: "local",
   boisson: "boisson",
+  combo: "combo",
 };
 
 const CAT_LABELS: Record<CatKey, string> = {
   plat: "Plats",
   accompagnement: "Accompagnements",
   boisson: "Boissons",
+  combo: "Combos",
   extra: "Hors catalogue",
 };
 
@@ -971,7 +973,13 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   }, [board, cat, plats, accompagnements, hideUnavailable, backdateMode]);
 
   const categories = useMemo(() => {
-    const keys: CatKey[] = ["plat", "accompagnement", "boisson", "extra"];
+    const keys: CatKey[] = [
+      "plat",
+      "accompagnement",
+      "boisson",
+      "combo",
+      "extra",
+    ];
     return keys.map((key) => ({
       key,
       label: CAT_LABELS[key],

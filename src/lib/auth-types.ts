@@ -487,7 +487,11 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/zogbo")) return allowed.includes("zogbo");
   if (pathname.startsWith("/gbegamey")) return allowed.includes("gbegamey");
   if (pathname.startsWith("/combos")) {
-    return allowed.includes("stock");
+    return (
+      allowed.includes("parametres") ||
+      allowed.includes("stock") ||
+      allowed.includes("vente")
+    );
   }
   if (pathname.startsWith("/boissons")) {
     return allowed.includes("zogbo") || allowed.includes("gbegamey");

@@ -90,7 +90,7 @@ export async function buildJournalComptable(input: {
       });
       continue;
     }
-    const lignes = t.lines.filter((l) => (l.kind as string) !== "combo");
+    const lignes = t.lines;
     if (lignes.length === 0) continue;
     ecritures.push(
       ...ecrituresVente({

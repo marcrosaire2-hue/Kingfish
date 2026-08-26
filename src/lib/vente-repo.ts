@@ -12,7 +12,13 @@ import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import { computeZogboLine, shiftIsoDate } from "@/lib/zogbo-calc";
 import { isLegalAccompanimentPrice } from "@/lib/catalog-zogbo";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
+import {
+  comboEconomie,
+  comboPrixNormal,
+  comboStockLeft,
+} from "@/lib/combos-model";
 import type {
+  ComboComponent,
   GbegameyLocalLine,
   VenteKind,
   VenteLogEntry,
@@ -62,6 +68,8 @@ type VenteLogDoc = {
   /** Provenance (caisse, carnet-zogbo, aquapro, reprise…) */
   source?: string | null;
   caExcluded?: boolean;
+  /** Snapshot composants (vente combo) pour annulation fiable. */
+  comboComponents?: ComboComponent[] | null;
 };
 
 function mapVenteLogDoc(d: VenteLogDoc): VenteLogEntry {
@@ -77,14 +85,14 @@ function mapVenteLogDoc(d: VenteLogDoc): VenteLogEntry {
     amount: d.amount,
     at: d.at,
     source: d.source ?? null,
+    comboComponents: d.comboComponents ?? null,
   };
 }
 
-/** Ventes actives : les annulations restent en base mais ne comptent plus. Formules retirées. */
+/** Ventes actives : les annulations restent en base mais ne comptent plus. */
 const ACTIVE = {
   cancelledAt: null,
   caExcluded: { $ne: true },
-  kind: { $ne: "combo" },
 } as unknown as Filter<VenteLogDoc>;
 
 /** Document « jour » quelconque, adressé par date — lignes accédées dynamiquement. */
@@ -484,6 +492,54 @@ export async function getVenteBoard(
           : !untracked && stockLeft <= 0
             ? "Stock boisson épuisé"
             : null,
+    });
+  }
+
+  // Combos actifs : stock = min des portions possibles selon composants du site.
+  const dbCombo = await getDb();
+  const comboSoldRows = await dbCombo
+    .collection<VenteLogDoc>("ventes_log")
+    .aggregate<{ _id: string; qty: number }>([
+      {
+        $match: {
+          date,
+          site,
+          kind: "combo",
+          cancelledAt: null,
+        },
+      },
+      { $group: { _id: "$productId", qty: { $sum: "$qty" } } },
+    ])
+    .toArray();
+  const comboSoldById = new Map(
+    comboSoldRows.map((r) => [String(r._id), Number(r.qty) || 0]),
+  );
+
+  for (const combo of parametres.combos ?? []) {
+    if (!combo.active) continue;
+    if (!combo.components.length || combo.unitPrice <= 0) continue;
+    const stockLeft = comboStockLeft(combo, products);
+    const prixNormal = comboPrixNormal(combo, parametres);
+    const economie = comboEconomie(combo, parametres);
+    products.push({
+      kind: "combo",
+      productId: combo.id,
+      name: combo.name,
+      unitPrice: combo.unitPrice,
+      soldToday: comboSoldById.get(combo.id) ?? 0,
+      stockLeft,
+      lowStock: isLowStock(stockLeft, combo.alertThreshold),
+      alertThreshold: combo.alertThreshold ?? null,
+      hint:
+        stockLeft === null
+          ? `Combo · économie ${economie} F`
+          : stockLeft <= 0
+            ? "Composants insuffisants"
+            : `Combo · reste ${stockLeft} · éco. ${economie} F (normal ${prixNormal} F)`,
+      blockReason:
+        stockLeft !== null && stockLeft <= 0
+          ? "Composants du combo indisponibles"
+          : null,
     });
   }
 
@@ -1126,6 +1182,161 @@ async function applySoldDelta(input: {
   };
 }
 
+async function recordComboVente(
+  input: {
+    date: string;
+    site: VenteSite;
+    productId: string;
+    unitPrice?: number;
+    actor?: VenteActor | null;
+    bypassClosedDay?: boolean;
+    bypassStock?: boolean;
+  },
+  qty: number,
+): Promise<{
+  entry: VenteLogEntry;
+  soldToday: number;
+  board: Awaited<ReturnType<typeof getVenteBoard>>;
+}> {
+  await assertDayNotClosed(input.date, input.site, "plat", {
+    bypassClosedDay: input.bypassClosedDay,
+  });
+
+  const parametres = await getParametres();
+  const combo = (parametres.combos ?? []).find((c) => c.id === input.productId);
+  if (!combo || !combo.active) throw new Error("Combo introuvable ou inactif");
+  if (!combo.components.length) {
+    throw new Error("Combo sans composants — configurez la formule.");
+  }
+
+  const unitPrice = combo.unitPrice;
+  if (unitPrice <= 0) throw new Error("Prix du combo invalide");
+  if (
+    input.unitPrice !== undefined &&
+    Math.round(Number(input.unitPrice) || 0) > 0 &&
+    Math.round(Number(input.unitPrice) || 0) !== unitPrice
+  ) {
+    throw new Error(`Prix non autorisé pour « ${combo.name} »`);
+  }
+
+  if (qty > 0 && !input.bypassStock) {
+    const boardPreview = await getVenteBoard(input.date, input.site, {
+      recentLimit: 1,
+    });
+    const left = comboStockLeft(combo, boardPreview.products);
+    if (left !== null && left < qty) {
+      throw new Error(
+        `Stock insuffisant pour le combo (reste ${left} portion${left > 1 ? "s" : ""})`,
+      );
+    }
+  }
+
+  const applied: Array<{ kind: VenteKind; productId: string; delta: number }> =
+    [];
+  try {
+    for (const c of combo.components) {
+      const delta = c.qty * qty;
+      await applySoldDelta({
+        date: input.date,
+        site: input.site,
+        kind: c.kind,
+        productId: c.productId,
+        delta,
+        maxSold: input.bypassStock || c.kind === "local" ? null : undefined,
+      });
+      applied.push({ kind: c.kind, productId: c.productId, delta });
+    }
+  } catch (error) {
+    for (const a of applied.reverse()) {
+      try {
+        await applySoldDelta({
+          date: input.date,
+          site: input.site,
+          kind: a.kind,
+          productId: a.productId,
+          delta: -a.delta,
+          maxSold: null,
+        });
+      } catch {
+        /* best effort */
+      }
+    }
+    throw error;
+  }
+
+  const at = new Date().toISOString();
+  const amount = Math.abs(qty) * unitPrice;
+  const db = await getDb();
+  const componentsSnap: ComboComponent[] = combo.components.map((c) => ({
+    ...c,
+  }));
+  let insert;
+  try {
+    insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
+      _id: new ObjectId(),
+      date: input.date,
+      site: input.site,
+      kind: "combo",
+      productId: combo.id,
+      name: combo.name,
+      qty,
+      unitPrice,
+      costPrice: combo.costPrice ?? 0,
+      amount: qty > 0 ? amount : -amount,
+      at,
+      cancelledAt: null,
+      baseProductId: null,
+      actorId: input.actor?.id ?? null,
+      actorName: input.actor?.name ?? null,
+      actorUsername: input.actor?.username ?? null,
+      shift: effectiveShift(input.actor?.shift),
+      comboComponents: componentsSnap,
+    });
+  } catch (error) {
+    for (const a of applied.reverse()) {
+      try {
+        await applySoldDelta({
+          date: input.date,
+          site: input.site,
+          kind: a.kind,
+          productId: a.productId,
+          delta: -a.delta,
+          maxSold: null,
+        });
+      } catch {
+        /* best effort */
+      }
+    }
+    throw error;
+  }
+
+  const board = await getVenteBoard(input.date, input.site);
+  const soldToday =
+    board.products.find(
+      (p) => p.kind === "combo" && p.productId === combo.id,
+    )?.soldToday ?? Math.abs(qty);
+
+  return {
+    entry: mapVenteLogDoc({
+      _id: insert.insertedId,
+      date: input.date,
+      site: input.site,
+      kind: "combo",
+      productId: combo.id,
+      name: combo.name,
+      qty,
+      unitPrice,
+      costPrice: combo.costPrice ?? 0,
+      amount: qty > 0 ? amount : -amount,
+      at,
+      cancelledAt: null,
+      comboComponents: componentsSnap,
+    }),
+    soldToday,
+    board,
+  };
+}
+
 export async function recordVente(input: {
   date: string;
   site: VenteSite;
@@ -1155,6 +1366,10 @@ export async function recordVente(input: {
     throw new Error("Quantité invalide");
   }
   if (!isValidDate(input.date)) throw new Error("Date invalide");
+
+  if (input.kind === "combo") {
+    return recordComboVente(input, qty);
+  }
 
   await assertDayNotClosed(input.date, input.site, input.kind, {
     bypassClosedDay: input.bypassClosedDay,
@@ -1502,6 +1717,45 @@ export async function undoVente(input: {
       } catch {
         /* extra libre, pas une fiche immobilisation */
       }
+    }
+    const board = await getVenteBoard(input.date, input.site);
+    return { board, entry };
+  }
+
+  if (doc.kind === "combo") {
+    await assertDayNotClosed(doc.date, doc.site, "plat", {
+      bypassClosedDay: input.bypassClosedDay,
+    });
+    const components =
+      doc.comboComponents?.length
+        ? doc.comboComponents
+        : (
+            (await getParametres()).combos ?? []
+          ).find((c) => c.id === doc.productId)?.components ?? [];
+    try {
+      for (const c of components) {
+        await applySoldDelta({
+          date: doc.date,
+          site: doc.site,
+          kind: c.kind,
+          productId: c.productId,
+          delta: -(c.qty * doc.qty),
+          maxSold: null,
+        });
+      }
+    } catch (error) {
+      await db.collection<VenteLogDoc>("ventes_log").updateOne(
+        { _id: doc._id },
+        {
+          $set: {
+            cancelledAt: null,
+            cancelledById: null,
+            cancelledByName: null,
+            cancelledByUsername: null,
+          },
+        },
+      );
+      throw error;
     }
     const board = await getVenteBoard(input.date, input.site);
     return { board, entry };

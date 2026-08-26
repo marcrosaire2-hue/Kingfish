@@ -136,6 +136,7 @@ export const KIND_LABELS: Record<VenteKind, string> = {
   plat: "Plats",
   boisson: "Boissons",
   local: "Accompagnements",
+  combo: "Combos",
   extra: "Extra",
 };
 
