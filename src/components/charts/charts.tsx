@@ -73,7 +73,9 @@ function RankList({
           </span>
           <div className="rank-body">
             <div className="rank-meta">
-              <strong className="rank-name">{row.name}</strong>
+              <strong className="rank-name" title={row.name}>
+                {row.name}
+              </strong>
               <span className="rank-kind">{shortKind(row.kind)}</span>
             </div>
             <div className="rank-track">
@@ -171,41 +173,37 @@ export function ProductRanking({
                 : "CA par point de vente"}
             </p>
           </header>
-          <table className="data-table sales-board-table">
-            <thead>
-              <tr>
-                <th scope="col">#</th>
-                <th scope="col">Zone</th>
-                <th scope="col" className="col-qty">
-                  Articles
-                </th>
-                <th scope="col" className="col-money">
-                  CA
-                </th>
-                <th scope="col">Part</th>
-              </tr>
-            </thead>
-            <tbody>
-              {siteList.map((s, i) => (
-                <tr key={s.site} className={i === 0 ? "row-leader" : undefined}>
-                  <td className="mono">{i + 1}</td>
-                  <td>
-                    <strong>{s.label}</strong>
-                  </td>
-                  <td className="col-qty mono">{s.qty}</td>
-                  <td className="col-money mono">{formatFcfa(s.ca)}</td>
-                  <td>
-                    <div className="rank-track">
-                      <div
-                        className="rank-fill rank-fill-best"
-                        style={{ width: `${(s.ca / siteMax) * 100}%` }}
-                      />
+          <ol className="site-rank-list">
+            {siteList.map((s, i) => {
+              const part = Math.round((s.ca / siteMax) * 100);
+              return (
+                <li
+                  key={s.site}
+                  className={`site-rank-card${i === 0 ? " is-leader" : ""}`}
+                >
+                  <div className="site-rank-top">
+                    <span className="site-rank-pos mono">{i + 1}</span>
+                    <div className="site-rank-main">
+                      <strong className="site-rank-name">{s.label}</strong>
+                      <span className="site-rank-qty muted">
+                        {s.qty} article{s.qty > 1 ? "s" : ""}
+                      </span>
                     </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <strong className="site-rank-ca mono">
+                      {formatFcfa(s.ca)}
+                    </strong>
+                  </div>
+                  <div className="site-rank-bar" aria-hidden>
+                    <div
+                      className="rank-fill rank-fill-best"
+                      style={{ width: `${(s.ca / siteMax) * 100}%` }}
+                    />
+                  </div>
+                  <span className="site-rank-part muted">{part} % du CA</span>
+                </li>
+              );
+            })}
+          </ol>
         </section>
       ) : null}
 
@@ -423,19 +421,21 @@ export function GroupedBarChart({
   height?: number;
 }) {
   const width = 720;
-  const pad = { t: 18, r: 14, b: 40, l: 56 };
+  const pad = { t: 18, r: 14, b: 44, l: 52 };
   const innerW = width - pad.l - pad.r;
   const innerH = height - pad.t - pad.b;
   const max = niceMax(series.flatMap((s) => s.values));
   const groups = Math.max(labels.length, 1);
   const groupW = innerW / groups;
-  const barGap = 4;
+  const barGap = 3;
   const barW = Math.max(
-    5,
-    (groupW - 12 - barGap * (series.length - 1)) / series.length,
+    4,
+    (groupW - 10 - barGap * (series.length - 1)) / series.length,
   );
   const ticks = [0, 0.5, 1].map((t) => Math.round(max * t));
   const uid = `gb-${series.map((s) => s.key).join("-")}`;
+  /* Moins de libellés X quand il y a beaucoup de mois (lisibilité téléphone). */
+  const labelStep = Math.max(1, Math.ceil(groups / 6));
 
   return (
     <div className="chart-wrap chart-wrap-bars">
@@ -470,7 +470,7 @@ export function GroupedBarChart({
               className="chart-grid"
             />
             <text
-              x={pad.l - 10}
+              x={pad.l - 8}
               y={pad.t + innerH - (t / max) * innerH + 4}
               className="chart-axis"
               textAnchor="end"
@@ -480,7 +480,7 @@ export function GroupedBarChart({
           </g>
         ))}
         {labels.map((lab, i) => {
-          const gx = pad.l + i * groupW + 6;
+          const gx = pad.l + i * groupW + 5;
           return (
             <g key={lab + i}>
               {series.map((s, si) => {
@@ -504,10 +504,10 @@ export function GroupedBarChart({
                   </rect>
                 );
               })}
-              {(i % Math.ceil(groups / 10) === 0 || i === groups - 1) && (
+              {(i % labelStep === 0 || i === groups - 1) && (
                 <text
                   x={gx + (series.length * (barW + barGap)) / 2}
-                  y={height - 12}
+                  y={height - 14}
                   className="chart-axis"
                   textAnchor="middle"
                 >

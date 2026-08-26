@@ -1318,56 +1318,48 @@ function YearDashboard({
         />
       </section>
 
-      <section className="panel panel-wide">
+      <section className="panel panel-wide dash-months-panel">
         <h2 className="panel-title">Mois de l’année</h2>
-        <table className="data-table zogbo-table">
-          <thead>
-            <tr>
-              <th scope="col">Mois</th>
-              <th scope="col" className="col-money">
-                CA
-              </th>
-              <th scope="col" className="col-money">
-                Charges
-              </th>
-              <th scope="col" className="col-money">
-                Résultat
-              </th>
-              <th scope="col" className="col-qty">
-                Jours actifs
-              </th>
-              <th scope="col" className="col-actions">
-                <span className="sr-only">Ouvrir</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.months.map((m) => (
-              <tr key={m.month}>
-                <td className="cell-name">{MONTH_NAMES[m.month - 1]}</td>
-                <td className="mono cell-readonly">{formatFcfa(m.caTotal)}</td>
-                <td className="mono cell-readonly">
-                  {formatFcfa(m.chargesTotal)}
-                </td>
-                <td
-                  className={`mono cell-readonly${m.resultat < 0 ? " cell-variance" : ""}`}
+        <ul className="dash-month-list">
+          {data.months.map((m) => (
+            <li key={m.month} className="dash-month-card">
+              <div className="dash-month-top">
+                <strong className="dash-month-name">
+                  {MONTH_NAMES[m.month - 1]}
+                </strong>
+                <button
+                  type="button"
+                  className="btn-link"
+                  onClick={() => onOpenMonth(m.month)}
                 >
-                  {formatFcfa(m.resultat)}
-                </td>
-                <td className="mono cell-readonly">{m.daysWithData}</td>
-                <td className="col-actions">
-                  <button
-                    type="button"
-                    className="btn-link"
-                    onClick={() => onOpenMonth(m.month)}
+                  Voir
+                </button>
+              </div>
+              <dl className="dash-month-metrics">
+                <div>
+                  <dt>CA</dt>
+                  <dd className="mono">{formatFcfa(m.caTotal)}</dd>
+                </div>
+                <div>
+                  <dt>Charges</dt>
+                  <dd className="mono">{formatFcfa(m.chargesTotal)}</dd>
+                </div>
+                <div>
+                  <dt>Résultat</dt>
+                  <dd
+                    className={`mono${m.resultat < 0 ? " cell-variance" : ""}`}
                   >
-                    Voir
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    {formatFcfa(m.resultat)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Jours actifs</dt>
+                  <dd className="mono">{m.daysWithData}</dd>
+                </div>
+              </dl>
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   );
