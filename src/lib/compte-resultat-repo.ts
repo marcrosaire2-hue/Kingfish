@@ -96,8 +96,6 @@ function caActifMatch(extra: Record<string, unknown> = {}) {
 
 /**
  * Détail produit par produit (qté, tickets, CA) pour la période.
- * `$ne: "combo"` : filet de sécurité pour d’anciennes lignes Mongo
- * (catalogue formules retiré, plus vendu).
  */
 export async function listDetailProduits(input: {
   dateFrom: string;
@@ -107,7 +105,6 @@ export async function listDetailProduits(input: {
   const db = await getDb();
   const match: Record<string, unknown> = {
     date: { $gte: input.dateFrom, $lte: input.dateTo },
-    kind: { $ne: "combo" },
     qty: { $gt: 0 },
   };
   if (input.scopeSite) match.site = input.scopeSite;

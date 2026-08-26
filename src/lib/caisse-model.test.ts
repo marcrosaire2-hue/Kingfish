@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   allowedCaisses,
+  assertClotureValide,
   assertIndependentCaisseTransfer,
   caisseForSite,
   caisseZone,
+  canReceiveCaisseSales,
   canUseCaisse,
+  CAISSE_STATUT_LABELS,
   defaultCaisse,
+  ecartCaisse,
+  isCaisseSessionActive,
   soldeTheorique,
   ZONE_CAISSES,
 } from "@/lib/caisse-model";
@@ -28,7 +33,11 @@ function session(partial: Partial<CaisseSession> = {}): CaisseSession {
     totalVersementRecu: 0,
     soldePhysique: null,
     soldeFermeture: null,
+    soldeTheoriqueCloture: null,
+    ecart: null,
+    justificationEcart: null,
     commentaire: null,
+    comptageStartedAt: null,
     openedAt: "2026-08-12T07:00:00.000Z",
     closedAt: null,
     closedById: null,
@@ -96,5 +105,73 @@ describe("correspondance zone ↔ caisse", () => {
 
   it("ne rattache la centrale à aucune zone", () => {
     expect(caisseZone("centrale")).toBeNull();
+  });
+});
+
+describe("clôture de caisse", () => {
+  it("exige une justification si l'écart n'est pas nul", () => {
+    expect(() =>
+      assertClotureValide({
+        soldeTheorique: 100_000,
+        soldePhysique: 98_000,
+        justificationEcart: "",
+      }),
+    ).toThrow(/Justification obligatoire/);
+
+    expect(() =>
+      assertClotureValide({
+        soldeTheorique: 100_000,
+        soldePhysique: 98_000,
+        justificationEcart: "abc",
+      }),
+    ).toThrow(/Justification obligatoire/);
+  });
+
+  it("accepte un écart nul sans justification", () => {
+    expect(
+      assertClotureValide({
+        soldeTheorique: 100_000,
+        soldePhysique: 100_000,
+      }),
+    ).toEqual({
+      soldeTheorique: 100_000,
+      soldePhysique: 100_000,
+      ecart: 0,
+    });
+  });
+
+  it("accepte un écart justifié et arrondit en FCFA entiers", () => {
+    expect(
+      assertClotureValide({
+        soldeTheorique: 100_000.4,
+        soldePhysique: 99_500.6,
+        justificationEcart: "Billet de 500 manquant au comptage",
+      }),
+    ).toEqual({
+      soldeTheorique: 100_000,
+      soldePhysique: 99_501,
+      ecart: -499,
+    });
+  });
+
+  it("calcule l'écart persisté en priorité", () => {
+    expect(
+      ecartCaisse(
+        session({
+          soldePhysique: 90_000,
+          soldeTheoriqueCloture: 100_000,
+          ecart: -10_000,
+        }),
+      ),
+    ).toBe(-10_000);
+  });
+
+  it("distingue session active / encaissement", () => {
+    expect(isCaisseSessionActive("ouverte")).toBe(true);
+    expect(isCaisseSessionActive("en_comptage")).toBe(true);
+    expect(isCaisseSessionActive("fermee")).toBe(false);
+    expect(canReceiveCaisseSales("ouverte")).toBe(true);
+    expect(canReceiveCaisseSales("en_comptage")).toBe(false);
+    expect(CAISSE_STATUT_LABELS.fermee).toBe("Clôturée");
   });
 });

@@ -297,7 +297,6 @@ function caActifMatch(extra: Record<string, unknown> = {}) {
   return {
     cancelledAt: null,
     caExcluded: { $ne: true },
-    kind: extra.kind ?? { $ne: "combo" },
     ...Object.fromEntries(
       Object.entries(extra).filter(([key]) => key !== "kind"),
     ),

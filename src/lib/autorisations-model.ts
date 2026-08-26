@@ -69,6 +69,15 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view"],
   },
   {
+    id: "rapport-quotidien",
+    navKey: "rapport-quotidien",
+    label: "Rapport du jour",
+    path: "/rapport-quotidien",
+    category: "accueil",
+    description: "Synthèse quotidienne CA, pertes, écarts et alertes.",
+    actions: ["access", "view"],
+  },
+  {
     id: "compte-resultat",
     navKey: "compte-resultat",
     label: "Compte de résultat",

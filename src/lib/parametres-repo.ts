@@ -1,5 +1,6 @@
 import { cloneSeed } from "@/lib/storage";
 import { normalizeDrink } from "@/lib/boissons-calc";
+import { normalizeCombos } from "@/lib/combos-model";
 import type { Parametres, RawMaterial, Recipe } from "@/lib/types";
 import { getDb } from "@/lib/mongodb";
 
@@ -54,6 +55,9 @@ function stripId(doc: ParametresDoc): Parametres {
           ? undefined
           : Math.max(0, Number(d.costPrice) || 0),
     })),
+    combos: normalizeCombos(
+      (doc as ParametresDoc & { combos?: Parametres["combos"] }).combos,
+    ),
     rawMaterials: normalizeRawMaterials(doc.rawMaterials),
     recipes: normalizeRecipes(doc.recipes),
     updatedAt: doc.updatedAt ?? null,
@@ -103,6 +107,7 @@ export async function getParametres(): Promise<Parametres> {
     }
     return {
       ...data,
+      combos: data.combos ?? [],
       rawMaterials: data.rawMaterials ?? [],
       recipes: data.recipes ?? [],
     };
@@ -116,6 +121,7 @@ export async function getParametres(): Promise<Parametres> {
     ...seed,
     rawMaterials: aquaMats,
     recipes: [],
+    combos: [],
     updatedAt: now,
   };
   await col.insertOne(doc);
@@ -132,6 +138,7 @@ export async function saveParametresToDb(
     baseDishes: data.baseDishes,
     drinks: data.drinks.map((d) => normalizeDrink(d)),
     localDishes: data.localDishes,
+    combos: normalizeCombos(data.combos),
     rawMaterials: normalizeRawMaterials(data.rawMaterials),
     recipes: normalizeRecipes(data.recipes),
     updatedAt,
@@ -153,6 +160,7 @@ export async function resetParametresToSeed(): Promise<Parametres> {
     ...seed,
     rawMaterials: aquaMats,
     recipes: [],
+    combos: [],
     updatedAt: null,
   });
 }

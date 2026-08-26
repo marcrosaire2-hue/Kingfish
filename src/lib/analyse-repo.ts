@@ -58,7 +58,6 @@ export function ventesActivesMatch(
   return {
     cancelledAt: null,
     caExcluded: { $ne: true },
-    kind: kind ?? { $ne: "combo" },
     ...rest,
     ...(kind !== undefined ? { kind } : {}),
   };

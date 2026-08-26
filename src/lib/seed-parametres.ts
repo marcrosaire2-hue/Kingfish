@@ -439,5 +439,6 @@ export const SEED_PARAMETRES: Parametres = {
       unitPrice: 500,
     },
   ],
+  combos: [],
   updatedAt: null,
 };

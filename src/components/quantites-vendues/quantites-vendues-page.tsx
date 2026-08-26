@@ -17,6 +17,7 @@ const KIND_LABELS: Record<VenteKind, string> = {
   plat: "Plat",
   local: "Accompagnement",
   boisson: "Boisson",
+  combo: "Combo",
   extra: "Extra",
 };
 

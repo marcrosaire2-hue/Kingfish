@@ -33,6 +33,13 @@ const NAV_ITEMS: {
     group: "home",
   },
   {
+    href: "/rapport-quotidien",
+    label: "Rapport du jour",
+    key: "rapport-quotidien",
+    mark: "R",
+    group: "home",
+  },
+  {
     href: "/compte-resultat",
     label: "Compte de résultat",
     key: "compte-resultat",
@@ -53,6 +60,13 @@ const NAV_ITEMS: {
     mark: "V",
     group: "ops",
     groupLabel: "Quotidien",
+  },
+  {
+    href: "/caisse",
+    label: "Caisse",
+    key: "caisse",
+    mark: "€",
+    group: "ops",
   },
   { href: "/zogbo", label: "Zogbo", key: "zogbo", mark: "Z", group: "ops" },
   {
@@ -88,6 +102,13 @@ const NAV_ITEMS: {
     label: "Stock",
     key: "stock",
     mark: "S",
+    group: "ops",
+  },
+  {
+    href: "/combos",
+    label: "Combos",
+    key: "parametres",
+    mark: "F",
     group: "ops",
   },
   {

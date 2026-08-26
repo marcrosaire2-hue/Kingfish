@@ -1,6 +1,5 @@
-import { redirect } from "next/navigation";
+import { CombosPage } from "@/components/combos/combos-page";
 
-/** Les formules ont été retirées du produit. */
-export default function CombosRedirectPage() {
-  redirect("/stock");
+export default function Page() {
+  return <CombosPage />;
 }

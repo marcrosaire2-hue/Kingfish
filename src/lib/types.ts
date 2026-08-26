@@ -46,6 +46,38 @@ export type LocalDish = {
   alertThreshold?: number;
 };
 
+/**
+ * Composant d'un combo : produit catalogue + quantité consommée par vente.
+ * Le stock de chaque composant est décrémenté à la vente du combo.
+ */
+export type ComboComponentKind = "plat" | "local" | "boisson";
+
+export type ComboComponent = {
+  kind: ComboComponentKind;
+  productId: ProductId;
+  qty: number;
+};
+
+/**
+ * Formule / combo catalogue (paramètres).
+ * Conserve `baseDishName` pour compatibilité avec d'anciennes données Mongo.
+ */
+export type ComboDish = {
+  id: ProductId;
+  name: string;
+  /** Prix de vente du combo (FCFA). */
+  unitPrice: number;
+  /** Produits inclus et quantités. */
+  components: ComboComponent[];
+  /** Actif = vendable sur la page Vente. */
+  active: boolean;
+  imageUrl?: string | null;
+  /** Ancien champ informatif (optionnel). */
+  baseDishName?: string | null;
+  costPrice?: number;
+  alertThreshold?: number;
+};
+
 /** Matière première (aliment source) */
 export type RawMaterial = {
   id: ProductId;
@@ -71,6 +103,8 @@ export type Parametres = {
   baseDishes: BaseDish[];
   drinks: Drink[];
   localDishes: LocalDish[];
+  /** Formules / combos (catalogue). */
+  combos?: ComboDish[];
   rawMaterials?: RawMaterial[];
   recipes?: Recipe[];
   updatedAt: string | null;
@@ -564,7 +598,7 @@ export type CompteResultatDetailLine = {
 };
 
 export type VenteSite = "zogbo" | "gbegamey";
-export type VenteKind = "plat" | "boisson" | "local" | "extra";
+export type VenteKind = "plat" | "boisson" | "local" | "extra" | "combo";
 
 export type VenteProduct = {
   kind: VenteKind;
@@ -580,6 +614,8 @@ export type VenteProduct = {
    * avant la rupture, plutôt qu’une fois le stock à zéro.
    */
   lowStock?: boolean;
+  /** Seuil d'alerte catalogue (unités) — pour affichage sur la carte Vente. */
+  alertThreshold?: number | null;
   /**
    * Motif affiché quand le produit est grisé (pas seulement « ÉPUISÉ »).
    * Ex. « Aucun envoi Zogbo », « Ouvrez la caisse », « PV manquant ».
@@ -600,6 +636,8 @@ export type VenteLogEntry = {
   at: string;
   /** Origine de la ligne (caisse, carnet-zogbo, aquapro, reprise…) */
   source?: string | null;
+  /** Snapshot des composants décrémentés (vente combo). */
+  comboComponents?: ComboComponent[] | null;
 };
 
 export type VentesDaySummary = {
@@ -729,7 +767,12 @@ export type PosConfig = {
   updatedAt: string | null;
 };
 
-export type CaisseStatut = "ouverte" | "fermee";
+/**
+ * Cycle de vie d'une session de caisse :
+ * ouverte → en_comptage → fermee (clôturée, figée).
+ * `fermee` = clôture validée (libellé UI « Clôturée »).
+ */
+export type CaisseStatut = "ouverte" | "en_comptage" | "fermee";
 
 /**
  * Les caisses du réseau : le coffre central et une caisse par zone. Une caisse
@@ -791,7 +834,15 @@ export type CaisseSession = {
   totalVersementRecu: number;
   soldePhysique: number | null;
   soldeFermeture: number | null;
+  /** Solde théorique figé au moment de la clôture (indépendant des lectures ultérieures). */
+  soldeTheoriqueCloture?: number | null;
+  /** Écart réel − théorique, persisté à la clôture. */
+  ecart?: number | null;
+  /** Obligatoire si |écart| > 0 ; motif du manque / surplus. */
+  justificationEcart?: string | null;
   commentaire: string | null;
+  /** Passage en phase de comptage (avant validation finale). */
+  comptageStartedAt?: string | null;
   openedAt: string;
   closedAt: string | null;
   closedById: string | null;

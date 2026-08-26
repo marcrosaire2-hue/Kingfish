@@ -2,11 +2,10 @@ import type { Filter } from "mongodb";
 import { getDb } from "@/lib/mongodb";
 import type { VenteKind, VenteSite } from "@/lib/types";
 
-/** Ligne active dans ventes_log (annulées / formules exclues). */
+/** Ligne active dans ventes_log (annulées exclues). */
 const ACTIVE = {
   cancelledAt: null,
   caExcluded: { $ne: true },
-  kind: { $ne: "combo" },
 } as const;
 
 export type QuantiteVendueRow = {

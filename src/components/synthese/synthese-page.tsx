@@ -307,28 +307,31 @@ export function SynthesePage() {
   return (
     <AppShell
       title="Tableau de bord"
-      subtitle={`Vue d’ensemble ${APP_SITES_LABEL} — CA final Validé (hors annulées / en cours), mix, charges et résultat en FCFA.`}
+      subtitle={`Vue d’ensemble ${APP_SITES_LABEL}`}
     >
-      <div className="section-tabs" role="tablist" aria-label="Période">
-        {isGeneral ? null : (
-          [
-            ["day", "Journalier"],
-            ["month", "Mensuel"],
-            ["year", "Annuel"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={view === key}
-            className={`section-tab${view === key ? " is-active" : ""}`}
-            onClick={() => setView(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <div className="dash-page">
+      {!isGeneral ? (
+        <div className="section-tabs" role="tablist" aria-label="Période">
+          {(
+            [
+              ["day", "Journalier"],
+              ["month", "Mensuel"],
+              ["year", "Annuel"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={view === key}
+              className={`section-tab${view === key ? " is-active" : ""}`}
+              onClick={() => setView(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       <ContextBar
         date={viewMode === "day" ? date : undefined}
@@ -502,6 +505,7 @@ export function SynthesePage() {
           }}
         />
       ) : null}
+      </div>
     </AppShell>
   );
 }
@@ -646,19 +650,54 @@ function GeneralDayDashboard({
           <h2 className="panel-title">Points de vente</h2>
           <HorizontalBars rows={sites} />
           <div className="dash-breakdown">
-            <p>
-              <strong>Zogbo</strong> — plats {formatFcfa(day.caZogboPlats)} ·
-              acc. {formatFcfa(day.caAccompagnementsZogbo)} · boissons{" "}
-              {formatFcfa(day.caBoissonsZogbo)} · extra{" "}
-              {formatFcfa(day.caExtraZogbo)}
-            </p>
-            <p>
-              <strong>Gbégamey</strong> — plats{" "}
-              {formatFcfa(day.caGbegameyPlats)} · acc.{" "}
-              {formatFcfa(day.caAccompagnementsGbegamey)} · boissons{" "}
-              {formatFcfa(day.caBoissonsGbegamey)} · extra{" "}
-              {formatFcfa(day.caExtraGbegamey)}
-            </p>
+            <div className="dash-breakdown-site">
+              <strong>Zogbo</strong>
+              <ul>
+                <li>
+                  <span>Plats</span>
+                  <em className="mono">{formatFcfa(day.caZogboPlats)}</em>
+                </li>
+                <li>
+                  <span>Accomp.</span>
+                  <em className="mono">
+                    {formatFcfa(day.caAccompagnementsZogbo)}
+                  </em>
+                </li>
+                <li>
+                  <span>Boissons</span>
+                  <em className="mono">{formatFcfa(day.caBoissonsZogbo)}</em>
+                </li>
+                <li>
+                  <span>Extra</span>
+                  <em className="mono">{formatFcfa(day.caExtraZogbo)}</em>
+                </li>
+              </ul>
+            </div>
+            <div className="dash-breakdown-site">
+              <strong>Gbégamey</strong>
+              <ul>
+                <li>
+                  <span>Plats</span>
+                  <em className="mono">{formatFcfa(day.caGbegameyPlats)}</em>
+                </li>
+                <li>
+                  <span>Accomp.</span>
+                  <em className="mono">
+                    {formatFcfa(day.caAccompagnementsGbegamey)}
+                  </em>
+                </li>
+                <li>
+                  <span>Boissons</span>
+                  <em className="mono">
+                    {formatFcfa(day.caBoissonsGbegamey)}
+                  </em>
+                </li>
+                <li>
+                  <span>Extra</span>
+                  <em className="mono">{formatFcfa(day.caExtraGbegamey)}</em>
+                </li>
+              </ul>
+            </div>
           </div>
         </section>
       </div>
@@ -868,19 +907,54 @@ function DayDashboard({
           <h2 className="panel-title">Points de vente</h2>
           <HorizontalBars rows={sites} />
           <div className="dash-breakdown">
-            <p>
-              <strong>Zogbo</strong> — plats {formatFcfa(day.caZogboPlats)} ·
-              acc. {formatFcfa(day.caAccompagnementsZogbo)} · boissons{" "}
-              {formatFcfa(day.caBoissonsZogbo)} · extra{" "}
-              {formatFcfa(day.caExtraZogbo)}
-            </p>
-            <p>
-              <strong>Gbégamey</strong> — plats{" "}
-              {formatFcfa(day.caGbegameyPlats)} · acc.{" "}
-              {formatFcfa(day.caAccompagnementsGbegamey)} · boissons{" "}
-              {formatFcfa(day.caBoissonsGbegamey)} · extra{" "}
-              {formatFcfa(day.caExtraGbegamey)}
-            </p>
+            <div className="dash-breakdown-site">
+              <strong>Zogbo</strong>
+              <ul>
+                <li>
+                  <span>Plats</span>
+                  <em className="mono">{formatFcfa(day.caZogboPlats)}</em>
+                </li>
+                <li>
+                  <span>Accomp.</span>
+                  <em className="mono">
+                    {formatFcfa(day.caAccompagnementsZogbo)}
+                  </em>
+                </li>
+                <li>
+                  <span>Boissons</span>
+                  <em className="mono">{formatFcfa(day.caBoissonsZogbo)}</em>
+                </li>
+                <li>
+                  <span>Extra</span>
+                  <em className="mono">{formatFcfa(day.caExtraZogbo)}</em>
+                </li>
+              </ul>
+            </div>
+            <div className="dash-breakdown-site">
+              <strong>Gbégamey</strong>
+              <ul>
+                <li>
+                  <span>Plats</span>
+                  <em className="mono">{formatFcfa(day.caGbegameyPlats)}</em>
+                </li>
+                <li>
+                  <span>Accomp.</span>
+                  <em className="mono">
+                    {formatFcfa(day.caAccompagnementsGbegamey)}
+                  </em>
+                </li>
+                <li>
+                  <span>Boissons</span>
+                  <em className="mono">
+                    {formatFcfa(day.caBoissonsGbegamey)}
+                  </em>
+                </li>
+                <li>
+                  <span>Extra</span>
+                  <em className="mono">{formatFcfa(day.caExtraGbegamey)}</em>
+                </li>
+              </ul>
+            </div>
           </div>
         </section>
       </div>

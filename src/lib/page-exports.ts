@@ -819,11 +819,26 @@ export function exportCaisseExcel(input: {
   const label = CAISSE_LABELS[input.caisse];
 
   const historiqueRows = input.historique.map((s) => {
-    const t = soldeTheorique(s);
+    const t =
+      typeof s.soldeTheoriqueCloture === "number"
+        ? s.soldeTheoriqueCloture
+        : soldeTheorique(s);
+    const ecart =
+      typeof s.ecart === "number"
+        ? s.ecart
+        : s.soldePhysique === null
+          ? ""
+          : s.soldePhysique - t;
     return {
       Date: s.date,
-      Statut: s.statut === "ouverte" ? "Ouverte" : "Fermée",
+      Statut:
+        s.statut === "ouverte"
+          ? "Ouverte"
+          : s.statut === "en_comptage"
+            ? "En comptage"
+            : "Clôturée",
       "Ouverte par": s.userName,
+      "Clôturée par": s.closedByName ?? "",
       "Fond de caisse (FCFA)": s.soldeInitial,
       "Ventes (FCFA)": s.totalVente,
       "Dépenses (FCFA)": s.totalDepense,
@@ -832,7 +847,9 @@ export function exportCaisseExcel(input: {
       "Versements sortis (FCFA)": s.totalVersementSorti,
       "Solde théorique (FCFA)": t,
       "Solde physique (FCFA)": s.soldePhysique ?? "",
-      "Écart (FCFA)": s.soldePhysique === null ? "" : s.soldePhysique - t,
+      "Écart (FCFA)": ecart,
+      "Justification écart": s.justificationEcart ?? "",
+      Observation: s.commentaire ?? "",
     };
   });
 
