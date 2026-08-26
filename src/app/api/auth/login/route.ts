@@ -80,11 +80,17 @@ export async function POST(request: Request) {
       site: user.site,
       shift: user.shift,
     };
-    const token = await createSessionToken(sessionUser, user.tokenVersion);
+    const { resolveEffectiveNav } = await import("@/lib/autorisations-repo");
+    const nav = await resolveEffectiveNav(sessionUser);
+    const token = await createSessionToken(
+      { ...sessionUser, nav },
+      user.tokenVersion,
+    );
 
     const response = NextResponse.json({
       user: sessionUser,
       home: homeForRole(user.role),
+      nav,
     });
     response.cookies.set(sessionCookieOptions(token));
     return response;

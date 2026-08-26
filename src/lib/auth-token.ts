@@ -1,5 +1,9 @@
 import { SignJWT, jwtVerify } from "jose";
-import { effectiveShift, type SessionUser } from "@/lib/auth-types";
+import {
+  effectiveShift,
+  type NavKey,
+  type SessionUser,
+} from "@/lib/auth-types";
 
 export const SESSION_COOKIE = "zg_session";
 
@@ -38,6 +42,8 @@ export async function createSessionToken(
     // passe ou désactivation. Une session déjà émise devient invalide sans
     // attendre son expiration (voir verifySessionTokenWithVersion).
     tv: tokenVersion,
+    // Menu effectif (autorisations) — lu par le middleware edge sans Mongo.
+    ...(user.nav && user.nav.length ? { nav: user.nav } : {}),
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -55,6 +61,9 @@ function extractPayload(payload: Record<string, unknown>): SessionUser | null {
   ) {
     return null;
   }
+  const nav = Array.isArray(payload.nav)
+    ? (payload.nav.filter((k) => typeof k === "string") as NavKey[])
+    : undefined;
   return {
     id: payload.id,
     username: payload.username,
@@ -64,6 +73,7 @@ function extractPayload(payload: Record<string, unknown>): SessionUser | null {
     // Absent des sessions ouvertes avant l'introduction des équipes : la
     // vente sera simplement rattachée à « hors équipe ».
     shift: effectiveShift(payload.shift as SessionUser["shift"]),
+    ...(nav && nav.length ? { nav } : {}),
   };
 }
 

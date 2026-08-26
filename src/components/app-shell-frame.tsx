@@ -155,6 +155,13 @@ const NAV_ITEMS: {
     group: "admin",
     groupLabel: "Compte",
   },
+  {
+    href: "/autorisations",
+    label: "Autorisations",
+    key: "autorisations",
+    mark: "A",
+    group: "admin",
+  },
 ];
 
 function isActive(pathname: string, href: string) {

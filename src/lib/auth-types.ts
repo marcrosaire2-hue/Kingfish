@@ -75,6 +75,11 @@ export type SessionUser = {
   role: UserRole;
   site: UserSite;
   shift?: UserShift;
+  /**
+   * Menu effectif figé dans le JWT (autorisations).
+   * Absent des sessions anciennes → repli sur navForUser.
+   */
+  nav?: NavKey[];
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -160,6 +165,7 @@ const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "journal-stock",
   "historique",
   "admin",
+  "autorisations",
 ];
 
 /** Rôles qu’un admin peut attribuer. */
@@ -265,6 +271,7 @@ export type NavKey =
   | "immobilisations"
   | "stock"
   | "admin"
+  | "autorisations"
   | "journal-stock";
 
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
@@ -387,6 +394,17 @@ export function effectiveSite(role: UserRole, site: UserSite): UserSite {
   return site;
 }
 
+/** Menu code du rôle sans filtre de site (héritage matrice Autorisations). */
+export function roleNavUnscoped(
+  role: UserRole,
+  username?: string,
+): NavKey[] {
+  if (role === "admin" && username && isExecutiveAdminAccount(username)) {
+    return [...EXECUTIVE_ADMIN_NAV];
+  }
+  return [...ROLE_NAV[role]];
+}
+
 /**
  * Menu filtré par rôle + site : un compte Zogbo ne voit pas Gbégamey
  * (et inversement).
@@ -411,6 +429,15 @@ export function navForUser(
   return keys;
 }
 
+/** Menu code (héritage) avant application des overrides Mongo. */
+export function defaultNavKeysForRole(
+  role: UserRole,
+  site: UserSite = "tous",
+  username?: string,
+): NavKey[] {
+  return navForUser(role, site, username);
+}
+
 export function navForRole(role: UserRole): NavKey[] {
   return navForUser(role, "tous");
 }
@@ -419,18 +446,31 @@ export function navForSession(user: {
   role: UserRole;
   site: UserSite;
   username: string;
+  nav?: NavKey[];
 }): NavKey[] {
+  if (user.nav && user.nav.length > 0) return [...user.nav];
   return navForUser(user.role, user.site, user.username);
 }
 
-export function canAccessPath(
-  role: UserRole,
+/**
+ * Vérifie un chemin contre une liste de NavKey déjà résolue
+ * (JWT / autorisations), sans recalculer le rôle.
+ */
+export function pathAllowedByNavKeys(
+  allowed: NavKey[],
   pathname: string,
-  site: UserSite = "tous",
-  username?: string,
 ): boolean {
-  const allowed = navForUser(role, site, username);
+  return canAccessPathWithAllowed(allowed, pathname);
+}
+
+function canAccessPathWithAllowed(
+  allowed: NavKey[],
+  pathname: string,
+): boolean {
   if (pathname.startsWith("/admin")) return allowed.includes("admin");
+  if (pathname.startsWith("/autorisations")) {
+    return allowed.includes("autorisations");
+  }
   if (pathname.startsWith("/vente")) return allowed.includes("vente");
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");
   if (
@@ -461,9 +501,6 @@ export function canAccessPath(
     return allowed.includes("comptabilite");
   }
   if (pathname.startsWith("/parametres-comptables")) {
-    // Lecture des modules avancés (Capital, Amortissements, Comptes tiers) :
-    // même périmètre que Comptabilité. L'activation elle-même reste réservée
-    // au compte direction (marc), vérifié séparément côté route.
     return allowed.includes("comptabilite");
   }
   if (pathname.startsWith("/historique-ventes")) {
@@ -479,8 +516,6 @@ export function canAccessPath(
     return allowed.includes("regularisation");
   }
   if (pathname.startsWith("/immobilisations")) {
-    // Page réservée gérant/admin ; l’API doit aussi être lisible en caisse
-    // (écran Vente) pour proposer les emballages au panier.
     return (
       allowed.includes("immobilisations") || allowed.includes("vente")
     );
@@ -496,6 +531,17 @@ export function canAccessPath(
     return allowed.includes("synthese");
   }
   return false;
+}
+
+export function canAccessPath(
+  role: UserRole,
+  pathname: string,
+  site: UserSite = "tous",
+  username?: string,
+  navOverride?: NavKey[],
+): boolean {
+  const allowed = navOverride ?? navForUser(role, site, username);
+  return canAccessPathWithAllowed(allowed, pathname);
 }
 
 export function homeForRole(_role: UserRole): string {
