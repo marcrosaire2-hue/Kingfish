@@ -33,17 +33,39 @@ export type SiteAuthResult =
 
 /**
  * Autorise un site demandé par le client.
- * Un objet Mongo (`$ne`, …) ou un site hors périmètre est rejeté.
- * Si le site est omis, un compte rattaché à une zone reste sur sa zone.
+ * Un objet Mongo (`$ne`, …) ou une valeur non site est rejetée.
+ *
+ * Compte rattaché à une zone : on force toujours sa zone (comme l'ancien
+ * `resolveSite`). Un 403 sur un site « faux » cassait l'écran Vente, qui
+ * démarre sur Gbégamey avant de connaître le compte — Zogbo ne pouvait plus
+ * ni charger ni encaisser, et la caisse semblait « confondue ».
  */
 export function authorizeRequestedSite(
   userSite: UserSite,
   requested: unknown,
 ): SiteAuthResult {
-  if (requested === undefined || requested === null || requested === "") {
-    if (userSite === "zogbo" || userSite === "gbegamey") {
-      return { ok: true, site: userSite };
+  if (userSite === "zogbo" || userSite === "gbegamey") {
+    if (
+      requested !== undefined &&
+      requested !== null &&
+      requested !== "" &&
+      typeof requested !== "string"
+    ) {
+      return { ok: false, status: 400, error: "Site invalide." };
     }
+    if (
+      typeof requested === "string" &&
+      requested !== "" &&
+      requested !== "zogbo" &&
+      requested !== "gbegamey"
+    ) {
+      return { ok: false, status: 400, error: "Site invalide." };
+    }
+    return { ok: true, site: userSite };
+  }
+
+  if (requested === undefined || requested === null || requested === "") {
+    // Aligné sur defaultCaisse / écran Vente (Zogbo en premier pour multi-sites).
     return { ok: true, site: "zogbo" };
   }
   if (typeof requested !== "string") {

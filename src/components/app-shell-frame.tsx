@@ -159,17 +159,17 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, nav } = useSession();
-  const { chrome, setChrome } = usePageChrome();
+  const { meta, setMeta, setActionsSlot } = usePageChrome();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navBusy, setNavBusy] = useState(false);
 
   useEffect(() => {
     setMenuOpen(false);
     setNavBusy(true);
-    setChrome({ title: "King Fish" });
+    setMeta({ title: "King Fish" });
     const t = window.setTimeout(() => setNavBusy(false), 450);
     return () => window.clearTimeout(t);
-  }, [pathname, setChrome]);
+  }, [pathname, setMeta]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -210,7 +210,7 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
         .join("")
     : "·";
 
-  const mainClass = chrome.mainClassName ? ` ${chrome.mainClassName}` : "";
+  const mainClass = meta.mainClassName ? ` ${meta.mainClassName}` : "";
 
   return (
     <div className={`app-shell${menuOpen ? " is-nav-open" : ""}`}>
@@ -324,12 +324,12 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
 
         <header className="page-header">
           <div>
-            <h1>{chrome.title}</h1>
-            {chrome.subtitle ? (
-              <p className="page-subtitle">{chrome.subtitle}</p>
+            <h1>{meta.title}</h1>
+            {meta.subtitle ? (
+              <p className="page-subtitle">{meta.subtitle}</p>
             ) : null}
           </div>
-          <div className="page-actions">{chrome.actions}</div>
+          <div className="page-actions" ref={setActionsSlot} />
         </header>
 
         <main className={`page-body page-body-route${navBusy ? " is-busy" : ""}`}>

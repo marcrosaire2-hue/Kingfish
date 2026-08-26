@@ -4,10 +4,10 @@ import {
   effectiveShift,
   type SessionUser,
 } from "@/lib/auth-types";
-import { canCorrectClosedFinancialData } from "@/lib/security-policy";
 import {
   adjustCaisseVenteAmount,
   addCaisseVenteAmount,
+  ensureActiveCaisseForSite,
   findCaisseSessionForSiteDate,
   getActiveCaisseForSite,
   getCaisseById,
@@ -212,8 +212,9 @@ export async function validatePosTicket(input: {
   let date: string;
   let caisseId: string | null = null;
   let creditCaisseOpen = false;
-  const bypassClosedDay =
-    isBackdate && canCorrectClosedFinancialData(input.user.role);
+  // Jour passé : le gérant / DAF / admin / comptable peut encore écrire
+  // (canManagePastVentes). La purge définitive reste réservée à l'admin.
+  const bypassClosedDay = isBackdate;
 
   if (isBackdate) {
     // Correction d'un jour passé : stock + journal sur la date choisie,
@@ -222,13 +223,11 @@ export async function validatePosTicket(input: {
     const pastSession = await findCaisseSessionForSiteDate(input.site, date);
     caisseId = pastSession?.id ?? null;
   } else {
-    // La caisse est celle de la zone : tout l'encaissé du point tombe dedans.
-    const caisse = await getActiveCaisseForSite(input.site);
-    if (!caisse) {
-      throw new Error(
-        "Ouvrez la caisse de la zone avant de valider une commande.",
-      );
-    }
+    // La caisse est celle de la zone : ouverte automatiquement si besoin.
+    const caisse = await ensureActiveCaisseForSite({
+      site: input.site,
+      user: input.user,
+    });
     // Jour de service = date d'ouverture de la caisse, pas le calendrier.
     date = caisse.date;
     caisseId = caisse.id;
@@ -457,8 +456,8 @@ export async function cancelPosTicket(input: {
     bypassTeam: manager,
   });
 
-  // Caisse fermée : seule la direction peut encore corriger.
-  if (doc.caisseId && !canCorrectClosedFinancialData(input.user.role)) {
+  // Caisse fermée : le gérant peut encore corriger (annulation / régularisation).
+  if (doc.caisseId && !manager) {
     const caisse = await getCaisseById(doc.caisseId);
     if (caisse && caisse.statut !== "ouverte") {
       throw new Error("Caisse déjà clôturée : annulation impossible.");
@@ -480,7 +479,7 @@ export async function cancelPosTicket(input: {
         date: doc.date,
         site: input.site,
         actor,
-        bypassClosedDay: canCorrectClosedFinancialData(input.user.role),
+        bypassClosedDay: manager,
         bypassTeam: manager,
       });
     } catch (error) {
@@ -718,13 +717,20 @@ export async function getPosContext(input: {
   date: string;
   site: VenteSite;
   allowBackdate?: boolean;
+  /** Si fourni, ouvre automatiquement la caisse du jour (pas en correction passée). */
+  user?: SessionUser;
 }) {
   const today = todayIsoDate();
-  const caisse = await getActiveCaisseForSite(input.site);
   const requestedPast =
     Boolean(input.allowBackdate) &&
     Boolean(input.date) &&
     input.date < today;
+  // Jour courant : ouverture auto pour encaisser sans geste manuel.
+  // Jour passé : on ne crée pas de session « aujourd'hui » juste pour consulter.
+  const caisse =
+    !requestedPast && input.user
+      ? await ensureActiveCaisseForSite({ site: input.site, user: input.user })
+      : await getActiveCaisseForSite(input.site);
   // Jour affiché : backdate volontaire, sinon date de la caisse ouverte.
   const date = requestedPast ? input.date : (caisse?.date ?? input.date);
   // Si le tiroir ouvert porte exactement ce jour, on l'expose toujours —

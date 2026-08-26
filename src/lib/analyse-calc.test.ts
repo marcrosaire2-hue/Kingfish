@@ -242,8 +242,9 @@ describe("isolation des sites", () => {
     expect(r).toEqual({ ok: true, site: "zogbo" });
   });
 
-  it("autorise un compte multi-sites à choisir un site ou tous", () => {
-    expect(resolveAnalyseSite("tous", null)).toEqual({ ok: true, site: null });
+  it("place un compte multi-sites sur un seul site (pas de consolidation)", () => {
+    expect(resolveAnalyseSite("tous", null)).toEqual({ ok: true, site: "zogbo" });
+    expect(resolveAnalyseSite("tous", "all")).toEqual({ ok: true, site: "zogbo" });
     expect(resolveAnalyseSite("tous", "gbegamey")).toEqual({
       ok: true,
       site: "gbegamey",

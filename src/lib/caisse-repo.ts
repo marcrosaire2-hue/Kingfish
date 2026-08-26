@@ -2,10 +2,12 @@ import { ObjectId, type Filter } from "mongodb";
 import { getDb } from "@/lib/mongodb";
 import { newId } from "@/lib/format";
 import {
-  CAISSES,
   CAISSE_LABELS,
+  ZONE_CAISSES,
+  assertIndependentCaisseTransfer,
   caisseZone,
   canUseCaisse,
+  isZoneCaisse,
   soldeTheorique as calcSoldeTheorique,
 } from "@/lib/caisse-model";
 import type { SessionUser } from "@/lib/auth-types";
@@ -196,6 +198,34 @@ export async function getActiveCaisseForSite(
   return getActiveCaisse(site);
 }
 
+/**
+ * Garantit une caisse ouverte pour la zone : si aucune session n'existe,
+ * on en crée une pour aujourd'hui (fond 0). Zogbo et Gbégamey restent
+ * indépendantes — chacune s'ouvre à la demande, les deux peuvent coexister.
+ * Ainsi le POS encaisse sans étape manuelle « Ouvrir la caisse ».
+ */
+export async function ensureActiveCaisseForSite(input: {
+  site: VenteSite;
+  user: SessionUser;
+}): Promise<CaisseSession> {
+  const existing = await getActiveCaisseForSite(input.site);
+  if (existing) return existing;
+
+  try {
+    return await openCaisse({
+      date: todayIsoDate(),
+      caisse: input.site,
+      user: input.user,
+      soldeInitial: 0,
+    });
+  } catch (error) {
+    // Course entre deux postes : l'autre a ouvert entre-temps.
+    const concurrente = await getActiveCaisseForSite(input.site);
+    if (concurrente) return concurrente;
+    throw error;
+  }
+}
+
 /** Date à laquelle stock, journal et CA doivent s'écrire pour cette zone. */
 export async function resolveOperatingDate(
   site: VenteSite,
@@ -270,10 +300,10 @@ export async function listCaisses(input: {
   return docs.map(toSession);
 }
 
-/** État instantané des trois caisses — bandeau de consolidation. */
+/** État instantané des caisses de zone — jamais consolidées en un seul solde. */
 export async function getCaissesOverview(): Promise<CaisseOverviewItem[]> {
-  const sessions = await Promise.all(CAISSES.map((c) => getActiveCaisse(c)));
-  return CAISSES.map((caisse, i) => {
+  const sessions = await Promise.all(ZONE_CAISSES.map((c) => getActiveCaisse(c)));
+  return ZONE_CAISSES.map((caisse, i) => {
     const session = sessions[i] ?? null;
     return {
       caisse,
@@ -286,23 +316,31 @@ export async function getCaissesOverview(): Promise<CaisseOverviewItem[]> {
 /**
  * Totaux caisse sur une plage de dates. Les versements en sont volontairement
  * absents : ils déplacent de l'argent, ils ne créent ni charge ni produit.
- * La caisse centrale n'a pas de site — elle n'entre donc que dans les vues
- * non filtrées par zone.
+ * Un `scopeSite` est obligatoire pour ne jamais additionner Zogbo et Gbégamey.
+ * Sans scope, on ne remonte que les sessions de zone filtrées… et on refuse
+ * l'agrégat silencieux en exigeant le site côté API finance.
  */
 export async function sumCaisseDepensesRecettes(input: {
   dateFrom: string;
   dateTo: string;
-  /** Zone de l'utilisateur : null = tout le réseau, centrale comprise. */
+  /** Zone : obligatoire pour l'indépendance des caisses. */
   scopeSite?: VenteSite | null;
 }): Promise<{ totalDepense: number; totalRecette: number; sessions: number }> {
   if (!isValidDate(input.dateFrom) || !isValidDate(input.dateTo)) {
     throw new Error("Date invalide");
   }
+  if (!input.scopeSite) {
+    throw new Error(
+      "Site requis : les totaux de caisse ne mélangent plus Zogbo et Gbégamey.",
+    );
+  }
   const db = await getDb();
   const filtre: Record<string, unknown> = {
     date: { $gte: input.dateFrom, $lte: input.dateTo },
+    site: input.scopeSite,
+    // Exclut l'ancienne centrale (site null) même si une date matchait.
+    caisse: input.scopeSite,
   };
-  if (input.scopeSite) filtre.site = input.scopeSite;
   const docs = await db
     .collection<CaisseDoc>("caisses_sessions")
     .find(filtre)
@@ -324,23 +362,21 @@ export type CaisseDepensesRecettesRow = {
 };
 
 /**
- * Mêmes totaux que `sumCaisseDepensesRecettes`, mais détaillés caisse par
- * caisse plutôt qu'additionnés — le compte de résultat les affiche côte à
- * côte pour ne pas perdre, dans un seul chiffre, la visibilité que le modèle
- * à trois caisses est censé apporter.
+ * Mêmes totaux que `sumCaisseDepensesRecettes`, détaillés caisse par caisse.
+ * Sans scope : les deux zones côte à côte (jamais un seul total mélangé).
+ * Avec scope : uniquement la caisse du site.
  */
 export async function sumCaisseDepensesRecettesParCaisse(input: {
   dateFrom: string;
   dateTo: string;
-  /** Zone de l'utilisateur : null = les trois caisses (admin global). */
   scopeSite?: VenteSite | null;
 }): Promise<CaisseDepensesRecettesRow[]> {
   if (!isValidDate(input.dateFrom) || !isValidDate(input.dateTo)) {
     throw new Error("Date invalide");
   }
-  // Un admin de zone ne voit que sa propre caisse, jamais le coffre central
-  // ni l'autre zone — même règle d'accès que l'écran Caisse.
-  const caisses: CaisseKey[] = input.scopeSite ? [input.scopeSite] : CAISSES;
+  const caisses: CaisseKey[] = input.scopeSite
+    ? [input.scopeSite]
+    : [...ZONE_CAISSES];
   const db = await getDb();
   const docs = await db
     .collection<CaisseDoc>("caisses_sessions")
@@ -356,6 +392,7 @@ export async function sumCaisseDepensesRecettesParCaisse(input: {
   for (const d of docs) {
     // Session antérieure aux caisses nommées : le site fait foi.
     const caisse = (d.caisse ?? d.site ?? "zogbo") as CaisseKey;
+    if (caisse === "centrale") continue;
     const row = parCaisse.get(caisse);
     if (!row) continue; // hors du périmètre de l'utilisateur
     row.totalDepense += Number(d.totalDepense) || 0;
@@ -385,11 +422,17 @@ export async function listMouvementsByDateRange(input: {
   if (!isValidDate(input.dateFrom) || !isValidDate(input.dateTo)) {
     throw new Error("Date invalide");
   }
+  if (!input.scopeSite) {
+    throw new Error(
+      "Site requis : le journal de caisse ne mélange plus Zogbo et Gbégamey.",
+    );
+  }
   const db = await getDb();
   const filtre: Record<string, unknown> = {
     date: { $gte: input.dateFrom, $lte: input.dateTo },
+    site: input.scopeSite,
+    caisse: input.scopeSite,
   };
-  if (input.scopeSite) filtre.site = input.scopeSite;
   const sessions = await db
     .collection<CaisseDoc>("caisses_sessions")
     .find(filtre)
@@ -432,6 +475,11 @@ export async function openCaisse(input: {
   soldeInitial: number;
 }): Promise<CaisseSession> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
+  if (!isZoneCaisse(input.caisse)) {
+    throw new Error(
+      "La caisse centrale est désactivée : Zogbo et Gbégamey sont indépendantes.",
+    );
+  }
   assertAcces(input.user, input.caisse);
   const soldeInitial = Math.max(0, Math.round(Number(input.soldeInitial) || 0));
   const existing = await getActiveCaisse(input.caisse);
@@ -678,13 +726,8 @@ export async function cancelCaisseMouvement(input: {
 }
 
 /**
- * Versement d'une caisse à une autre — typiquement la recette d'une zone qui
- * monte au coffre central.
- *
- * Deux jambes liées par un même `transfertId` : l'argent sort d'un tiroir et
- * entre dans l'autre, sans jamais passer par les dépenses ni les recettes. On
- * exige que la caisse d'arrivée soit ouverte : sans cela l'argent quitterait la
- * zone sans se poser nulle part.
+ * Versements inter-caisses désactivés : chaque site garde son argent.
+ * Conservé pour ne pas casser les appels API ; renvoie toujours une erreur.
  */
 export async function versementCaisse(input: {
   fromSessionId: string;
@@ -699,138 +742,9 @@ export async function versementCaisse(input: {
 }> {
   const source = await getCaisseById(input.fromSessionId);
   if (!source) throw new Error("Caisse source introuvable");
-  // Le droit se juge sur la caisse d'où l'argent part : verser sa recette au
-  // coffre reste une opération de zone, même sans accès au coffre.
-  assertAcces(input.user, source.caisse);
-  // Mais la destination d'une zone est interdite hors de son périmètre :
-  // on ne touche jamais la caisse de l'autre zone.
-  if (input.toCaisse !== "centrale") {
-    assertAcces(input.user, input.toCaisse);
-  }
-  if (source.statut !== "ouverte") {
-    throw new Error("Caisse source fermée : versement impossible.");
-  }
-  if (source.caisse === input.toCaisse) {
-    throw new Error("Choisissez une autre caisse de destination.");
-  }
-
-  const destination = await getActiveCaisse(input.toCaisse);
-  if (!destination) {
-    throw new Error(
-      `${CAISSE_LABELS[input.toCaisse]} fermée : ouvrez-la avant de verser.`,
-    );
-  }
-
-  const montant = Math.round(Number(input.montant) || 0);
-  if (montant <= 0) throw new Error("Montant invalide");
-  const disponible = calcSoldeTheorique(source);
-  if (montant > disponible) {
-    throw new Error(
-      `Montant supérieur au solde de la caisse (${disponible} FCFA).`,
-    );
-  }
-
-  const now = new Date().toISOString();
-  const transfertId = newId("vers");
-  const nature = input.nature?.trim() || "Versement";
-  const db = await getDb();
-
-  const sortie: MouvementDoc = {
-    _id: new ObjectId(),
-    caisseId: source.id,
-    kind: "versement-sortie",
-    nature,
-    beneficiaire: CAISSE_LABELS[input.toCaisse],
-    montant,
-    at: now,
-    actorId: input.user.id,
-    actorName: input.user.name,
-    transfertId,
-    contrepartie: input.toCaisse,
-  };
-  const entree: MouvementDoc = {
-    _id: new ObjectId(),
-    caisseId: destination.id,
-    kind: "versement-entree",
-    nature,
-    beneficiaire: CAISSE_LABELS[source.caisse],
-    montant,
-    at: now,
-    actorId: input.user.id,
-    actorName: input.user.name,
-    transfertId,
-    contrepartie: source.caisse,
-  };
-
-  await db
-    .collection<MouvementDoc>("caisse_mouvements")
-    .insertMany([sortie, entree]);
-
-  // La sortie n'est validée que si la caisse est toujours ouverte ET que le
-  // solde théorique reste positif après l'écriture — contrôle et incrément
-  // dans la même requête, pour qu'un versement concurrent sur la même caisse
-  // ne puisse pas passer deux fois sur le même solde lu avant écriture.
-  const debit = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
-    {
-      _id: new ObjectId(source.id),
-      statut: "ouverte",
-      $expr: {
-        $lte: [
-          { $add: ["$totalVersementSorti", montant] },
-          {
-            $subtract: [
-              {
-                $add: [
-                  "$soldeInitial",
-                  "$totalVente",
-                  "$totalRecette",
-                  "$totalVersementRecu",
-                ],
-              },
-              "$totalDepense",
-            ],
-          },
-        ],
-      },
-    },
-    { $inc: { totalVersementSorti: montant }, $set: { updatedAt: now } },
-  );
-  if (debit.modifiedCount !== 1) {
-    await db
-      .collection<MouvementDoc>("caisse_mouvements")
-      .deleteMany({ transfertId });
-    throw new Error(
-      "Versement impossible : caisse source fermée ou solde insuffisant.",
-    );
-  }
-
-  const credit = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
-    { _id: new ObjectId(destination.id), statut: "ouverte" },
-    { $inc: { totalVersementRecu: montant }, $set: { updatedAt: now } },
-  );
-  if (credit.modifiedCount !== 1) {
-    await db.collection<CaisseDoc>("caisses_sessions").updateOne(
-      { _id: new ObjectId(source.id) },
-      { $inc: { totalVersementSorti: -montant }, $set: { updatedAt: now } },
-    );
-    await db
-      .collection<MouvementDoc>("caisse_mouvements")
-      .deleteMany({ transfertId });
-    throw new Error(
-      `${CAISSE_LABELS[input.toCaisse]} fermée : versement impossible.`,
-    );
-  }
-
-  const [sourceMaj, destinationMaj] = await Promise.all([
-    getCaisseById(source.id),
-    getCaisseById(destination.id),
-  ]);
-  if (!sourceMaj || !destinationMaj) throw new Error("Caisse introuvable");
-  return {
-    source: sourceMaj,
-    destination: destinationMaj,
-    mouvement: toMouvement(sortie),
-  };
+  assertIndependentCaisseTransfer(source.caisse, input.toCaisse);
+  // Injoignable : assertIndependentCaisseTransfer lève toujours.
+  throw new Error("Versement inter-caisses désactivé.");
 }
 
 /**

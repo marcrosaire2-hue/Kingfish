@@ -534,3 +534,27 @@ export function resolveUserSiteScopeFromUser(user: {
 }): "zogbo" | "gbegamey" | null {
   return resolveUserSiteScope(effectiveSite(user.role, user.site));
 }
+
+export type RequiredSiteScope =
+  | { ok: true; site: "zogbo" | "gbegamey" }
+  | { ok: false; status: 400; error: string };
+
+/**
+ * Périmètre finance / caisse : un seul site à la fois.
+ * Les comptes multi-sites doivent choisir Zogbo ou Gbégamey — plus de total
+ * consolidé qui mélange les deux caisses.
+ */
+export function resolveRequiredSiteScope(
+  user: { role: UserRole; site: UserSite },
+  requested: unknown,
+): RequiredSiteScope {
+  const scoped = effectiveSite(user.role, user.site);
+  if (scoped === "zogbo" || scoped === "gbegamey") {
+    return { ok: true, site: scoped };
+  }
+  if (requested === "zogbo" || requested === "gbegamey") {
+    return { ok: true, site: requested };
+  }
+  // Multi-sites : un seul site à la fois, jamais un total consolidé.
+  return { ok: true, site: "zogbo" };
+}

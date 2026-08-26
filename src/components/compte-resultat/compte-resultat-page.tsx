@@ -5,7 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { PriceInput } from "@/components/parametres/price-input";
-import { CAISSE_LABELS, CAISSES } from "@/lib/caisse-model";
+import { CAISSE_LABELS, ZONE_CAISSES } from "@/lib/caisse-model";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
 import {
@@ -475,6 +475,7 @@ export function CompteResultatPage() {
   const [date, setDate] = useState(() => todayIsoDate());
   const [month, setMonth] = useState(currentMonth);
   const [year, setYear] = useState(() => String(new Date().getFullYear()));
+  const [site, setSite] = useState<"zogbo" | "gbegamey">("zogbo");
   const [payload, setPayload] = useState<Payload | null>(null);
   const [chargesDraft, setChargesDraft] = useState<DayCharges>(
     emptyCharges(date),
@@ -491,10 +492,10 @@ export function CompteResultatPage() {
     try {
       const qs =
         view === "day"
-          ? `view=day&date=${encodeURIComponent(date)}`
+          ? `view=day&date=${encodeURIComponent(date)}&site=${site}`
           : view === "month"
-            ? `view=month&month=${encodeURIComponent(month)}`
-            : `view=year&year=${encodeURIComponent(year)}`;
+            ? `view=month&month=${encodeURIComponent(month)}&site=${site}`
+            : `view=year&year=${encodeURIComponent(year)}&site=${site}`;
       const res = await fetch(`/api/compte-resultat?${qs}`, {
         cache: "no-store",
       });
@@ -519,7 +520,7 @@ export function CompteResultatPage() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, date, month, year]);
+  }, [view, date, month, year, site]);
 
   const statement = useMemo((): Statement | null => {
     if (!payload) return null;
@@ -547,7 +548,7 @@ export function CompteResultatPage() {
       const res = await fetch("/api/synthese", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...chargesDraft, date }),
+        body: JSON.stringify({ ...chargesDraft, date, site }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Erreur d’enregistrement");
@@ -669,8 +670,22 @@ export function CompteResultatPage() {
       <ContextBar
         date={view === "day" ? date : undefined}
         onDateChange={view === "day" ? setDate : undefined}
-        siteLabel="Tous sites"
+        siteLabel={site === "zogbo" ? "Zogbo" : "Gbégamey"}
       >
+        <div className="site-switch" role="tablist" aria-label="Site">
+          {(["zogbo", "gbegamey"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="tab"
+              aria-selected={site === s}
+              className={`site-btn${site === s ? " is-active" : ""}`}
+              onClick={() => setSite(s)}
+            >
+              {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+            </button>
+          ))}
+        </div>
         {view === "month" ? (
           <label className="date-field date-field-pill">
             <span>Mois</span>
@@ -919,7 +934,7 @@ export function CompteResultatPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {CAISSES.filter((c) =>
+                    {ZONE_CAISSES.filter((c) =>
                       payload.caisseParCaisse.some((r) => r.caisse === c),
                     ).map((c) => {
                       const row = payload.caisseParCaisse.find(

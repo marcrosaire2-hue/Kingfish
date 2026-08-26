@@ -713,6 +713,11 @@ select {
   align-items: center;
 }
 
+/* Slot d’actions via portail : masqué tant qu’aucune action n’y est montée. */
+.page-actions:empty {
+  display: none;
+}
+
 .page-body {
   padding: 0.85rem 2.15rem 2.75rem;
   display: flex;

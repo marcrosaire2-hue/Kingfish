@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/api-auth";
-import { resolveUserSiteScopeFromUser } from "@/lib/auth-types";
+import { resolveRequiredSiteScope } from "@/lib/auth-types";
 import { buildBilan } from "@/lib/bilan-repo";
 import {
   balanceGenerale,
@@ -18,14 +18,18 @@ function monthStartIso(d = todayIsoDate()): string {
 export async function GET(request: Request) {
   try {
     const user = await requireAdmin();
-    const scopeSite = resolveUserSiteScopeFromUser(user);
     const { searchParams } = new URL(request.url);
+    const scope = resolveRequiredSiteScope(user, searchParams.get("site"));
+    if (!scope.ok) {
+      return NextResponse.json({ error: scope.error }, { status: scope.status });
+    }
+    const scopeSite = scope.site;
     const view = searchParams.get("view") || "journal";
 
     if (view === "bilan") {
       const asOf = searchParams.get("asOf") || todayIsoDate();
       const bilan = await buildBilan({ asOf, scopeSite });
-      return NextResponse.json(bilan);
+      return NextResponse.json({ ...bilan, scopeSite });
     }
 
     const from = searchParams.get("from") || monthStartIso();
@@ -36,6 +40,7 @@ export async function GET(request: Request) {
       return NextResponse.json({
         from,
         to,
+        scopeSite,
         comptes: grandLivre(journal.ecritures),
         anomalies: journal.anomalies,
       });
@@ -45,12 +50,13 @@ export async function GET(request: Request) {
       return NextResponse.json({
         from,
         to,
+        scopeSite,
         lignes: balanceGenerale(journal.ecritures),
         anomalies: journal.anomalies,
       });
     }
 
-    return NextResponse.json(journal);
+    return NextResponse.json({ ...journal, scopeSite });
   } catch (error) {
     return authErrorResponse(error);
   }

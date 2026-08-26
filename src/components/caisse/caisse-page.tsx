@@ -7,7 +7,7 @@ import { BrandLoader } from "@/components/brand-loader";
 import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import {
-  CAISSES,
+  ZONE_CAISSES,
   CAISSE_LABELS,
   CAISSE_SHORT_LABELS,
   soldeTheorique as theo,
@@ -85,7 +85,9 @@ export function CaissePage() {
   const [caisse, setCaisse] = useState<CaisseKey | "">(() => {
     if (typeof window === "undefined") return "";
     const demandee = new URLSearchParams(window.location.search).get("caisse");
-    return CAISSES.includes(demandee as CaisseKey) ? (demandee as CaisseKey) : "";
+    return ZONE_CAISSES.includes(demandee as "zogbo" | "gbegamey")
+      ? (demandee as CaisseKey)
+      : "";
   });
   const [allowed, setAllowed] = useState<CaisseKey[]>([]);
   const [board, setBoard] = useState<Board | null>(null);
@@ -101,9 +103,6 @@ export function CaissePage() {
   const [mBenef, setMBenef] = useState("");
   const [mMontant, setMMontant] = useState("");
   const [mKind, setMKind] = useState<"depense" | "recette">("depense");
-  const [vCaisse, setVCaisse] = useState<CaisseKey | "">("");
-  const [vMontant, setVMontant] = useState("");
-  const [vNature, setVNature] = useState("");
 
   async function load(nextDate = date, nextCaisse = caisse) {
     setLoading(true);
@@ -214,29 +213,6 @@ export function CaissePage() {
     }
   }
 
-  async function verser() {
-    if (!board?.active || !vCaisse) return;
-    const montant = Number(vMontant) || 0;
-    const ok = await post(
-      {
-        action: "versement",
-        id: board.active.id,
-        toCaisse: vCaisse,
-        montant,
-        nature: vNature,
-      },
-      "Échec du versement",
-    );
-    if (ok) {
-      setVMontant("");
-      setVNature("");
-      setFlash(
-        `${formatFcfa(montant)} versés à la ${CAISSE_SHORT_LABELS[vCaisse].toLowerCase()}`,
-      );
-      window.setTimeout(() => setFlash(null), 2600);
-    }
-  }
-
   async function annulerMouvement(m: CaisseMouvement) {
     if (
       !window.confirm(
@@ -255,25 +231,15 @@ export function CaissePage() {
   const theoActive = active ? theo(active) : 0;
   // La caisse affichée est celle résolue par le serveur ; tant qu'aucune
   // réponse valide n'arrive, la première caisse autorisée sert d'étiquette.
-  const resolved: CaisseKey = board?.caisse ?? allowed[0] ?? "centrale";
+  const resolved: CaisseKey = board?.caisse ?? allowed[0] ?? "zogbo";
   const label = CAISSE_LABELS[resolved];
-  const estCentrale = resolved === "centrale";
   const ecartPreview =
     soldePhysique === "" ? null : Number(soldePhysique) - theoActive;
-  const autresCaisses = CAISSES.filter((c) => c !== resolved);
-  // Une zone ne verse que vers le coffre central : jamais vers l'autre zone.
-  const versementDestinations = autresCaisses.filter(
-    (c) => c === "centrale" || allowed.includes(c),
-  );
 
   return (
     <AppShell
       title="Caisse"
-      subtitle={
-        estCentrale
-          ? "Coffre central · versements des zones, dépenses générales"
-          : `${label} · encaissements POS, mouvements et clôture`
-      }
+      subtitle={`${label} · encaissements POS, mouvements et clôture (site indépendant)`}
       actions={
         board ? (
           <ExportExcelButton
@@ -313,11 +279,9 @@ export function CaissePage() {
               ))}
             </div>
           ) : null}
-          {estCentrale ? null : (
-            <Link href="/vente" className="btn btn-ghost">
-              → Vente POS
-            </Link>
-          )}
+          <Link href="/vente" className="btn btn-ghost">
+            → Vente POS
+          </Link>
         </ContextBar>
 
         {error ? (
@@ -333,7 +297,14 @@ export function CaissePage() {
         ) : null}
 
         {board?.overview ? (
-          <section className="caisse-overview" aria-label="Soldes du réseau">
+          <section
+            className="caisse-overview"
+            aria-label="Caisses par site (indépendantes)"
+          >
+            <p className="muted caisse-hint" style={{ gridColumn: "1 / -1" }}>
+              Zogbo et Gbégamey ont chacune leur caisse : les soldes ne se
+              mélangent pas.
+            </p>
             {board.overview.map((o) => (
               <button
                 key={o.caisse}
@@ -404,14 +375,12 @@ export function CaissePage() {
                       {formatFcfa(active.soldeInitial)}
                     </strong>
                   </div>
-                  {estCentrale ? null : (
-                    <div>
-                      <span>Ventes</span>
-                      <strong className="mono text-ok">
-                        +{formatFcfa(active.totalVente)}
-                      </strong>
-                    </div>
-                  )}
+                  <div>
+                    <span>Ventes</span>
+                    <strong className="mono text-ok">
+                      +{formatFcfa(active.totalVente)}
+                    </strong>
+                  </div>
                   <div>
                     <span>Dépenses</span>
                     <strong className="mono text-danger">
@@ -448,9 +417,7 @@ export function CaissePage() {
                   <span className="caisse-hero-label">{label}</span>
                   <strong className="caisse-hero-value">Fermée</strong>
                   <span className="caisse-hero-meta">
-                    {estCentrale
-                      ? "Ouvrez le coffre pour recevoir les versements des zones"
-                      : "Ouvrez la caisse pour encaisser les tickets POS de la zone"}
+                    Ouvrez la caisse pour encaisser les tickets POS de la zone
                   </span>
                 </div>
                 <div className="caisse-open-card">
@@ -534,71 +501,6 @@ export function CaissePage() {
                   </button>
                 </section>
 
-                <section className="caisse-panel">
-                  <header className="caisse-panel-head">
-                    <h2>Versement</h2>
-                    <p>
-                      {estCentrale
-                        ? "Doter une zone en fond de caisse"
-                        : "Verser la recette au coffre central"}
-                    </p>
-                  </header>
-                  <div className="caisse-form-grid">
-                    <label className="caisse-field">
-                      <span>Vers</span>
-                      <select
-                        value={vCaisse}
-                        onChange={(e) =>
-                          setVCaisse(e.target.value as CaisseKey | "")
-                        }
-                      >
-                        <option value="">— Choisir —</option>
-                        {versementDestinations.map((c) => (
-                          <option key={c} value={c}>
-                            {CAISSE_LABELS[c]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="caisse-field">
-                      <span>Montant (FCFA)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        max={theoActive}
-                        value={vMontant}
-                        onChange={(e) => setVMontant(e.target.value)}
-                      />
-                    </label>
-                    <label className="caisse-field">
-                      <span>Motif</span>
-                      <input
-                        value={vNature}
-                        onChange={(e) => setVNature(e.target.value)}
-                        placeholder="Ex. recette du soir"
-                      />
-                    </label>
-                  </div>
-                  <p className="muted caisse-hint">
-                    Disponible : {formatFcfa(theoActive)} · la caisse
-                    d’arrivée doit être ouverte.
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={
-                      busy ||
-                      !vCaisse ||
-                      !vMontant ||
-                      Number(vMontant) <= 0 ||
-                      Number(vMontant) > theoActive
-                    }
-                    onClick={() => void verser()}
-                  >
-                    Verser
-                  </button>
-                </section>
-
                 <section className="caisse-panel caisse-panel-close">
                   <header className="caisse-panel-head">
                     <h2>Fermeture</h2>
@@ -646,13 +548,7 @@ export function CaissePage() {
                   </button>
                 </section>
 
-                {/* Pas de `caisse-panel-wide` ici : la grille est à deux
-                    colonnes et quatre panneaux (Mouvement, Versement,
-                    Fermeture, Journal) — forcer celui-ci en pleine largeur le
-                    poussait seul sur sa ligne et laissait un vide de la
-                    hauteur de Fermeture à côté d'elle. En cellule normale, il
-                    prend naturellement la place à droite de la clôture, ce
-                    qui a du sens : vérifier le journal en comptant le tiroir. */}
+                {/* Grille : Mouvement | Fermeture, Journal à côté. */}
                 <section className="caisse-panel">
                   <header className="caisse-panel-head">
                     <h2>Journal de session</h2>
@@ -664,7 +560,7 @@ export function CaissePage() {
                   </header>
                   {!detail?.mouvements?.length ? (
                     <p className="muted">
-                      Les dépenses, recettes et versements apparaîtront ici.
+                      Les dépenses et recettes de cette caisse apparaîtront ici.
                     </p>
                   ) : (
                     <ul className="caisse-mouvements">
@@ -726,8 +622,7 @@ export function CaissePage() {
                         <th>Date</th>
                         <th>Statut</th>
                         <th>Ouverte par</th>
-                        {estCentrale ? null : <th className="col-money">Ventes</th>}
-                        <th className="col-money">Versements</th>
+                        <th className="col-money">Ventes</th>
                         <th className="col-money">Solde th.</th>
                         <th className="col-money">Écart</th>
                       </tr>
@@ -739,8 +634,6 @@ export function CaissePage() {
                           s.soldePhysique === null
                             ? null
                             : s.soldePhysique - t;
-                        const versements =
-                          s.totalVersementRecu - s.totalVersementSorti;
                         return (
                           <tr key={s.id}>
                             <td>{s.date}</td>
@@ -756,13 +649,8 @@ export function CaissePage() {
                               </span>
                             </td>
                             <td>{s.userName}</td>
-                            {estCentrale ? null : (
-                              <td className="mono col-money">
-                                {formatFcfa(s.totalVente)}
-                              </td>
-                            )}
                             <td className="mono col-money">
-                              {versements === 0 ? "—" : formatFcfa(versements)}
+                              {formatFcfa(s.totalVente)}
                             </td>
                             <td className="mono col-money">{formatFcfa(t)}</td>
                             <td

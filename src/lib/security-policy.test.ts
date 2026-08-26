@@ -38,16 +38,16 @@ describe("matrice d'autorisations financières", () => {
 });
 
 describe("IDOR de site", () => {
-  it("refuse un gérant Zogbo qui demande Gbégamey", () => {
-    const r = authorizeRequestedSite("zogbo", "gbegamey");
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.status).toBe(403);
-  });
-
-  it("refuse un gérant Gbégamey qui demande Zogbo", () => {
-    const r = authorizeRequestedSite("gbegamey", "zogbo");
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.status).toBe(403);
+  it("force la zone du compte même si le client demande l'autre site", () => {
+    // Anti-IDOR sans casser l'UI : on n'écrit jamais sur l'autre zone.
+    expect(authorizeRequestedSite("zogbo", "gbegamey")).toEqual({
+      ok: true,
+      site: "zogbo",
+    });
+    expect(authorizeRequestedSite("gbegamey", "zogbo")).toEqual({
+      ok: true,
+      site: "gbegamey",
+    });
   });
 
   it("ignore un site omis et reste sur la zone du compte", () => {
@@ -68,8 +68,21 @@ describe("IDOR de site", () => {
     });
   });
 
+  it("par défaut place un compte multi-sites sur Zogbo", () => {
+    expect(authorizeRequestedSite("tous", null)).toEqual({
+      ok: true,
+      site: "zogbo",
+    });
+  });
+
   it("rejette un opérateur Mongo passé comme site", () => {
     const r = authorizeRequestedSite("tous", { $ne: "zogbo" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.status).toBe(400);
+  });
+
+  it("rejette un opérateur Mongo même pour un compte de zone", () => {
+    const r = authorizeRequestedSite("zogbo", { $ne: "gbegamey" });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.status).toBe(400);
   });

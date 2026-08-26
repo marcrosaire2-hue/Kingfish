@@ -3,7 +3,8 @@ import {
   unitsPerCasierOf,
 } from "@/lib/boissons-calc";
 import { getBoissonsDayPayload } from "@/lib/boissons-repo";
-import { getCaissesOverview } from "@/lib/caisse-repo";
+import { getActiveCaisse } from "@/lib/caisse-repo";
+import { soldeTheorique } from "@/lib/caisse-model";
 import {
   listImmobilisations,
   valeurNette,
@@ -98,19 +99,21 @@ export async function buildBilan(input: {
   asOf: string;
   scopeSite?: VenteSite | null;
 }): Promise<Bilan> {
-  const [journal, caisses, immobilisations, parametres] = await Promise.all([
+  const [journal, caisseActive, immobilisations, parametres] = await Promise.all([
     buildJournalComptable({
       from: ORIGINE,
       to: input.asOf,
       scopeSite: input.scopeSite,
     }),
-    getCaissesOverview(),
+    input.scopeSite
+      ? getActiveCaisse(input.scopeSite)
+      : Promise.resolve(null),
     listImmobilisations({
       // Fiches inactives : l’historique 2181/2818 reste au journal, la VNC
       // (gelée à inactiveSince) doit donc rester à l’actif tant que qty > 0.
       active: "all",
       site: input.scopeSite ?? "all",
-      includeUnscoped: !input.scopeSite,
+      includeUnscoped: false,
     }),
     getParametresComptables(),
   ]);
@@ -142,9 +145,7 @@ export async function buildBilan(input: {
   // est un actif, pas un produit à ajouter au résultat.
   const resultat = resultatAvantStock;
 
-  const tresorerie = caisses
-    .filter((c) => !input.scopeSite || c.caisse === input.scopeSite)
-    .reduce((s, c) => s + c.soldeTheorique, 0);
+  const tresorerie = caisseActive ? soldeTheorique(caisseActive) : 0;
   const compteAttente = balance.find(
     (l) => l.compte === COMPTES.COMPTE_ATTENTE.numero,
   );
@@ -154,11 +155,13 @@ export async function buildBilan(input: {
 
   const actif: LigneBilan[] = [
     {
-      libelle: "Trésorerie (caisses)",
+      libelle: input.scopeSite
+        ? `Trésorerie (caisse ${input.scopeSite === "zogbo" ? "Zogbo" : "Gbégamey"})`
+        : "Trésorerie (caisse)",
       montant: Math.round(tresorerie),
       fiable: true,
       note:
-        "Argent présent dans les tiroirs des caisses actuellement ouvertes. À la fermeture d'une session, le solde quitte le périmètre de l'application (versement en banque ou remise au propriétaire) : il n'apparaît plus ici.",
+        "Argent présent dans le tiroir de la caisse du site actuellement ouverte. Les deux sites ne partagent pas de caisse.",
     },
   ];
 
