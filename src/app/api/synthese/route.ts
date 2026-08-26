@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { DayCharges } from "@/lib/types";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { hasFinanceAccess, resolveUserSiteScope } from "@/lib/auth-types";
+import { hasFinanceAccess, resolveRequiredSiteScope } from "@/lib/auth-types";
 import {
   chargesTotal,
   daysInMonth,
@@ -27,8 +27,12 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const scopeSite = resolveUserSiteScope(user.site);
     const { searchParams } = new URL(request.url);
+    const scope = resolveRequiredSiteScope(user, searchParams.get("site"));
+    if (!scope.ok) {
+      return NextResponse.json({ error: scope.error }, { status: scope.status });
+    }
+    const scopeSite = scope.site;
     const period = resolvePeriod(
       {
         view: searchParams.get("view"),
@@ -41,15 +45,14 @@ export async function GET(request: Request) {
 
     if (period.view === "day") {
       const date = period.date!;
-      const match: Record<string, unknown> = { date };
-      if (scopeSite) match.site = scopeSite;
+      const match: Record<string, unknown> = { date, site: scopeSite };
       const [day, ranking, cancelNotice, caCumuls, shiftTotals, epuises] =
         await Promise.all([
           getDayPoint(date, scopeSite),
           getProductRanking(match),
           getVenteCancelNotice(match),
           getCaCumuls(date, scopeSite),
-          sumCaByShift(date, scopeSite ?? "all"),
+          sumCaByShift(date, scopeSite),
           getEpuises({ date, scopeSite }),
         ]);
       return NextResponse.json({
@@ -63,14 +66,20 @@ export async function GET(request: Request) {
         role: user.role,
         scopeSite,
         lockedSite: user.site !== "tous",
+        allowedSites:
+          user.site === "tous"
+            ? (["zogbo", "gbegamey"] as const)
+            : ([user.site] as const),
       });
     }
 
     if (period.view === "month") {
       const { year, month } = parseYearMonth(period.month!);
       const dates = daysInMonth(year, month);
-      const match: Record<string, unknown> = { date: { $in: dates } };
-      if (scopeSite) match.site = scopeSite;
+      const match: Record<string, unknown> = {
+        date: { $in: dates },
+        site: scopeSite,
+      };
       const [data, ranking, cancelNotice, caCumuls] = await Promise.all([
         getMonthPoint(year, month, scopeSite),
         getProductRanking(match),
@@ -86,14 +95,18 @@ export async function GET(request: Request) {
         role: user.role,
         scopeSite,
         lockedSite: user.site !== "tous",
+        allowedSites:
+          user.site === "tous"
+            ? (["zogbo", "gbegamey"] as const)
+            : ([user.site] as const),
       });
     }
 
     const yearNum = period.year!;
     const match: Record<string, unknown> = {
       date: { $gte: `${yearNum}-01-01`, $lte: `${yearNum}-12-31` },
+      site: scopeSite,
     };
-    if (scopeSite) match.site = scopeSite;
     const [data, ranking, cancelNotice, caCumuls] = await Promise.all([
       getYearPoint(yearNum, scopeSite),
       getProductRanking(match),
@@ -109,6 +122,10 @@ export async function GET(request: Request) {
       role: user.role,
       scopeSite,
       lockedSite: user.site !== "tous",
+      allowedSites:
+        user.site === "tous"
+          ? (["zogbo", "gbegamey"] as const)
+          : ([user.site] as const),
     });
   } catch (error) {
     return authErrorResponse(error);
@@ -118,10 +135,14 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     const user = await requireUser();
-    const scopeSite = resolveUserSiteScope(user.site);
     const body = (await request.json()) as Partial<DayCharges> & {
       date?: string;
+      site?: string;
     };
+    const scope = resolveRequiredSiteScope(user, body.site);
+    if (!scope.ok) {
+      return NextResponse.json({ error: scope.error }, { status: scope.status });
+    }
 
     // `date` est utilisé comme _id du document de charges : un objet JSON
     // malveillant (ex. {"$regex": "^2026-08"}) ne doit jamais atteindre la
@@ -180,14 +201,14 @@ export async function PUT(request: Request) {
       user,
       kind: "charges",
       title: `Charges · ${body.date}`,
-      detail: "Charges du jour enregistrées",
+      detail: `Charges du jour · ${scope.site === "zogbo" ? "Zogbo" : "Gbégamey"}`,
       date: body.date,
-      site: "tous",
+      site: scope.site,
       amount: chargesTotal({ ...charges, updatedAt: null }),
     });
 
-    const day = await getDayPoint(saved.date, scopeSite);
-    return NextResponse.json({ charges: saved, day });
+    const day = await getDayPoint(saved.date, scope.site);
+    return NextResponse.json({ charges: saved, day, scopeSite: scope.site });
   } catch (error) {
     return authErrorResponse(error);
   }

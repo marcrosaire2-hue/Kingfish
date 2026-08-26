@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/api-auth";
-import { resolveUserSiteScopeFromUser } from "@/lib/auth-types";
+import { resolveRequiredSiteScope } from "@/lib/auth-types";
 import {
   getCompteResultatDay,
   getCompteResultatMonth,
@@ -14,16 +14,18 @@ export const runtime = "nodejs";
 export async function GET(request: Request) {
   try {
     const user = await requireAdmin();
-    // Étanchéité des zones : un compte rattaché à un point ne voit que le
-    // résultat de ce point, jamais celui de l'autre.
-    const scopeSite = resolveUserSiteScopeFromUser(user);
     const { searchParams } = new URL(request.url);
+    const scope = resolveRequiredSiteScope(user, searchParams.get("site"));
+    if (!scope.ok) {
+      return NextResponse.json({ error: scope.error }, { status: scope.status });
+    }
+    const scopeSite = scope.site;
     const view = searchParams.get("view") || "day";
 
     if (view === "day") {
       const date = searchParams.get("date") || todayIsoDate();
       const payload = await getCompteResultatDay(date, scopeSite);
-      return NextResponse.json(payload);
+      return NextResponse.json({ ...payload, scopeSite });
     }
 
     if (view === "month") {
@@ -33,7 +35,7 @@ export async function GET(request: Request) {
       }
       const { year, month: m } = parseYearMonth(month);
       const payload = await getCompteResultatMonth(year, m, scopeSite);
-      return NextResponse.json(payload);
+      return NextResponse.json({ ...payload, scopeSite });
     }
 
     if (view === "year") {
@@ -43,7 +45,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: "year invalide." }, { status: 400 });
       }
       const payload = await getCompteResultatYear(year, scopeSite);
-      return NextResponse.json(payload);
+      return NextResponse.json({ ...payload, scopeSite });
     }
 
     return NextResponse.json({ error: "view invalide." }, { status: 400 });

@@ -975,7 +975,7 @@ export function resolveAnalyseSite(
     return { ok: true, site: locked };
   }
 
-  if (wantAll) return { ok: true, site: null };
+  if (wantAll) return { ok: true, site: "zogbo" };
   if (raw === "zogbo" || raw === "gbegamey") return { ok: true, site: raw };
   return { ok: false, error: "Site invalide.", status: 400 };
 }

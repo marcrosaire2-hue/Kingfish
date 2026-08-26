@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import {
   CAISSE_LABELS,
+  ZONE_CAISSES,
   allowedCaisses,
   canUseCaisse,
   defaultCaisse,
-  isCaisseKey,
+  isZoneCaisse,
 } from "@/lib/caisse-model";
 import { logActivity } from "@/lib/log-activity";
 import {
@@ -17,19 +18,18 @@ import {
   getCaissesOverview,
   listCaisses,
   openCaisse,
-  versementCaisse,
 } from "@/lib/caisse-repo";
 import type { CaisseKey, CaisseMouvementKind } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
-/** Caisse demandée, ramenée à ce que le compte a le droit d'ouvrir. */
+/** Caisse de zone demandée, ramenée au périmètre du compte. */
 function resolveCaisse(
   requested: string | null,
   user: Parameters<typeof defaultCaisse>[0],
-): CaisseKey {
-  if (isCaisseKey(requested) && canUseCaisse(user, requested)) return requested;
+): "zogbo" | "gbegamey" {
+  if (isZoneCaisse(requested) && canUseCaisse(user, requested)) return requested;
   return defaultCaisse(user);
 }
 
@@ -52,7 +52,16 @@ export async function GET(request: Request) {
     }
 
     const demandee = searchParams.get("caisse");
-    if (demandee && isCaisseKey(demandee) && !canUseCaisse(user, demandee)) {
+    if (demandee === "centrale") {
+      return NextResponse.json(
+        {
+          error:
+            "La caisse centrale est désactivée : chaque site a sa propre caisse.",
+        },
+        { status: 400 },
+      );
+    }
+    if (demandee && isZoneCaisse(demandee) && !canUseCaisse(user, demandee)) {
       return NextResponse.json(
         { error: "Caisse non autorisée." },
         { status: 403 },
@@ -65,20 +74,20 @@ export async function GET(request: Request) {
       listCaisses({ caisse, limit: 40 }),
     ]);
 
-    // La consolidation expose les soldes des autres zones : réservée aux
-    // comptes qui ont déjà accès au coffre central.
-    const overview = canUseCaisse(user, "centrale")
-      ? await getCaissesOverview()
-      : null;
+    // Admin multi-sites : aperçu séparé des deux caisses (jamais un solde unique).
+    const overview =
+      user.site === "tous" ? await getCaissesOverview() : null;
 
     return NextResponse.json({
       date,
       caisse,
-      site: active?.site ?? null,
+      site: active?.site ?? caisse,
       active,
       historique,
       overview,
       allowedCaisses: allowedCaisses(user),
+      independentSites: true,
+      zoneCaisses: ZONE_CAISSES,
     });
   } catch (error) {
     return authErrorResponse(error);
@@ -106,8 +115,14 @@ export async function POST(request: Request) {
 
     if (body.action === "open") {
       const caisse = body.caisse;
-      if (!isCaisseKey(caisse)) {
-        return NextResponse.json({ error: "Caisse inconnue" }, { status: 400 });
+      if (!isZoneCaisse(caisse)) {
+        return NextResponse.json(
+          {
+            error:
+              "Caisse inconnue ou centrale désactivée. Utilisez Zogbo ou Gbégamey.",
+          },
+          { status: 400 },
+        );
       }
       const date = body.date || todayIsoDate();
       const session = await openCaisse({
@@ -122,7 +137,7 @@ export async function POST(request: Request) {
         title: `Ouverture · ${CAISSE_LABELS[caisse]}`,
         detail: `Fond de caisse ${Number(body.soldeInitial) || 0} FCFA`,
         date,
-        site: session.site ?? "tous",
+        site: session.site ?? caisse,
         amount: Number(body.soldeInitial) || 0,
       });
       return NextResponse.json({ session });
@@ -210,30 +225,13 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "versement") {
-      if (!body.id || !isCaisseKey(body.toCaisse)) {
-        return NextResponse.json(
-          { error: "id et caisse de destination requis" },
-          { status: 400 },
-        );
-      }
-      const result = await versementCaisse({
-        fromSessionId: body.id,
-        toCaisse: body.toCaisse,
-        user,
-        montant: Number(body.montant) || 0,
-        nature: body.nature ?? null,
-      });
-      await logActivity({
-        user,
-        kind: "caisse",
-        title: `Versement · ${CAISSE_LABELS[result.source.caisse]} → ${CAISSE_LABELS[result.destination.caisse]}`,
-        detail: body.nature?.trim() || "Transfert entre caisses",
-        date: todayIsoDate(),
-        site: result.source.site ?? "tous",
-        // Neutre pour le réseau : l'argent change de tiroir, il ne sort pas.
-        amount: 0,
-      });
-      return NextResponse.json(result);
+      return NextResponse.json(
+        {
+          error:
+            "Versements entre caisses désactivés : Zogbo et Gbégamey sont indépendantes.",
+        },
+        { status: 403 },
+      );
     }
 
     return NextResponse.json({ error: "action inconnue" }, { status: 400 });

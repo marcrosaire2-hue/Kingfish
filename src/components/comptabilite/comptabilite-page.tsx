@@ -37,12 +37,27 @@ export function ComptabilitePage() {
   const [from, setFrom] = useState(() => monthStartIso());
   const [to, setTo] = useState(() => todayIsoDate());
   const [asOf, setAsOf] = useState(() => todayIsoDate());
+  const [site, setSite] = useState<"zogbo" | "gbegamey">("zogbo");
 
   return (
     <AppShell
       title="Comptabilité"
-      subtitle="Journal, grand livre, balance et bilan proposés à partir des registres existants — mapping SYSCOHADA par défaut, à valider par un expert-comptable avant tout usage fiscal."
+      subtitle={`Journal, grand livre, balance et bilan — site ${site === "zogbo" ? "Zogbo" : "Gbégamey"} (indépendant).`}
     >
+      <div className="site-switch" role="tablist" aria-label="Site" style={{ marginBottom: "0.75rem" }}>
+        {(["zogbo", "gbegamey"] as const).map((s) => (
+          <button
+            key={s}
+            type="button"
+            role="tab"
+            aria-selected={site === s}
+            className={`site-btn${site === s ? " is-active" : ""}`}
+            onClick={() => setSite(s)}
+          >
+            {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+          </button>
+        ))}
+      </div>
       <div className="section-tabs" role="tablist" aria-label="Vue comptable">
         {ONGLETS.map((o) => (
           <button
@@ -59,16 +74,16 @@ export function ComptabilitePage() {
       </div>
 
       {onglet === "journal" ? (
-        <JournalView from={from} to={to} setFrom={setFrom} setTo={setTo} />
+        <JournalView from={from} to={to} setFrom={setFrom} setTo={setTo} site={site} />
       ) : null}
       {onglet === "grand-livre" ? (
-        <GrandLivreView from={from} to={to} setFrom={setFrom} setTo={setTo} />
+        <GrandLivreView from={from} to={to} setFrom={setFrom} setTo={setTo} site={site} />
       ) : null}
       {onglet === "balance" ? (
-        <BalanceView from={from} to={to} setFrom={setFrom} setTo={setTo} />
+        <BalanceView from={from} to={to} setFrom={setFrom} setTo={setTo} site={site} />
       ) : null}
       {onglet === "bilan" ? (
-        <BilanView asOf={asOf} setAsOf={setAsOf} />
+        <BilanView asOf={asOf} setAsOf={setAsOf} site={site} />
       ) : null}
     </AppShell>
   );
@@ -140,11 +155,13 @@ function JournalView({
   to,
   setFrom,
   setTo,
+  site,
 }: {
   from: string;
   to: string;
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
+  site: "zogbo" | "gbegamey";
 }) {
   const [result, setResult] = useState<JournalResult>(EMPTY_JOURNAL);
   const [loading, setLoading] = useState(true);
@@ -155,7 +172,7 @@ function JournalView({
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ view: "journal", from, to });
+      const params = new URLSearchParams({ view: "journal", from, to, site });
       const res = await fetch(`/api/comptabilite?${params}`, { cache: "no-store" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Erreur de chargement");
@@ -166,7 +183,7 @@ function JournalView({
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, site]);
 
   useEffect(() => {
     void load();
@@ -303,11 +320,13 @@ function GrandLivreView({
   to,
   setFrom,
   setTo,
+  site,
 }: {
   from: string;
   to: string;
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
+  site: "zogbo" | "gbegamey";
 }) {
   const [comptes, setComptes] = useState<CompteGrandLivre[]>([]);
   const [loading, setLoading] = useState(true);
@@ -317,7 +336,7 @@ function GrandLivreView({
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ view: "grand-livre", from, to });
+      const params = new URLSearchParams({ view: "grand-livre", from, to, site });
       const res = await fetch(`/api/comptabilite?${params}`, { cache: "no-store" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Erreur de chargement");
@@ -328,7 +347,7 @@ function GrandLivreView({
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, site]);
 
   useEffect(() => {
     void load();
@@ -403,11 +422,13 @@ function BalanceView({
   to,
   setFrom,
   setTo,
+  site,
 }: {
   from: string;
   to: string;
   setFrom: (v: string) => void;
   setTo: (v: string) => void;
+  site: "zogbo" | "gbegamey";
 }) {
   const [lignes, setLignes] = useState<LigneBalance[]>([]);
   const [loading, setLoading] = useState(true);
@@ -417,7 +438,7 @@ function BalanceView({
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ view: "balance", from, to });
+      const params = new URLSearchParams({ view: "balance", from, to, site });
       const res = await fetch(`/api/comptabilite?${params}`, { cache: "no-store" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Erreur de chargement");
@@ -428,7 +449,7 @@ function BalanceView({
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, site]);
 
   useEffect(() => {
     void load();
@@ -730,9 +751,11 @@ function ModulesComptablesPanel({ onSaved }: { onSaved: () => void }) {
 function BilanView({
   asOf,
   setAsOf,
+  site,
 }: {
   asOf: string;
   setAsOf: (v: string) => void;
+  site: "zogbo" | "gbegamey";
 }) {
   const [bilan, setBilan] = useState<BilanResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -742,7 +765,7 @@ function BilanView({
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ view: "bilan", asOf });
+      const params = new URLSearchParams({ view: "bilan", asOf, site });
       const res = await fetch(`/api/comptabilite?${params}`, { cache: "no-store" });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Erreur de chargement");
@@ -753,7 +776,7 @@ function BilanView({
     } finally {
       setLoading(false);
     }
-  }, [asOf]);
+  }, [asOf, site]);
 
   useEffect(() => {
     void load();

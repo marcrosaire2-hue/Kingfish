@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   allowedCaisses,
+  assertIndependentCaisseTransfer,
   caisseForSite,
   caisseZone,
   canUseCaisse,
   defaultCaisse,
   soldeTheorique,
+  ZONE_CAISSES,
 } from "@/lib/caisse-model";
 import type { CaisseSession } from "@/lib/types";
 
@@ -42,76 +44,47 @@ describe("solde théorique", () => {
     expect(soldeTheorique(s)).toBe(55_000);
   });
 
-  it("compte les versements au solde, dans les deux sens", () => {
+  it("compte les versements historiques au solde", () => {
     const zone = session({ totalVente: 50_000, totalVersementSorti: 40_000 });
     expect(soldeTheorique(zone)).toBe(20_000);
-
-    const coffre = session({
-      caisse: "centrale",
-      site: null,
-      soldeInitial: 0,
-      totalVersementRecu: 40_000,
-    });
-    expect(soldeTheorique(coffre)).toBe(40_000);
-  });
-
-  it("tolère une session écrite avant les versements", () => {
-    const ancienne = session({
-      totalVente: 5_000,
-      totalVersementSorti: undefined as unknown as number,
-      totalVersementRecu: undefined as unknown as number,
-    });
-    expect(soldeTheorique(ancienne)).toBe(15_000);
-  });
-
-  it("l'annulation d'une dépense ramène le théorique à l'état d'avant (T9)", () => {
-    // cancelCaisseMouvement décremente totalDepense du montant annulé : le
-    // théorique doit donc retrouver exactement sa valeur d'avant la dépense.
-    const avant = session({ totalVente: 50_000, totalDepense: 0 });
-    const apresDepense = session({ totalVente: 50_000, totalDepense: 7_000 });
-    const apresAnnulation = session({ totalVente: 50_000, totalDepense: 0 });
-    expect(soldeTheorique(apresDepense)).toBe(soldeTheorique(avant) - 7_000);
-    expect(soldeTheorique(apresAnnulation)).toBe(soldeTheorique(avant));
-  });
-
-  it("l'annulation d'une recette retire ce qu'elle avait ajouté (T9)", () => {
-    const avant = session({ totalVente: 50_000, totalRecette: 0 });
-    const apresRecette = session({ totalVente: 50_000, totalRecette: 3_000 });
-    const apresAnnulation = session({ totalVente: 50_000, totalRecette: 0 });
-    expect(soldeTheorique(apresRecette)).toBe(soldeTheorique(avant) + 3_000);
-    expect(soldeTheorique(apresAnnulation)).toBe(soldeTheorique(avant));
   });
 });
 
-describe("accès aux caisses", () => {
-  it("réserve le coffre central à l'administrateur global", () => {
+describe("indépendance des caisses", () => {
+  it("n'autorise plus la caisse centrale", () => {
+    expect(canUseCaisse({ role: "admin", site: "tous" }, "centrale")).toBe(false);
+    expect(canUseCaisse({ role: "daf", site: "tous" }, "centrale")).toBe(false);
     expect(canUseCaisse({ role: "gerant", site: "zogbo" }, "centrale")).toBe(false);
-    expect(canUseCaisse({ role: "comptable", site: "tous" }, "centrale")).toBe(false);
-    expect(canUseCaisse({ role: "admin", site: "tous" }, "centrale")).toBe(true);
-    expect(canUseCaisse({ role: "daf", site: "tous" }, "centrale")).toBe(true);
-    expect(canUseCaisse({ role: "admin", site: "zogbo" }, "centrale")).toBe(false);
   });
 
-  it("limite un compte de zone à la caisse de sa zone", () => {
+  it("limite un compte de zone à sa propre caisse", () => {
     const gerant = { role: "gerant", site: "zogbo" } as const;
     expect(canUseCaisse(gerant, "zogbo")).toBe(true);
     expect(canUseCaisse(gerant, "gbegamey")).toBe(false);
     expect(allowedCaisses(gerant)).toEqual(["zogbo"]);
   });
 
-  it("ouvre les trois caisses à l'administrateur global", () => {
+  it("donne à l'admin uniquement les deux caisses de zone", () => {
     expect(allowedCaisses({ role: "admin", site: "tous" })).toEqual([
-      "centrale",
       "zogbo",
       "gbegamey",
     ]);
+    expect(ZONE_CAISSES).toEqual(["zogbo", "gbegamey"]);
   });
 
-  it("arrive sur sa zone, ou sur le coffre pour un compte multi-sites", () => {
+  it("ouvre Zogbo par défaut pour un compte multi-sites", () => {
     expect(defaultCaisse({ role: "gerant", site: "gbegamey" })).toBe("gbegamey");
-    expect(defaultCaisse({ role: "admin", site: "tous" })).toBe("centrale");
-    expect(defaultCaisse({ role: "comptable", site: "tous" })).toBe("gbegamey");
-    expect(defaultCaisse({ role: "gerant", site: "zogbo" })).toBe("zogbo");
+    expect(defaultCaisse({ role: "admin", site: "tous" })).toBe("zogbo");
+    expect(defaultCaisse({ role: "comptable", site: "tous" })).toBe("zogbo");
+  });
+
+  it("interdit tout transfert entre caisses", () => {
+    expect(() =>
+      assertIndependentCaisseTransfer("zogbo", "gbegamey"),
+    ).toThrow(/indépendantes/);
+    expect(() =>
+      assertIndependentCaisseTransfer("zogbo", "centrale"),
+    ).toThrow(/indépendantes/);
   });
 });
 

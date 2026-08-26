@@ -85,7 +85,7 @@ function InsightCard({ item }: { item: Insight }) {
 export function AnalysePage() {
   const [period, setPeriod] = useState<AnalysePeriod>("month");
   const [date, setDate] = useState(todayIsoDate);
-  const [site, setSite] = useState("all");
+  const [site, setSite] = useState("zogbo");
   const [shift, setShift] = useState("all");
   const [kind, setKind] = useState("all");
   const [payload, setPayload] = useState<Payload | null>(null);
@@ -168,7 +168,6 @@ export function AnalysePage() {
           <label className="date-field date-field-pill">
             <span>Site</span>
             <select value={site} onChange={(e) => setSite(e.target.value)}>
-              <option value="all">Les deux sites</option>
               <option value="zogbo">{SITE_LABELS.zogbo}</option>
               <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
             </select>
