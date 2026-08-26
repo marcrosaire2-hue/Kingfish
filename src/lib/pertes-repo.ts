@@ -40,7 +40,7 @@ const MOTIFS: PerteMotif[] = [
  */
 type PerteTarget = {
   collection: string;
-  arrayField: "lines" | "transferLines" | "localLines";
+  arrayField: "lines" | "transferLines" | "localLines" | "accompanimentLines";
   perteField: "pertes" | "pertesZogbo" | "pertesGbegamey";
   name: string;
   unitCost: number;
@@ -103,11 +103,29 @@ async function resolveTarget(input: {
   }
 
   if (kind === "local") {
-    if (site !== "gbegamey") {
-      throw new Error("Les plats sur place n’existent qu’à Gbégamey");
-    }
     const dish = parametres.localDishes.find((d) => d.id === productId);
     if (!dish) throw new Error("Plat local introuvable");
+    // Zogbo tient les accompagnements dans accompanimentLines ; Gbégamey
+    // dans localLines. Les deux familles partagent le kind « local ».
+    if (site === "zogbo") {
+      const { day } = await getZogboDayPayload(date);
+      assertDayOpen(day.status, closedMessage, openOpts);
+      return {
+        collection: "zogbo_jours",
+        arrayField: "accompanimentLines",
+        perteField: "pertes",
+        name: dish.name,
+        unitCost: dish.costPrice ?? 0,
+        ensure: async () => {
+          await saveZogboDay({
+            date,
+            status: day.status,
+            lines: day.lines,
+            accompanimentLines: day.accompanimentLines ?? [],
+          });
+        },
+      };
+    }
     const { day } = await getGbegameyDayPayload(date);
     assertDayOpen(day.status, closedMessage, openOpts);
     return {

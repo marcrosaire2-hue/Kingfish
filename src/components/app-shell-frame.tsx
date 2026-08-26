@@ -193,10 +193,19 @@ function isActive(pathname: string, href: string) {
 export function AppShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, nav } = useSession();
+  const { user, nav, ready } = useSession();
   const { meta, setMeta, setActionsSlot } = usePageChrome();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navBusy, setNavBusy] = useState(false);
+
+  useEffect(() => {
+    // Session révoquée (tokenVersion, désactivation) : /api/auth/me renvoie
+    // 401 → cache vidé. On renvoie au login sans laisser l’UI « fantôme ».
+    if (ready && !user) {
+      clearSessionCache();
+      router.replace("/login");
+    }
+  }, [ready, user, router]);
 
   useEffect(() => {
     setMenuOpen(false);

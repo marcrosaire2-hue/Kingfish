@@ -10,7 +10,7 @@ export async function GET() {
     const user = await requireUser();
     const nav = await resolveEffectiveNav(user);
     return NextResponse.json({
-      user,
+      user: { ...user, nav },
       nav,
       home: homeForRole(user.role),
       lockedSite: user.site !== "tous",
