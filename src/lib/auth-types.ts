@@ -156,6 +156,7 @@ const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "compte-resultat",
   "comptabilite",
   "journal-ventes",
+  "quantites-vendues",
   "journal-stock",
   "historique",
   "admin",
@@ -259,6 +260,7 @@ export type NavKey =
   | "comptabilite"
   | "historique"
   | "journal-ventes"
+  | "quantites-vendues"
   | "regularisation"
   | "immobilisations"
   | "stock"
@@ -280,6 +282,8 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "parametres",
     // Journal des ventes de sa zone (tickets, détail, export).
     "journal-ventes",
+    // Volumes vendus par article (période).
+    "quantites-vendues",
     // Saisie / correction / annulation des ventes d'un jour passé.
     "regularisation",
   ],
@@ -297,6 +301,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "stock",
     "immobilisations",
     "journal-ventes",
+    "quantites-vendues",
     "journal-stock",
     "historique",
   ],
@@ -315,6 +320,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "pertes",
     "reglages",
     "journal-ventes",
+    "quantites-vendues",
     "regularisation",
     "stock",
     "immobilisations",
@@ -335,6 +341,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "pertes",
     "reglages",
     "journal-ventes",
+    "quantites-vendues",
     "regularisation",
     "stock",
     "immobilisations",
@@ -464,6 +471,9 @@ export function canAccessPath(
   }
   if (pathname.startsWith("/journal-ventes")) {
     return allowed.includes("journal-ventes");
+  }
+  if (pathname.startsWith("/quantites-vendues")) {
+    return allowed.includes("quantites-vendues");
   }
   if (pathname.startsWith("/regularisation")) {
     return allowed.includes("regularisation");

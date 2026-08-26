@@ -106,6 +106,13 @@ const NAV_ITEMS: {
     groupLabel: "Pilotage",
   },
   {
+    href: "/quantites-vendues",
+    label: "Qté vendues",
+    key: "quantites-vendues",
+    mark: "Σ",
+    group: "pilot",
+  },
+  {
     href: "/regularisation",
     label: "Régularisation",
     key: "regularisation",
