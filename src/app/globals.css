@@ -4737,8 +4737,8 @@ select {
 
 .chart-axis {
   fill: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 500;
+  font-size: 13px;
+  font-weight: 600;
   font-family: var(--font-mono);
 }
 
@@ -4755,6 +4755,13 @@ select {
   background: color-mix(in srgb, var(--paper) 80%, var(--surface));
   border-radius: var(--radius);
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+}
+
+.chart-legend > li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
 }
 
 .chart-legend-stack {
@@ -4871,9 +4878,90 @@ select {
   font-weight: 600;
 }
 
+/* Classement zones — cartes (lisible sur téléphone, sans tableau large) */
+.site-rank-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.site-rank-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  min-width: 0;
+}
+
+.site-rank-card.is-leader {
+  border-color: color-mix(in srgb, #10b981 35%, var(--line));
+  background: color-mix(in srgb, #10b981 8%, var(--surface));
+}
+
+.site-rank-top {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.site-rank-pos {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 0.78rem;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--brand, #005098) 14%, #fff);
+  color: var(--ink);
+  flex-shrink: 0;
+}
+
+.site-rank-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.site-rank-name {
+  font-size: 0.98rem;
+  overflow-wrap: anywhere;
+}
+
+.site-rank-qty {
+  font-size: 0.78rem;
+}
+
+.site-rank-ca {
+  font-size: 0.95rem;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.site-rank-bar {
+  width: 100%;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line) 55%, #fff);
+  overflow: hidden;
+}
+
+.site-rank-part {
+  font-size: 0.75rem;
+}
+
 .rank-panel-sites {
   background: color-mix(in srgb, var(--brand, #005098) 6%, var(--surface));
   border-color: color-mix(in srgb, var(--brand, #005098) 20%, var(--line));
+  min-width: 0;
 }
 
 .rank-grid {
@@ -5007,11 +5095,17 @@ select {
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.4rem 0.65rem;
+  min-width: 0;
 }
 
 .rank-name {
   font-size: 0.95rem;
   font-weight: 750;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
 }
 
 .rank-kind {
@@ -5023,6 +5117,7 @@ select {
   padding: 0.12rem 0.4rem;
   border-radius: 999px;
   background: color-mix(in srgb, var(--line) 55%, #fff);
+  flex-shrink: 0;
 }
 
 .rank-track {
@@ -8475,3 +8570,230 @@ html.nav-open body {
 .rapport-block ul{margin:0;padding-left:1.1rem;font-size:.85rem}
 .rapport-texte{padding:1rem;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface)}
 .rapport-pre{margin:0;padding:.75rem;border-radius:10px;background:color-mix(in srgb,var(--paper) 80%,var(--surface));white-space:pre-wrap;font-size:.82rem;line-height:1.45;overflow:auto;max-height:28rem}
+
+/* Dashboard — liste mois (évite le tableau trop large sur téléphone) */
+.dash-month-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.dash-month-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--paper) 75%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  min-width: 0;
+}
+
+.dash-month-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.dash-month-name {
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.dash-month-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.45rem 0.75rem;
+  margin: 0;
+}
+
+.dash-month-metrics > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.dash-month-metrics dt {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
+}
+
+.dash-month-metrics dd {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+@media (min-width: 900px) {
+  .dash-month-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Dashboard mobile — tableaux ventes / classements / graphiques */
+@media (max-width: 980px) {
+  .sales-boards {
+    gap: 0.85rem;
+    min-width: 0;
+  }
+
+  .sales-boards .panel,
+  .sales-boards .rank-panel,
+  .sales-board {
+    min-width: 0;
+    overflow: visible;
+  }
+
+  .rank-panel {
+    padding: 0.85rem 0.9rem;
+  }
+
+  .rank-header {
+    margin-bottom: 0.65rem;
+  }
+
+  .rank-title {
+    font-size: 0.98rem;
+  }
+
+  .rank-sub {
+    font-size: 0.78rem;
+    line-height: 1.35;
+  }
+
+  .rank-stats {
+    gap: 0.25rem 0.5rem;
+  }
+
+  .rank-stats .mono {
+    white-space: nowrap;
+    font-size: 0.85rem;
+  }
+
+  .rank-name {
+    font-size: 0.9rem;
+    line-height: 1.3;
+  }
+
+  .site-rank-ca {
+    font-size: 0.88rem;
+  }
+
+  .chart-wrap-bars,
+  .chart-wrap-wave {
+    margin: 0;
+    padding: 0.45rem 0.15rem 0.15rem;
+  }
+
+  .chart-svg {
+    min-height: 220px;
+  }
+
+  .chart-axis {
+    font-size: 12px;
+  }
+
+  .chart-legend {
+    flex-wrap: wrap;
+    gap: 0.4rem 0.7rem;
+    justify-content: flex-start;
+    padding: 0.5rem 0.6rem;
+    font-size: 0.82rem;
+  }
+
+  .dash-page,
+  .dash {
+    padding-bottom: 1rem;
+  }
+
+  .page-body {
+    padding-bottom: calc(3.25rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .dash-months-panel {
+    min-width: 0;
+  }
+
+  .dash-month-metrics dd {
+    font-size: 0.86rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .site-rank-top {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "pos main"
+      "pos ca";
+  }
+
+  .site-rank-pos {
+    grid-area: pos;
+    align-self: start;
+  }
+
+  .site-rank-main {
+    grid-area: main;
+  }
+
+  .site-rank-ca {
+    grid-area: ca;
+    text-align: left;
+    justify-self: start;
+    margin-top: 0.1rem;
+  }
+
+  .rank-grid {
+    gap: 0.75rem;
+  }
+
+  .sales-board-sub {
+    font-size: 0.82rem;
+  }
+
+  .rank-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.25rem;
+  }
+
+  .page-body {
+    padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+@media (max-width: 420px) {
+  .site-rank-card {
+    padding: 0.7rem 0.75rem;
+  }
+
+  .rank-medal {
+    width: 1.6rem;
+    height: 1.6rem;
+    font-size: 0.7rem;
+  }
+
+  .rank-row {
+    gap: 0.55rem;
+  }
+
+  .dash-month-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .chart-legend {
+    gap: 0.35rem 0.55rem;
+    font-size: 0.78rem;
+  }
+}
