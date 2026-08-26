@@ -4,7 +4,6 @@ import {
   effectiveShift,
   type SessionUser,
 } from "@/lib/auth-types";
-import { canCorrectClosedFinancialData } from "@/lib/security-policy";
 import {
   adjustCaisseVenteAmount,
   addCaisseVenteAmount,
@@ -212,8 +211,9 @@ export async function validatePosTicket(input: {
   let date: string;
   let caisseId: string | null = null;
   let creditCaisseOpen = false;
-  const bypassClosedDay =
-    isBackdate && canCorrectClosedFinancialData(input.user.role);
+  // Jour passé : le gérant / DAF / admin / comptable peut encore écrire
+  // (canManagePastVentes). La purge définitive reste réservée à l'admin.
+  const bypassClosedDay = isBackdate;
 
   if (isBackdate) {
     // Correction d'un jour passé : stock + journal sur la date choisie,
@@ -457,8 +457,8 @@ export async function cancelPosTicket(input: {
     bypassTeam: manager,
   });
 
-  // Caisse fermée : seule la direction peut encore corriger.
-  if (doc.caisseId && !canCorrectClosedFinancialData(input.user.role)) {
+  // Caisse fermée : le gérant peut encore corriger (annulation / régularisation).
+  if (doc.caisseId && !manager) {
     const caisse = await getCaisseById(doc.caisseId);
     if (caisse && caisse.statut !== "ouverte") {
       throw new Error("Caisse déjà clôturée : annulation impossible.");
@@ -480,7 +480,7 @@ export async function cancelPosTicket(input: {
         date: doc.date,
         site: input.site,
         actor,
-        bypassClosedDay: canCorrectClosedFinancialData(input.user.role),
+        bypassClosedDay: manager,
         bypassTeam: manager,
       });
     } catch (error) {

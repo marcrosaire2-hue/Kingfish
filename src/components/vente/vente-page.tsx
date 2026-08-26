@@ -626,7 +626,9 @@ const TicketsList = memo(function TicketsList({
 export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean }) {
   const pathname = usePathname();
   const [date, setDate] = useState(() => todayIsoDate());
+  /** Remplacé dès /api/auth/me : évite un premier fetch Zogbo→gbegamey. */
   const [site, setSite] = useState<VenteSite>("gbegamey");
+  const [sessionReady, setSessionReady] = useState(false);
   const [allowedSites, setAllowedSites] = useState<VenteSite[]>([]);
   /** Ventes encaissées hors ligne, en attente d'envoi au serveur. */
   const [enAttente, setEnAttente] = useState(0);
@@ -842,9 +844,10 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   }
 
   useEffect(() => {
+    if (!sessionReady) return;
     void load(date, site);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, site, pathname]);
+  }, [date, site, pathname, sessionReady]);
 
   useEffect(() => {
     let cancelled = false;
@@ -929,23 +932,35 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     };
   }, []);
 
-  // Compte connecté : affiché sur le panier et repris sur la facture, pour
-  // qu'on sache toujours qui a enregistré l'opération.
+  // Compte connecté : zone POS avant le premier chargement + opérateur facture.
   useEffect(() => {
     let annule = false;
     (async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (!annule) setSessionReady(true);
+          return;
+        }
         const body = await res.json();
-        if (!annule) {
-          setOperateur(body.user?.name ?? null);
-          if (typeof body.user?.id === "string") {
-            setOfflineQueueUser(body.user.id);
-          }
+        if (annule) return;
+        setOperateur(body.user?.name ?? null);
+        if (typeof body.user?.id === "string") {
+          setOfflineQueueUser(body.user.id);
+        }
+        const userSite = body.user?.site as VenteSite | "tous" | undefined;
+        if (userSite === "zogbo" || userSite === "gbegamey") {
+          setSite(userSite);
+          setAllowedSites([userSite]);
+        } else if (Array.isArray(body.allowedSites) && body.allowedSites.length) {
+          setAllowedSites(body.allowedSites as VenteSite[]);
+          const first = body.allowedSites[0];
+          if (first === "zogbo" || first === "gbegamey") setSite(first);
         }
       } catch {
         /* le serveur renverra de toute façon le nom sur le ticket */
+      } finally {
+        if (!annule) setSessionReady(true);
       }
     })();
     return () => {

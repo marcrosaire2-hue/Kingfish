@@ -145,7 +145,9 @@ export async function POST(request: Request) {
       );
     }
     const site = siteDecision.site;
-    const closedBypass = canCorrectClosedFinancialData(user.role);
+    // Gérant / DAF / admin / comptable : corriger un jour passé (ouvert ou
+    // clôturé). La suppression définitive et la purge restent admin-only.
+    const closedBypass = manager;
 
     if (body.action === "undo") {
       if (!body.id || !body.date) {
@@ -301,7 +303,7 @@ export async function POST(request: Request) {
       qty: body.qty ?? 1,
       unitPrice: body.unitPrice,
       actor,
-      bypassClosedDay: closedBypass && pastDay,
+      bypassClosedDay: manager && pastDay,
       // Gérant/admin : le stock reste indicatif, jamais bloquant pour lui —
       // pas seulement en correction d'un jour passé.
       bypassStock: manager,
