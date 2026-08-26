@@ -590,7 +590,7 @@ const SOURCE_LABEL: Record<string, string> = {
   all: "Toutes",
 };
 
-/** Historique des ventes — tickets filtrés (dates + zone + autres filtres) */
+/** Historique des ventes — articles vendus (sans numéros de ticket). */
 export function exportHistoriqueVentesExcel(input: {
   tickets: Array<{
     numero: string;
@@ -633,6 +633,24 @@ export function exportHistoriqueVentesExcel(input: {
 }): void {
   const zone = input.site === "all" ? "tous" : input.site;
   const periode = `${siteLabel(zone)} · du ${input.from} au ${input.to}`;
+  const articleRows = input.tickets.flatMap((t) =>
+    t.lines.map((l) => ({
+      Date: t.date,
+      Heure: heureLisible(t.at),
+      Zone: siteLabel(t.site),
+      Statut: t.statutLabel || STATUT_LABEL[t.statut] || t.statut,
+      Source: SOURCE_LABEL[t.source] ?? t.source,
+      Type: t.typeVente,
+      Article: l.name,
+      Qté: l.qty,
+      "PU (FCFA)": l.unitPrice,
+      "Montant (FCFA)": l.amount,
+      Serveur: t.serveur ?? "",
+      Caissier: t.caissier ?? "",
+      Client: t.client ?? "",
+      Paiement: t.paiement ?? "",
+    })),
+  );
   const sheets: ExcelSheet[] = [
     {
       name: "Filtres",
@@ -647,56 +665,25 @@ export function exportHistoriqueVentesExcel(input: {
           Serveur: input.serveur?.trim() || "Tous",
           Paiement: input.paiement?.trim() || "Tous",
           Recherche: input.q?.trim() || "",
-          "Tickets exportés": input.totals.count,
+          "Commandes exportées": input.totals.count,
+          "Lignes articles": articleRows.length,
           "CA affiché (FCFA)": input.totals.montant,
         },
       ],
     },
     {
-      name: "Tickets",
-      subtitle: periode,
-      totals: ["Réduction (FCFA)", "Montant (FCFA)"],
-      rows: input.tickets.map((t) => ({
-        Ticket: t.numero,
-        Date: t.date,
-        Heure: heureLisible(t.at),
-        Zone: siteLabel(t.site),
-        Statut: t.statutLabel || STATUT_LABEL[t.statut] || t.statut,
-        Source: SOURCE_LABEL[t.source] ?? t.source,
-        Type: t.typeVente,
-        Serveur: t.serveur ?? "",
-        Caissier: t.caissier ?? "",
-        Client: t.client ?? "",
-        Table: t.table ?? "",
-        Paiement: t.paiement ?? "",
-        "Réduction (FCFA)": t.reduction || 0,
-        "Montant (FCFA)": t.montant,
-      })),
-    },
-    {
-      name: "Lignes",
+      name: "Articles",
       subtitle: periode,
       totals: ["Qté", "Montant (FCFA)"],
-      rows: input.tickets.flatMap((t) =>
-        t.lines.map((l) => ({
-          Ticket: t.numero,
-          Date: t.date,
-          Heure: heureLisible(t.at),
-          Zone: siteLabel(t.site),
-          Statut: t.statutLabel || t.statut,
-          Produit: l.name,
-          Qté: l.qty,
-          "PU (FCFA)": l.unitPrice,
-          "Montant (FCFA)": l.amount,
-        })),
-      ),
+      rows: articleRows,
     },
     {
       name: "Totaux",
       subtitle: periode,
       rows: [
         {
-          Tickets: input.totals.count,
+          Commandes: input.totals.count,
+          "Lignes articles": articleRows.length,
           Validés: input.totals.valide,
           Annulés: input.totals.annule,
           "En cours": input.totals.encours,
@@ -719,6 +706,7 @@ type HistoriqueVentesExportTicket = Parameters<
 /**
  * Export Excel de TOUTES les ventes de la période (et filtres courants),
  * sans la limite d'affichage : relit l'API avec `limit=all`.
+ * Feuille principale = articles (noms), sans numéros de ticket.
  */
 export async function exportAllHistoriqueVentesExcel(input: {
   from: string;

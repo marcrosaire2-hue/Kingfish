@@ -369,7 +369,7 @@ export function JournalVentesPage() {
             disabled={loading || exporting || result.totals.count === 0}
           />
           <ExportExcelButton
-            label="Excel (tickets)"
+            label="Excel (articles)"
             onExport={() => void exportTickets()}
             disabled={loading || exporting}
           />
