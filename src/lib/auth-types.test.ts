@@ -195,6 +195,7 @@ describe("l'API suit les droits de l'écran", () => {
       "journal-stock",
       "historique",
       "admin",
+      "autorisations",
     ]);
     expect(canAccessPath("admin", "/analyse", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/", "tous", "marc")).toBe(true);

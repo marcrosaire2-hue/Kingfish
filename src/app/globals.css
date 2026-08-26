@@ -8100,3 +8100,78 @@ html.nav-open body {
     display: none;
   }
 }
+
+/* ——— Autorisations ——— */
+.authz-toolbar {
+  align-items: end;
+}
+
+.authz-check .authz-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  font-size: 0.9rem;
+}
+
+.authz-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.authz-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.authz-path {
+  font-size: 0.82rem;
+  margin-top: 0.2rem;
+}
+
+.authz-table .authz-select {
+  min-width: 7.5rem;
+  font-size: 0.82rem;
+  padding: 0.35rem 0.45rem;
+}
+
+.authz-select.is-allow {
+  border-color: color-mix(in srgb, #1f7a4d 45%, var(--line, #ccc));
+}
+
+.authz-select.is-deny {
+  border-color: color-mix(in srgb, #b42318 45%, var(--line, #ccc));
+}
+
+.authz-status {
+  display: inline-block;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.authz-status.is-allow {
+  color: #1f7a4d;
+}
+
+.authz-status.is-deny {
+  color: #b42318;
+}
+
+.authz-history {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+@media (max-width: 900px) {
+  .authz-table th:nth-child(n + 3):nth-child(-n + 7),
+  .authz-table td:nth-child(n + 3):nth-child(-n + 7) {
+    display: none;
+  }
+}

@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { homeForRole, navForSession } from "@/lib/auth-types";
+import { homeForRole } from "@/lib/auth-types";
+import { resolveEffectiveNav } from "@/lib/autorisations-repo";
 
 export const runtime = "nodejs";
 
 export async function GET() {
   try {
     const user = await requireUser();
+    const nav = await resolveEffectiveNav(user);
     return NextResponse.json({
       user,
-      nav: navForSession(user),
+      nav,
       home: homeForRole(user.role),
       lockedSite: user.site !== "tous",
       allowedSites:
