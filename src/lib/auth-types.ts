@@ -164,6 +164,7 @@ const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "quantites-vendues",
   "journal-stock",
   "historique",
+  "rapport-quotidien",
   "admin",
   "autorisations",
 ];
@@ -272,7 +273,8 @@ export type NavKey =
   | "stock"
   | "admin"
   | "autorisations"
-  | "journal-stock";
+  | "journal-stock"
+  | "rapport-quotidien";
 
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
   gerant: [
@@ -293,6 +295,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "quantites-vendues",
     // Saisie / correction / annulation des ventes d'un jour passé.
     "regularisation",
+    "rapport-quotidien",
   ],
   // Finance + stocks par zone (plats, accompagnements, boissons, matières)
   // et immobilisations (emballages / actifs).
@@ -311,6 +314,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "quantites-vendues",
     "journal-stock",
     "historique",
+    "rapport-quotidien",
   ],
   // Même périmètre qu’admin, sans la page Équipe (gestion des comptes).
   daf: [
@@ -333,6 +337,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "immobilisations",
     "historique",
     "journal-stock",
+    "rapport-quotidien",
   ],
   admin: [
     "synthese",
@@ -357,6 +362,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     // Journal complet des mouvements de stock (ventes, achats, pertes,
     // réceptions) avec export détaillé : audit réservé à l'administration.
     "journal-stock",
+    "rapport-quotidien",
   ],
 };
 
@@ -498,6 +504,9 @@ function canAccessPathWithAllowed(
   }
   if (pathname.startsWith("/synthese")) return allowed.includes("synthese");
   if (pathname.startsWith("/analyse")) return allowed.includes("analyse");
+  if (pathname.startsWith("/rapport-quotidien")) {
+    return allowed.includes("rapport-quotidien");
+  }
   if (pathname.startsWith("/compte-resultat")) {
     return allowed.includes("compte-resultat");
   }

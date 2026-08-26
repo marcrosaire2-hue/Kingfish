@@ -33,6 +33,13 @@ const NAV_ITEMS: {
     group: "home",
   },
   {
+    href: "/rapport-quotidien",
+    label: "Rapport du jour",
+    key: "rapport-quotidien",
+    mark: "R",
+    group: "home",
+  },
+  {
     href: "/compte-resultat",
     label: "Compte de résultat",
     key: "compte-resultat",

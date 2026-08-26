@@ -26,6 +26,7 @@ describe("rôle Comptable", () => {
       "quantites-vendues",
       "journal-stock",
       "historique",
+      "rapport-quotidien",
     ]);
     expect(canAccessPath("comptable", "/compte-resultat", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/comptabilite", "tous")).toBe(true);
@@ -194,6 +195,7 @@ describe("l'API suit les droits de l'écran", () => {
       "quantites-vendues",
       "journal-stock",
       "historique",
+      "rapport-quotidien",
       "admin",
       "autorisations",
     ]);
@@ -208,6 +210,9 @@ describe("l'API suit les droits de l'écran", () => {
     );
     expect(canAccessPath("admin", "/journal-stock", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/historique", "tous", "marc")).toBe(true);
+    expect(canAccessPath("admin", "/rapport-quotidien", "tous", "marc")).toBe(
+      true,
+    );
     expect(canAccessPath("admin", "/admin", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/vente", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/parametres", "tous", "marc")).toBe(false);
