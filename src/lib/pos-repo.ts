@@ -7,6 +7,7 @@ import {
 import {
   adjustCaisseVenteAmount,
   addCaisseVenteAmount,
+  ensureActiveCaisseForSite,
   findCaisseSessionForSiteDate,
   getActiveCaisseForSite,
   getCaisseById,
@@ -222,13 +223,11 @@ export async function validatePosTicket(input: {
     const pastSession = await findCaisseSessionForSiteDate(input.site, date);
     caisseId = pastSession?.id ?? null;
   } else {
-    // La caisse est celle de la zone : tout l'encaissé du point tombe dedans.
-    const caisse = await getActiveCaisseForSite(input.site);
-    if (!caisse) {
-      throw new Error(
-        "Ouvrez la caisse de la zone avant de valider une commande.",
-      );
-    }
+    // La caisse est celle de la zone : ouverte automatiquement si besoin.
+    const caisse = await ensureActiveCaisseForSite({
+      site: input.site,
+      user: input.user,
+    });
     // Jour de service = date d'ouverture de la caisse, pas le calendrier.
     date = caisse.date;
     caisseId = caisse.id;
@@ -718,13 +717,20 @@ export async function getPosContext(input: {
   date: string;
   site: VenteSite;
   allowBackdate?: boolean;
+  /** Si fourni, ouvre automatiquement la caisse du jour (pas en correction passée). */
+  user?: SessionUser;
 }) {
   const today = todayIsoDate();
-  const caisse = await getActiveCaisseForSite(input.site);
   const requestedPast =
     Boolean(input.allowBackdate) &&
     Boolean(input.date) &&
     input.date < today;
+  // Jour courant : ouverture auto pour encaisser sans geste manuel.
+  // Jour passé : on ne crée pas de session « aujourd'hui » juste pour consulter.
+  const caisse =
+    !requestedPast && input.user
+      ? await ensureActiveCaisseForSite({ site: input.site, user: input.user })
+      : await getActiveCaisseForSite(input.site);
   // Jour affiché : backdate volontaire, sinon date de la caisse ouverte.
   const date = requestedPast ? input.date : (caisse?.date ?? input.date);
   // Si le tiroir ouvert porte exactement ce jour, on l'expose toujours —

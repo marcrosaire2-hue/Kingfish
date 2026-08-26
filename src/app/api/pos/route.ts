@@ -65,6 +65,7 @@ export async function GET(request: Request) {
       date: requested,
       site,
       allowBackdate: canManagePastVentes(user.role),
+      user,
     });
     return NextResponse.json({
       ...ctx,

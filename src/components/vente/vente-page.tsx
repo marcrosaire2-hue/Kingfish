@@ -220,7 +220,7 @@ const ProductGrid = memo(function ProductGrid({
           p.stockLeft <= 0;
         const blocked = disabledPv || outOfStock || !canSell;
         const reason = !canSell
-          ? "Ouvrez la caisse pour vendre"
+          ? "Caisse en cours d’ouverture…"
           : disabledPv
             ? p.blockReason || "Prix de vente manquant"
             : outOfStock
@@ -1183,7 +1183,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       setError(
         backdateMode
           ? "Correction de jour passé impossible pour le moment."
-          : "Ouvrez une caisse avant de valider.",
+          : "Caisse en cours d’ouverture — réessayez dans un instant.",
       );
       return;
     }
@@ -1583,9 +1583,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                     ? `Ajoutez au panier puis validez · tiroir ouvert par ${caisse.userName}`
                     : backdateMode
                       ? "Correction de jour passé — validez sans rouvrir la caisse"
-                      : caisseActive
-                        ? `Caisse déjà ouverte le ${caisseActive.date} par ${caisseActive.userName}`
-                        : "Ouvrez la caisse de la zone pour encaisser"}
+                      : "Préparation de la caisse…"}
             </span>
           </div>
           <div className="vente-hero-side">
@@ -1686,28 +1684,21 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         ) : null}
 
         {!loading && !canSell && !backdateMode ? (
-          <p className="error-banner" role="alert">
+          <p className="ui-info" role="status">
             {caisseActive
-              ? `Caisse ${siteLabel} déjà ouverte par ${caisseActive.userName} (jour ${caisseActive.date}). `
-              : `Caisse ${siteLabel} fermée — ouvrez-la pour encaisser. `}
-            <button
-              type="button"
-              className="btn-link"
-              disabled={openingCaisse}
-              onClick={() =>
-                caisseActive
-                  ? void rejoindreCaisseActive()
-                  : void openCaisseHere()
-              }
-            >
-              {openingCaisse
-                ? "…"
-                : caisseActive
-                  ? "Afficher ce jour"
-                  : "Ouvrir maintenant"}
-            </button>
+              ? `Caisse ${siteLabel} ouverte le ${caisseActive.date} par ${caisseActive.userName}. `
+              : `Ouverture automatique de la caisse ${siteLabel}… `}
+            {caisseActive ? (
+              <button
+                type="button"
+                className="btn-link"
+                onClick={() => void rejoindreCaisseActive()}
+              >
+                Afficher ce jour
+              </button>
+            ) : null}
             {" · "}
-            <Link href={`/caisse?caisse=${site}`}>Fond de caisse détaillé</Link>
+            <Link href={`/caisse?caisse=${site}`}>Voir la caisse</Link>
           </p>
         ) : null}
 

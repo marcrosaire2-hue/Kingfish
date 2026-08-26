@@ -16,7 +16,7 @@ import {
 import { consumeRateLimit, rateLimitResponse } from "@/lib/security-rate-limit";
 import { logActivity, logCriticalActivity } from "@/lib/log-activity";
 import { reportError } from "@/lib/report-error";
-import { resolveOperatingDate } from "@/lib/caisse-repo";
+import { resolveOperatingDate, ensureActiveCaisseForSite } from "@/lib/caisse-repo";
 import {
   editVenteQty,
   getVenteBoard,
@@ -92,6 +92,12 @@ export async function GET(request: Request) {
     }
     const site = siteDecision.site;
     const allowBackdate = canManagePastVentes(user.role);
+    const today = todayIsoDate();
+    // Jour courant : ouvre la caisse du site automatiquement (Zogbo et
+    // Gbégamey indépendantes — chacune à la demande).
+    if (!(allowBackdate && requested < today)) {
+      await ensureActiveCaisseForSite({ site, user });
+    }
     const date = await resolveOperatingDate(site, requested, { allowBackdate });
     const recentLimit = Number(searchParams.get("limit") || 40) || 40;
     const board = await getVenteBoard(date, site, { recentLimit });

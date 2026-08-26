@@ -198,6 +198,34 @@ export async function getActiveCaisseForSite(
   return getActiveCaisse(site);
 }
 
+/**
+ * Garantit une caisse ouverte pour la zone : si aucune session n'existe,
+ * on en crée une pour aujourd'hui (fond 0). Zogbo et Gbégamey restent
+ * indépendantes — chacune s'ouvre à la demande, les deux peuvent coexister.
+ * Ainsi le POS encaisse sans étape manuelle « Ouvrir la caisse ».
+ */
+export async function ensureActiveCaisseForSite(input: {
+  site: VenteSite;
+  user: SessionUser;
+}): Promise<CaisseSession> {
+  const existing = await getActiveCaisseForSite(input.site);
+  if (existing) return existing;
+
+  try {
+    return await openCaisse({
+      date: todayIsoDate(),
+      caisse: input.site,
+      user: input.user,
+      soldeInitial: 0,
+    });
+  } catch (error) {
+    // Course entre deux postes : l'autre a ouvert entre-temps.
+    const concurrente = await getActiveCaisseForSite(input.site);
+    if (concurrente) return concurrente;
+    throw error;
+  }
+}
+
 /** Date à laquelle stock, journal et CA doivent s'écrire pour cette zone. */
 export async function resolveOperatingDate(
   site: VenteSite,
