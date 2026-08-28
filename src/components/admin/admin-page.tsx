@@ -22,6 +22,7 @@ import {
 } from "@/lib/auth-types";
 import { exportAdminUsersExcel } from "@/lib/page-exports";
 import { BrandLoader } from "@/components/brand-loader";
+import { SiteRolesEditor } from "@/components/reglages/site-roles-editor";
 
 const ALL_ROLES: UserRole[] = [
   "gerant",
@@ -342,6 +343,8 @@ export function AdminPage() {
           </p>
         ) : null}
       </details>
+
+      <SiteRolesEditor />
 
       <section className="panel panel-wide admin-users-panel">
         <h2 className="panel-title">

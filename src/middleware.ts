@@ -26,7 +26,6 @@ const PWA_PUBLIC = ["/manifest.webmanifest", "/sw.js"];
 const API_VERS_ECRAN: Record<string, string> = {
   "/api/pos": "/vente",
   "/api/pos-config": "/reglages",
-  "/api/site-roles": "/reglages",
 };
 
 /**
@@ -46,6 +45,19 @@ function pageEquivalent(pathname: string): string {
     }
   }
   return pathname.replace(/^\/api/, "");
+}
+
+/** Politiques ventes : Équipe (/admin) ou Réglages POS. */
+function peutAccederSiteRoles(
+  role: Parameters<typeof canAccessPath>[0],
+  site: ReturnType<typeof effectiveSite>,
+  username: string,
+  nav: Parameters<typeof canAccessPath>[4],
+): boolean {
+  return (
+    canAccessPath(role, "/admin", site, username, nav) ||
+    canAccessPath(role, "/reglages", site, username, nav)
+  );
 }
 
 export async function middleware(request: NextRequest) {
@@ -78,6 +90,20 @@ export async function middleware(request: NextRequest) {
     }
 
     const site = effectiveSite(user.role, user.site);
+    if (
+      pathname === "/api/site-roles" ||
+      pathname.startsWith("/api/site-roles/")
+    ) {
+      if (
+        !peutAccederSiteRoles(user.role, site, user.username, user.nav)
+      ) {
+        return NextResponse.json(
+          { error: "Accès non autorisé pour ce rôle." },
+          { status: 403 },
+        );
+      }
+      return NextResponse.next();
+    }
     if (
       !canAccessPath(
         user.role,
