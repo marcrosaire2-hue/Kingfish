@@ -17,6 +17,71 @@ export type ExcelSheet = {
   totals?: string[];
 };
 
+/** Colonnes reconnues comme dates ISO → type date Excel (tri natif). */
+const COLONNES_DATE = /^(date|jour|date métier|du|au|première vente|dernière vente|créé|quand)$/i;
+
+/** Compare deux dates/heures ISO (YYYY-MM-DD ou ISO 8601). */
+export function compareIsoChronological(a: string, b: string): number {
+  return String(a ?? "").localeCompare(String(b ?? ""));
+}
+
+/** Tri croissant (plus ancien → plus récent) pour les exports comptables. */
+export function sortChronologically<T>(
+  rows: T[],
+  getDate: (row: T) => string,
+): T[] {
+  return [...rows].sort((x, y) =>
+    compareIsoChronological(getDate(x), getDate(y)),
+  );
+}
+
+/** Tri croissant sur plusieurs clés (date, puis heure, etc.). */
+export function sortChronologicallyBy<T>(
+  rows: T[],
+  ...getters: Array<(row: T) => string>
+): T[] {
+  return [...rows].sort((x, y) => {
+    for (const getter of getters) {
+      const cmp = compareIsoChronological(getter(x), getter(y));
+      if (cmp !== 0) return cmp;
+    }
+    return 0;
+  });
+}
+
+function parseIsoExcelValue(
+  raw: ExcelCell,
+): { d: Date; dateOnly: boolean } | null {
+  if (raw === null || raw === undefined || raw === "") return null;
+  const text = String(raw).trim();
+  if (!/^\d{4}-\d{2}-\d{2}/.test(text)) return null;
+  const dateOnly = !text.includes("T");
+  const d = new Date(dateOnly ? `${text}T12:00:00` : text);
+  return Number.isNaN(d.getTime()) ? null : { d, dateOnly };
+}
+
+function dateToExcelSerial(d: Date): number {
+  const epoch = Date.UTC(1899, 11, 30);
+  return (
+    (Date.UTC(
+      d.getFullYear(),
+      d.getMonth(),
+      d.getDate(),
+      d.getHours(),
+      d.getMinutes(),
+      d.getSeconds(),
+    ) -
+      epoch) /
+    86400000
+  );
+}
+
+function formatDateExcel(d: Date): string {
+  const hasTime =
+    d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0;
+  return hasTime ? "dd/mm/yyyy hh:mm" : "dd/mm/yyyy";
+}
+
 /* Couleurs de la marque, reprises de l’interface. */
 const BLEU = "004888";
 const OR = "F0B018";
@@ -155,8 +220,21 @@ function construireFeuille(sheet: ExcelSheet, titre: string): XLSX.WorkSheet {
         ? styleTotal(estNombre)
         : styleCellule(estNombre, (r - LIGNE_ENTETE) % 2 === 0);
 
-      // Séparateur de milliers : un montant à six chiffres est illisible sans.
-      if (estNombre && (estMonnaie || Math.abs(cellule.v as number) >= 1000)) {
+      const parsedDate =
+        !estTotal && COLONNES_DATE.test(nomColonne)
+          ? parseIsoExcelValue(cellule.v as ExcelCell)
+          : null;
+      if (parsedDate) {
+        cellule.t = "n";
+        cellule.v = dateToExcelSerial(parsedDate.d);
+        cellule.z = parsedDate.dateOnly
+          ? "dd/mm/yyyy"
+          : formatDateExcel(parsedDate.d);
+      } else if (
+        estNombre &&
+        (estMonnaie || Math.abs(cellule.v as number) >= 1000)
+      ) {
+        // Séparateur de milliers : un montant à six chiffres est illisible sans.
         cellule.z = "# ##0";
       }
     }

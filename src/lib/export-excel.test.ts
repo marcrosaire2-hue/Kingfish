@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx-js-style";
-import { buildWorkbook, excelFilename } from "@/lib/export-excel";
+import {
+  buildWorkbook,
+  compareIsoChronological,
+  excelFilename,
+  sortChronologically,
+  sortChronologicallyBy,
+} from "@/lib/export-excel";
 
 type Cellule = { v?: unknown; s?: Record<string, unknown>; z?: string };
 
@@ -135,6 +141,69 @@ describe("robustesse", () => {
     }) as Buffer;
     const relu = XLSX.read(buf, { type: "buffer" });
     expect(relu.SheetNames).toContain("Ventes");
+  });
+});
+
+describe("tri chronologique", () => {
+  it("compare les dates ISO en ordre croissant", () => {
+    expect(compareIsoChronological("2026-08-01", "2026-08-15")).toBeLessThan(0);
+    expect(compareIsoChronological("2026-08-15", "2026-08-01")).toBeGreaterThan(0);
+    expect(compareIsoChronological("2026-08-15", "2026-08-15")).toBe(0);
+  });
+
+  it("trie un tableau par date", () => {
+    const rows = [
+      { date: "2026-08-20", v: 3 },
+      { date: "2026-08-01", v: 1 },
+      { date: "2026-08-10", v: 2 },
+    ];
+    expect(sortChronologically(rows, (r) => r.date).map((r) => r.v)).toEqual([
+      1, 2, 3,
+    ]);
+  });
+
+  it("trie sur plusieurs clés (date puis heure)", () => {
+    const rows = [
+      { date: "2026-08-10", at: "2026-08-10T14:00:00Z", v: 2 },
+      { date: "2026-08-10", at: "2026-08-10T09:00:00Z", v: 1 },
+      { date: "2026-08-11", at: "2026-08-11T08:00:00Z", v: 3 },
+    ];
+    expect(
+      sortChronologicallyBy(
+        rows,
+        (r) => r.date,
+        (r) => r.at,
+      ).map((r) => r.v),
+    ).toEqual([1, 2, 3]);
+  });
+});
+
+describe("dates Excel", () => {
+  it("convertit les colonnes Date en type date Excel", () => {
+    const ws = buildWorkbook([
+      {
+        name: "Journal",
+        rows: [
+          { Date: "2026-08-12", Montant: 1000 },
+          { Date: "2026-08-01", Montant: 500 },
+        ],
+      },
+    ]).Sheets["Journal"]!;
+    // Ligne 4 = première donnée (ligne 3 = en-tête)
+    expect(cellule(ws, "A4")?.t).toBe("n");
+    expect(cellule(ws, "A4")?.z).toBe("dd/mm/yyyy");
+    expect(typeof cellule(ws, "A4")?.v).toBe("number");
+  });
+
+  it("formate Quand avec heure si présente", () => {
+    const ws = buildWorkbook([
+      {
+        name: "Registre",
+        rows: [{ Quand: "2026-08-12T14:30:00Z", Titre: "Test" }],
+      },
+    ]).Sheets["Registre"]!;
+    expect(cellule(ws, "A4")?.t).toBe("n");
+    expect(cellule(ws, "A4")?.z).toMatch(/dd\/mm\/yyyy/);
   });
 });
 

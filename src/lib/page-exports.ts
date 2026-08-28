@@ -2,6 +2,8 @@ import { computeBoissonsDay } from "@/lib/boissons-calc";
 import {
   downloadExcel,
   excelFilename,
+  sortChronologically,
+  sortChronologicallyBy,
   type ExcelSheet,
 } from "@/lib/export-excel";
 import type {
@@ -163,7 +165,7 @@ export async function exportZogboExcel(date: string): Promise<void> {
     },
     {
       name: "Mouvements plats",
-      rows: z.movements.map((m) => ({
+      rows: sortChronologically(z.movements, (m) => m.at).map((m) => ({
         Heure: m.at,
         Type: m.type === "prepare" ? "Préparation" : "Envoi",
         Plat: m.name,
@@ -309,7 +311,11 @@ export async function exportVenteExcel(
       name: "Journal",
       subtitle: `${siteLabel(site)} · ${date}`,
       totals: ["Qté", "Montant (FCFA)"],
-      rows: board.recent.map((e) => ({
+      rows: sortChronologicallyBy(
+        board.recent,
+        (e) => e.date || date,
+        (e) => e.at,
+      ).map((e) => ({
         Date: e.date || date,
         Site: siteLabel(e.site || site),
         Heure: heureLisible(e.at),
@@ -472,14 +478,16 @@ export async function exportSyntheseExcel(input: {
     });
     sheets.push({
       name: "Jours",
-      rows: (m.days ?? []).map((d) => ({
-        Date: String(d.date ?? ""),
-        "CA Zogbo": Number(d.caZogbo) || 0,
-        "CA Gbégamey": Number(d.caGbegamey) || 0,
-        "CA total": Number(d.caTotal) || 0,
-        Charges: Number(d.chargesTotal) || 0,
-        Résultat: Number(d.resultat) || 0,
-      })),
+      rows: sortChronologically(m.days ?? [], (d) => String(d.date ?? "")).map(
+        (d) => ({
+          Date: String(d.date ?? ""),
+          "CA Zogbo": Number(d.caZogbo) || 0,
+          "CA Gbégamey": Number(d.caGbegamey) || 0,
+          "CA total": Number(d.caTotal) || 0,
+          Charges: Number(d.chargesTotal) || 0,
+          Résultat: Number(d.resultat) || 0,
+        }),
+      ),
     });
     if (m.totals) {
       sheets.push({
@@ -508,7 +516,10 @@ export async function exportSyntheseExcel(input: {
     const yearNum = y.year ?? Number(input.year) ?? "";
     sheets.push({
       name: "Mois",
-      rows: (y.months ?? []).map((m) => ({
+      rows: sortChronologically(
+        y.months ?? [],
+        (m) => `${yearNum}-${String(Number(m.month) || 0).padStart(2, "0")}-01`,
+      ).map((m) => ({
         Année: yearNum,
         Mois: Number(m.month) || 0,
         "CA total": Number(m.caTotal) || 0,
@@ -557,18 +568,20 @@ export function exportHistoriqueExcel(
     },
     {
       name: "Registre",
-      rows: events.map((ev) => ({
-        Quand: ev.at,
-        Type: HISTORIQUE_KIND_LABELS[ev.kind] ?? ev.kind,
-        Site: siteLabel(ev.site),
-        "Date métier": ev.date ?? "",
-        Titre: ev.title,
-        Détail: ev.detail,
-        Acteur: formatActorLabel(ev),
-        "Identifiant compte": ev.actorUsername ?? "",
-        "Id compte": ev.actorId ?? "",
-        "Montant (FCFA)": ev.amount ?? "",
-      })),
+      rows: sortChronologicallyBy(events, (ev) => ev.date ?? "", (ev) => ev.at).map(
+        (ev) => ({
+          Quand: ev.at,
+          Type: HISTORIQUE_KIND_LABELS[ev.kind] ?? ev.kind,
+          Site: siteLabel(ev.site),
+          "Date métier": ev.date ?? "",
+          Titre: ev.title,
+          Détail: ev.detail,
+          Acteur: formatActorLabel(ev),
+          "Identifiant compte": ev.actorUsername ?? "",
+          "Id compte": ev.actorId ?? "",
+          "Montant (FCFA)": ev.amount ?? "",
+        }),
+      ),
     },
   ];
   downloadExcel(
@@ -633,24 +646,31 @@ export function exportHistoriqueVentesExcel(input: {
 }): void {
   const zone = input.site === "all" ? "tous" : input.site;
   const periode = `${siteLabel(zone)} · du ${input.from} au ${input.to}`;
-  const articleRows = input.tickets.flatMap((t) =>
-    t.lines.map((l) => ({
-      Date: t.date,
-      Heure: heureLisible(t.at),
-      Zone: siteLabel(t.site),
-      Statut: t.statutLabel || STATUT_LABEL[t.statut] || t.statut,
-      Source: SOURCE_LABEL[t.source] ?? t.source,
-      Type: t.typeVente,
-      Article: l.name,
-      Qté: l.qty,
-      "PU (FCFA)": l.unitPrice,
-      "Montant (FCFA)": l.amount,
-      Serveur: t.serveur ?? "",
-      Caissier: t.caissier ?? "",
-      Client: t.client ?? "",
-      Paiement: t.paiement ?? "",
-    })),
-  );
+  const articleRows = sortChronologicallyBy(
+    input.tickets.flatMap((t) =>
+      t.lines.map((l) => ({
+        date: t.date,
+        at: t.at,
+        Date: t.date,
+        Heure: heureLisible(t.at),
+        Zone: siteLabel(t.site),
+        Statut: t.statutLabel || STATUT_LABEL[t.statut] || t.statut,
+        Source: SOURCE_LABEL[t.source] ?? t.source,
+        Type: t.typeVente,
+        Article: l.name,
+        Qté: l.qty,
+        "PU (FCFA)": l.unitPrice,
+        "Montant (FCFA)": l.amount,
+        Serveur: t.serveur ?? "",
+        Caissier: t.caissier ?? "",
+        Client: t.client ?? "",
+        Paiement: t.paiement ?? "",
+      })),
+    ),
+    (r) => r.date,
+    (r) => r.at,
+    (r) => r.Article,
+  ).map(({ date: _d, at: _a, ...row }) => row);
   const sheets: ExcelSheet[] = [
     {
       name: "Filtres",
@@ -818,7 +838,8 @@ export function exportCaisseExcel(input: {
 }): void {
   const label = CAISSE_LABELS[input.caisse];
 
-  const historiqueRows = input.historique.map((s) => {
+  const historiqueRows = sortChronologically(input.historique, (s) => s.date).map(
+    (s) => {
     const t =
       typeof s.soldeTheoriqueCloture === "number"
         ? s.soldeTheoriqueCloture
@@ -851,9 +872,13 @@ export function exportCaisseExcel(input: {
       "Justification écart": s.justificationEcart ?? "",
       Observation: s.commentaire ?? "",
     };
-  });
+  },
+  );
 
-  const mouvementRows = input.activeMouvements.map((m) => ({
+  const mouvementRows = sortChronologically(
+    input.activeMouvements,
+    (m) => m.at,
+  ).map((m) => ({
     Heure: heureLisible(m.at),
     Type: MOUVEMENT_KIND_LABELS[m.kind] ?? m.kind,
     Nature: m.nature,
@@ -919,7 +944,7 @@ export function exportPertesExcel(input: {
   site: VenteSite | "tous";
   pertes: PerteEntry[];
 }): void {
-  const rows = input.pertes.map((p) => ({
+  const rows = sortChronologically(input.pertes, (p) => p.at).map((p) => ({
     Heure: heureLisible(p.at),
     Zone: siteLabel(p.site),
     Famille: kindLabel(p.kind),
@@ -1002,12 +1027,13 @@ export function exportJournalVentesExcel(input: {
 }): void {
   const zone = input.site === "all" ? "tous" : input.site;
   const periode = `${siteLabel(zone)} · du ${input.from} au ${input.to}`;
+  const daysOrdered = sortChronologically(input.days, (d) => d.date);
 
-  const daySheets: ExcelSheet[] = input.days.map((d) => ({
+  const daySheets: ExcelSheet[] = daysOrdered.map((d) => ({
     name: `Jour ${d.date}`,
     subtitle: `${siteLabel(zone)} · ${d.date} · ${d.nbTickets} ticket(s) · CA ${d.montant} FCFA`,
     totals: ["Quantité", "Montant (FCFA)"],
-    rows: d.lines.map((l) => ({
+    rows: sortChronologicallyBy(d.lines, (l) => d.date, (l) => l.at).map((l) => ({
       Jour: d.date,
       Heure: heureLisible(l.at),
       Article: l.produit,
@@ -1022,7 +1048,7 @@ export function exportJournalVentesExcel(input: {
       name: "Synthèse",
       subtitle: periode,
       totals: ["Tickets", "Lignes", "CA validé (FCFA)"],
-      rows: input.days.map((d) => ({
+      rows: daysOrdered.map((d) => ({
         Date: d.date,
         Tickets: d.nbTickets,
         Lignes: d.nbLignes,
@@ -1090,7 +1116,11 @@ export function exportJournalStockExcel(input: {
       name: "Mouvements",
       subtitle: titre,
       totals: ["Montant (FCFA)"],
-      rows: input.rows.map((r) => ({
+      rows: sortChronologicallyBy(
+        input.rows,
+        (r) => r.date,
+        (r) => r.at,
+      ).map((r) => ({
         Date: r.date,
         Heure: heureLisible(r.at),
         Zone: siteLabel(r.site),
@@ -1159,7 +1189,11 @@ export function exportJournalComptableExcel(input: {
     {
       name: "Journal",
       totals: ["Débit", "Crédit"],
-      rows: input.ecritures.map((e) => ({
+      rows: sortChronologicallyBy(
+        input.ecritures,
+        (e) => e.date,
+        (e) => e.piece,
+      ).map((e) => ({
         Date: e.date,
         Pièce: e.piece,
         Compte: e.compte,
@@ -1172,12 +1206,17 @@ export function exportJournalComptableExcel(input: {
     },
     {
       name: "Points d'attention",
-      rows: [
-        ...input.anomalies.map((a) => ({
+      rows: sortChronologicallyBy(
+        input.anomalies,
+        (a) => a.date,
+        (a) => a.message,
+      )
+        .map((a) => ({
           Date: a.date,
           Type: "Anomalie",
           Message: a.message,
-        })),
+        }))
+        .concat([
         {
           Date: `${input.from} → ${input.to}`,
           Type: "Pertes",
@@ -1189,7 +1228,7 @@ export function exportJournalComptableExcel(input: {
           Message:
             "Le mapping comptes/opérations est un défaut à faire valider par un expert-comptable avant toute déclaration.",
         },
-      ],
+      ]),
     },
   ];
   downloadExcel(excelFilename("journal-comptable", input.from, input.to), sheets);
@@ -1201,9 +1240,17 @@ export function exportGrandLivreExcel(input: {
   to: string;
   comptes: CompteGrandLivre[];
 }): void {
+  const comptes = [...input.comptes].sort((a, b) =>
+    a.compte.localeCompare(b.compte, "fr"),
+  );
   const rows: Record<string, string | number>[] = [];
-  for (const c of input.comptes) {
-    for (const m of c.mouvements) {
+  for (const c of comptes) {
+    const mouvements = sortChronologicallyBy(
+      c.mouvements,
+      (m) => m.date,
+      (m) => m.piece,
+    );
+    for (const m of mouvements) {
       rows.push({
         Compte: c.compte,
         "Libellé compte": c.compteLibelle,
@@ -1241,7 +1288,9 @@ export function exportBalanceExcel(input: {
     {
       name: "Balance",
       totals: ["Débit", "Crédit", "Solde débiteur", "Solde créditeur"],
-      rows: input.lignes.map((l) => ({
+      rows: [...input.lignes]
+        .sort((a, b) => a.compte.localeCompare(b.compte, "fr"))
+        .map((l) => ({
         Compte: l.compte,
         "Libellé compte": l.compteLibelle,
         Débit: l.debit,
@@ -1260,12 +1309,18 @@ export function exportBalanceExcel(input: {
  * pas — d'où l'écart affiché tant qu'un expert-comptable ne les a pas fournis.
  */
 export function exportBilanExcel(bilan: Omit<Bilan, "balance">): void {
+  const actif = [...bilan.actif].sort((a, b) =>
+    a.libelle.localeCompare(b.libelle, "fr"),
+  );
+  const passif = [...bilan.passif].sort((a, b) =>
+    a.libelle.localeCompare(b.libelle, "fr"),
+  );
   const sheets: ExcelSheet[] = [
     {
       name: "Bilan",
       rows: [
         { Colonne: "ACTIF", Poste: "", "Montant (FCFA)": "", Note: "" },
-        ...bilan.actif.map((l) => ({
+        ...actif.map((l) => ({
           Colonne: "",
           Poste: l.libelle,
           "Montant (FCFA)": l.montant,
@@ -1278,7 +1333,7 @@ export function exportBilanExcel(bilan: Omit<Bilan, "balance">): void {
           Note: "",
         },
         { Colonne: "PASSIF", Poste: "", "Montant (FCFA)": "", Note: "" },
-        ...bilan.passif.map((l) => ({
+        ...passif.map((l) => ({
           Colonne: "",
           Poste: l.libelle,
           "Montant (FCFA)": l.montant,
