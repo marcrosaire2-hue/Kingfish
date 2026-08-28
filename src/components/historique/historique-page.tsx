@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { formatDateFr, formatTimeFr } from "@/lib/datetime-fr";
@@ -19,6 +19,11 @@ import { BrandLoader } from "@/components/brand-loader";
 
 type SiteFilter = "all" | "zogbo" | "gbegamey";
 type KindFilter = HistoriqueKind | "all";
+type OriginFilter = "all" | "regularisation";
+
+import {
+  groupRegularisationEvents,
+} from "@/lib/historique-filters";
 
 function monthStartIso(d = todayIsoDate()): string {
   return `${d.slice(0, 7)}-01`;
@@ -69,6 +74,7 @@ export function HistoriquePage() {
   const [from, setFrom] = useState(() => monthStartIso());
   const [to, setTo] = useState(() => todayIsoDate());
   const [kind, setKind] = useState<KindFilter>("all");
+  const [origin, setOrigin] = useState<OriginFilter>("all");
   const [site, setSite] = useState<SiteFilter>("all");
   const [actorId, setActorId] = useState("");
   const [qInput, setQInput] = useState("");
@@ -88,6 +94,7 @@ export function HistoriquePage() {
         to,
         kind,
         site,
+        origin,
         limit: "300",
       });
       if (actorId) params.set("actorId", actorId);
@@ -117,7 +124,12 @@ export function HistoriquePage() {
     } finally {
       setLoading(false);
     }
-  }, [from, to, kind, site, actorId, q]);
+  }, [from, to, kind, site, origin, actorId, q]);
+
+  const regGroups = useMemo(
+    () => groupRegularisationEvents(events),
+    [events],
+  );
 
   useEffect(() => {
     void load();
@@ -176,6 +188,17 @@ export function HistoriquePage() {
           </select>
         </label>
         <label className="date-field">
+          <span>Origine</span>
+          <select
+            className="select-input"
+            value={origin}
+            onChange={(e) => setOrigin(e.target.value as OriginFilter)}
+          >
+            <option value="all">Toutes les ventes</option>
+            <option value="regularisation">Régularisation uniquement</option>
+          </select>
+        </label>
+        <label className="date-field">
           <span>Site</span>
           <select
             className="select-input"
@@ -230,6 +253,50 @@ export function HistoriquePage() {
         </p>
       ) : null}
 
+      {!loading && regGroups.length > 0 ? (
+        <section className="panel panel-wide reg-report">
+          <div className="panel-head">
+            <h2 className="panel-title">Ventes en régularisation</h2>
+            <p className="muted">
+              {regGroups.length} groupe{regGroups.length > 1 ? "s" : ""} · ajouts
+              et modifications liés
+            </p>
+          </div>
+          <div className="hist-reg-groups">
+            {regGroups.map((g) => (
+              <article key={g.key} className="hist-reg-group">
+                <header className="hist-reg-group-head">
+                  <strong>
+                    {g.ticketNumero ? `Ticket ${g.ticketNumero}` : "Ligne journal"}
+                  </strong>
+                  <span className="muted">
+                    Jour comptable {g.businessDate ?? "—"} · {siteLabel(g.site)}
+                  </span>
+                </header>
+                <ul className="hist-reg-timeline">
+                  {g.events.map((ev) => (
+                    <li key={ev.id}>
+                      <span className="mono">
+                        {formatDateFr(ev.at)} {formatTimeFr(ev.at)}
+                      </span>
+                      <span className={`hist-badge hist-badge-${ev.kind}`}>
+                        {actionLabel(ev)}
+                      </span>
+                      <span>{ev.productName ?? ev.title}</span>
+                      <span className="mono">{qtyLabel(ev)}</span>
+                      <span className="mono">
+                        {ev.amount != null ? formatFcfa(ev.amount) : "—"}
+                      </span>
+                      <span className="muted">{formatActorLabel(ev)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="panel panel-wide">
         <div className="table-scroll">
           <table className="data-table hist-table hist-detail-table">
@@ -280,6 +347,9 @@ export function HistoriquePage() {
                       <span className={`hist-badge hist-badge-${ev.kind}`}>
                         {actionLabel(ev)}
                       </span>
+                      {ev.regularisation ? (
+                        <span className="reg-late-badge">Régularisation</span>
+                      ) : null}
                       {ev.saisiTardif ? (
                         <span className="reg-late-badge">Saisi tardif</span>
                       ) : null}

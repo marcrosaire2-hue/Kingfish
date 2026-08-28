@@ -38,6 +38,9 @@ export async function GET(request: Request) {
     const siteRaw = (searchParams.get("site") || "all") as VenteSite | "all";
     const actorId = searchParams.get("actorId") || undefined;
     const q = searchParams.get("q") || undefined;
+    const originRaw = searchParams.get("origin") || "all";
+    const origin =
+      originRaw === "regularisation" ? "regularisation" : ("all" as const);
     const limit = Number(searchParams.get("limit") || "200");
 
     if (!KINDS.includes(kindRaw)) {
@@ -62,6 +65,7 @@ export async function GET(request: Request) {
         actorId,
         q,
         limit: Number.isFinite(limit) ? limit : 200,
+        origin,
       }),
       listUsers().catch(() => []),
     ]);

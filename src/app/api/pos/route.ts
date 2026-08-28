@@ -18,6 +18,7 @@ import {
 } from "@/lib/pos-repo";
 import type { SaleType, VenteKind, VenteSite } from "@/lib/types";
 import { reportError } from "@/lib/report-error";
+import { VENTE_SOURCE_REGULARISATION } from "@/lib/historique-types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
@@ -136,11 +137,16 @@ export async function POST(request: Request) {
         reduction: body.reduction,
         lines: body.lines || [],
       });
+      const isReg =
+        result.ticket.source === VENTE_SOURCE_REGULARISATION ||
+        result.ticket.date < todayIsoDate();
       await logActivity({
         user,
         kind: "pos",
         action: "ajout",
-        title: `Ticket POS · ${result.ticket.numero}`,
+        title: isReg
+          ? `Régularisation · ticket ${result.ticket.numero}`
+          : `Ticket POS · ${result.ticket.numero}`,
         detail: result.ticket.lines
           .map((l) => `${l.name} × ${l.qty}`)
           .join(" · "),
@@ -149,6 +155,7 @@ export async function POST(request: Request) {
         amount: result.ticket.montant,
         ticketNumero: result.ticket.numero,
         qty: result.ticket.lines.reduce((s, l) => s + l.qty, 0),
+        regularisation: isReg,
       });
       return NextResponse.json(result);
     }
@@ -179,6 +186,7 @@ export async function POST(request: Request) {
         amount: -result.ticket.montant,
         ticketNumero: result.ticket.numero,
         qty: result.ticket.lines.reduce((s, l) => s + l.qty, 0),
+        regularisation: body.date < todayIsoDate(),
       });
       return NextResponse.json(result);
     }

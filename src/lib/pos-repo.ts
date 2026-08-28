@@ -24,6 +24,7 @@ import {
   undoVente,
 } from "@/lib/vente-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { VENTE_SOURCE_REGULARISATION } from "@/lib/historique-types";
 import type {
   PosTicket,
   PosTicketLine,
@@ -67,6 +68,7 @@ function toTicket(doc: TicketDoc): PosTicket {
     shift: doc.shift,
     at: doc.at,
     cancelledAt: doc.cancelledAt ?? null,
+    source: doc.source ?? null,
   };
 }
 
@@ -246,6 +248,7 @@ export async function validatePosTicket(input: {
     : null;
 
   const saleType = input.saleType || "Sur place";
+  const saleSource = isBackdate ? VENTE_SOURCE_REGULARISATION : null;
 
   const reductionRaw = Math.round(Number(input.reduction) || 0);
   // Réduction commerciale : argent qui sort du ticket — tout rôle qui encaisse.
@@ -294,6 +297,7 @@ export async function validatePosTicket(input: {
               ? line.productId
               : null,
           actor,
+          source: saleSource,
         });
         createdLogIds.push(result.entry.id);
         ticketLines.push({
@@ -319,6 +323,7 @@ export async function validatePosTicket(input: {
           // erroné ou pas à jour : le stock reste indicatif, jamais bloquant
           // pour lui — pas seulement en correction d'un jour passé.
           bypassStock: manager,
+          source: saleSource,
         });
         createdLogIds.push(result.entry.id);
         ticketLines.push({
@@ -383,6 +388,7 @@ export async function validatePosTicket(input: {
       at: now,
       cancelledAt: null,
       clientRef: input.clientRef ?? null,
+      ...(saleSource ? { source: saleSource } : {}),
     };
 
     await db.collection<TicketDoc>("pos_tickets").insertOne(doc);

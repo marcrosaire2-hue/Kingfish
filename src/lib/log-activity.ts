@@ -25,6 +25,8 @@ type LogMeta = {
   previousQty?: number | null;
   unitPrice?: number | null;
   ticketNumero?: string | null;
+  venteLogId?: string | null;
+  regularisation?: boolean | null;
 };
 
 export async function logActivity(input: {
@@ -51,6 +53,8 @@ export async function logActivity(input: {
       previousQty: input.previousQty,
       unitPrice: input.unitPrice,
       ticketNumero: input.ticketNumero,
+      venteLogId: input.venteLogId,
+      regularisation: input.regularisation,
     });
   } catch (error) {
     console.error("historique log failed", error);
@@ -80,5 +84,7 @@ export async function logCriticalActivity(input: {
     previousQty: input.previousQty,
     unitPrice: input.unitPrice,
     ticketNumero: input.ticketNumero,
+    venteLogId: input.venteLogId,
+    regularisation: input.regularisation,
   });
 }

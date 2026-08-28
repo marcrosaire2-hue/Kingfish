@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import { isBackdatedRecord } from "@/lib/datetime-fr";
 import { isValidDate } from "@/lib/day-doc";
 import { formatFcfa } from "@/lib/format";
+import { filterRegularisationEvents } from "@/lib/historique-filters";
 import { getDb } from "@/lib/mongodb";
 import type { VenteKind, VenteSite } from "@/lib/types";
 import type {
@@ -11,6 +12,7 @@ import type {
   HistoriqueKind,
   HistoriqueSite,
 } from "@/lib/historique-types";
+import { VENTE_SOURCE_REGULARISATION } from "@/lib/historique-types";
 
 export type {
   HistoriqueActor,
@@ -41,6 +43,8 @@ type HistoriqueDoc = {
   previousQty?: number | null;
   unitPrice?: number | null;
   ticketNumero?: string | null;
+  venteLogId?: string | null;
+  regularisation?: boolean | null;
 };
 
 type VenteLogDoc = {
@@ -54,6 +58,7 @@ type VenteLogDoc = {
   unitPrice: number;
   amount: number;
   at: string;
+  source?: string | null;
   cancelledAt?: string | null;
   actorId?: string | null;
   actorName?: string | null;
@@ -85,6 +90,13 @@ function inferActionFromTitle(title: string): HistoriqueAction | null {
   return null;
 }
 
+function isRegularisationVente(doc: VenteLogDoc, atIso: string): boolean {
+  return (
+    doc.source === VENTE_SOURCE_REGULARISATION ||
+    isBackdatedRecord(doc.date, atIso)
+  );
+}
+
 function eventMeta(doc: {
   at: string;
   date: string | null;
@@ -94,6 +106,8 @@ function eventMeta(doc: {
   previousQty?: number | null;
   unitPrice?: number | null;
   ticketNumero?: string | null;
+  venteLogId?: string | null;
+  regularisation?: boolean | null;
 }): Pick<
   HistoriqueEvent,
   | "action"
@@ -102,6 +116,8 @@ function eventMeta(doc: {
   | "previousQty"
   | "unitPrice"
   | "ticketNumero"
+  | "venteLogId"
+  | "regularisation"
   | "saisiTardif"
 > {
   return {
@@ -111,6 +127,8 @@ function eventMeta(doc: {
     previousQty: doc.previousQty ?? null,
     unitPrice: doc.unitPrice ?? null,
     ticketNumero: doc.ticketNumero ?? null,
+    venteLogId: doc.venteLogId ?? null,
+    regularisation: !!doc.regularisation,
     saisiTardif: doc.date ? isBackdatedRecord(doc.date, doc.at) : false,
   };
 }
@@ -140,14 +158,18 @@ function venteDetail(doc: VenteLogDoc): string {
 }
 
 function venteToEvent(doc: VenteLogDoc): HistoriqueEvent {
+  const venteLogId = doc._id.toHexString();
   if (doc.cancelledAt) {
+    const regularisation = isRegularisationVente(doc, doc.cancelledAt);
     return {
-      id: `vente-annul-${doc._id.toHexString()}`,
+      id: `vente-annul-${venteLogId}`,
       at: doc.cancelledAt,
       date: doc.date,
       kind: "vente_annulee",
       site: doc.site,
-      title: `Annulation · ${doc.name}`,
+      title: regularisation
+        ? `Annulation régularisation · ${doc.name}`
+        : `Annulation · ${doc.name}`,
       detail: venteDetail(doc),
       actorId: doc.cancelledById ?? doc.actorId ?? null,
       actorName: doc.cancelledByName ?? doc.actorName ?? null,
@@ -157,17 +179,22 @@ function venteToEvent(doc: VenteLogDoc): HistoriqueEvent {
       productName: doc.name,
       qty: Math.abs(doc.qty),
       unitPrice: doc.unitPrice,
+      venteLogId,
+      regularisation,
       saisiTardif: isBackdatedRecord(doc.date, doc.cancelledAt),
     };
   }
 
+  const regularisation = isRegularisationVente(doc, doc.at);
   return {
-    id: `vente-${doc._id.toHexString()}`,
+    id: `vente-${venteLogId}`,
     at: doc.at,
     date: doc.date,
     kind: "vente",
     site: doc.site,
-    title: `Ajout · ${doc.name}`,
+    title: regularisation
+      ? `Régularisation · ${doc.name}`
+      : `Ajout · ${doc.name}`,
     detail: venteDetail(doc),
     actorId: doc.actorId ?? null,
     actorName: doc.actorName ?? null,
@@ -177,6 +204,8 @@ function venteToEvent(doc: VenteLogDoc): HistoriqueEvent {
     productName: doc.name,
     qty: Math.abs(doc.qty),
     unitPrice: doc.unitPrice,
+    venteLogId,
+    regularisation,
     saisiTardif: isBackdatedRecord(doc.date, doc.at),
   };
 }
@@ -195,6 +224,8 @@ export async function appendHistorique(input: {
   previousQty?: number | null;
   unitPrice?: number | null;
   ticketNumero?: string | null;
+  venteLogId?: string | null;
+  regularisation?: boolean | null;
 }): Promise<HistoriqueEvent> {
   const at = new Date().toISOString();
   const doc: HistoriqueDoc = {
@@ -215,6 +246,8 @@ export async function appendHistorique(input: {
     previousQty: input.previousQty ?? null,
     unitPrice: input.unitPrice ?? null,
     ticketNumero: input.ticketNumero ?? null,
+    venteLogId: input.venteLogId ?? null,
+    regularisation: input.regularisation ?? null,
   };
   const db = await getDb();
   await db.collection<HistoriqueDoc>("historique").insertOne(doc);
@@ -236,10 +269,12 @@ export async function listHistorique(input: {
   actorId?: string;
   q?: string;
   limit?: number;
+  origin?: "all" | "regularisation";
 }): Promise<{ events: HistoriqueEvent[]; total: number }> {
   const limit = Math.min(Math.max(input.limit ?? 200, 1), 500);
   const kind = input.kind ?? "all";
   const site = input.site ?? "all";
+  const origin = input.origin ?? "all";
   const actorId = input.actorId?.trim() || "";
   const q = input.q?.trim().toLowerCase() || "";
 
@@ -327,6 +362,7 @@ export async function listHistorique(input: {
         e.detail,
         e.productName ?? "",
         e.ticketNumero ?? "",
+        e.venteLogId ?? "",
         e.actorName ?? "",
         e.actorUsername ?? "",
       ]
@@ -334,6 +370,10 @@ export async function listHistorique(input: {
         .toLowerCase();
       return hay.includes(q);
     });
+  }
+
+  if (origin === "regularisation") {
+    events = filterRegularisationEvents(events);
   }
 
   events.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));

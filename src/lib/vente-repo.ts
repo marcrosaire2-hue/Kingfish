@@ -1191,6 +1191,7 @@ async function recordComboVente(
     actor?: VenteActor | null;
     bypassClosedDay?: boolean;
     bypassStock?: boolean;
+    source?: string | null;
   },
   qty: number,
 ): Promise<{
@@ -1291,6 +1292,7 @@ async function recordComboVente(
       actorUsername: input.actor?.username ?? null,
       shift: effectiveShift(input.actor?.shift),
       comboComponents: componentsSnap,
+      ...(input.source ? { source: input.source } : {}),
     });
   } catch (error) {
     for (const a of applied.reverse()) {
@@ -1353,6 +1355,8 @@ export async function recordVente(input: {
    * est nul ou insuffisant (régularisation). Le compteur `sold` monte quand même.
    */
   bypassStock?: boolean;
+  /** Origine de la saisie : `regularisation` pour un jour passé via /regularisation. */
+  source?: string | null;
 }): Promise<{
   entry: VenteLogEntry;
   soldToday: number;
@@ -1505,6 +1509,7 @@ export async function recordVente(input: {
       actorName: input.actor?.name ?? null,
       actorUsername: input.actor?.username ?? null,
       shift: effectiveShift(input.actor?.shift),
+      ...(input.source ? { source: input.source } : {}),
     });
   } catch (error) {
     try {
@@ -1549,6 +1554,7 @@ export async function recordExtraVente(input: {
   /** Fiche Immobilisations (emballage) : décrémente le stock à la vente. */
   immobilisationId?: string | null;
   actor?: VenteActor | null;
+  source?: string | null;
 }): Promise<{
   entry: VenteLogEntry;
   board: Awaited<ReturnType<typeof getVenteBoard>>;
@@ -1607,6 +1613,7 @@ export async function recordExtraVente(input: {
       actorName: input.actor?.name ?? null,
       actorUsername: input.actor?.username ?? null,
       shift: effectiveShift(input.actor?.shift),
+      ...(input.source ? { source: input.source } : {}),
     });
   } catch (error) {
     if (immoId) {
@@ -1854,6 +1861,7 @@ export async function editVenteQty(input: {
         unitPrice: doc.unitPrice,
         amount: doc.amount,
         at: doc.at,
+        source: doc.source ?? null,
       },
       previousQty: oldQty,
     };
@@ -1961,6 +1969,7 @@ export async function editVenteQty(input: {
       unitPrice: doc.unitPrice,
       amount: oldQty < 0 ? -Math.abs(amount) : Math.abs(amount),
       at: doc.at,
+      source: doc.source ?? null,
     },
     previousQty: oldQty,
   };

@@ -44,9 +44,16 @@ export type HistoriqueEvent = {
   previousQty?: number | null;
   unitPrice?: number | null;
   ticketNumero?: string | null;
+  /** Lien vers ventes_log pour regrouper ajouts / modifications. */
+  venteLogId?: string | null;
+  /** Vente saisie via la page Régularisation (jour passé). */
+  regularisation?: boolean;
   /** true si enregistré après le jour comptable affiché. */
   saisiTardif?: boolean;
 };
+
+/** Source ventes_log / ticket POS issu de la page Régularisation. */
+export const VENTE_SOURCE_REGULARISATION = "regularisation" as const;
 
 export type HistoriqueActor = {
   id: string;
