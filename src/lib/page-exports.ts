@@ -83,6 +83,22 @@ function siteLabel(site: string | null | undefined): string {
   return site || "—";
 }
 
+/** Jour comptable puis horodatage ISO — ordre chronologique croissant. */
+export function compareVenteChronology(
+  a: { date: string; at: string },
+  b: { date: string; at: string },
+): number {
+  const byDate = a.date.localeCompare(b.date);
+  if (byDate !== 0) return byDate;
+  return String(a.at).localeCompare(String(b.at));
+}
+
+function sortVentesChronologically<
+  T extends { date: string; at: string },
+>(items: T[]): T[] {
+  return [...items].sort(compareVenteChronology);
+}
+
 /** Paramètres — catalogues */
 export function exportParametresExcel(data: Parametres): void {
   const sheets: ExcelSheet[] = [
@@ -309,16 +325,22 @@ export async function exportVenteExcel(
       name: "Journal",
       subtitle: `${siteLabel(site)} · ${date}`,
       totals: ["Qté", "Montant (FCFA)"],
-      rows: board.recent.map((e) => ({
-        Date: e.date || date,
-        Site: siteLabel(e.site || site),
-        Heure: heureLisible(e.at),
-        Famille: kindLabel(e.kind),
-        Produit: e.name,
-        Qté: e.qty,
-        "PU (FCFA)": e.unitPrice,
-        "Montant (FCFA)": e.amount,
-      })),
+      rows: sortVentesChronologically(
+        board.recent.map((e) => ({
+          date: e.date || date,
+          at: e.at,
+          row: {
+            Date: e.date || date,
+            Site: siteLabel(e.site || site),
+            Heure: heureLisible(e.at),
+            Famille: kindLabel(e.kind),
+            Produit: e.name,
+            Qté: e.qty,
+            "PU (FCFA)": e.unitPrice,
+            "Montant (FCFA)": e.amount,
+          },
+        })),
+      ).map((e) => e.row),
     },
     {
       name: "Synthèse",
@@ -633,7 +655,8 @@ export function exportHistoriqueVentesExcel(input: {
 }): void {
   const zone = input.site === "all" ? "tous" : input.site;
   const periode = `${siteLabel(zone)} · du ${input.from} au ${input.to}`;
-  const articleRows = input.tickets.flatMap((t) =>
+  const tickets = sortVentesChronologically(input.tickets);
+  const articleRows = tickets.flatMap((t) =>
     t.lines.map((l) => ({
       Date: t.date,
       Heure: heureLisible(t.at),
@@ -1003,7 +1026,14 @@ export function exportJournalVentesExcel(input: {
   const zone = input.site === "all" ? "tous" : input.site;
   const periode = `${siteLabel(zone)} · du ${input.from} au ${input.to}`;
 
-  const daySheets: ExcelSheet[] = input.days.map((d) => ({
+  const days = [...input.days]
+    .sort((a, b) => a.date.localeCompare(b.date))
+    .map((d) => ({
+      ...d,
+      lines: [...d.lines].sort((a, b) => String(a.at).localeCompare(String(b.at))),
+    }));
+
+  const daySheets: ExcelSheet[] = days.map((d) => ({
     name: `Jour ${d.date}`,
     subtitle: `${siteLabel(zone)} · ${d.date} · ${d.nbTickets} ticket(s) · CA ${d.montant} FCFA`,
     totals: ["Quantité", "Montant (FCFA)"],
@@ -1022,7 +1052,7 @@ export function exportJournalVentesExcel(input: {
       name: "Synthèse",
       subtitle: periode,
       totals: ["Tickets", "Lignes", "CA validé (FCFA)"],
-      rows: input.days.map((d) => ({
+      rows: days.map((d) => ({
         Date: d.date,
         Tickets: d.nbTickets,
         Lignes: d.nbLignes,
