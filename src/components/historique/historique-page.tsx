@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
+import { formatDateFr, formatTimeFr } from "@/lib/datetime-fr";
 import { formatFcfa } from "@/lib/format";
 import {
   formatActorLabel,
+  HISTORIQUE_ACTION_LABELS,
   HISTORIQUE_KIND_LABELS,
   type HistoriqueActor,
   type HistoriqueEvent,
@@ -22,18 +24,6 @@ function monthStartIso(d = todayIsoDate()): string {
   return `${d.slice(0, 7)}-01`;
 }
 
-function formatWhen(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      dateStyle: "short",
-      timeStyle: "medium",
-      timeZone: "Africa/Porto-Novo",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}
-
 function siteLabel(site: HistoriqueEvent["site"]): string {
   if (site === "zogbo") return "Zogbo";
   if (site === "gbegamey") return "Gbégamey";
@@ -41,10 +31,26 @@ function siteLabel(site: HistoriqueEvent["site"]): string {
   return "—";
 }
 
+function actionLabel(ev: HistoriqueEvent): string {
+  if (ev.action) return HISTORIQUE_ACTION_LABELS[ev.action];
+  if (ev.kind === "vente_annulee") return "Annulation";
+  if (ev.kind === "vente") return "Ajout";
+  return HISTORIQUE_KIND_LABELS[ev.kind];
+}
+
+function qtyLabel(ev: HistoriqueEvent): string {
+  if (ev.action === "modification" && ev.previousQty != null && ev.qty != null) {
+    return `${ev.previousQty} → ${ev.qty}`;
+  }
+  if (ev.qty != null) return String(ev.qty);
+  return "—";
+}
+
 const KIND_OPTIONS: { value: KindFilter; label: string }[] = [
   { value: "all", label: "Tout" },
-  { value: "vente", label: "Ventes" },
-  { value: "vente_annulee", label: "Annulations" },
+  { value: "vente", label: "Ventes (ajouts)" },
+  { value: "vente_annulee", label: "Annulations vente" },
+  { value: "pos", label: "Tickets POS / modifs / suppressions" },
   { value: "transfert", label: "Transferts" },
   { value: "zogbo", label: "Zogbo" },
   { value: "gbegamey", label: "Gbégamey" },
@@ -53,7 +59,6 @@ const KIND_OPTIONS: { value: KindFilter; label: string }[] = [
   { value: "charges", label: "Charges" },
   { value: "user", label: "Utilisateurs" },
   { value: "caisse", label: "Caisse" },
-  { value: "pos", label: "Tickets POS" },
   { value: "matieres", label: "Matières" },
   { value: "immobilisations", label: "Immobilisations" },
   { value: "pertes", label: "Pertes" },
@@ -121,7 +126,7 @@ export function HistoriquePage() {
   return (
     <AppShell
       title="Registre"
-      subtitle="Tous les mouvements liés au compte qui les a effectués : ventes, caisse, POS, stocks, paramètres."
+      subtitle="Chronologie des actions avec date et heure de saisie, jour comptable, article, quantités et montants."
       actions={
         <>
           <ExportExcelButton
@@ -208,7 +213,7 @@ export function HistoriquePage() {
               if (e.key === "Enter") setQ(qInput.trim());
             }}
             onBlur={() => setQ(qInput.trim())}
-            placeholder="Nom, détail, @identifiant…"
+            placeholder="Article, ticket, @identifiant…"
           />
         </label>
       </div>
@@ -216,7 +221,7 @@ export function HistoriquePage() {
       <p className="section-hint">
         {loading
           ? "Chargement…"
-          : `${events.length} événement${events.length > 1 ? "s" : ""}`}
+          : `${events.length} événement${events.length > 1 ? "s" : ""} · filtre par date de saisie`}
       </p>
 
       {error ? (
@@ -226,60 +231,82 @@ export function HistoriquePage() {
       ) : null}
 
       <section className="panel panel-wide">
-        <table className="data-table hist-table">
-          <thead>
-            <tr>
-              <th scope="col">Quand</th>
-              <th scope="col">Type</th>
-              <th scope="col">Site</th>
-              <th scope="col">Jour</th>
-              <th scope="col">Événement</th>
-              <th scope="col">Par</th>
-              <th scope="col" className="col-money">
-                Montant
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
+        <div className="table-scroll">
+          <table className="data-table hist-table hist-detail-table">
+            <thead>
               <tr>
-                <td colSpan={7}>
-                      <BrandLoader variant="ligne" label="Chargement…" />
-                    </td>
+                <th scope="col">Saisi le</th>
+                <th scope="col">Heure</th>
+                <th scope="col">Action</th>
+                <th scope="col">Jour comptable</th>
+                <th scope="col">Site</th>
+                <th scope="col">Article</th>
+                <th scope="col">Ticket</th>
+                <th scope="col" className="col-money">
+                  Qté
+                </th>
+                <th scope="col" className="col-money">
+                  PU
+                </th>
+                <th scope="col" className="col-money">
+                  Montant
+                </th>
+                <th scope="col">Par</th>
+                <th scope="col">Détail</th>
               </tr>
-            ) : events.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="muted">
-                  Aucun événement sur cette période. Les ventes et
-                  enregistrements apparaîtront ici au fur et à mesure.
-                </td>
-              </tr>
-            ) : (
-              events.map((ev) => (
-                <tr key={ev.id} className={`hist-row hist-kind-${ev.kind}`}>
-                  <td className="mono hist-when">{formatWhen(ev.at)}</td>
-                  <td>
-                    <span className={`hist-badge hist-badge-${ev.kind}`}>
-                      {HISTORIQUE_KIND_LABELS[ev.kind]}
-                    </span>
-                  </td>
-                  <td>{siteLabel(ev.site)}</td>
-                  <td className="mono">{ev.date ?? "—"}</td>
-                  <td>
-                    <div className="hist-event-title">{ev.title}</div>
-                    <div className="hist-event-detail muted">{ev.detail}</div>
-                  </td>
-                  <td>{formatActorLabel(ev)}</td>
-                  <td className="col-money mono cell-readonly">
-                    {ev.amount === null || ev.amount === undefined
-                      ? "—"
-                      : formatFcfa(ev.amount)}
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={12}>
+                    <BrandLoader variant="ligne" label="Chargement…" />
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ) : events.length === 0 ? (
+                <tr>
+                  <td colSpan={12} className="muted">
+                    Aucun événement sur cette période.
+                  </td>
+                </tr>
+              ) : (
+                events.map((ev) => (
+                  <tr
+                    key={ev.id}
+                    className={`hist-row hist-kind-${ev.kind}${ev.saisiTardif ? " reg-row-late" : ""}`}
+                  >
+                    <td className="mono">{formatDateFr(ev.at)}</td>
+                    <td className="mono">{formatTimeFr(ev.at)}</td>
+                    <td>
+                      <span className={`hist-badge hist-badge-${ev.kind}`}>
+                        {actionLabel(ev)}
+                      </span>
+                      {ev.saisiTardif ? (
+                        <span className="reg-late-badge">Saisi tardif</span>
+                      ) : null}
+                    </td>
+                    <td className="mono">{ev.date ?? "—"}</td>
+                    <td>{siteLabel(ev.site)}</td>
+                    <td className="cell-name">
+                      <strong>{ev.productName ?? ev.title.replace(/^[^·]+·\s*/, "")}</strong>
+                    </td>
+                    <td className="mono">{ev.ticketNumero ?? "—"}</td>
+                    <td className="mono col-money">{qtyLabel(ev)}</td>
+                    <td className="mono col-money">
+                      {ev.unitPrice != null ? formatFcfa(ev.unitPrice) : "—"}
+                    </td>
+                    <td className="mono col-money">
+                      {ev.amount === null || ev.amount === undefined
+                        ? "—"
+                        : formatFcfa(ev.amount)}
+                    </td>
+                    <td>{formatActorLabel(ev)}</td>
+                    <td className="hist-event-detail muted">{ev.detail}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </section>
     </AppShell>
   );

@@ -451,7 +451,11 @@ export async function cancelPosTicket(input: {
   site: VenteSite;
 }): Promise<{
   board: Awaited<ReturnType<typeof getVenteBoard>>;
-  ticket: { numero: string; montant: number };
+  ticket: {
+    numero: string;
+    montant: number;
+    lines: Array<{ name: string; qty: number }>;
+  };
 }> {
   if (!ObjectId.isValid(input.id)) throw new Error("Ticket invalide");
   const db = await getDb();
@@ -534,7 +538,14 @@ export async function cancelPosTicket(input: {
   const board = await getVenteBoard(doc.date, input.site);
   return {
     board,
-    ticket: { numero: doc.numero, montant: doc.montant },
+    ticket: {
+      numero: doc.numero,
+      montant: doc.montant,
+      lines: (doc.lines || []).map((l) => ({
+        name: String(l.name || ""),
+        qty: Number(l.qty) || 0,
+      })),
+    },
   };
 }
 

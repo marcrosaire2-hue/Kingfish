@@ -1812,6 +1812,7 @@ export async function editVenteQty(input: {
 }): Promise<{
   board: Awaited<ReturnType<typeof getVenteBoard>>;
   entry: VenteLogEntry;
+  previousQty: number;
 }> {
   const newQty = Math.round(Number(input.qty) || 0);
   if (!Number.isFinite(newQty) || newQty < 1) {
@@ -1854,6 +1855,7 @@ export async function editVenteQty(input: {
         amount: doc.amount,
         at: doc.at,
       },
+      previousQty: oldQty,
     };
   }
 
@@ -1960,6 +1962,7 @@ export async function editVenteQty(input: {
       amount: oldQty < 0 ? -Math.abs(amount) : Math.abs(amount),
       at: doc.at,
     },
+    previousQty: oldQty,
   };
 }
 
@@ -2042,7 +2045,14 @@ export async function deleteVentePermanently(input: {
   site: VenteSite;
   bypassClosedDay?: boolean;
   skipPosUpdate?: boolean;
-}): Promise<{ id: string; name: string; amount: number; date: string }> {
+}): Promise<{
+  id: string;
+  name: string;
+  amount: number;
+  date: string;
+  qty: number;
+  unitPrice: number;
+}> {
   if (!ObjectId.isValid(input.id)) throw new Error("Vente invalide");
   const db = await getDb();
   const doc = await db.collection<VenteLogDoc>("ventes_log").findOne({
@@ -2082,5 +2092,7 @@ export async function deleteVentePermanently(input: {
     name: doc.name,
     amount: doc.amount,
     date: doc.date,
+    qty: doc.qty,
+    unitPrice: doc.unitPrice,
   };
 }

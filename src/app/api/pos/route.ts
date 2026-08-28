@@ -139,11 +139,16 @@ export async function POST(request: Request) {
       await logActivity({
         user,
         kind: "pos",
+        action: "ajout",
         title: `Ticket POS · ${result.ticket.numero}`,
-        detail: `${result.ticket.lines.length} ligne(s) · ${result.ticket.saleType}`,
+        detail: result.ticket.lines
+          .map((l) => `${l.name} × ${l.qty}`)
+          .join(" · "),
         date: result.ticket.date,
         site,
         amount: result.ticket.montant,
+        ticketNumero: result.ticket.numero,
+        qty: result.ticket.lines.reduce((s, l) => s + l.qty, 0),
       });
       return NextResponse.json(result);
     }
@@ -164,11 +169,16 @@ export async function POST(request: Request) {
       await logActivity({
         user,
         kind: "pos",
+        action: "annulation",
         title: `Annulation ticket · ${result.ticket.numero}`,
-        detail: `Site ${site === "zogbo" ? "Zogbo" : "Gbégamey"}`,
+        detail: result.ticket.lines
+          .map((l) => `${l.name} × ${l.qty}`)
+          .join(" · "),
         date: body.date,
         site,
         amount: -result.ticket.montant,
+        ticketNumero: result.ticket.numero,
+        qty: result.ticket.lines.reduce((s, l) => s + l.qty, 0),
       });
       return NextResponse.json(result);
     }
@@ -199,11 +209,13 @@ export async function POST(request: Request) {
       await logCriticalActivity({
         user,
         kind: "pos",
+        action: "suppression",
         title: `Suppression définitive ticket · ${result.ticket.numero}`,
-        detail: `Motif : ${String(body.reason).trim()} · ${result.ticket.deletedLines} ligne(s) journal`,
+        detail: `${result.ticket.deletedLines} ligne(s) · Motif : ${String(body.reason).trim()}`,
         date: body.date,
         site,
         amount: -result.ticket.montant,
+        ticketNumero: result.ticket.numero,
       });
       return NextResponse.json(result);
     }

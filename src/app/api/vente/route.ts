@@ -200,6 +200,22 @@ export async function POST(request: Request) {
         bypassTeam: true,
         bypassStock: true,
       });
+      if (result.previousQty !== result.entry.qty) {
+        await logActivity({
+          user,
+          kind: "pos",
+          action: "modification",
+          title: `Modification · ${result.entry.name}`,
+          detail: `Qté ${result.previousQty} → ${result.entry.qty} · PU ${result.entry.unitPrice} FCFA · jour ${result.entry.date}`,
+          date: result.entry.date,
+          site,
+          amount: result.entry.amount,
+          productName: result.entry.name,
+          qty: result.entry.qty,
+          previousQty: result.previousQty,
+          unitPrice: result.entry.unitPrice,
+        });
+      }
       return NextResponse.json(result);
     }
 
@@ -226,11 +242,15 @@ export async function POST(request: Request) {
       await logCriticalActivity({
         user,
         kind: "pos",
+        action: "suppression",
         title: `Suppression définitive · ${deleted.name}`,
-        detail: `Motif : ${String(body.reason).trim()} · site ${site === "zogbo" ? "Zogbo" : "Gbégamey"}`,
+        detail: `${deleted.qty ?? "?"} × ${deleted.name} · Motif : ${String(body.reason).trim()}`,
         date: deleted.date,
         site,
         amount: -deleted.amount,
+        productName: deleted.name,
+        qty: deleted.qty,
+        unitPrice: deleted.unitPrice,
       });
       const board = await getVenteBoard(deleted.date, site);
       return NextResponse.json({ deleted, board });

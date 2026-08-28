@@ -19,6 +19,12 @@ export type HistoriqueKind =
 
 export type HistoriqueSite = VenteSite | "tous" | null;
 
+export type HistoriqueAction =
+  | "ajout"
+  | "modification"
+  | "suppression"
+  | "annulation";
+
 export type HistoriqueEvent = {
   id: string;
   at: string;
@@ -31,6 +37,15 @@ export type HistoriqueEvent = {
   actorName: string | null;
   actorUsername: string | null;
   amount: number | null;
+  /** Action vente explicite (ajout, correction, suppression…). */
+  action?: HistoriqueAction | null;
+  productName?: string | null;
+  qty?: number | null;
+  previousQty?: number | null;
+  unitPrice?: number | null;
+  ticketNumero?: string | null;
+  /** true si enregistré après le jour comptable affiché. */
+  saisiTardif?: boolean;
 };
 
 export type HistoriqueActor = {
@@ -55,6 +70,13 @@ export const HISTORIQUE_KIND_LABELS: Record<HistoriqueKind, string> = {
   immobilisations: "Immobilisations",
   pertes: "Pertes",
   reprise: "Reprise d’historique",
+};
+
+export const HISTORIQUE_ACTION_LABELS: Record<HistoriqueAction, string> = {
+  ajout: "Ajout",
+  modification: "Modification",
+  suppression: "Suppression",
+  annulation: "Annulation",
 };
 
 export function formatActorLabel(ev: {
