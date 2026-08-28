@@ -27,6 +27,7 @@ import {
 } from "@/lib/vente-repo";
 import { purgeVentesByDateRange } from "@/lib/pos-repo";
 import type { VenteKind, VenteSite } from "@/lib/types";
+import { VENTE_SOURCE_REGULARISATION } from "@/lib/historique-types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
@@ -200,6 +201,29 @@ export async function POST(request: Request) {
         bypassTeam: true,
         bypassStock: true,
       });
+      if (result.previousQty !== result.entry.qty) {
+        const isReg =
+          result.entry.source === VENTE_SOURCE_REGULARISATION ||
+          result.entry.date < todayIsoDate();
+        await logActivity({
+          user,
+          kind: "pos",
+          action: "modification",
+          title: isReg
+            ? `Modification régularisation · ${result.entry.name}`
+            : `Modification · ${result.entry.name}`,
+          detail: `Qté ${result.previousQty} → ${result.entry.qty} · PU ${result.entry.unitPrice} FCFA · jour ${result.entry.date}`,
+          date: result.entry.date,
+          site,
+          amount: result.entry.amount,
+          productName: result.entry.name,
+          qty: result.entry.qty,
+          previousQty: result.previousQty,
+          unitPrice: result.entry.unitPrice,
+          venteLogId: body.id,
+          regularisation: isReg,
+        });
+      }
       return NextResponse.json(result);
     }
 
@@ -226,11 +250,17 @@ export async function POST(request: Request) {
       await logCriticalActivity({
         user,
         kind: "pos",
+        action: "suppression",
         title: `Suppression définitive · ${deleted.name}`,
-        detail: `Motif : ${String(body.reason).trim()} · site ${site === "zogbo" ? "Zogbo" : "Gbégamey"}`,
+        detail: `${deleted.qty ?? "?"} × ${deleted.name} · Motif : ${String(body.reason).trim()}`,
         date: deleted.date,
         site,
         amount: -deleted.amount,
+        productName: deleted.name,
+        qty: deleted.qty,
+        unitPrice: deleted.unitPrice,
+        venteLogId: body.id,
+        regularisation: deleted.date < todayIsoDate(),
       });
       const board = await getVenteBoard(deleted.date, site);
       return NextResponse.json({ deleted, board });

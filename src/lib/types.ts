@@ -915,6 +915,8 @@ export type PosTicket = {
   shift?: UserShift;
   at: string;
   cancelledAt: string | null;
+  /** `regularisation` si saisi via la page Régularisation (jour passé). */
+  source?: string | null;
 };
 
 /** Journée matières / appro */

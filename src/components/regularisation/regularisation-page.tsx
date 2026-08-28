@@ -5,6 +5,12 @@ import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { formatFcfa } from "@/lib/format";
+import {
+  formatDateFr,
+  formatTimeFr,
+} from "@/lib/datetime-fr";
+import type { RegularisationReport } from "@/lib/regularisation-repo";
+import { kindLabel } from "@/lib/regularisation-repo";
 import type {
   Immobilisation,
   PosTicket,
@@ -71,6 +77,7 @@ export function RegularisationPage() {
   /** Articles accumulés avant validation groupée en une seule facture. */
   const [panier, setPanier] = useState<PanierLine[]>([]);
   const [reduction, setReduction] = useState("0");
+  const [report, setReport] = useState<RegularisationReport | null>(null);
 
   const products = useMemo(() => {
     if (!board) return [];
@@ -84,7 +91,7 @@ export function RegularisationPage() {
     setLoading(true);
     setError(null);
     try {
-      const [venteRes, posRes, embRes] = await Promise.all([
+      const [venteRes, posRes, embRes, reportRes] = await Promise.all([
         fetch(
           `/api/vente?date=${encodeURIComponent(date)}&site=${site}&limit=80`,
           { cache: "no-store" },
@@ -94,6 +101,10 @@ export function RegularisationPage() {
         }),
         fetch(
           `/api/immobilisations?kind=emballage&active=1&site=${encodeURIComponent(site)}`,
+          { cache: "no-store" },
+        ),
+        fetch(
+          `/api/regularisation?date=${encodeURIComponent(date)}&site=${site}`,
           { cache: "no-store" },
         ),
       ]);
@@ -122,10 +133,18 @@ export function RegularisationPage() {
       } else {
         setEmballages([]);
       }
+
+      if (reportRes.ok) {
+        const reportBody = (await reportRes.json()) as RegularisationReport;
+        setReport(reportBody);
+      } else {
+        setReport(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
       setBoard(null);
       setTickets([]);
+      setReport(null);
     } finally {
       setLoading(false);
     }
@@ -452,6 +471,170 @@ export function RegularisationPage() {
           <p className="ui-info" role="status">
             {flash}
           </p>
+        ) : null}
+
+        {report ? (
+          <section className="panel panel-wide reg-report">
+            <div className="panel-head">
+              <h2 className="panel-title">Rapport détaillé · {date}</h2>
+              <p className="muted">
+                {report.totals.lignes} ligne{report.totals.lignes > 1 ? "s" : ""}{" "}
+                · {report.totals.ticketsValides} ticket
+                {report.totals.ticketsValides > 1 ? "s" : ""} validé
+                {report.totals.ticketsValides > 1 ? "s" : ""}
+                {report.totals.saisiTardif.tickets > 0
+                  ? ` · ${report.totals.saisiTardif.tickets} saisi(s) tardif(s)`
+                  : ""}
+              </p>
+            </div>
+
+            <div className="reg-report-totaux">
+              <div className="reg-report-stat">
+                <span>CA validé</span>
+                <strong className="mono">{formatFcfa(report.totals.montantValide)}</strong>
+              </div>
+              <div className="reg-report-stat">
+                <span>Saisi tardif</span>
+                <strong className="mono">
+                  {formatFcfa(report.totals.saisiTardif.montant)}
+                </strong>
+                <span className="muted">
+                  {report.totals.saisiTardif.lignes} ligne
+                  {report.totals.saisiTardif.lignes > 1 ? "s" : ""}
+                </span>
+              </div>
+            </div>
+
+            {report.tickets.length > 0 ? (
+              <div className="reg-report-block">
+                <h3 className="reg-report-subtitle">Tickets POS</h3>
+                <div className="table-scroll">
+                  <table className="data-table reg-report-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Ticket</th>
+                        <th scope="col">Saisi le</th>
+                        <th scope="col">Heure</th>
+                        <th scope="col">Type</th>
+                        <th scope="col">Par</th>
+                        <th scope="col">Statut</th>
+                        <th scope="col" className="col-money">
+                          Montant
+                        </th>
+                        <th scope="col">Articles</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.tickets.map((t) => (
+                        <tr
+                          key={t.id}
+                          className={t.saisiTardif ? "reg-row-late" : undefined}
+                        >
+                          <td className="cell-name">
+                            <strong>{t.numero}</strong>
+                            {t.saisiTardif ? (
+                              <span className="reg-late-badge">Saisi tardif</span>
+                            ) : null}
+                          </td>
+                          <td className="mono">{formatDateFr(t.at)}</td>
+                          <td className="mono">{formatTimeFr(t.at)}</td>
+                          <td>{t.saleType}</td>
+                          <td>{t.userName || "—"}</td>
+                          <td>{t.statutLabel}</td>
+                          <td className="mono col-money">
+                            {formatFcfa(t.montant)}
+                          </td>
+                          <td>
+                            <ul className="hist-line-list">
+                              {t.lines.map((l, i) => (
+                                <li key={`${t.id}-${i}`}>
+                                  {l.name} × {l.qty} ·{" "}
+                                  <span className="mono">
+                                    {formatFcfa(l.amount)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {report.lines.length > 0 ? (
+              <div className="reg-report-block">
+                <h3 className="reg-report-subtitle">
+                  Détail ligne par ligne (journal)
+                </h3>
+                <div className="table-scroll">
+                  <table className="data-table reg-report-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Saisi le</th>
+                        <th scope="col">Heure</th>
+                        <th scope="col">Ticket</th>
+                        <th scope="col">Catégorie</th>
+                        <th scope="col">Article</th>
+                        <th scope="col" className="col-money">
+                          Qté
+                        </th>
+                        <th scope="col" className="col-money">
+                          PU
+                        </th>
+                        <th scope="col" className="col-money">
+                          Montant
+                        </th>
+                        <th scope="col">Par</th>
+                        <th scope="col">Statut</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.lines.map((l) => (
+                        <tr
+                          key={l.id}
+                          className={l.saisiTardif ? "reg-row-late" : undefined}
+                        >
+                          <td className="mono">{formatDateFr(l.at)}</td>
+                          <td className="mono">{formatTimeFr(l.at)}</td>
+                          <td>{l.ticketNumero || "—"}</td>
+                          <td>{kindLabel(l.kind)}</td>
+                          <td className="cell-name">
+                            <strong>{l.name}</strong>
+                            {l.saisiTardif ? (
+                              <span className="reg-late-badge">Saisi tardif</span>
+                            ) : null}
+                          </td>
+                          <td className="mono col-money">{l.qty}</td>
+                          <td className="mono col-money">
+                            {formatFcfa(l.unitPrice)}
+                          </td>
+                          <td className="mono col-money">
+                            {formatFcfa(l.amount)}
+                          </td>
+                          <td>
+                            {l.actorName || "—"}
+                            {l.actorUsername ? (
+                              <span className="cell-sub">@{l.actorUsername}</span>
+                            ) : null}
+                          </td>
+                          <td>{l.statutLabel}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+
+            {!report.tickets.length && !report.lines.length ? (
+              <p className="muted reg-empty">
+                Aucune vente enregistrée pour ce jour.
+              </p>
+            ) : null}
+          </section>
         ) : null}
 
         {loading ? (

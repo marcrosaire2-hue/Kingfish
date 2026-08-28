@@ -1,4 +1,5 @@
 import type { SessionUser } from "@/lib/auth-types";
+import type { HistoriqueAction } from "@/lib/historique-types";
 import {
   appendHistorique,
   type HistoriqueActor,
@@ -17,6 +18,17 @@ export function actorOf(
   };
 }
 
+type LogMeta = {
+  action?: HistoriqueAction | null;
+  productName?: string | null;
+  qty?: number | null;
+  previousQty?: number | null;
+  unitPrice?: number | null;
+  ticketNumero?: string | null;
+  venteLogId?: string | null;
+  regularisation?: boolean | null;
+};
+
 export async function logActivity(input: {
   user?: SessionUser | null;
   kind: Exclude<HistoriqueKind, "vente">;
@@ -25,7 +37,7 @@ export async function logActivity(input: {
   date?: string | null;
   site?: HistoriqueSite;
   amount?: number | null;
-}): Promise<void> {
+} & LogMeta): Promise<void> {
   try {
     await appendHistorique({
       kind: input.kind,
@@ -35,6 +47,14 @@ export async function logActivity(input: {
       site: input.site,
       amount: input.amount,
       actor: actorOf(input.user),
+      action: input.action,
+      productName: input.productName,
+      qty: input.qty,
+      previousQty: input.previousQty,
+      unitPrice: input.unitPrice,
+      ticketNumero: input.ticketNumero,
+      venteLogId: input.venteLogId,
+      regularisation: input.regularisation,
     });
   } catch (error) {
     console.error("historique log failed", error);
@@ -49,7 +69,7 @@ export async function logCriticalActivity(input: {
   date?: string | null;
   site?: HistoriqueSite;
   amount?: number | null;
-}): Promise<void> {
+} & LogMeta): Promise<void> {
   await appendHistorique({
     kind: input.kind,
     title: input.title,
@@ -58,5 +78,13 @@ export async function logCriticalActivity(input: {
     site: input.site,
     amount: input.amount,
     actor: actorOf(input.user),
+    action: input.action,
+    productName: input.productName,
+    qty: input.qty,
+    previousQty: input.previousQty,
+    unitPrice: input.unitPrice,
+    ticketNumero: input.ticketNumero,
+    venteLogId: input.venteLogId,
+    regularisation: input.regularisation,
   });
 }
