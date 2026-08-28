@@ -8,7 +8,12 @@ import {
   sortChronologicallyBy,
 } from "@/lib/export-excel";
 
-type Cellule = { v?: unknown; s?: Record<string, unknown>; z?: string };
+type Cellule = {
+  v?: unknown;
+  t?: string;
+  s?: Record<string, unknown>;
+  z?: string;
+};
 
 function feuille(nom = "Ventes") {
   return {
