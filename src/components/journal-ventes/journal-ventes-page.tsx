@@ -103,6 +103,10 @@ export function JournalVentesPage() {
   const [paiement, setPaiement] = useState("");
   const [q, setQ] = useState("");
   const [lockedSite, setLockedSite] = useState(false);
+  const [allowedSites, setAllowedSites] = useState<("zogbo" | "gbegamey")[]>([
+    "zogbo",
+    "gbegamey",
+  ]);
   const [result, setResult] = useState<JournalVenteResult>(EMPTY_RESULT);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -141,8 +145,14 @@ export function JournalVentesPage() {
       if (body.lockedSite && body.site && body.site !== "all") {
         setLockedSite(true);
         setSite(body.site as SiteFilter);
-      } else       if (typeof body.lockedSite === "boolean") {
-        setLockedSite(!!body.lockedSite);
+      } else if (typeof body.lockedSite === "boolean") {
+        setLockedSite(body.lockedSite);
+        if (body.site && body.site !== "all") {
+          setSite(body.site as SiteFilter);
+        }
+      }
+      if (Array.isArray(body.allowedSites) && body.allowedSites.length > 0) {
+        setAllowedSites(body.allowedSites);
       }
       setCanManagePast(!!body.canManagePast);
       setCanPurge(!!body.canPurge);
@@ -357,10 +367,19 @@ export function JournalVentesPage() {
     }
   }
 
+  const pageSubtitle = useMemo(() => {
+    const base =
+      "Tickets POS, journal et importés — détail ligne par ligne, filtres et export.";
+    if (lockedSite && site !== "all") {
+      return `${base} Données limitées à l'agence ${siteLabel(site)}.`;
+    }
+    return base;
+  }, [lockedSite, site]);
+
   return (
     <AppShell
       title="Journal des ventes"
-      subtitle="Tickets POS, journal et importés — détail ligne par ligne, filtres et export."
+      subtitle={pageSubtitle}
       actions={
         <>
           <ExportExcelButton
@@ -406,16 +425,29 @@ export function JournalVentesPage() {
         </label>
         <label className="date-field">
           <span>Site</span>
-          <select
-            className="select-input"
-            value={site}
-            onChange={(e) => setSite(e.target.value as SiteFilter)}
-            disabled={lockedSite}
-          >
-            {!lockedSite ? <option value="all">Tous</option> : null}
-            <option value="zogbo">Zogbo</option>
-            <option value="gbegamey">Gbégamey</option>
-          </select>
+          {lockedSite ? (
+            <input
+              type="text"
+              className="select-input"
+              value={siteLabel(site)}
+              readOnly
+              aria-readonly
+            />
+          ) : (
+            <select
+              className="select-input"
+              value={site}
+              onChange={(e) => setSite(e.target.value as SiteFilter)}
+            >
+              <option value="all">Tous</option>
+              {allowedSites.includes("zogbo") ? (
+                <option value="zogbo">Zogbo</option>
+              ) : null}
+              {allowedSites.includes("gbegamey") ? (
+                <option value="gbegamey">Gbégamey</option>
+              ) : null}
+            </select>
+          )}
         </label>
         <label className="date-field">
           <span>Statut</span>
@@ -547,6 +579,7 @@ export function JournalVentesPage() {
               day={day}
               formatHeure={formatHeureOnly}
               siteLabel={siteLabel}
+              hideSiteColumn={lockedSite}
               busyTicketId={busyTicketId}
               busyLineId={busyLineId}
               canManagePast={canManagePast}
@@ -566,6 +599,7 @@ function JournalDayBlock({
   day,
   formatHeure,
   siteLabel,
+  hideSiteColumn,
   busyTicketId,
   busyLineId,
   canManagePast,
@@ -578,6 +612,7 @@ function JournalDayBlock({
   day: JournalVenteDay;
   formatHeure: (iso: string) => string;
   siteLabel: (site: string) => string;
+  hideSiteColumn: boolean;
   busyTicketId: string | null;
   busyLineId: string | null;
   canManagePast: boolean;
@@ -620,6 +655,7 @@ function JournalDayBlock({
         lines={day.lines}
         formatHeure={formatHeure}
         siteLabel={siteLabel}
+        hideSiteColumn={hideSiteColumn}
         busyTicketId={busyTicketId}
         busyLineId={busyLineId}
         canManagePast={canManagePast}
@@ -637,6 +673,7 @@ function JournalLinesTable({
   lines,
   formatHeure,
   siteLabel,
+  hideSiteColumn,
   busyTicketId,
   busyLineId,
   canManagePast,
@@ -649,6 +686,7 @@ function JournalLinesTable({
   lines: JournalVenteLine[];
   formatHeure: (iso: string) => string;
   siteLabel: (site: string) => string;
+  hideSiteColumn: boolean;
   busyTicketId: string | null;
   busyLineId: string | null;
   canManagePast: boolean;
@@ -677,7 +715,7 @@ function JournalLinesTable({
             <tr>
               <th scope="col">Heure</th>
               <th scope="col">Ticket</th>
-              <th scope="col">Site</th>
+              {hideSiteColumn ? null : <th scope="col">Site</th>}
               <th scope="col">Catégorie</th>
               <th scope="col">Type</th>
               <th scope="col">Serveur</th>
@@ -709,7 +747,7 @@ function JournalLinesTable({
                     <span className="cell-sub">Table {l.table}</span>
                   ) : null}
                 </td>
-                <td>{siteLabel(l.site)}</td>
+                {hideSiteColumn ? null : <td>{siteLabel(l.site)}</td>}
                 <td>{CATEGORY_LABELS[venteCategory(l.kind)]}</td>
                 <td>{l.typeVente}</td>
                 <td>{l.serveur || "—"}</td>
@@ -777,7 +815,7 @@ function JournalLinesTable({
           </tbody>
           <tfoot>
             <tr>
-              <th scope="row" colSpan={8}>
+              <th scope="row" colSpan={hideSiteColumn ? 7 : 8}>
                 Total du jour (Validé)
               </th>
               <td className="mono col-money">{totalQty}</td>

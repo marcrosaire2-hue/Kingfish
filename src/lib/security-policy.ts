@@ -31,6 +31,17 @@ export type SiteAuthResult =
   | { ok: true; site: VenteSite }
   | { ok: false; status: 400 | 403; error: string };
 
+export type VentesHistorySiteFilter = "all" | VenteSite;
+
+export type VentesHistorySiteAuthResult =
+  | {
+      ok: true;
+      site: VentesHistorySiteFilter;
+      lockedSite: boolean;
+      allowedSites: readonly VenteSite[];
+    }
+  | { ok: false; status: 400 | 403; error: string };
+
 /**
  * Autorise un site demandé par le client.
  * Un objet Mongo (`$ne`, …) ou une valeur non site est rejetée.
@@ -78,6 +89,47 @@ export function authorizeRequestedSite(
     return { ok: false, status: 403, error: "Site non autorisé." };
   }
   return { ok: true, site: requested };
+}
+
+/**
+ * Résout le filtre « site » du journal / historique des ventes.
+ * Compte de zone : toujours sa zone — « all », l'autre site ou un paramètre
+ * absent ne peuvent pas élargir la requête Mongo.
+ * Compte multi-sites (tous) : « all » ou une zone explicite.
+ */
+export function resolveVentesHistorySite(
+  userSite: UserSite,
+  requested: unknown,
+): VentesHistorySiteAuthResult {
+  const lockedSite = userSite !== "tous";
+  const allowedSites: readonly VenteSite[] =
+    userSite === "tous" ? (["zogbo", "gbegamey"] as const) : [userSite];
+
+  if (requested === undefined || requested === null || requested === "") {
+    if (userSite === "tous") {
+      return { ok: true, site: "all", lockedSite, allowedSites };
+    }
+    return { ok: true, site: userSite, lockedSite, allowedSites };
+  }
+
+  if (typeof requested !== "string") {
+    return { ok: false, status: 400, error: "Site invalide." };
+  }
+
+  if (requested === "all") {
+    if (userSite === "tous") {
+      return { ok: true, site: "all", lockedSite, allowedSites };
+    }
+    return { ok: true, site: userSite, lockedSite, allowedSites };
+  }
+
+  const decision = authorizeRequestedSite(userSite, requested);
+  if (!decision.ok) return decision;
+
+  if (userSite === "tous") {
+    return { ok: true, site: decision.site, lockedSite, allowedSites };
+  }
+  return { ok: true, site: userSite, lockedSite, allowedSites };
 }
 
 export type PolicyDecision =

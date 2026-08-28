@@ -10,6 +10,7 @@ import {
   hasProtectedMassAssignment,
   isValidAuditReason,
   parseFiniteAmount,
+  resolveVentesHistorySite,
   shouldRevokeSessions,
 } from "@/lib/security-policy";
 
@@ -85,6 +86,62 @@ describe("IDOR de site", () => {
     const r = authorizeRequestedSite("zogbo", { $ne: "gbegamey" });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.status).toBe(400);
+  });
+});
+
+describe("journal / historique des ventes — filtre site", () => {
+  it("verrouille un gérant Zogbo sur sa zone même avec site=all ou gbegamey", () => {
+    for (const requested of ["all", "gbegamey", null, ""]) {
+      expect(resolveVentesHistorySite("zogbo", requested)).toEqual({
+        ok: true,
+        site: "zogbo",
+        lockedSite: true,
+        allowedSites: ["zogbo"],
+      });
+    }
+  });
+
+  it("verrouille un gérant Gbégamey sur sa zone", () => {
+    expect(resolveVentesHistorySite("gbegamey", "zogbo")).toEqual({
+      ok: true,
+      site: "gbegamey",
+      lockedSite: true,
+      allowedSites: ["gbegamey"],
+    });
+    expect(resolveVentesHistorySite("gbegamey", "all")).toEqual({
+      ok: true,
+      site: "gbegamey",
+      lockedSite: true,
+      allowedSites: ["gbegamey"],
+    });
+  });
+
+  it("autorise un compte multi-sites à agréger ou choisir une zone", () => {
+    expect(resolveVentesHistorySite("tous", "all")).toEqual({
+      ok: true,
+      site: "all",
+      lockedSite: false,
+      allowedSites: ["zogbo", "gbegamey"],
+    });
+    expect(resolveVentesHistorySite("tous", "gbegamey")).toEqual({
+      ok: true,
+      site: "gbegamey",
+      lockedSite: false,
+      allowedSites: ["zogbo", "gbegamey"],
+    });
+  });
+
+  it("rejette un site ou un opérateur Mongo invalides", () => {
+    expect(resolveVentesHistorySite("zogbo", { $ne: "gbegamey" })).toEqual({
+      ok: false,
+      status: 400,
+      error: "Site invalide.",
+    });
+    expect(resolveVentesHistorySite("tous", "invalid")).toEqual({
+      ok: false,
+      status: 400,
+      error: "Site invalide.",
+    });
   });
 });
 

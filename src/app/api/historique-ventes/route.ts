@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canUseSite } from "@/lib/auth-types";
+import { resolveVentesHistorySite } from "@/lib/security-policy";
 import {
   listVentesHistory,
   type VenteHistorySource,
   type VenteHistoryStatut,
 } from "@/lib/ventes-history-repo";
-import type { VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
@@ -21,7 +20,17 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const from = searchParams.get("from") || monthStart();
     const to = searchParams.get("to") || todayIsoDate();
-    const siteRaw = (searchParams.get("site") || "all") as "all" | VenteSite;
+    const siteDecision = resolveVentesHistorySite(
+      user.site,
+      searchParams.get("site"),
+    );
+    if (!siteDecision.ok) {
+      return NextResponse.json(
+        { error: siteDecision.error },
+        { status: siteDecision.status },
+      );
+    }
+
     const statut = (searchParams.get("statut") || "all") as VenteHistoryStatut;
     const source = (searchParams.get("source") ||
       "all") as VenteHistorySource;
@@ -36,25 +45,10 @@ export async function GET(request: Request) {
           ? Number(limitRaw)
           : 200;
 
-    if (siteRaw !== "all" && siteRaw !== "zogbo" && siteRaw !== "gbegamey") {
-      return NextResponse.json({ error: "Site invalide." }, { status: 400 });
-    }
-    if (
-      siteRaw !== "all" &&
-      !canUseSite(user.site, siteRaw)
-    ) {
-      return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
-    }
-
-    let site: "all" | VenteSite = siteRaw;
-    if (user.site !== "tous") {
-      site = user.site;
-    }
-
     const result = await listVentesHistory({
       from,
       to,
-      site,
+      site: siteDecision.site,
       statut,
       source,
       serveur,
@@ -65,12 +59,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       ...result,
-      site,
-      lockedSite: user.site !== "tous",
-      allowedSites:
-        user.site === "tous"
-          ? (["zogbo", "gbegamey"] as const)
-          : ([user.site] as const),
+      site: siteDecision.site,
+      lockedSite: siteDecision.lockedSite,
+      allowedSites: siteDecision.allowedSites,
     });
   } catch (error) {
     return authErrorResponse(error);
