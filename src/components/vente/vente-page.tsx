@@ -37,6 +37,10 @@ import type {
   VenteSite,
 } from "@/lib/types";
 import { previousIsoDate, shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
+import {
+  venteActionEnabled,
+  type SiteRolesConfig,
+} from "@/lib/site-roles-model";
 
 type Board = {
   date: string;
@@ -568,6 +572,7 @@ type TicketsListProps = {
   busyKey: string | null;
   canViewHistory: boolean;
   canPurge: boolean;
+  canCancel: boolean;
   onFacture: (ticket: PosTicket) => void;
   onCancel: (ticket: PosTicket) => void;
   onDeletePermanent: (ticket: PosTicket) => void;
@@ -578,6 +583,7 @@ const TicketsList = memo(function TicketsList({
   busyKey,
   canViewHistory,
   canPurge,
+  canCancel,
   onFacture,
   onCancel,
   onDeletePermanent,
@@ -616,14 +622,16 @@ const TicketsList = memo(function TicketsList({
                   >
                     Facture
                   </button>
-                  <button
-                    type="button"
-                    className="btn-link"
-                    disabled={!!busyKey}
-                    onClick={() => onCancel(t)}
-                  >
-                    Annuler
-                  </button>
+                  {canCancel ? (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={!!busyKey}
+                      onClick={() => onCancel(t)}
+                    >
+                      Annuler
+                    </button>
+                  ) : null}
                   {canPurge ? (
                     <button
                       type="button"
@@ -695,6 +703,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [ruptureAlert, setRuptureAlert] = useState<string | null>(null);
   const [canManagePast, setCanManagePast] = useState(false);
   const [canPurge, setCanPurge] = useState(false);
+  const [sitePolicies, setSitePolicies] = useState<SiteRolesConfig | null>(null);
   /** Masquer temporairement les produits en rupture (gérant / encadrement). */
   const [hideUnavailable, setHideUnavailable] = useState(false);
   /** Ruptures connues au dernier chargement (pour ne signaler que les nouvelles). */
@@ -800,6 +809,9 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       setBoard(venteBody as Board);
       setCanManagePast(Boolean(venteBody.canManagePast));
       setCanPurge(Boolean(venteBody.canPurge));
+      if (venteBody.sitePolicies) {
+        setSitePolicies(venteBody.sitePolicies as SiteRolesConfig);
+      }
       // Toujours aligner l'UI sur le site autorisé par le serveur (anti-IDOR).
       const resolvedSite =
         (venteBody.site as VenteSite | undefined) ??
@@ -942,8 +954,15 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     };
   }, [site]);
 
-  /** Encaissement possible : caisse du jour, ou correction gérant (backdate). */
-  const canSell = Boolean(caisse) || backdateMode;
+  /** Encaissement possible : caisse du jour, correction gérant, et droit rôle/site. */
+  const canSell =
+    (Boolean(caisse) || backdateMode) &&
+    venteActionEnabled(
+      sitePolicies,
+      sessionUser?.role,
+      board?.site ?? site ?? "zogbo",
+      "sell",
+    );
 
   const plats = useMemo(
     () => board?.products.filter((p) => p.kind === "plat") ?? [],
@@ -1238,6 +1257,16 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   /** Site réellement affiché / utilisé : board serveur > session > état local. */
   const activeSite: VenteSite = board?.site ?? site ?? "zogbo";
   const siteLabel = activeSite === "zogbo" ? "Zogbo" : "Gbégamey";
+  const userRole = sessionUser?.role;
+  const canCancelSite = venteActionEnabled(
+    sitePolicies,
+    userRole,
+    activeSite,
+    "cancel",
+  );
+  const canDeleteSite =
+    canPurge &&
+    venteActionEnabled(sitePolicies, userRole, activeSite, "delete");
   const recentCount = board?.recent.length ?? 0;
   const cartTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const reductionN = Math.max(
@@ -2123,7 +2152,8 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   tickets={tickets}
                   busyKey={busyKey}
                   canViewHistory={canViewHistory}
-                  canPurge={canPurge}
+                  canPurge={canDeleteSite}
+                  canCancel={canCancelSite}
                   onFacture={openFacture}
                   onCancel={cancelTicket}
                   onDeletePermanent={deleteTicketPermanent}
@@ -2280,15 +2310,17 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   </div>
                 </div>
                 <span className="reg-actions">
-                  <button
-                    type="button"
-                    className="btn-link"
-                    disabled={!!busyKey}
-                    onClick={() => void undo(entry)}
-                  >
-                    Annuler
-                  </button>
-                  {canPurge ? (
+                  {canCancelSite ? (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={!!busyKey}
+                      onClick={() => void undo(entry)}
+                    >
+                      Annuler
+                    </button>
+                  ) : null}
+                  {canDeleteSite ? (
                     <button
                       type="button"
                       className="btn-link btn-link-danger"

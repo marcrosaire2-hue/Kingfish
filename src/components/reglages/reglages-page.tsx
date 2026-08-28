@@ -13,12 +13,14 @@ import type {
   PosServeur,
 } from "@/lib/types";
 import { BrandLoader } from "@/components/brand-loader";
+import { SiteRolesEditor } from "@/components/reglages/site-roles-editor";
 
 type Tab =
   | "paiements"
   | "serveurs"
   | "fournisseurs"
   | "entreprise"
+  | "roles"
   | "compte";
 
 const TABS: { key: Tab; label: string }[] = [
@@ -26,6 +28,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "serveurs", label: "Serveurs" },
   { key: "fournisseurs", label: "Fournisseurs" },
   { key: "entreprise", label: "Entreprise" },
+  { key: "roles", label: "Rôles" },
   { key: "compte", label: "Mon compte" },
 ];
 
@@ -250,6 +253,8 @@ export function ReglagesPage() {
 
       {tab === "compte" ? (
         <PasswordEditor />
+      ) : tab === "roles" ? (
+        <SiteRolesEditor />
       ) : loading || !data ? (
         <BrandLoader variant="ligne" label="Chargement des réglages…" />
       ) : tab === "paiements" ? (

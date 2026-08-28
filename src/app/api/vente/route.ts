@@ -7,12 +7,15 @@ import {
 } from "@/lib/auth-types";
 import {
   authorizeRequestedSite,
-  authorizeDestructiveSale,
   canCorrectClosedFinancialData,
-  canPurgeFinancialData,
   containsMongoOperator,
   parseFiniteAmount,
 } from "@/lib/security-policy";
+import { ventePermissionsFor } from "@/lib/site-roles-model";
+import {
+  authorizePermanentDelete,
+  authorizeVenteAction,
+} from "@/lib/site-roles-policy";
 import { consumeRateLimit, rateLimitResponse } from "@/lib/security-rate-limit";
 import { logActivity, logCriticalActivity } from "@/lib/log-activity";
 import { reportError } from "@/lib/report-error";
@@ -26,6 +29,7 @@ import {
   deleteVentePermanently,
 } from "@/lib/vente-repo";
 import { purgeVentesByDateRange } from "@/lib/pos-repo";
+import { getSiteRolesConfig } from "@/lib/site-roles-repo";
 import type { VenteKind, VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
@@ -100,18 +104,24 @@ export async function GET(request: Request) {
     }
     const date = await resolveOperatingDate(site, requested, { allowBackdate });
     const recentLimit = Number(searchParams.get("limit") || 40) || 40;
-    const board = await getVenteBoard(date, site, { recentLimit });
+    const [board, siteRoles] = await Promise.all([
+      getVenteBoard(date, site, { recentLimit }),
+      getSiteRolesConfig(),
+    ]);
+    const ventePerms = ventePermissionsFor(siteRoles, user.role, site);
     return NextResponse.json({
       ...board,
       backdate: allowBackdate && date < todayIsoDate(),
-      canManagePast: allowBackdate,
-      canPurge: canPurgeFinancialData(user.role),
+      canManagePast: allowBackdate && ventePerms.modify,
+      canPurge: ventePerms.delete,
       canCorrectClosed: canCorrectClosedFinancialData(user.role),
       lockedSite: user.site !== "tous",
       allowedSites:
         user.site === "tous"
           ? (["zogbo", "gbegamey"] as VenteSite[])
           : [user.site],
+      sitePolicies: siteRoles,
+      ventePermissions: ventePerms,
     });
   } catch (error) {
     return authErrorResponse(error);
@@ -151,11 +161,21 @@ export async function POST(request: Request) {
       );
     }
     const site = siteDecision.site;
+    const siteRoles = await getSiteRolesConfig();
     // Gérant / DAF / admin / comptable : corriger un jour passé (ouvert ou
     // clôturé). La suppression définitive et la purge restent admin-only.
     const closedBypass = manager;
 
     if (body.action === "undo") {
+      const gate = authorizeVenteAction({
+        config: siteRoles,
+        role: user.role,
+        site,
+        action: "cancel",
+      });
+      if (!gate.ok) {
+        return NextResponse.json({ error: gate.error }, { status: gate.status });
+      }
       if (!body.id || !body.date) {
         return NextResponse.json(
           { error: "id et date requis pour annuler." },
@@ -174,11 +194,14 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "edit") {
-      if (!manager) {
-        return NextResponse.json(
-          { error: "Modification réservée au gérant ou à l'administrateur." },
-          { status: 403 },
-        );
+      const gate = authorizeVenteAction({
+        config: siteRoles,
+        role: user.role,
+        site,
+        action: "modify",
+      });
+      if (!gate.ok) {
+        return NextResponse.json({ error: gate.error }, { status: gate.status });
       }
       if (!body.id || body.qty === undefined) {
         return NextResponse.json(
@@ -204,9 +227,10 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "delete") {
-      const gate = authorizeDestructiveSale({
+      const gate = authorizePermanentDelete({
+        config: siteRoles,
         role: user.role,
-        action: "delete",
+        site,
         reason: body.reason,
       });
       if (!gate.ok) {
@@ -237,11 +261,13 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "purge") {
-      const gate = authorizeDestructiveSale({
+      const gate = authorizePermanentDelete({
+        config: siteRoles,
         role: user.role,
-        action: "purge",
+        site,
         reason: body.reason,
         confirm: body.confirm,
+        purge: true,
       });
       if (!gate.ok) {
         return NextResponse.json({ error: gate.error }, { status: gate.status });
@@ -271,6 +297,18 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "extra") {
+      const sellGate = authorizeVenteAction({
+        config: siteRoles,
+        role: user.role,
+        site,
+        action: "sell",
+      });
+      if (!sellGate.ok) {
+        return NextResponse.json(
+          { error: sellGate.error },
+          { status: sellGate.status },
+        );
+      }
       if (body.description === undefined || body.unitPrice === undefined) {
         return NextResponse.json(
           { error: "description et unitPrice requis." },
@@ -294,6 +332,19 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: "kind et productId requis." },
         { status: 400 },
+      );
+    }
+
+    const sellGate = authorizeVenteAction({
+      config: siteRoles,
+      role: user.role,
+      site,
+      action: "sell",
+    });
+    if (!sellGate.ok) {
+      return NextResponse.json(
+        { error: sellGate.error },
+        { status: sellGate.status },
       );
     }
 

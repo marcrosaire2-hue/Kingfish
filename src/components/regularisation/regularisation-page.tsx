@@ -13,6 +13,11 @@ import type {
   VenteSite,
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { useSession } from "@/components/session-provider";
+import {
+  venteActionEnabled,
+  type SiteRolesConfig,
+} from "@/lib/site-roles-model";
 
 type Board = {
   date: string;
@@ -46,6 +51,7 @@ function formatWhen(iso: string): string {
 }
 
 export function RegularisationPage() {
+  const { user: sessionUser } = useSession();
   const [date, setDate] = useState(() => todayIsoDate());
   /** Remplacé dès /api/auth/me pour coller à la zone du compte (Zogbo/Gbégamey). */
   const [site, setSite] = useState<VenteSite>("zogbo");
@@ -58,6 +64,7 @@ export function RegularisationPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [sitePolicies, setSitePolicies] = useState<SiteRolesConfig | null>(null);
 
   const [kind, setKind] = useState<"plat" | "local" | "boisson" | "extra">(
     "extra",
@@ -100,6 +107,9 @@ export function RegularisationPage() {
       const venteBody = await venteRes.json();
       if (!venteRes.ok) throw new Error(venteBody.error || "Erreur vente");
       setBoard(venteBody as Board);
+      if (venteBody.sitePolicies) {
+        setSitePolicies(venteBody.sitePolicies as SiteRolesConfig);
+      }
       if (venteBody.site) setSite(venteBody.site as VenteSite);
       if (Array.isArray(venteBody.allowedSites)) {
         setAllowedSites(venteBody.allowedSites as VenteSite[]);
@@ -372,6 +382,10 @@ export function RegularisationPage() {
   }
 
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
+  const userRole = sessionUser?.role;
+  const canCancelSite = venteActionEnabled(sitePolicies, userRole, site, "cancel");
+  const canModifySite = venteActionEnabled(sitePolicies, userRole, site, "modify");
+  const canSellSite = venteActionEnabled(sitePolicies, userRole, site, "sell");
   const isPast = date < todayIsoDate();
 
   return (
@@ -716,7 +730,7 @@ export function RegularisationPage() {
                   <button
                     type="button"
                     className="btn btn-primary reg-field-full"
-                    disabled={busy || !isPast}
+                    disabled={busy || !isPast || !canSellSite}
                     onClick={() => void validerFacture()}
                   >
                     {busy
@@ -766,7 +780,9 @@ export function RegularisationPage() {
                                   <span>
                                     {l.name} × {l.qty}
                                   </span>
-                                  {t.statut === "valide" && l.venteLogId ? (
+                                  {t.statut === "valide" &&
+                                  l.venteLogId &&
+                                  canModifySite ? (
                                     <>
                                       <button
                                         type="button"
@@ -797,7 +813,7 @@ export function RegularisationPage() {
                             </span>
                           </td>
                           <td>
-                            {t.statut === "valide" ? (
+                            {t.statut === "valide" && canCancelSite ? (
                               <span className="reg-actions">
                                 <button
                                   type="button"

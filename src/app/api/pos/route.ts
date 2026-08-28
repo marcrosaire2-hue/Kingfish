@@ -3,11 +3,14 @@ import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
 import {
   authorizeRequestedSite,
-  authorizeDestructiveSale,
   canCorrectClosedFinancialData,
-  canPurgeFinancialData,
   containsMongoOperator,
 } from "@/lib/security-policy";
+import { ventePermissionsFor } from "@/lib/site-roles-model";
+import {
+  authorizePermanentDelete,
+  authorizeVenteAction,
+} from "@/lib/site-roles-policy";
 import { consumeRateLimit, rateLimitResponse } from "@/lib/security-rate-limit";
 import { logActivity, logCriticalActivity } from "@/lib/log-activity";
 import {
@@ -16,6 +19,7 @@ import {
   getPosContext,
   validatePosTicket,
 } from "@/lib/pos-repo";
+import { getSiteRolesConfig } from "@/lib/site-roles-repo";
 import type { SaleType, VenteKind, VenteSite } from "@/lib/types";
 import { reportError } from "@/lib/report-error";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -61,21 +65,27 @@ export async function GET(request: Request) {
       );
     }
     const site = siteDecision.site;
-    const ctx = await getPosContext({
-      date: requested,
-      site,
-      allowBackdate: canManagePastVentes(user.role),
-      user,
-    });
+    const [ctx, siteRoles] = await Promise.all([
+      getPosContext({
+        date: requested,
+        site,
+        allowBackdate: canManagePastVentes(user.role),
+        user,
+      }),
+      getSiteRolesConfig(),
+    ]);
+    const ventePerms = ventePermissionsFor(siteRoles, user.role, site);
     return NextResponse.json({
       ...ctx,
-      canManagePast: canManagePastVentes(user.role),
-      canPurge: canPurgeFinancialData(user.role),
+      canManagePast: canManagePastVentes(user.role) && ventePerms.modify,
+      canPurge: ventePerms.delete,
       lockedSite: user.site !== "tous",
       allowedSites:
         user.site === "tous"
           ? (["zogbo", "gbegamey"] as VenteSite[])
           : [user.site],
+      sitePolicies: siteRoles,
+      ventePermissions: ventePerms,
     });
   } catch (error) {
     return authErrorResponse(error);
@@ -119,8 +129,21 @@ export async function POST(request: Request) {
       );
     }
     const site = siteDecision.site;
+    const siteRoles = await getSiteRolesConfig();
 
     if (body.action === "validate") {
+      const sellGate = authorizeVenteAction({
+        config: siteRoles,
+        role: user.role,
+        site,
+        action: "sell",
+      });
+      if (!sellGate.ok) {
+        return NextResponse.json(
+          { error: sellGate.error },
+          { status: sellGate.status },
+        );
+      }
       const result = await validatePosTicket({
         date: body.date || todayIsoDate(),
         site,
@@ -149,6 +172,15 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "cancel") {
+      const gate = authorizeVenteAction({
+        config: siteRoles,
+        role: user.role,
+        site,
+        action: "cancel",
+      });
+      if (!gate.ok) {
+        return NextResponse.json({ error: gate.error }, { status: gate.status });
+      }
       if (!body.id || !body.date) {
         return NextResponse.json(
           { error: "id et date requis" },
@@ -174,9 +206,10 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "delete") {
-      const gate = authorizeDestructiveSale({
+      const gate = authorizePermanentDelete({
+        config: siteRoles,
         role: user.role,
-        action: "delete",
+        site,
         reason: body.reason,
       });
       if (!gate.ok) {

@@ -16,6 +16,13 @@ import type {
   JournalVenteResult,
 } from "@/lib/ventes-history-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { useSession } from "@/components/session-provider";
+import type { UserRole } from "@/lib/auth-types";
+import {
+  venteActionEnabled,
+  type SiteRolesConfig,
+} from "@/lib/site-roles-model";
+import type { VenteSite } from "@/lib/types";
 
 type SiteFilter = "all" | "zogbo" | "gbegamey";
 type StatutFilter = "all" | "valide" | "annule" | "encours";
@@ -94,6 +101,7 @@ const EMPTY_RESULT: JournalVenteResult = {
 };
 
 export function JournalVentesPage() {
+  const { user: sessionUser } = useSession();
   const [from, setFrom] = useState(() => monthStartIso());
   const [to, setTo] = useState(() => todayIsoDate());
   const [site, setSite] = useState<SiteFilter>("all");
@@ -116,6 +124,7 @@ export function JournalVentesPage() {
   const [busyLineId, setBusyLineId] = useState<string | null>(null);
   const [canManagePast, setCanManagePast] = useState(false);
   const [canPurge, setCanPurge] = useState(false);
+  const [sitePolicies, setSitePolicies] = useState<SiteRolesConfig | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -156,6 +165,9 @@ export function JournalVentesPage() {
       }
       setCanManagePast(!!body.canManagePast);
       setCanPurge(!!body.canPurge);
+      if (body.sitePolicies) {
+        setSitePolicies(body.sitePolicies as SiteRolesConfig);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur de chargement");
       setResult(EMPTY_RESULT);
@@ -584,6 +596,8 @@ export function JournalVentesPage() {
               busyLineId={busyLineId}
               canManagePast={canManagePast}
               canPurge={canPurge}
+              sitePolicies={sitePolicies}
+              userRole={sessionUser?.role}
               onCancel={(l) => void annulerTicket(l)}
               onEdit={(l) => void modifierLigne(l)}
               onDeleteLine={(l) => void supprimerLigne(l)}
@@ -604,6 +618,8 @@ function JournalDayBlock({
   busyLineId,
   canManagePast,
   canPurge,
+  sitePolicies,
+  userRole,
   onCancel,
   onEdit,
   onDeleteLine,
@@ -617,6 +633,8 @@ function JournalDayBlock({
   busyLineId: string | null;
   canManagePast: boolean;
   canPurge: boolean;
+  sitePolicies: SiteRolesConfig | null;
+  userRole?: UserRole;
   onCancel: (line: JournalVenteLine) => void;
   onEdit: (line: JournalVenteLine) => void;
   onDeleteLine: (line: JournalVenteLine) => void;
@@ -660,6 +678,8 @@ function JournalDayBlock({
         busyLineId={busyLineId}
         canManagePast={canManagePast}
         canPurge={canPurge}
+        sitePolicies={sitePolicies}
+        userRole={userRole}
         onCancel={onCancel}
         onEdit={onEdit}
         onDeleteLine={onDeleteLine}
@@ -678,6 +698,8 @@ function JournalLinesTable({
   busyLineId,
   canManagePast,
   canPurge,
+  sitePolicies,
+  userRole,
   onCancel,
   onEdit,
   onDeleteLine,
@@ -691,6 +713,8 @@ function JournalLinesTable({
   busyLineId: string | null;
   canManagePast: boolean;
   canPurge: boolean;
+  sitePolicies: SiteRolesConfig | null;
+  userRole?: UserRole;
   onCancel: (line: JournalVenteLine) => void;
   onEdit: (line: JournalVenteLine) => void;
   onDeleteLine: (line: JournalVenteLine) => void;
@@ -765,7 +789,15 @@ function JournalLinesTable({
                 </td>
                 <td>
                   <span className="reg-actions">
-                    {canManagePast && l.statut === "valide" && l.venteLogId ? (
+                    {canManagePast &&
+                    l.statut === "valide" &&
+                    l.venteLogId &&
+                    venteActionEnabled(
+                      sitePolicies,
+                      userRole,
+                      l.site as VenteSite,
+                      "modify",
+                    ) ? (
                       <button
                         type="button"
                         className="btn-link"
@@ -775,7 +807,14 @@ function JournalLinesTable({
                         {busyLineId === l.venteLogId ? "…" : "Qty"}
                       </button>
                     ) : null}
-                    {canPurge && l.venteLogId ? (
+                    {canPurge &&
+                    l.venteLogId &&
+                    venteActionEnabled(
+                      sitePolicies,
+                      userRole,
+                      l.site as VenteSite,
+                      "delete",
+                    ) ? (
                       <button
                         type="button"
                         className="btn-link btn-link-danger"
@@ -785,7 +824,14 @@ function JournalLinesTable({
                         Suppr.
                       </button>
                     ) : null}
-                    {canPurge && l.ticketId ? (
+                    {canPurge &&
+                    l.ticketId &&
+                    venteActionEnabled(
+                      sitePolicies,
+                      userRole,
+                      l.site as VenteSite,
+                      "delete",
+                    ) ? (
                         <button
                           type="button"
                           className="btn-link btn-link-danger"
@@ -797,7 +843,14 @@ function JournalLinesTable({
                             : "Ticket"}
                         </button>
                       ) : null}
-                      {l.statut === "valide" && l.ticketId ? (
+                      {l.statut === "valide" &&
+                      l.ticketId &&
+                      venteActionEnabled(
+                        sitePolicies,
+                        userRole,
+                        l.site as VenteSite,
+                        "cancel",
+                      ) ? (
                         <button
                           type="button"
                           className="btn-link"
