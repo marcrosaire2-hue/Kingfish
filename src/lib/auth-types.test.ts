@@ -197,7 +197,6 @@ describe("l'API suit les droits de l'écran", () => {
       "journal-stock",
       "historique",
       "rapport-quotidien",
-      "controle",
       "admin",
       "autorisations",
     ]);
@@ -215,11 +214,19 @@ describe("l'API suit les droits de l'écran", () => {
     expect(canAccessPath("admin", "/rapport-quotidien", "tous", "marc")).toBe(
       true,
     );
-    expect(canAccessPath("admin", "/controle", "tous", "marc")).toBe(true);
+    expect(canAccessPath("admin", "/controle", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/admin", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/vente", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/parametres", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/zogbo", "tous", "marc")).toBe(false);
+  });
+
+  it("retire Contrôle écarts du menu administration (hors gérant / finance)", () => {
+    expect(navForUser("admin", "tous")).not.toContain("controle");
+    expect(canAccessPath("admin", "/controle", "tous")).toBe(false);
+    expect(navForUser("gerant", "zogbo")).toContain("controle");
+    expect(navForUser("comptable", "tous")).toContain("controle");
+    expect(navForUser("daf", "tous")).toContain("controle");
   });
 
   it("donne au DAF les mêmes écrans qu’un admin, sans la page Équipe", () => {

@@ -165,7 +165,6 @@ const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "journal-stock",
   "historique",
   "rapport-quotidien",
-  "controle",
   "admin",
   "autorisations",
 ];
@@ -368,7 +367,8 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     // réceptions) avec export détaillé : audit réservé à l'administration.
     "journal-stock",
     "rapport-quotidien",
-    "controle",
+    // Pas de « Contrôle écarts » : page opérationnelle (transport Zogbo →
+    // Gbégamey), inutile au menu administration.
   ],
 };
 
