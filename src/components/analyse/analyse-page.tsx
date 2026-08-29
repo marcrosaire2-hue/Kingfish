@@ -347,6 +347,7 @@ export function AnalysePage() {
                     ],
                   },
                 ]}
+                height={220}
               />
             </section>
             <section className="panel">

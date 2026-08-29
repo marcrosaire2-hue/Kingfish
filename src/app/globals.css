@@ -4805,23 +4805,74 @@ select {
   flex-wrap: wrap;
   align-items: center;
   gap: 1rem 1.4rem;
+  width: 100%;
+  min-width: 0;
+}
+
+.chart-donut-visual {
+  position: relative;
+  width: min(220px, 100%);
+  flex-shrink: 0;
+  aspect-ratio: 1;
 }
 
 .chart-donut-svg {
-  width: min(220px, 100%);
-  flex-shrink: 0;
+  width: 100%;
+  height: auto;
+  display: block;
 }
 
+.chart-donut-center {
+  position: absolute;
+  inset: 24%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 0.1rem;
+  padding: 0.15rem;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.chart-donut-amount {
+  font-size: clamp(0.72rem, 2.8vw, 1.05rem);
+  font-weight: 800;
+  font-family: var(--font-mono);
+  line-height: 1.15;
+  color: var(--ink);
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.chart-donut-unit {
+  font-size: clamp(0.58rem, 2vw, 0.72rem);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+}
+
+.chart-donut-caption {
+  font-size: clamp(0.58rem, 2vw, 0.72rem);
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-top: 0.1rem;
+}
+
+/* Anciennes classes SVG (conservées si réutilisées ailleurs) */
 .chart-donut-value {
   fill: var(--ink);
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   font-family: var(--font-mono);
 }
 
 .chart-donut-label {
   fill: var(--ink-soft);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
 }
 
@@ -4867,10 +4918,6 @@ select {
     radial-gradient(ellipse 80% 60% at 100% 0%, color-mix(in srgb, var(--sky-soft, #e8f3ff) 70%, transparent), transparent 60%);
   border-radius: 14px;
   padding: 0.55rem 0.35rem 0.25rem;
-}
-
-.chart-donut-svg {
-  width: min(240px, 100%);
 }
 
 /* Classement produits */
@@ -8546,31 +8593,71 @@ html.nav-open body {
   .analyse .chart-donut {
     max-width: 100%;
     min-width: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    overflow: visible;
   }
 
   .analyse .chart-svg {
-    min-height: 200px;
     max-width: 100%;
+    min-height: 0;
+  }
+
+  .analyse .chart-wrap-bars .chart-svg {
+    min-height: 200px;
   }
 
   .analyse .chart-donut {
     display: flex;
     flex-direction: column;
-    align-items: center;
-    gap: 0.75rem;
+    align-items: stretch;
+    gap: 0.85rem;
   }
 
-  .analyse .chart-donut-svg {
-    width: min(100%, 280px);
-    height: auto;
+  .analyse .chart-donut-visual {
+    width: min(100%, 260px);
+    margin: 0 auto;
+  }
+
+  .analyse .chart-donut-center {
+    inset: 26%;
+  }
+
+  .analyse .chart-donut-amount {
+    font-size: clamp(0.68rem, 3.6vw, 0.95rem);
   }
 
   .analyse .chart-legend {
     flex-wrap: wrap;
     justify-content: flex-start;
     width: 100%;
+    box-sizing: border-box;
+  }
+
+  .analyse .chart-legend-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+  }
+
+  .analyse .chart-legend-stack > li {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 0.45rem;
+    width: 100%;
+    white-space: normal;
+  }
+
+  .analyse .chart-legend-stack > li span:nth-child(2) {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .analyse .chart-axis {
+    font-size: 11px;
+  }
+
+  .analyse .panel-title {
+    font-size: 1rem;
+    padding-right: 0.25rem;
   }
 
   .analyse .hbar-list {
@@ -8634,6 +8721,34 @@ html.nav-open body {
     min-width: 0;
   }
 
+  .chart-donut {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .chart-donut-visual {
+    width: min(240px, 88vw);
+    margin-inline: auto;
+  }
+
+  .chart-legend-stack {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .chart-legend-stack li {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    white-space: normal;
+  }
+
+  .chart-wrap-bars {
+    padding: 0.35rem 0.1rem 0.15rem;
+  }
+
+  .chart-axis {
+    font-size: 11px;
+  }
+
   .analyse-shell .context-bar-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -8652,12 +8767,11 @@ html.nav-open body {
   }
 
   .analyse-shell .section-tabs {
-    position: sticky;
-    top: calc(3.35rem + env(safe-area-inset-top, 0px));
-    z-index: 15;
-    background: color-mix(in srgb, var(--paper) 94%, transparent);
-    backdrop-filter: blur(8px);
-    padding-top: 0.35rem;
+    /* Pas de sticky : il masquait le titre du premier graphique. */
+    position: static;
+    background: transparent;
+    backdrop-filter: none;
+    padding-top: 0;
     margin-bottom: 0.15rem;
   }
 }
