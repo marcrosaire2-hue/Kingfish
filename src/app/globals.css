@@ -6936,7 +6936,9 @@ html.nav-open body {
   .caisse-page,
   .zone-panel,
   .dash-page,
-  .dash {
+  .dash,
+  .analyse,
+  .analyse-page {
     width: 100%;
     max-width: 100%;
     min-width: 0;
@@ -8409,6 +8411,277 @@ html.nav-open body {
   margin: 0 0 0.75rem;
   padding-left: 1.1rem;
   color: var(--ink-soft);
+}
+
+/* Produits : tableau desktop, cartes mobile */
+.analyse-products-cards {
+  display: none;
+}
+
+.analyse-product-card {
+  background: color-mix(in srgb, var(--paper) 88%, var(--ink) 12%);
+  border-radius: 14px;
+  padding: 0.9rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.analyse-product-card header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+
+.analyse-product-name {
+  display: block;
+  font-size: 0.98rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.analyse-product-kind {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.analyse-product-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.75rem;
+  margin: 0;
+}
+
+.analyse-product-metrics div {
+  min-width: 0;
+}
+
+.analyse-product-metrics dt {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin: 0 0 0.15rem;
+}
+
+.analyse-product-metrics dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.analyse-product-footer {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+@media (max-width: 980px) {
+  .analyse,
+  .analyse-page,
+  .analyse .panel,
+  .analyse .dash-grid,
+  .analyse-kpi-grid,
+  .analyse-health,
+  .analyse-columns {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .analyse-health {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .analyse-health-card {
+    padding: 0.9rem 1rem;
+    border-radius: 14px;
+  }
+
+  .analyse-health-card h2 {
+    font-size: 0.98rem;
+  }
+
+  .analyse-health-card p {
+    font-size: 0.86rem;
+    line-height: 1.4;
+  }
+
+  .analyse-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  .analyse-kpi-grid .dash-kpi {
+    padding: 0.9rem 0.95rem;
+    border-radius: 14px;
+  }
+
+  .analyse-kpi-grid .dash-kpi-value {
+    font-size: 1.2rem;
+    overflow-wrap: anywhere;
+  }
+
+  .analyse-kpi-grid .dash-kpi-label,
+  .analyse-delta {
+    font-size: 0.78rem;
+  }
+
+  .analyse .dash-grid {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+
+  .analyse .panel {
+    padding: 0.9rem 0.95rem;
+    overflow: hidden;
+  }
+
+  .analyse .chart-wrap,
+  .analyse .chart-wrap-bars,
+  .analyse .chart-wrap-wave,
+  .analyse .chart-donut {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .analyse .chart-svg {
+    min-height: 200px;
+    max-width: 100%;
+  }
+
+  .analyse .chart-donut {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .analyse .chart-donut-svg {
+    width: min(100%, 280px);
+    height: auto;
+  }
+
+  .analyse .chart-legend {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .analyse .hbar-list {
+    min-width: 0;
+  }
+
+  .analyse .hbar-meta {
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .analyse .hbar-meta span {
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
+  .analyse .hbar-meta strong {
+    white-space: nowrap;
+  }
+
+  .analyse-columns {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .analyse-insight {
+    padding: 0.85rem 0.9rem;
+  }
+
+  .analyse-insight footer {
+    flex-wrap: wrap;
+  }
+
+  .analyse-products-table {
+    display: none;
+  }
+
+  .analyse-products-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+
+  .analyse-window {
+    font-size: 0.86rem;
+    line-height: 1.4;
+  }
+
+  .analyse-notes ul {
+    padding-left: 1rem;
+    font-size: 0.88rem;
+  }
+}
+
+@media (max-width: 720px) {
+  .analyse-shell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .analyse-shell .context-bar-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem;
+  }
+
+  .analyse-shell .context-bar-actions .date-field-pill {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .analyse-shell .context-bar-actions .date-field-pill select {
+    width: 100%;
+    min-height: 2.6rem;
+    font-size: 1rem;
+  }
+
+  .analyse-shell .section-tabs {
+    position: sticky;
+    top: calc(3.35rem + env(safe-area-inset-top, 0px));
+    z-index: 15;
+    background: color-mix(in srgb, var(--paper) 94%, transparent);
+    backdrop-filter: blur(8px);
+    padding-top: 0.35rem;
+    margin-bottom: 0.15rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .analyse-health {
+    grid-template-columns: 1fr;
+  }
+
+  .analyse-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analyse-kpi-grid .dash-kpi-value {
+    font-size: 1.28rem;
+  }
+
+  .analyse-product-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .analyse-shell .context-bar-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* ——— Quantités vendues par article ——— */

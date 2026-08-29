@@ -20,7 +20,9 @@ import type {
   Insight,
   InsightKind,
   ProductAdvice,
+  RankedProduct,
 } from "@/lib/analyse-calc";
+import { KIND_LABELS } from "@/lib/analyse-calc";
 
 type Payload = {
   report: AnalyseReport;
@@ -82,6 +84,52 @@ function InsightCard({ item }: { item: Insight }) {
   );
 }
 
+function ProductMobileCard({ product: p }: { product: RankedProduct }) {
+  return (
+    <article className="analyse-product-card">
+      <header>
+        <div>
+          <strong className="analyse-product-name">{p.name}</strong>
+          <span className="analyse-product-kind">
+            {KIND_LABELS[p.kind] ?? p.kind}
+          </span>
+        </div>
+        <span className={`analyse-advice ${adviceClass(p.advice)}`}>
+          {p.advice}
+        </span>
+      </header>
+      <dl className="analyse-product-metrics">
+        <div>
+          <dt>Qté</dt>
+          <dd className="mono">{p.qty}</dd>
+        </div>
+        <div>
+          <dt>CA net</dt>
+          <dd className="mono">{formatFcfa(p.caNet)}</dd>
+        </div>
+        <div>
+          <dt>Marge</dt>
+          <dd className="mono">
+            {p.marginPct === null ? "—" : `${p.marginPct.toFixed(0)} %`}
+          </dd>
+        </div>
+        <div>
+          <dt>Évolution</dt>
+          <dd className="mono">{fmtPct(p.qtyChangePct)}</dd>
+        </div>
+      </dl>
+      <footer className="analyse-product-footer muted">
+        <span>
+          Remise {formatFcfa(p.remises)}
+          {" · "}
+          Coût{" "}
+          {p.costKnown ? formatFcfa(p.costAmount) : "inconnu"}
+        </span>
+      </footer>
+    </article>
+  );
+}
+
 export function AnalysePage() {
   const [period, setPeriod] = useState<AnalysePeriod>("month");
   const [date, setDate] = useState(todayIsoDate);
@@ -138,7 +186,9 @@ export function AnalysePage() {
         title="Analyse"
         subtitle="Lecture managériale du CA, des marges et des charges."
       >
-        <BrandLoader variant="ligne" label="Analyse des données…" />
+        <div className="analyse-shell">
+          <BrandLoader variant="ligne" label="Analyse des données…" />
+        </div>
       </AppShell>
     );
   }
@@ -148,6 +198,7 @@ export function AnalysePage() {
       title="Analyse"
       subtitle="Lecture managériale du CA, des marges, des stocks et des charges — sans réécrire la comptabilité."
     >
+      <div className="analyse-shell">
       <div className="section-tabs" role="tablist" aria-label="Période">
         {PERIODS.map((p) => (
           <button
@@ -201,7 +252,7 @@ export function AnalysePage() {
       ) : null}
 
       {report ? (
-        <div className={`analyse${loading ? " is-loading" : ""}`}>
+        <div className={`analyse analyse-page${loading ? " is-loading" : ""}`}>
           <p className="analyse-window muted">
             {report.window.label} · comparé à {report.window.previousLabel}
             {report.filteredCa
@@ -230,7 +281,7 @@ export function AnalysePage() {
             ))}
           </section>
 
-          <section className="dash-kpi-grid" aria-label="Indicateurs">
+          <section className="dash-kpi-grid analyse-kpi-grid" aria-label="Indicateurs">
             <div className="dash-kpi">
               <span className="dash-kpi-label">CA net</span>
               <span className="dash-kpi-value mono">
@@ -370,56 +421,68 @@ export function AnalysePage() {
             </div>
           </section>
 
-          <section className="panel">
+          <section className="panel analyse-products">
             <h2 className="panel-title">Produits</h2>
-            <div className="table-scroll">
-              <table className="data-table analyse-table">
-                <thead>
-                  <tr>
-                    <th>Produit</th>
-                    <th>Nature</th>
-                    <th className="num">Qté</th>
-                    <th className="num">CA net</th>
-                    <th className="num">Remise</th>
-                    <th className="num">Coût</th>
-                    <th className="num">Marge</th>
-                    <th className="num">Évolution</th>
-                    <th>Conseil</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.products.length === 0 ? (
-                    <tr>
-                      <td colSpan={9} className="muted">
-                        Aucune vente active sur la période.
-                      </td>
-                    </tr>
-                  ) : (
-                    report.products.map((p) => (
-                      <tr key={`${p.kind}:${p.productId}`}>
-                        <td>{p.name}</td>
-                        <td>{p.kind}</td>
-                        <td className="num mono">{p.qty}</td>
-                        <td className="num mono">{formatFcfa(p.caNet)}</td>
-                        <td className="num mono">{formatFcfa(p.remises)}</td>
-                        <td className="num mono">
-                          {p.costKnown ? formatFcfa(p.costAmount) : "coût inconnu"}
-                        </td>
-                        <td className="num mono">
-                          {p.marginPct === null ? "—" : `${p.marginPct.toFixed(0)} %`}
-                        </td>
-                        <td className="num mono">{fmtPct(p.qtyChangePct)}</td>
-                        <td>
-                          <span className={`analyse-advice ${adviceClass(p.advice)}`}>
-                            {p.advice}
-                          </span>
-                        </td>
+            {report.products.length === 0 ? (
+              <p className="muted">Aucune vente active sur la période.</p>
+            ) : (
+              <>
+                <div className="analyse-products-cards" aria-label="Produits (mobile)">
+                  {report.products.map((p) => (
+                    <ProductMobileCard
+                      key={`m-${p.kind}:${p.productId}`}
+                      product={p}
+                    />
+                  ))}
+                </div>
+                <div className="table-scroll analyse-products-table">
+                  <table className="data-table analyse-table">
+                    <thead>
+                      <tr>
+                        <th>Produit</th>
+                        <th>Nature</th>
+                        <th className="num">Qté</th>
+                        <th className="num">CA net</th>
+                        <th className="num">Remise</th>
+                        <th className="num">Coût</th>
+                        <th className="num">Marge</th>
+                        <th className="num">Évolution</th>
+                        <th>Conseil</th>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody>
+                      {report.products.map((p) => (
+                        <tr key={`${p.kind}:${p.productId}`}>
+                          <td>{p.name}</td>
+                          <td>{KIND_LABELS[p.kind] ?? p.kind}</td>
+                          <td className="num mono">{p.qty}</td>
+                          <td className="num mono">{formatFcfa(p.caNet)}</td>
+                          <td className="num mono">{formatFcfa(p.remises)}</td>
+                          <td className="num mono">
+                            {p.costKnown
+                              ? formatFcfa(p.costAmount)
+                              : "coût inconnu"}
+                          </td>
+                          <td className="num mono">
+                            {p.marginPct === null
+                              ? "—"
+                              : `${p.marginPct.toFixed(0)} %`}
+                          </td>
+                          <td className="num mono">{fmtPct(p.qtyChangePct)}</td>
+                          <td>
+                            <span
+                              className={`analyse-advice ${adviceClass(p.advice)}`}
+                            >
+                              {p.advice}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
           </section>
 
           <section className="panel analyse-notes">
@@ -438,6 +501,7 @@ export function AnalysePage() {
           </section>
         </div>
       ) : null}
+      </div>
     </AppShell>
   );
 }
