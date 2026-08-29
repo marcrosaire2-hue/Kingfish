@@ -9,6 +9,7 @@ import {
   SHIFTS,
   SITE_LABELS,
   adminKindLabel,
+  isExecutiveAdminAccount,
   isGlobalAdmin,
   isPrincipalAdminAccount,
   roleSiteLabel,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/auth-types";
 import { exportAdminUsersExcel } from "@/lib/page-exports";
 import { BrandLoader } from "@/components/brand-loader";
+import { AutorisationsEditor } from "@/components/admin/autorisations-editor";
 import { SiteRolesEditor } from "@/components/reglages/site-roles-editor";
 
 const ALL_ROLES: UserRole[] = [
@@ -30,6 +32,8 @@ const ALL_ROLES: UserRole[] = [
   "daf",
   "admin",
 ];
+
+type AdminSection = "comptes" | "ventes" | "autorisations";
 
 type ActorInfo = Pick<SessionUser, "id" | "username" | "role" | "site"> & {
   isGlobal: boolean;
@@ -107,6 +111,7 @@ export function AdminPage() {
   const [bulkText, setBulkText] = useState("");
   const [bulkBusy, setBulkBusy] = useState(false);
   const [createMode, setCreateMode] = useState<"single" | "bulk">("single");
+  const [section, setSection] = useState<AdminSection>("comptes");
 
   const [form, setForm] = useState({
     username: "",
@@ -295,6 +300,10 @@ export function AdminPage() {
   }
 
   const actorIsGlobal = actor ? isGlobalAdmin(actor) : true;
+  const showAutorisations =
+    !!actor &&
+    actor.role === "admin" &&
+    isExecutiveAdminAccount(actor.username);
   const bulkExample = actorIsGlobal
     ? "paul;Paul D.;Paul123;gerant;zogbo\naya;Aya S.;Aya1234;admin;gbegamey\nsuper;Aide globale;Super123;admin;tous"
     : `marie;Marie K.;Marie123;gerant;${actor?.site ?? "gbegamey"}\nchef;Chef zone;Chef123;admin;${actor?.site ?? "gbegamey"}`;
@@ -305,401 +314,460 @@ export function AdminPage() {
       subtitle={
         actor
           ? actorIsGlobal
-            ? "Administrateur global — vous aidez toutes les zones et créez les admins de zone."
+            ? "Comptes, politiques ventes et autorisations."
             : `${adminKindLabel(actor.site)} — comptes et accès limités à ${SITE_LABELS[actor.site]}.`
-          : "Gestion des comptes et des zones."
+          : "Gestion des comptes et des droits."
       }
       actions={
-        <ExportExcelButton
-          onExport={() => exportAdminUsersExcel(users)}
-          disabled={loading || users.length === 0}
-        />
+        section === "comptes" ? (
+          <ExportExcelButton
+            onExport={() => exportAdminUsersExcel(users)}
+            disabled={loading || users.length === 0}
+          />
+        ) : null
       }
     >
       <div className="admin-page-stack">
-      {flash ? <p className="warn-inline">{flash}</p> : null}
-      {error ? (
-        <p className="error-banner" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      <details className="admin-site-banner">
-        <summary>Niveaux d’administration et périmètres</summary>
-        <ul className="admin-admin-levels">
-          <li>
-            <strong>Admin de zone</strong> (Zogbo ou Gbégamey) — comptes et
-            activité de sa zone uniquement.
-          </li>
-          <li>
-            <strong>Admin global</strong> (Les deux sites) — toutes les zones,
-            création des admins de zone.
-          </li>
-        </ul>
-        {!actorIsGlobal && actor ? (
-          <p className="admin-zone-note">
-            Connecté comme {adminKindLabel(actor.site)} — les autres zones ne
-            sont pas visibles ici.
+        {flash ? <p className="warn-inline">{flash}</p> : null}
+        {error ? (
+          <p className="error-banner" role="alert">
+            {error}
           </p>
         ) : null}
-      </details>
 
-      <SiteRolesEditor />
+        <nav
+          className="admin-section-nav"
+          role="tablist"
+          aria-label="Sections Équipe"
+        >
+          <button
+            type="button"
+            role="tab"
+            aria-selected={section === "comptes"}
+            className={`admin-section-tab${section === "comptes" ? " is-active" : ""}`}
+            onClick={() => setSection("comptes")}
+          >
+            Comptes
+            {!loading ? (
+              <span className="admin-section-badge">{users.length}</span>
+            ) : null}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={section === "ventes"}
+            className={`admin-section-tab${section === "ventes" ? " is-active" : ""}`}
+            onClick={() => setSection("ventes")}
+          >
+            Politiques ventes
+          </button>
+          {showAutorisations ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={section === "autorisations"}
+              className={`admin-section-tab${section === "autorisations" ? " is-active" : ""}`}
+              onClick={() => setSection("autorisations")}
+            >
+              Autorisations
+            </button>
+          ) : null}
+        </nav>
 
-      <section className="panel panel-wide admin-users-panel">
-        <h2 className="panel-title">
-          Utilisateurs ({users.length})
-          {actor && !actorIsGlobal
-            ? ` · ${SITE_LABELS[actor.site]}`
-            : ""}
-        </h2>
-        {loading ? (
-          <BrandLoader variant="ligne" label="Chargement des comptes…" />
-        ) : (
-          <div className="admin-table-wrap">
-          <table className="data-table admin-users-table">
-            <thead>
-              <tr>
-                <th>Identifiant</th>
-                <th>Nom</th>
-                <th>Rôle</th>
-                <th>Site</th>
-                <th>Équipe</th>
-                <th>Actif</th>
-                <th>Mot de passe</th>
-                <th aria-label="Actions" />
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => {
-                const rowRoles = actor
-                  ? rolesCreatableBy(actor)
-                  : ALL_ROLES;
-                const rowSites = actor
-                  ? sitesCreatableBy(actor, u.role)
-                  : (["zogbo", "gbegamey", "tous"] as UserSite[]);
-                const lockedPrincipal =
-                  isPrincipalAdminAccount(u.username) && !actorIsGlobal;
-                return (
-                  <tr
-                    key={u.id}
-                    className={u.active ? undefined : "row-muted"}
+        {section === "comptes" ? (
+          <div className="admin-section-panel" role="tabpanel">
+            <details className="admin-site-banner">
+              <summary>Niveaux d’administration et périmètres</summary>
+              <ul className="admin-admin-levels">
+                <li>
+                  <strong>Admin de zone</strong> (Zogbo ou Gbégamey) — comptes et
+                  activité de sa zone uniquement.
+                </li>
+                <li>
+                  <strong>Admin global</strong> (Les deux sites) — toutes les zones,
+                  création des admins de zone.
+                </li>
+              </ul>
+              {!actorIsGlobal && actor ? (
+                <p className="admin-zone-note">
+                  Connecté comme {adminKindLabel(actor.site)} — les autres zones ne
+                  sont pas visibles ici.
+                </p>
+              ) : null}
+            </details>
+
+            <div className="admin-grid">
+              <section className="panel admin-create-panel">
+                <div className="admin-create-head">
+                  <h2 className="panel-title">Créer des comptes</h2>
+                  <div
+                    className="admin-create-tabs"
+                    role="tablist"
+                    aria-label="Mode de création"
                   >
-                    <td className="cell-name">
-                      {u.username}
-                      {u.role === "admin" ? (
-                        <span className="cell-sub">
-                          {adminKindLabel(u.site)}
-                        </span>
-                      ) : u.role === "daf" ? (
-                        <span className="cell-sub">{ROLE_LABELS.daf}</span>
-                      ) : u.role === "comptable" ? (
-                        <span className="cell-sub">{ROLE_LABELS.comptable}</span>
-                      ) : null}
-                    </td>
-                    <td>{u.name}</td>
-                    <td>
-                      <select
-                        className="select-input"
-                        value={u.role}
-                        disabled={lockedPrincipal}
-                        onChange={(e) => {
-                          const role = e.target.value as UserRole;
-                          const allowed = actor
-                            ? sitesCreatableBy(actor, role)
-                            : rowSites;
-                          const site = allowed.includes(u.site)
-                            ? u.site
-                            : (allowed[0] ?? u.site);
-                          void patchUser(u.id, { role, site });
-                        }}
-                      >
-                        {rowRoles.map((r) => (
-                          <option key={r} value={r}>
-                            {ROLE_LABELS[r]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <select
-                        className="select-input"
-                        value={u.site}
-                        disabled={lockedPrincipal}
-                        onChange={(e) =>
-                          void patchUser(u.id, {
-                            site: e.target.value as UserSite,
-                          })
-                        }
-                      >
-                        {rowSites.map((s) => (
-                          <option key={s} value={s}>
-                            {u.role === "admin"
-                              ? adminKindLabel(s)
-                              : SITE_LABELS[s]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <select
-                        className="select-input"
-                        value={u.shift ?? "aucune"}
-                        disabled={lockedPrincipal}
-                        onChange={(e) =>
-                          void patchUser(u.id, {
-                            shift: e.target.value as UserShift,
-                          })
-                        }
-                        aria-label={`Équipe de ${u.username}`}
-                      >
-                        {SHIFTS.map((eq) => (
-                          <option key={eq} value={eq}>
-                            {SHIFT_LABELS[eq]}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-                    <td>
-                      <input
-                        type="checkbox"
-                        checked={u.active}
-                        disabled={lockedPrincipal}
-                        onChange={(e) =>
-                          void patchUser(u.id, { active: e.target.checked })
-                        }
-                        aria-label={`Activer ${u.username}`}
-                      />
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn-link"
-                        disabled={lockedPrincipal}
-                        onClick={() => {
-                          const pwd = window.prompt(
-                            `Nouveau mot de passe pour ${u.username}`,
-                          );
-                          if (pwd) void patchUser(u.id, { password: pwd });
-                        }}
-                      >
-                        Réinitialiser
-                      </button>
-                    </td>
-                    <td className="col-actions">
-                      {!isPrincipalAdminAccount(u.username) ? (
-                        <button
-                          type="button"
-                          className="btn-icon"
-                          aria-label={`Supprimer ${u.username}`}
-                          onClick={() => void removeUser(u)}
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={createMode === "single"}
+                      className={`admin-create-tab${createMode === "single" ? " is-active" : ""}`}
+                      onClick={() => setCreateMode("single")}
+                    >
+                      Un compte
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
+                      aria-selected={createMode === "bulk"}
+                      className={`admin-create-tab${createMode === "bulk" ? " is-active" : ""}`}
+                      onClick={() => setCreateMode("bulk")}
+                    >
+                      Plusieurs
+                    </button>
+                  </div>
+                </div>
+
+                {createMode === "single" ? (
+                  <form className="admin-form" onSubmit={createUser}>
+                    <div className="admin-form-grid admin-form-grid-compact">
+                      <label className="admin-field admin-field-full">
+                        <span>Identifiant</span>
+                        <input
+                          value={form.username}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, username: e.target.value }))
+                          }
+                          required
+                          minLength={3}
+                          autoComplete="off"
+                          placeholder="ex. paul"
+                        />
+                      </label>
+                      <label className="admin-field admin-field-full">
+                        <span>Nom affiché</span>
+                        <input
+                          value={form.name}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, name: e.target.value }))
+                          }
+                          required
+                          placeholder="ex. Paul D."
+                        />
+                      </label>
+                      <label className="admin-field admin-field-full">
+                        <span>Mot de passe</span>
+                        <input
+                          type="password"
+                          value={form.password}
+                          onChange={(e) =>
+                            setForm((f) => ({ ...f, password: e.target.value }))
+                          }
+                          required
+                          minLength={6}
+                          autoComplete="new-password"
+                        />
+                      </label>
+                      <label className="admin-field">
+                        <span>Rôle</span>
+                        <select
+                          className="select-input"
+                          value={form.role}
+                          onChange={(e) => setRole(e.target.value as UserRole)}
                         >
-                          ×
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          </div>
-        )}
-      </section>
-
-      <section className="panel admin-create-panel">
-        <div className="admin-create-head">
-          <h2 className="panel-title">Créer des comptes</h2>
-          <div className="admin-create-tabs" role="tablist" aria-label="Mode de création">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={createMode === "single"}
-              className={`admin-create-tab${createMode === "single" ? " is-active" : ""}`}
-              onClick={() => setCreateMode("single")}
-            >
-              Un compte
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={createMode === "bulk"}
-              className={`admin-create-tab${createMode === "bulk" ? " is-active" : ""}`}
-              onClick={() => setCreateMode("bulk")}
-            >
-              Plusieurs comptes
-            </button>
-          </div>
-        </div>
-
-        {createMode === "single" ? (
-          <form className="admin-form" onSubmit={createUser}>
-            <div className="admin-form-grid">
-              <label className="admin-field">
-                <span>Identifiant</span>
-                <input
-                  value={form.username}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, username: e.target.value }))
-                  }
-                  required
-                  minLength={3}
-                  autoComplete="off"
-                  placeholder="ex. paul"
-                />
-              </label>
-              <label className="admin-field">
-                <span>Nom affiché</span>
-                <input
-                  value={form.name}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, name: e.target.value }))
-                  }
-                  required
-                  placeholder="ex. Paul D."
-                />
-              </label>
-              <label className="admin-field">
-                <span>Mot de passe</span>
-                <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, password: e.target.value }))
-                  }
-                  required
-                  minLength={6}
-                  autoComplete="new-password"
-                />
-              </label>
-              <label className="admin-field">
-                <span>Rôle</span>
-                <select
-                  className="select-input"
-                  value={form.role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                >
-                  {creatableRoles.map((r) => (
-                    <option key={r} value={r}>
-                      {r === "admin"
-                        ? actorIsGlobal
-                          ? "Administrateur (zone ou global)"
-                          : "Administrateur de zone"
-                        : ROLE_LABELS[r]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="admin-field">
-                <span>
-                  {form.role === "admin"
-                    ? "Périmètre admin"
-                    : form.role === "daf" || form.role === "comptable"
-                      ? "Périmètre"
-                      : "Site de rattachement"}
-                </span>
-                <select
-                  className="select-input"
-                  value={form.site}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      site: e.target.value as UserSite,
-                    }))
-                  }
-                  required
-                >
-                  {siteOptions.map((s) => (
-                    <option key={s} value={s}>
+                          {creatableRoles.map((r) => (
+                            <option key={r} value={r}>
+                              {r === "admin"
+                                ? actorIsGlobal
+                                  ? "Administrateur (zone ou global)"
+                                  : "Administrateur de zone"
+                                : ROLE_LABELS[r]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="admin-field">
+                        <span>
+                          {form.role === "admin"
+                            ? "Périmètre"
+                            : form.role === "daf" || form.role === "comptable"
+                              ? "Périmètre"
+                              : "Site"}
+                        </span>
+                        <select
+                          className="select-input"
+                          value={form.site}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              site: e.target.value as UserSite,
+                            }))
+                          }
+                          required
+                        >
+                          {siteOptions.map((s) => (
+                            <option key={s} value={s}>
+                              {form.role === "admin"
+                                ? adminKindLabel(s)
+                                : SITE_LABELS[s]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="admin-field admin-field-full">
+                        <span>Équipe de service</span>
+                        <select
+                          className="select-input"
+                          value={form.shift}
+                          onChange={(e) =>
+                            setForm((f) => ({
+                              ...f,
+                              shift: e.target.value as UserShift,
+                            }))
+                          }
+                        >
+                          {SHIFTS.map((eq) => (
+                            <option key={eq} value={eq}>
+                              {SHIFT_LABELS[eq]}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                    <p className="muted admin-site-hint">
                       {form.role === "admin"
-                        ? adminKindLabel(s)
-                        : SITE_LABELS[s]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="admin-field">
-                <span>Équipe de service</span>
-                <select
-                  className="select-input"
-                  value={form.shift}
-                  onChange={(e) =>
-                    setForm((f) => ({
-                      ...f,
-                      shift: e.target.value as UserShift,
-                    }))
-                  }
-                >
-                  {SHIFTS.map((eq) => (
-                    <option key={eq} value={eq}>
-                      {SHIFT_LABELS[eq]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <p className="muted admin-site-hint">
-              {form.role === "admin"
-                ? form.site === "tous"
-                  ? "Admin global : Zogbo + Gbégamey. Équipe « Hors équipe » pour l’encadrement."
-                  : `Admin de zone : ${SITE_LABELS[form.site]} uniquement.`
-                : form.role === "daf"
-                  ? "DAF : mêmes droits opérationnels sur les deux sites, sans gestion des comptes. Peut être retiré par un administrateur."
-                  : form.role === "comptable"
-                    ? "Comptable : résultat, stocks par zone (Zogbo / Gbégamey / achats) et immobilisations — sans vente POS ni gestion des comptes."
-                  : form.site === "tous"
-                    ? "Accès aux deux zones — ventes créditées à l’équipe choisie."
-                    : `${SITE_LABELS[form.site]} — ventes créditées à l’équipe choisie.`}
-            </p>
-            <div className="admin-form-actions">
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={saving}
-              >
-                {saving ? "Création…" : "Créer le compte"}
-              </button>
-            </div>
-          </form>
-        ) : (
-          <form className="admin-form" onSubmit={createBulk}>
-            <p className="muted admin-bulk-help">
-              Une ligne par compte :{" "}
-              <code>identifiant;nom;motdepasse;role;site</code>
-              {!actorIsGlobal
-                ? ` — site forcé à ${SITE_LABELS[actor?.site ?? "gbegamey"]} si hors zone.`
-                : null}
-            </p>
-            <label className="admin-field admin-field-full">
-              <span>Liste des comptes</span>
-              <textarea
-                className="admin-bulk-textarea"
-                rows={8}
-                value={bulkText}
-                onChange={(e) => setBulkText(e.target.value)}
-                placeholder={bulkExample}
-              />
-            </label>
-            <div className="admin-form-actions">
-              <button
-                type="submit"
-                className="btn btn-primary"
-                disabled={bulkBusy || !bulkText.trim()}
-              >
-                {bulkBusy ? "Création…" : "Créer tous les comptes"}
-              </button>
-            </div>
-          </form>
-        )}
+                        ? form.site === "tous"
+                          ? "Admin global : Zogbo + Gbégamey."
+                          : `Admin de zone : ${SITE_LABELS[form.site]} uniquement.`
+                        : form.role === "daf"
+                          ? "DAF : droits opérationnels sur les deux sites, sans gestion des comptes."
+                          : form.role === "comptable"
+                            ? "Comptable : finance, stocks et immobilisations — sans vente POS."
+                            : form.site === "tous"
+                              ? "Accès aux deux zones."
+                              : `${SITE_LABELS[form.site]} — ventes créditées à l’équipe choisie.`}
+                    </p>
+                    <div className="admin-form-actions">
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={saving}
+                      >
+                        {saving ? "Création…" : "Créer le compte"}
+                      </button>
+                    </div>
+                  </form>
+                ) : (
+                  <form className="admin-form" onSubmit={createBulk}>
+                    <p className="muted admin-bulk-help">
+                      Une ligne par compte :{" "}
+                      <code>identifiant;nom;motdepasse;role;site</code>
+                    </p>
+                    <label className="admin-field admin-field-full">
+                      <span>Liste des comptes</span>
+                      <textarea
+                        className="admin-bulk-textarea"
+                        rows={7}
+                        value={bulkText}
+                        onChange={(e) => setBulkText(e.target.value)}
+                        placeholder={bulkExample}
+                      />
+                    </label>
+                    <div className="admin-form-actions">
+                      <button
+                        type="submit"
+                        className="btn btn-primary"
+                        disabled={bulkBusy || !bulkText.trim()}
+                      >
+                        {bulkBusy ? "Création…" : "Créer tous les comptes"}
+                      </button>
+                    </div>
+                  </form>
+                )}
 
-        <div className="admin-legend">
-          <span className="admin-legend-chip">Gérant → un site</span>
-          <span className="admin-legend-chip">Comptable → finance + stocks zones</span>
-          <span className="admin-legend-chip">DAF → les deux sites (sans Équipe)</span>
-          <span className="admin-legend-chip">Admin zone → Zogbo ou Gbégamey</span>
-          <span className="admin-legend-chip">Admin global → les deux sites</span>
-        </div>
-      </section>
+                <div className="admin-legend">
+                  <span className="admin-legend-chip">Gérant → un site</span>
+                  <span className="admin-legend-chip">Comptable → finance</span>
+                  <span className="admin-legend-chip">DAF → sans Équipe</span>
+                  <span className="admin-legend-chip">Admin → zone ou global</span>
+                </div>
+              </section>
+
+              <section className="panel panel-wide admin-users-panel">
+                <h2 className="panel-title">
+                  Utilisateurs ({users.length})
+                  {actor && !actorIsGlobal
+                    ? ` · ${SITE_LABELS[actor.site]}`
+                    : ""}
+                </h2>
+                {loading ? (
+                  <BrandLoader variant="ligne" label="Chargement des comptes…" />
+                ) : (
+                  <div className="admin-table-wrap">
+                    <table className="data-table admin-users-table">
+                      <thead>
+                        <tr>
+                          <th>Identifiant</th>
+                          <th>Nom</th>
+                          <th>Rôle</th>
+                          <th>Site</th>
+                          <th>Équipe</th>
+                          <th>Actif</th>
+                          <th>Mot de passe</th>
+                          <th aria-label="Actions" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {users.map((u) => {
+                          const rowRoles = actor
+                            ? rolesCreatableBy(actor)
+                            : ALL_ROLES;
+                          const rowSites = actor
+                            ? sitesCreatableBy(actor, u.role)
+                            : (["zogbo", "gbegamey", "tous"] as UserSite[]);
+                          const lockedPrincipal =
+                            isPrincipalAdminAccount(u.username) && !actorIsGlobal;
+                          return (
+                            <tr
+                              key={u.id}
+                              className={u.active ? undefined : "row-muted"}
+                            >
+                              <td className="cell-name">
+                                {u.username}
+                                {u.role === "admin" ? (
+                                  <span className="cell-sub">
+                                    {adminKindLabel(u.site)}
+                                  </span>
+                                ) : u.role === "daf" ? (
+                                  <span className="cell-sub">{ROLE_LABELS.daf}</span>
+                                ) : u.role === "comptable" ? (
+                                  <span className="cell-sub">
+                                    {ROLE_LABELS.comptable}
+                                  </span>
+                                ) : null}
+                              </td>
+                              <td>{u.name}</td>
+                              <td>
+                                <select
+                                  className="select-input"
+                                  value={u.role}
+                                  disabled={lockedPrincipal}
+                                  onChange={(e) => {
+                                    const role = e.target.value as UserRole;
+                                    const allowed = actor
+                                      ? sitesCreatableBy(actor, role)
+                                      : rowSites;
+                                    const site = allowed.includes(u.site)
+                                      ? u.site
+                                      : (allowed[0] ?? u.site);
+                                    void patchUser(u.id, { role, site });
+                                  }}
+                                >
+                                  {rowRoles.map((r) => (
+                                    <option key={r} value={r}>
+                                      {ROLE_LABELS[r]}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td>
+                                <select
+                                  className="select-input"
+                                  value={u.site}
+                                  disabled={lockedPrincipal}
+                                  onChange={(e) =>
+                                    void patchUser(u.id, {
+                                      site: e.target.value as UserSite,
+                                    })
+                                  }
+                                >
+                                  {rowSites.map((s) => (
+                                    <option key={s} value={s}>
+                                      {u.role === "admin"
+                                        ? adminKindLabel(s)
+                                        : SITE_LABELS[s]}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td>
+                                <select
+                                  className="select-input"
+                                  value={u.shift ?? "aucune"}
+                                  disabled={lockedPrincipal}
+                                  onChange={(e) =>
+                                    void patchUser(u.id, {
+                                      shift: e.target.value as UserShift,
+                                    })
+                                  }
+                                  aria-label={`Équipe de ${u.username}`}
+                                >
+                                  {SHIFTS.map((eq) => (
+                                    <option key={eq} value={eq}>
+                                      {SHIFT_LABELS[eq]}
+                                    </option>
+                                  ))}
+                                </select>
+                              </td>
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={u.active}
+                                  disabled={lockedPrincipal}
+                                  onChange={(e) =>
+                                    void patchUser(u.id, { active: e.target.checked })
+                                  }
+                                  aria-label={`Activer ${u.username}`}
+                                />
+                              </td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn-link"
+                                  disabled={lockedPrincipal}
+                                  onClick={() => {
+                                    const pwd = window.prompt(
+                                      `Nouveau mot de passe pour ${u.username}`,
+                                    );
+                                    if (pwd) void patchUser(u.id, { password: pwd });
+                                  }}
+                                >
+                                  Réinitialiser
+                                </button>
+                              </td>
+                              <td className="col-actions">
+                                {!isPrincipalAdminAccount(u.username) ? (
+                                  <button
+                                    type="button"
+                                    className="btn-icon"
+                                    aria-label={`Supprimer ${u.username}`}
+                                    onClick={() => void removeUser(u)}
+                                  >
+                                    ×
+                                  </button>
+                                ) : null}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </section>
+            </div>
+          </div>
+        ) : null}
+
+        {section === "ventes" ? (
+          <div className="admin-section-panel" role="tabpanel">
+            <SiteRolesEditor />
+          </div>
+        ) : null}
+
+        {section === "autorisations" && showAutorisations ? (
+          <div className="admin-section-panel" role="tabpanel">
+            <AutorisationsEditor embedded />
+          </div>
+        ) : null}
       </div>
     </AppShell>
   );

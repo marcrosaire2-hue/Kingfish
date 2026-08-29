@@ -23,9 +23,10 @@ type ApiPayload = SiteRolesConfig & {
 
 type Props = {
   onSaved?: () => void;
+  className?: string;
 };
 
-export function SiteRolesEditor({ onSaved }: Props) {
+export function SiteRolesEditor({ onSaved, className }: Props) {
   const [data, setData] = useState<ApiPayload | null>(null);
   const [dirty, setDirty] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -117,7 +118,7 @@ export function SiteRolesEditor({ onSaved }: Props) {
   const roleLabels = data.roleLabels ?? ROLE_LABELS;
 
   return (
-    <section className="stack-form">
+    <section className={["admin-policies-stack", className].filter(Boolean).join(" ")}>
       <div className="panel">
         <div className="panel-head">
           <div>

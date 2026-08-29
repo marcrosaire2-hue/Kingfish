@@ -1,5 +1,6 @@
-import { ApprovisionnementPage } from "@/components/achats/approvisionnement-page";
+import { redirect } from "next/navigation";
 
+/** Ancienne URL Approvisionnement — redirigée vers Achats. */
 export default function Page() {
-  return <ApprovisionnementPage />;
+  redirect("/achats");
 }

@@ -1,7 +1,8 @@
 /**
  * Efface les stocks de vente : supprime tous les documents « jour » des
  * collections Zogbo / Gbégamey / combos / boissons, toutes dates confondues,
- * puis écrit une journée à zéro pour la date courante.
+ * ainsi que les unités QR (stock_units), puis écrit une journée à zéro pour
+ * la date courante avec ventesSansStock activé.
  *
  * Sans cette journée à zéro, l’appli recrée le jour au premier affichage en
  * reportant le stock d’ouverture AquaPro (voir src/lib/aquapro-opening-stock.ts).
@@ -20,6 +21,7 @@ const COLLECTIONS = [
   "gbegamey_jours",
   "combos_jours",
   "boissons_jours",
+  "stock_units",
 ];
 
 const args = new Set(process.argv.slice(2));
@@ -69,6 +71,7 @@ const day = {
   zogbo_jours: {
     _id: date,
     status: "ouverte",
+    ventesSansStock: true,
     lines: baseDishes.map((d) => ({
       productId: d.id,
       name: d.name,
@@ -86,6 +89,7 @@ const day = {
   gbegamey_jours: {
     _id: date,
     status: "ouverte",
+    ventesSansStock: true,
     transferLines: baseDishes.map((d) => ({
       productId: d.id,
       name: d.name,
@@ -134,11 +138,16 @@ const day = {
     lines: drinks.map((d) => ({
       productId: d.id,
       name: d.name,
-      initialStock: 0,
-      purchases: 0,
+      initialStockZogbo: 0,
+      purchasesZogbo: 0,
       soldZogbo: 0,
+      pertesZogbo: 0,
+      countedZogbo: null,
+      initialStockGbegamey: 0,
+      purchasesGbegamey: 0,
       soldGbegamey: 0,
-      counted: null,
+      pertesGbegamey: 0,
+      countedGbegamey: null,
       observations: "",
     })),
     movements: [],
@@ -159,5 +168,8 @@ for (const [name, doc] of Object.entries(day)) {
 
 const ventes = await db.collection("ventes_log").countDocuments({});
 console.log(`ventes_log : ${ventes} ligne(s) conservée(s) (non touché)`);
+console.log(
+  `ventesSansStock : activé sur zogbo_jours et gbegamey_jours pour ${date}`,
+);
 
 await client.close();

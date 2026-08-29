@@ -23,6 +23,10 @@ import {
   recordVente,
   undoVente,
 } from "@/lib/vente-repo";
+import {
+  claimPlatUnitForSale,
+  restorePlatUnitAfterSaleCancel,
+} from "@/lib/stock-unit-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import type {
   PosTicket,
@@ -171,6 +175,7 @@ export async function validatePosTicket(input: {
     name?: string;
     qty: number;
     unitPrice?: number;
+    qrId?: string | null;
   }>;
 }): Promise<{
   ticket: PosTicket;
@@ -306,30 +311,58 @@ export async function validatePosTicket(input: {
           venteLogId: result.entry.id,
         });
       } else {
-        const result = await recordVente({
-          date,
-          site: input.site,
-          kind: line.kind,
-          productId: line.productId,
-          qty,
-          unitPrice: line.unitPrice,
-          actor,
-          bypassClosedDay,
-          // Le gérant/admin encaisse toujours, même si le stock affiché est
-          // erroné ou pas à jour : le stock reste indicatif, jamais bloquant
-          // pour lui — pas seulement en correction d'un jour passé.
-          bypassStock: manager,
-        });
-        createdLogIds.push(result.entry.id);
-        ticketLines.push({
-          kind: line.kind,
-          productId: line.productId,
-          name: result.entry.name,
-          qty,
-          unitPrice: result.entry.unitPrice,
-          amount: result.entry.amount,
-          venteLogId: result.entry.id,
-        });
+        const qrId = line.qrId ? String(line.qrId).trim() : null;
+        if (qrId) {
+          if (line.kind !== "plat") {
+            throw new Error("Le scan QR ne concerne que les plats.");
+          }
+          if (qty !== 1) {
+            throw new Error("Une unité QR ne peut être vendue qu'à la quantité 1.");
+          }
+        }
+
+        let claimedQr: string | null = null;
+        try {
+          if (qrId) {
+            await claimPlatUnitForSale({ qrId, site: input.site });
+            claimedQr = qrId;
+          }
+          const result = await recordVente({
+            date,
+            site: input.site,
+            kind: line.kind,
+            productId: line.productId,
+            qty,
+            unitPrice: line.unitPrice,
+            actor,
+            bypassClosedDay,
+            bypassStock: manager || Boolean(qrId),
+            qrId,
+          });
+          createdLogIds.push(result.entry.id);
+          ticketLines.push({
+            kind: line.kind,
+            productId: line.productId,
+            name: result.entry.name,
+            qty,
+            unitPrice: result.entry.unitPrice,
+            amount: result.entry.amount,
+            venteLogId: result.entry.id,
+            qrId,
+          });
+        } catch (error) {
+          if (claimedQr) {
+            try {
+              await restorePlatUnitAfterSaleCancel({
+                qrId: claimedQr,
+                site: input.site,
+              });
+            } catch {
+              /* undoVente reprendra l'unité si la vente a été journalisée */
+            }
+          }
+          throw error;
+        }
       }
     }
   } catch (error) {

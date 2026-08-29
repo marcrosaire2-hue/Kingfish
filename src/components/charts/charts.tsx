@@ -1,6 +1,6 @@
 "use client";
 
-import { formatFcfa } from "@/lib/format";
+import { formatFcfa, formatFcfaCompact } from "@/lib/format";
 
 export type ChartSeries = {
   key: string;
@@ -545,68 +545,75 @@ export function DonutChart({
   const cy = size / 2;
   const r = 82;
   const stroke = 26;
-  const total = slices.reduce((s, x) => s + Math.max(0, x.value), 0) || 1;
+  const totalValue = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
+  const total = totalValue || 1;
   const circ = 2 * Math.PI * r;
   const gap = slices.length > 1 ? 6 : 0;
   let offset = 0;
+  const compactCenter = formatFcfaCompact(totalValue);
+  const fullCenter = centerValue || formatFcfa(totalValue);
+  const showFullDetail = Math.abs(totalValue) >= 10_000;
 
   return (
     <div className="chart-donut">
-      <svg
-        className="chart-svg chart-donut-svg"
-        viewBox={`0 0 ${size} ${size}`}
-        role="img"
-        aria-label="Répartition"
-      >
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r}
-          fill="none"
-          stroke="var(--line)"
-          strokeWidth={stroke}
-          opacity={0.28}
-        />
-        <circle
-          cx={cx}
-          cy={cy}
-          r={r - stroke / 2 - 8}
-          fill="var(--paper)"
-          opacity={0.55}
-        />
-        {slices.map((sl) => {
-          const raw = (Math.max(0, sl.value) / total) * circ;
-          const len = Math.max(0, raw - gap);
-          const el = (
-            <circle
-              key={sl.key}
-              cx={cx}
-              cy={cy}
-              r={r}
-              fill="none"
-              stroke={sl.color}
-              strokeWidth={stroke}
-              strokeDasharray={`${len} ${circ - len}`}
-              strokeDashoffset={-offset}
-              strokeLinecap="round"
-              transform={`rotate(-90 ${cx} ${cy})`}
-            >
-              <title>
-                {sl.label} · {formatFcfa(sl.value)} (
-                {Math.round((sl.value / total) * 100)}%)
-              </title>
-            </circle>
-          );
-          offset += raw;
-          return el;
-        })}
-        <text x={cx} y={cy - 4} className="chart-donut-value" textAnchor="middle">
-          {centerValue}
-        </text>
-        <text x={cx} y={cy + 18} className="chart-donut-label" textAnchor="middle">
-          {centerLabel}
-        </text>
-      </svg>
+      <div className="chart-donut-ring">
+        <svg
+          className="chart-svg chart-donut-svg"
+          viewBox={`0 0 ${size} ${size}`}
+          role="img"
+          aria-label="Répartition"
+        >
+          <circle
+            cx={cx}
+            cy={cy}
+            r={r}
+            fill="none"
+            stroke="var(--line)"
+            strokeWidth={stroke}
+            opacity={0.28}
+          />
+          <circle
+            cx={cx}
+            cy={cy}
+            r={r - stroke / 2 - 8}
+            fill="var(--paper)"
+            opacity={0.55}
+          />
+          {slices.map((sl) => {
+            const raw = (Math.max(0, sl.value) / total) * circ;
+            const len = Math.max(0, raw - gap);
+            const el = (
+              <circle
+                key={sl.key}
+                cx={cx}
+                cy={cy}
+                r={r}
+                fill="none"
+                stroke={sl.color}
+                strokeWidth={stroke}
+                strokeDasharray={`${len} ${circ - len}`}
+                strokeDashoffset={-offset}
+                strokeLinecap="round"
+                transform={`rotate(-90 ${cx} ${cy})`}
+              >
+                <title>
+                  {sl.label} · {formatFcfa(sl.value)} (
+                  {Math.round((sl.value / total) * 100)}%)
+                </title>
+              </circle>
+            );
+            offset += raw;
+            return el;
+          })}
+        </svg>
+        <div className="chart-donut-center">
+          <strong className="chart-donut-center-value mono">{compactCenter}</strong>
+          <span className="chart-donut-center-label">{centerLabel}</span>
+          {showFullDetail ? (
+            <span className="chart-donut-center-full muted mono">{fullCenter}</span>
+          ) : null}
+        </div>
+      </div>
       <ul className="chart-legend chart-legend-stack">
         {slices.map((sl) => (
           <li key={sl.key}>

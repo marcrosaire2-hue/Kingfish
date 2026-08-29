@@ -77,6 +77,31 @@ const INDEX = [
     pourquoi: "caisse ouverte d'une zone (à chaque vente)",
   },
   {
+    collection: "stock_units",
+    index: { qrId: 1 },
+    nom: "qrId_unique",
+    pourquoi: "identifiant QR unique par unité de plat",
+    unique: true,
+  },
+  {
+    collection: "stock_units",
+    index: { date: 1, productId: 1, status: 1 },
+    nom: "jour_produit_statut",
+    pourquoi: "compteurs Stock Zogbo par plat et statut",
+  },
+  {
+    collection: "stock_units",
+    index: { site: 1, status: 1 },
+    nom: "site_statut",
+    pourquoi: "filtrage unités restantes à Zogbo",
+  },
+  {
+    collection: "stock_units",
+    index: { batchId: 1 },
+    nom: "batch",
+    pourquoi: "lots de préparation QR",
+  },
+  {
     collection: "caisses_sessions",
     index: { date: 1, site: 1 },
     nom: "jour_site",

@@ -32,6 +32,11 @@ import { purgeVentesByDateRange } from "@/lib/pos-repo";
 import { getSiteRolesConfig } from "@/lib/site-roles-repo";
 import type { VenteKind, VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { getParametres } from "@/lib/parametres-repo";
+import {
+  lookupStockUnit,
+  scanStockUnit,
+} from "@/lib/stock-unit-repo";
 
 export const runtime = "nodejs";
 
@@ -134,13 +139,14 @@ export async function POST(request: Request) {
     const actor = actorOf(user);
     const manager = canManagePastVentes(user.role);
     const body = (await request.json()) as {
-      action?: "sell" | "undo" | "extra" | "edit" | "delete" | "purge";
+      action?: "sell" | "undo" | "extra" | "edit" | "delete" | "purge" | "scan-qr";
       date?: string;
       site?: VenteSite;
       kind?: VenteKind;
       productId?: string;
       qty?: number;
       id?: string;
+      qrId?: string;
       description?: string;
       unitPrice?: number;
       from?: string;
@@ -165,6 +171,34 @@ export async function POST(request: Request) {
     // Gérant / DAF / admin / comptable : corriger un jour passé (ouvert ou
     // clôturé). La suppression définitive et la purge restent admin-only.
     const closedBypass = manager;
+
+    if (body.action === "scan-qr") {
+      const qrId = String(body.qrId ?? "").trim();
+      if (!qrId) {
+        return NextResponse.json({ error: "qrId requis." }, { status: 400 });
+      }
+      const date = await resolveOperatingDate(site, body.date, {
+        allowBackdate: manager,
+      });
+      const unit = await lookupStockUnit(qrId);
+      if (!unit) {
+        return NextResponse.json({ error: "QR introuvable." }, { status: 404 });
+      }
+      const scan = scanStockUnit(unit, {
+        date,
+        site,
+        workflow: "vente",
+      });
+      const parametres = await getParametres();
+      const dish = parametres.baseDishes.find((d) => d.id === unit.productId);
+      const unitPrice = dish?.unitPrice ?? 0;
+      const canSell = scan.allowedActions.includes("sell");
+      return NextResponse.json({
+        ...scan,
+        unitPrice,
+        canSell,
+      });
+    }
 
     if (body.action === "undo") {
       const gate = authorizeVenteAction({

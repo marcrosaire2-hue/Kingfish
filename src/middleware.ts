@@ -136,6 +136,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
+  if (pathname === "/autorisations" || pathname.startsWith("/autorisations/")) {
+    return NextResponse.redirect(new URL("/admin", request.url));
+  }
+
+  if (pathname === "/journal-stock" || pathname.startsWith("/journal-stock/")) {
+    return NextResponse.redirect(new URL("/historique", request.url));
+  }
+
   const site = effectiveSite(user.role, user.site);
   if (
     !canAccessPath(user.role, pathname, site, user.username, user.nav)

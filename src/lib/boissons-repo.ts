@@ -1,6 +1,7 @@
 import { assertDayOpen, isValidDate, updateDayDocument } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
+import { endVentesSansStock } from "@/lib/ventes-sans-stock";
 import type {
   BoissonsDay,
   BoissonsLine,
@@ -157,7 +158,7 @@ export async function saveBoissonsDay(
     status?: BoissonsDay["status"];
     lines: BoissonsLine[];
   },
-  options?: { lockSold?: boolean; directWrite?: boolean },
+  options?: { lockSold?: boolean; directWrite?: boolean; stockSaisie?: boolean },
 ): Promise<BoissonsDayPayload> {
   if (!isValidDate(input.date)) {
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
@@ -168,7 +169,7 @@ export async function saveBoissonsDay(
   const isZogbo = input.site === "zogbo";
   const { drinks } = await getParametres();
 
-  return updateDayDocument<BoissonsDoc, BoissonsDayPayload>(
+  const saved = await updateDayDocument<BoissonsDoc, BoissonsDayPayload>(
     "boissons_jours",
     input.date,
     async (existing) => {
@@ -243,6 +244,10 @@ export async function saveBoissonsDay(
       };
     },
   );
+  if (options?.stockSaisie) {
+    await endVentesSansStock(input.date, input.site);
+  }
+  return saved;
 }
 
 export async function applyBoissonsPurchase(input: {
@@ -257,7 +262,7 @@ export async function applyBoissonsPurchase(input: {
 
   // Écriture sous verrou optimiste : une vente ou un comptage simultané ne
   // peut plus être écrasé par la réécriture du document complet.
-  return updateDayDocument<BoissonsDoc, BoissonsDayPayload & { movement: BoissonsMovement }>(
+  const saved = await updateDayDocument<BoissonsDoc, BoissonsDayPayload & { movement: BoissonsMovement }>(
     "boissons_jours",
     input.date,
     async (existing) => {
@@ -307,6 +312,8 @@ export async function applyBoissonsPurchase(input: {
       };
     },
   );
+  await endVentesSansStock(input.date, input.site);
+  return saved;
 }
 
 export async function cancelBoissonsMovement(input: {

@@ -74,9 +74,9 @@ export function movementRows(
 
 /**
  * Une ligne du registre : affichage, ou formulaire de correction quand la
- * ligne est en édition. Partagée entre Approvisionnement (achats catalogue)
- * et Achats (achats libres) : les deux pages listent et corrigent des
- * mouvements de la même façon, seul le filtre par type diffère.
+ * ligne est en édition. Partagée entre les écrans d'achats : les deux pages
+ * listent et corrigent des mouvements de la même façon, seul le filtre par
+ * type diffère.
  *
  * `allowDateEdit` n'a de sens que pour un achat libre : un achat de
  * catalogue touche le compteur `purchases` de sa matière pour SON jour — le

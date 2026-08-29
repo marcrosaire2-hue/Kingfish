@@ -112,7 +112,7 @@ export function hasDirectionAccess(role: UserRole): boolean {
   return role === "admin" || role === "daf";
 }
 
-/** Accès aux écrans / API financiers (résultat, comptabilité, journal stock). */
+/** Accès aux écrans / API financiers (résultat, comptabilité). */
 export function hasFinanceAccess(role: UserRole): boolean {
   return hasDirectionAccess(role) || role === "comptable";
 }
@@ -131,7 +131,10 @@ export function isZoneAdmin(user: {
   return user.role === "admin" && effectiveSite(user.role, user.site) !== "tous";
 }
 
-export function isPrincipalAdminAccount(username: string): boolean {
+export function isPrincipalAdminAccount(
+  username: string | undefined | null,
+): boolean {
+  if (!username?.trim()) return false;
   return username.trim().toLowerCase() === "admin";
 }
 
@@ -139,7 +142,10 @@ export function isPrincipalAdminAccount(username: string): boolean {
  * Compte direction (Marc) : vue synthèse + journaux + registre + création
  * d'utilisateurs — sans les écrans opérationnels (vente, caisse, stocks zone…).
  */
-export function isExecutiveAdminAccount(username: string): boolean {
+export function isExecutiveAdminAccount(
+  username: string | undefined | null,
+): boolean {
+  if (!username?.trim()) return false;
   const listed = (process.env.EXECUTIVE_ADMIN_USERNAMES ?? "marc")
     .split(",")
     .map((value) => value.trim().toLowerCase())
@@ -162,12 +168,10 @@ const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "comptabilite",
   "journal-ventes",
   "quantites-vendues",
-  "journal-stock",
   "historique",
   "rapport-quotidien",
   "controle",
   "admin",
-  "autorisations",
 ];
 
 /** Rôles qu’un admin peut attribuer. */
@@ -273,8 +277,6 @@ export type NavKey =
   | "immobilisations"
   | "stock"
   | "admin"
-  | "autorisations"
-  | "journal-stock"
   | "rapport-quotidien"
   | "controle";
 
@@ -315,7 +317,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "immobilisations",
     "journal-ventes",
     "quantites-vendues",
-    "journal-stock",
     "historique",
     "rapport-quotidien",
     "controle",
@@ -340,7 +341,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "stock",
     "immobilisations",
     "historique",
-    "journal-stock",
     "rapport-quotidien",
     "controle",
   ],
@@ -364,9 +364,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "immobilisations",
     "historique",
     "admin",
-    // Journal complet des mouvements de stock (ventes, achats, pertes,
-    // réceptions) avec export détaillé : audit réservé à l'administration.
-    "journal-stock",
     "rapport-quotidien",
     "controle",
   ],
@@ -481,7 +478,7 @@ function canAccessPathWithAllowed(
 ): boolean {
   if (pathname.startsWith("/admin")) return allowed.includes("admin");
   if (pathname.startsWith("/autorisations")) {
-    return allowed.includes("autorisations");
+    return allowed.includes("admin");
   }
   if (pathname.startsWith("/vente")) return allowed.includes("vente");
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");
@@ -496,6 +493,7 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/pertes")) return allowed.includes("pertes");
   if (pathname.startsWith("/reglages")) return allowed.includes("reglages");
   if (pathname.startsWith("/parametres")) return allowed.includes("parametres");
+  if (pathname.startsWith("/stock-zogbo")) return allowed.includes("zogbo");
   if (pathname.startsWith("/zogbo")) return allowed.includes("zogbo");
   if (pathname.startsWith("/gbegamey")) return allowed.includes("gbegamey");
   if (pathname.startsWith("/combos")) {
@@ -546,9 +544,6 @@ function canAccessPathWithAllowed(
     return allowed.includes("stock");
   }
   if (pathname.startsWith("/historique")) return allowed.includes("historique");
-  if (pathname.startsWith("/journal-stock")) {
-    return allowed.includes("journal-stock");
-  }
   if (pathname === "/" || pathname === "") {
     return allowed.includes("synthese");
   }

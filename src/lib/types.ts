@@ -218,6 +218,11 @@ export type ZogboDay = {
   accompanimentLines?: GbegameyLocalLine[];
   movements: ZogboMovement[];
   updatedAt: string | null;
+  /**
+   * Après reset stock : ventes sans plafond jusqu'à la prochaine saisie
+   * de stock (préparé, comptage, envoi…).
+   */
+  ventesSansStock?: boolean;
 };
 
 export type ZogboLineComputed = ZogboLine & {
@@ -293,6 +298,7 @@ export type GbegameyDay = {
   /** Historique des confirmations de réception (envoyés → reçus → écart) */
   receipts?: GbegameyReceiptMovement[];
   updatedAt: string | null;
+  ventesSansStock?: boolean;
 };
 
 export type GbegameyTransferComputed = GbegameyTransferLine & {
@@ -886,6 +892,8 @@ export type PosTicketLine = {
   amount: number;
   /** id ventes_log après validation */
   venteLogId?: string | null;
+  /** Unité QR tracée vendue avec cette ligne */
+  qrId?: string | null;
 };
 
 export type PosTicketStatut = "valide" | "annule";

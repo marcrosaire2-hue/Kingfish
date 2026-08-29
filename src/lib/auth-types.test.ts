@@ -24,7 +24,6 @@ describe("rôle Comptable", () => {
       "immobilisations",
       "journal-ventes",
       "quantites-vendues",
-      "journal-stock",
       "historique",
       "rapport-quotidien",
       "controle",
@@ -72,23 +71,21 @@ describe("étanchéité des zones", () => {
     expect(menu).not.toContain("gbegamey");
   });
 
-  it("le gérant accède au stock sans quitter sa zone", () => {
-    expect(canAccessPath("gerant", "/stock", "zogbo")).toBe(true);
-    expect(navForUser("gerant", "zogbo")).toContain("stock");
+  it("le gérant accède au stock Zogbo sans quitter sa zone", () => {
+    expect(canAccessPath("gerant", "/stock-zogbo", "zogbo")).toBe(true);
+    expect(navForUser("gerant", "zogbo")).toContain("zogbo");
   });
 
-  it("l’URL /combos est accessible via paramètres, stock ou vente", () => {
+  it("l’ancienne URL /combos suit le droit zogbo (redirection)", () => {
     expect(canAccessPath("gerant", "/combos", "zogbo")).toBe(true);
-    expect(canAccessPath("comptable", "/combos", "tous")).toBe(true);
+    expect(navForUser("gerant", "zogbo")).not.toContain("combos");
   });
 
   it("le gérant accède au journal des ventes de SA zone", () => {
     expect(canAccessPath("gerant", "/journal-ventes", "zogbo")).toBe(true);
-    expect(canAccessPath("gerant", "/quantites-vendues", "zogbo")).toBe(true);
     expect(canAccessPath("gerant", "/historique-ventes", "zogbo")).toBe(true);
     const menu = navForUser("gerant", "zogbo");
     expect(menu).toContain("journal-ventes");
-    expect(menu).toContain("quantites-vendues");
     expect(menu).not.toContain("historique-ventes");
     expect(navForUser("gerant", "zogbo")).not.toContain("gbegamey");
   });
@@ -148,20 +145,6 @@ describe("l'API suit les droits de l'écran", () => {
     }
   });
 
-  it("donne Régularisation à Zogbo et à Gbégamey (gérant / DAF / admin)", () => {
-    for (const site of ["zogbo", "gbegamey"] as const) {
-      expect(navForUser("gerant", site)).toContain("regularisation");
-      expect(canAccessPath("gerant", "/regularisation", site)).toBe(true);
-    }
-    expect(canAccessPath("daf", "/regularisation", "tous")).toBe(true);
-    expect(canAccessPath("admin", "/regularisation", "tous")).toBe(true);
-    expect(canAccessPath("comptable", "/regularisation", "tous")).toBe(false);
-    // Compte direction (Marc) : pas de saisie opérationnelle.
-    expect(canAccessPath("admin", "/regularisation", "tous", "marc")).toBe(
-      false,
-    );
-  });
-
   it("réserve la correction des ventes passées au gérant et à l'admin", () => {
     expect(canManagePastVentes("gerant")).toBe(true);
     expect(canManagePastVentes("admin")).toBe(true);
@@ -194,12 +177,10 @@ describe("l'API suit les droits de l'écran", () => {
       "comptabilite",
       "journal-ventes",
       "quantites-vendues",
-      "journal-stock",
       "historique",
       "rapport-quotidien",
       "controle",
       "admin",
-      "autorisations",
     ]);
     expect(canAccessPath("admin", "/analyse", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/", "tous", "marc")).toBe(true);
@@ -210,13 +191,9 @@ describe("l'API suit les droits de l'écran", () => {
     expect(canAccessPath("admin", "/journal-ventes", "tous", "marc")).toBe(
       true,
     );
-    expect(canAccessPath("admin", "/journal-stock", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/historique", "tous", "marc")).toBe(true);
-    expect(canAccessPath("admin", "/rapport-quotidien", "tous", "marc")).toBe(
-      true,
-    );
-    expect(canAccessPath("admin", "/controle", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/admin", "tous", "marc")).toBe(true);
+    expect(canAccessPath("admin", "/autorisations", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/vente", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/parametres", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/zogbo", "tous", "marc")).toBe(false);
@@ -227,7 +204,6 @@ describe("l'API suit les droits de l'écran", () => {
     expect(menu).not.toContain("admin");
     expect(menu).toContain("vente");
     expect(menu).toContain("compte-resultat");
-    expect(menu).toContain("journal-stock");
     expect(canAccessPath("daf", "/admin", "tous", "daff")).toBe(false);
     expect(
       canAccessPath("daf", "/api/admin/users".replace(/^\/api/, ""), "tous", "daff"),

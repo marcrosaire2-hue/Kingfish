@@ -31,6 +31,7 @@ import {
   loadAquaAlimentStocks,
   openingByProductName,
 } from "@/lib/aquapro-opening-stock";
+import { mergeVentesSansStockOnSave } from "@/lib/ventes-sans-stock";
 
 type ZogboDoc = Omit<ZogboDay, "date"> & {
   _id: string;
@@ -87,6 +88,7 @@ function toDay(doc: ZogboDoc, accompanimentLines?: GbegameyLocalLine[]): ZogboDa
     accompanimentLines,
     movements,
     updatedAt: doc.updatedAt ?? null,
+    ventesSansStock: doc.ventesSansStock === true,
   };
 }
 
@@ -314,6 +316,8 @@ export async function saveZogboDay(
     lines: ZogboLine[];
     accompanimentLines?: GbegameyLocalLine[];
     movements?: ZogboMovement[];
+    /** Saisie stock : réactive le contrôle stock à la vente. */
+    stockSaisie?: boolean;
   },
   options?: { lockSold?: boolean; directWrite?: boolean },
 ): Promise<ZogboDayPayload> {
@@ -406,6 +410,10 @@ export async function saveZogboDay(
 
       const updatedAt = new Date().toISOString();
       const status = input.status ?? "ouverte";
+      const ventesSansStock = mergeVentesSansStockOnSave({
+        stockSaisie: input.stockSaisie,
+        existing,
+      });
 
       return {
         set: {
@@ -414,6 +422,7 @@ export async function saveZogboDay(
           accompanimentLines,
           movements,
           updatedAt,
+          ventesSansStock,
         },
         result: {
           day: {
@@ -423,6 +432,7 @@ export async function saveZogboDay(
             accompanimentLines,
             movements,
             updatedAt,
+            ventesSansStock,
           },
           baseDishes,
           localDishes,
@@ -457,9 +467,22 @@ async function mutateZogboDay(
     const movements = applied.movements;
 
     return {
-      set: { status, lines, movements, updatedAt },
+      set: {
+        status,
+        lines,
+        movements,
+        updatedAt,
+        ventesSansStock: false,
+      },
       result: {
-        day: { date, status, lines, movements, updatedAt },
+        day: {
+          date,
+          status,
+          lines,
+          movements,
+          updatedAt,
+          ventesSansStock: false,
+        },
         baseDishes: payload.baseDishes,
         localDishes: payload.localDishes,
         movement: applied.movement,

@@ -92,6 +92,7 @@ export async function PUT(request: Request) {
       status: body.status,
       transferLines: body.transferLines,
       localLines: body.localLines,
+      stockSaisie: true,
     });
     const transferSold = body.transferLines.reduce(
       (s, l) => s + (l.sold || 0),

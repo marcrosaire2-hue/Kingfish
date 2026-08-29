@@ -12,13 +12,7 @@ import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import { computeZogboLine, shiftIsoDate } from "@/lib/zogbo-calc";
 import { isLegalAccompanimentPrice } from "@/lib/catalog-zogbo";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
-import {
-  comboEconomie,
-  comboPrixNormal,
-  comboStockLeft,
-} from "@/lib/combos-model";
 import type {
-  ComboComponent,
   GbegameyLocalLine,
   VenteKind,
   VenteLogEntry,
@@ -27,6 +21,11 @@ import type {
   VentesDaySummary,
 } from "@/lib/types";
 import { isValidDate } from "@/lib/day-doc";
+import { restorePlatUnitAfterSaleCancel } from "@/lib/stock-unit-repo";
+import {
+  dayVentesSansStock,
+  isVentesSansStockActive,
+} from "@/lib/ventes-sans-stock";
 
 export type { VenteKind, VenteLogEntry, VenteProduct, VenteSite, VentesDaySummary };
 
@@ -68,8 +67,8 @@ type VenteLogDoc = {
   /** Provenance (caisse, carnet-zogbo, aquapro, reprise…) */
   source?: string | null;
   caExcluded?: boolean;
-  /** Snapshot composants (vente combo) pour annulation fiable. */
-  comboComponents?: ComboComponent[] | null;
+  /** Unité QR tracée vendue avec cette ligne */
+  qrId?: string | null;
 };
 
 function mapVenteLogDoc(d: VenteLogDoc): VenteLogEntry {
@@ -85,14 +84,14 @@ function mapVenteLogDoc(d: VenteLogDoc): VenteLogEntry {
     amount: d.amount,
     at: d.at,
     source: d.source ?? null,
-    comboComponents: d.comboComponents ?? null,
   };
 }
 
-/** Ventes actives : les annulations restent en base mais ne comptent plus. */
+/** Ventes actives : les annulations restent en base mais ne comptent plus. Formules retirées. */
 const ACTIVE = {
   cancelledAt: null,
   caExcluded: { $ne: true },
+  kind: { $ne: "combo" },
 } as unknown as Filter<VenteLogDoc>;
 
 /** Document « jour » quelconque, adressé par date — lignes accédées dynamiquement. */
@@ -234,7 +233,10 @@ async function getBaseDishStockLeft(
   date: string,
   site: VenteSite,
   productId: string,
-): Promise<{ left: number; maxSold: number }> {
+): Promise<{ left: number; maxSold: number | null }> {
+  if (await isVentesSansStockActive(date, site)) {
+    return { left: Number.MAX_SAFE_INTEGER, maxSold: null };
+  }
   if (site === "zogbo") {
     const { day } = await getZogboDayPayload(date);
     const line = day.lines.find((l) => l.productId === productId);
@@ -312,6 +314,8 @@ export async function getVenteBoard(
   caToday: number;
   /** Répartition du CA du jour entre les équipes */
   caParEquipe: Record<UserShift, number>;
+  /** Ventes sans plafond stock (après reset, jusqu'à saisie stock). */
+  ventesSansStock: boolean;
 }> {
   if (!isValidDate(date)) throw new Error("Date invalide");
   if (site !== "zogbo" && site !== "gbegamey") {
@@ -335,6 +339,11 @@ export async function getVenteBoard(
 
   const caParEquipe = await sumCaByShift(date, site);
 
+  const ventesSansStock =
+    site === "zogbo"
+      ? dayVentesSansStock(zogbo.day)
+      : dayVentesSansStock(gbegamey.day);
+
   const products: VenteProduct[] = [];
 
   if (site === "zogbo") {
@@ -347,13 +356,17 @@ export async function getVenteBoard(
     for (const dish of parametres.baseDishes) {
       const line = zogbo.day.lines.find((l) => l.productId === dish.id);
       const computed = line ? computeZogboLine(line, 0) : null;
-      const stockLeft = computed?.prevalentRemaining ?? 0;
-      const status = zogboPlatStatus({
-        stockLeft,
-        prepared: line?.prepared ?? 0,
-        stock: line?.stock ?? 0,
-        sold: line?.sold ?? 0,
-      });
+      const stockLeft = ventesSansStock
+        ? null
+        : (computed?.prevalentRemaining ?? 0);
+      const status = ventesSansStock
+        ? { hint: "Vente libre — stock non saisi", blockReason: null }
+        : zogboPlatStatus({
+            stockLeft: computed?.prevalentRemaining ?? 0,
+            prepared: line?.prepared ?? 0,
+            stock: line?.stock ?? 0,
+            sold: line?.sold ?? 0,
+          });
       products.push({
         kind: "plat",
         productId: dish.id,
@@ -361,8 +374,9 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: soldById.get(dish.id) ?? 0,
         stockLeft,
-        lowStock: isLowStock(stockLeft, dish.alertThreshold),
-        alertThreshold: dish.alertThreshold ?? null,
+        lowStock: ventesSansStock
+          ? false
+          : isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold),
         hint: status.hint,
         blockReason: status.blockReason,
       });
@@ -380,11 +394,6 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
-        lowStock: isLowStock(stockLeft, dish?.alertThreshold),
-        alertThreshold: dish.alertThreshold ?? null,
-        hint: tracked
-          ? `Accompagnement · reste ${stockLeft ?? 0}`
-          : "Accompagnement · stock non inventorié",
       });
     }
   } else {
@@ -396,14 +405,18 @@ export async function getVenteBoard(
       const computed = line
         ? computeTransferLine(line, sent, dish.unitPrice)
         : null;
-      const stockLeft = computed?.prevalentRemaining ?? 0;
-      const status = gbegameyPlatStatus({
-        stockLeft,
-        sent,
-        initialStock: line?.initialStock ?? 0,
-        sold: line?.sold ?? 0,
-        counted: line?.counted ?? null,
-      });
+      const stockLeft = ventesSansStock
+        ? null
+        : (computed?.prevalentRemaining ?? 0);
+      const status = ventesSansStock
+        ? { hint: "Vente libre — stock non saisi", blockReason: null }
+        : gbegameyPlatStatus({
+            stockLeft: computed?.prevalentRemaining ?? 0,
+            sent,
+            initialStock: line?.initialStock ?? 0,
+            sold: line?.sold ?? 0,
+            counted: line?.counted ?? null,
+          });
       products.push({
         kind: "plat",
         productId: dish.id,
@@ -411,8 +424,9 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
-        lowStock: isLowStock(stockLeft, dish.alertThreshold),
-        alertThreshold: dish.alertThreshold ?? null,
+        lowStock: ventesSansStock
+          ? false
+          : isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold),
         hint: status.hint,
         blockReason: status.blockReason,
       });
@@ -429,11 +443,6 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
-        lowStock: isLowStock(stockLeft, dish?.alertThreshold),
-        alertThreshold: dish.alertThreshold ?? null,
-        hint: tracked
-          ? `Accompagnement · reste ${stockLeft ?? 0}`
-          : "Accompagnement · stock non inventorié",
       });
     }
   }
@@ -463,9 +472,8 @@ export async function getVenteBoard(
     // Boisson jamais inventoriée (aucun comptage, stock 0) : vendable sans
     // stock, comme un accompagnement non suivi — sinon elle resterait grisée.
     const untracked =
-      countedThisSite === null &&
-      stockLeft <= 0 &&
-      (drink.salePrice ?? 0) > 0;
+      ventesSansStock ||
+      (countedThisSite === null && stockLeft <= 0 && (drink.salePrice ?? 0) > 0);
     products.push({
       kind: "boisson",
       productId: drink.id,
@@ -477,7 +485,6 @@ export async function getVenteBoard(
         drink.salePrice !== null &&
         !untracked &&
         isLowStock(stockLeft, drink.alertThreshold),
-      alertThreshold: drink.alertThreshold ?? null,
       hint:
         drink.salePrice === null
           ? "PV manquant"
@@ -495,55 +502,7 @@ export async function getVenteBoard(
     });
   }
 
-  // Combos actifs : stock = min des portions possibles selon composants du site.
-  const dbCombo = await getDb();
-  const comboSoldRows = await dbCombo
-    .collection<VenteLogDoc>("ventes_log")
-    .aggregate<{ _id: string; qty: number }>([
-      {
-        $match: {
-          date,
-          site,
-          kind: "combo",
-          cancelledAt: null,
-        },
-      },
-      { $group: { _id: "$productId", qty: { $sum: "$qty" } } },
-    ])
-    .toArray();
-  const comboSoldById = new Map(
-    comboSoldRows.map((r) => [String(r._id), Number(r.qty) || 0]),
-  );
-
-  for (const combo of parametres.combos ?? []) {
-    if (!combo.active) continue;
-    if (!combo.components.length || combo.unitPrice <= 0) continue;
-    const stockLeft = comboStockLeft(combo, products);
-    const prixNormal = comboPrixNormal(combo, parametres);
-    const economie = comboEconomie(combo, parametres);
-    products.push({
-      kind: "combo",
-      productId: combo.id,
-      name: combo.name,
-      unitPrice: combo.unitPrice,
-      soldToday: comboSoldById.get(combo.id) ?? 0,
-      stockLeft,
-      lowStock: isLowStock(stockLeft, combo.alertThreshold),
-      alertThreshold: combo.alertThreshold ?? null,
-      hint:
-        stockLeft === null
-          ? `Combo · économie ${economie} F`
-          : stockLeft <= 0
-            ? "Composants insuffisants"
-            : `Combo · reste ${stockLeft} · éco. ${economie} F (normal ${prixNormal} F)`,
-      blockReason:
-        stockLeft !== null && stockLeft <= 0
-          ? "Composants du combo indisponibles"
-          : null,
-    });
-  }
-
-  return { date, site, products, recent, caToday, caParEquipe };
+  return { date, site, products, recent, caToday, caParEquipe, ventesSansStock };
 }
 
 /** CA du jour réparti par équipe — répond à « quelle équipe a vendu ». */
@@ -1182,161 +1141,6 @@ async function applySoldDelta(input: {
   };
 }
 
-async function recordComboVente(
-  input: {
-    date: string;
-    site: VenteSite;
-    productId: string;
-    unitPrice?: number;
-    actor?: VenteActor | null;
-    bypassClosedDay?: boolean;
-    bypassStock?: boolean;
-  },
-  qty: number,
-): Promise<{
-  entry: VenteLogEntry;
-  soldToday: number;
-  board: Awaited<ReturnType<typeof getVenteBoard>>;
-}> {
-  await assertDayNotClosed(input.date, input.site, "plat", {
-    bypassClosedDay: input.bypassClosedDay,
-  });
-
-  const parametres = await getParametres();
-  const combo = (parametres.combos ?? []).find((c) => c.id === input.productId);
-  if (!combo || !combo.active) throw new Error("Combo introuvable ou inactif");
-  if (!combo.components.length) {
-    throw new Error("Combo sans composants — configurez la formule.");
-  }
-
-  const unitPrice = combo.unitPrice;
-  if (unitPrice <= 0) throw new Error("Prix du combo invalide");
-  if (
-    input.unitPrice !== undefined &&
-    Math.round(Number(input.unitPrice) || 0) > 0 &&
-    Math.round(Number(input.unitPrice) || 0) !== unitPrice
-  ) {
-    throw new Error(`Prix non autorisé pour « ${combo.name} »`);
-  }
-
-  if (qty > 0 && !input.bypassStock) {
-    const boardPreview = await getVenteBoard(input.date, input.site, {
-      recentLimit: 1,
-    });
-    const left = comboStockLeft(combo, boardPreview.products);
-    if (left !== null && left < qty) {
-      throw new Error(
-        `Stock insuffisant pour le combo (reste ${left} portion${left > 1 ? "s" : ""})`,
-      );
-    }
-  }
-
-  const applied: Array<{ kind: VenteKind; productId: string; delta: number }> =
-    [];
-  try {
-    for (const c of combo.components) {
-      const delta = c.qty * qty;
-      await applySoldDelta({
-        date: input.date,
-        site: input.site,
-        kind: c.kind,
-        productId: c.productId,
-        delta,
-        maxSold: input.bypassStock || c.kind === "local" ? null : undefined,
-      });
-      applied.push({ kind: c.kind, productId: c.productId, delta });
-    }
-  } catch (error) {
-    for (const a of applied.reverse()) {
-      try {
-        await applySoldDelta({
-          date: input.date,
-          site: input.site,
-          kind: a.kind,
-          productId: a.productId,
-          delta: -a.delta,
-          maxSold: null,
-        });
-      } catch {
-        /* best effort */
-      }
-    }
-    throw error;
-  }
-
-  const at = new Date().toISOString();
-  const amount = Math.abs(qty) * unitPrice;
-  const db = await getDb();
-  const componentsSnap: ComboComponent[] = combo.components.map((c) => ({
-    ...c,
-  }));
-  let insert;
-  try {
-    insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
-      _id: new ObjectId(),
-      date: input.date,
-      site: input.site,
-      kind: "combo",
-      productId: combo.id,
-      name: combo.name,
-      qty,
-      unitPrice,
-      costPrice: combo.costPrice ?? 0,
-      amount: qty > 0 ? amount : -amount,
-      at,
-      cancelledAt: null,
-      baseProductId: null,
-      actorId: input.actor?.id ?? null,
-      actorName: input.actor?.name ?? null,
-      actorUsername: input.actor?.username ?? null,
-      shift: effectiveShift(input.actor?.shift),
-      comboComponents: componentsSnap,
-    });
-  } catch (error) {
-    for (const a of applied.reverse()) {
-      try {
-        await applySoldDelta({
-          date: input.date,
-          site: input.site,
-          kind: a.kind,
-          productId: a.productId,
-          delta: -a.delta,
-          maxSold: null,
-        });
-      } catch {
-        /* best effort */
-      }
-    }
-    throw error;
-  }
-
-  const board = await getVenteBoard(input.date, input.site);
-  const soldToday =
-    board.products.find(
-      (p) => p.kind === "combo" && p.productId === combo.id,
-    )?.soldToday ?? Math.abs(qty);
-
-  return {
-    entry: mapVenteLogDoc({
-      _id: insert.insertedId,
-      date: input.date,
-      site: input.site,
-      kind: "combo",
-      productId: combo.id,
-      name: combo.name,
-      qty,
-      unitPrice,
-      costPrice: combo.costPrice ?? 0,
-      amount: qty > 0 ? amount : -amount,
-      at,
-      cancelledAt: null,
-      comboComponents: componentsSnap,
-    }),
-    soldToday,
-    board,
-  };
-}
-
 export async function recordVente(input: {
   date: string;
   site: VenteSite;
@@ -1353,6 +1157,8 @@ export async function recordVente(input: {
    * est nul ou insuffisant (régularisation). Le compteur `sold` monte quand même.
    */
   bypassStock?: boolean;
+  /** Lien vers l'unité QR vendue (plats tracés). */
+  qrId?: string | null;
 }): Promise<{
   entry: VenteLogEntry;
   soldToday: number;
@@ -1365,11 +1171,10 @@ export async function recordVente(input: {
   if (!Number.isFinite(qty) || qty === 0) {
     throw new Error("Quantité invalide");
   }
-  if (!isValidDate(input.date)) throw new Error("Date invalide");
-
-  if (input.kind === "combo") {
-    return recordComboVente(input, qty);
+  if (input.qrId && qty !== 1) {
+    throw new Error("Une unité QR ne peut être vendue qu'à la quantité 1.");
   }
+  if (!isValidDate(input.date)) throw new Error("Date invalide");
 
   await assertDayNotClosed(input.date, input.site, input.kind, {
     bypassClosedDay: input.bypassClosedDay,
@@ -1379,7 +1184,8 @@ export async function recordVente(input: {
   // (stock − pertes) : transmis à applySoldDelta, il borne l'écriture.
   // Régularisation gérant : pas de plafond (maxSold null).
   let maxSold: number | null = null;
-  if (qty > 0 && !input.bypassStock) {
+  const ventesSansStock = await isVentesSansStockActive(input.date, input.site);
+  if (qty > 0 && !input.bypassStock && !input.qrId && !ventesSansStock) {
     if (input.kind === "plat") {
       const { left, maxSold: max } = await getBaseDishStockLeft(
         input.date,
@@ -1505,6 +1311,7 @@ export async function recordVente(input: {
       actorName: input.actor?.name ?? null,
       actorUsername: input.actor?.username ?? null,
       shift: effectiveShift(input.actor?.shift),
+      qrId: input.qrId ?? null,
     });
   } catch (error) {
     try {
@@ -1722,45 +1529,6 @@ export async function undoVente(input: {
     return { board, entry };
   }
 
-  if (doc.kind === "combo") {
-    await assertDayNotClosed(doc.date, doc.site, "plat", {
-      bypassClosedDay: input.bypassClosedDay,
-    });
-    const components =
-      doc.comboComponents?.length
-        ? doc.comboComponents
-        : (
-            (await getParametres()).combos ?? []
-          ).find((c) => c.id === doc.productId)?.components ?? [];
-    try {
-      for (const c of components) {
-        await applySoldDelta({
-          date: doc.date,
-          site: doc.site,
-          kind: c.kind,
-          productId: c.productId,
-          delta: -(c.qty * doc.qty),
-          maxSold: null,
-        });
-      }
-    } catch (error) {
-      await db.collection<VenteLogDoc>("ventes_log").updateOne(
-        { _id: doc._id },
-        {
-          $set: {
-            cancelledAt: null,
-            cancelledById: null,
-            cancelledByName: null,
-            cancelledByUsername: null,
-          },
-        },
-      );
-      throw error;
-    }
-    const board = await getVenteBoard(input.date, input.site);
-    return { board, entry };
-  }
-
   await assertDayNotClosed(doc.date, doc.site, doc.kind, {
     bypassClosedDay: input.bypassClosedDay,
   });
@@ -1789,6 +1557,17 @@ export async function undoVente(input: {
       },
     );
     throw error;
+  }
+
+  if (doc.qrId) {
+    try {
+      await restorePlatUnitAfterSaleCancel({
+        qrId: doc.qrId,
+        site: doc.site,
+      });
+    } catch {
+      /* best effort : le compteur sold est déjà repris */
+    }
   }
 
   const board = await getVenteBoard(input.date, input.site);

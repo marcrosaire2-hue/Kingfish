@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
 export default function Page() {
-  redirect("/zogbo?tab=boissons");
+  redirect("/stock-zogbo?tab=boissons");
 }

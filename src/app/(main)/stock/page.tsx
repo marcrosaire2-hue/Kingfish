@@ -1,5 +1,6 @@
-import { StockPage } from "@/components/stock/stock-page";
+import { redirect } from "next/navigation";
 
+/** Ancienne page Stock — redirigée vers Stock Zogbo. */
 export default function Page() {
-  return <StockPage />;
+  redirect("/stock-zogbo");
 }

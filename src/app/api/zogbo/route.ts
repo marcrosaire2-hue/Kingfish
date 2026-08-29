@@ -109,6 +109,7 @@ export async function PUT(request: Request) {
       status: body.status,
       lines: body.lines,
       accompanimentLines: body.accompanimentLines,
+      stockSaisie: true,
     });
     await logActivity({
       user,

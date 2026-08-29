@@ -61,14 +61,15 @@ export function zoneRoute(zone: StockZone, date: string): string {
   switch (zone) {
     case "zogbo-plats":
     case "zogbo-accompagnements":
-      return `/zogbo?date=${date}`;
+      return `/stock-zogbo?date=${date}`;
     case "gbegamey-plats":
     case "gbegamey-accompagnements":
       return `/gbegamey?date=${date}`;
     case "zogbo-boissons":
+      return `/stock-zogbo?tab=boissons&date=${date}`;
     case "gbegamey-boissons":
-      return `/boissons?date=${date}`;
+      return `/gbegamey?tab=boissons&date=${date}`;
     case "matieres":
-      return `/appro?date=${date}`;
+      return `/stock-zogbo?tab=parametres&date=${date}`;
   }
 }

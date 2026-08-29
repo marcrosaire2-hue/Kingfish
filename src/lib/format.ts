@@ -8,6 +8,23 @@ export function formatFcfa(value: number | null | undefined): string {
   return `${CURRENCY_FORMAT.format(value)} FCFA`;
 }
 
+/** Version courte pour les graphiques (centre de donut, petits blocs). */
+export function formatFcfaCompact(value: number | null | undefined): string {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "—";
+  }
+  const abs = Math.abs(value);
+  if (abs >= 1_000_000) {
+    const m = value / 1_000_000;
+    return `${m.toLocaleString("fr-FR", { maximumFractionDigits: 2 })} M`;
+  }
+  if (abs >= 10_000) {
+    const k = value / 1_000;
+    return `${k.toLocaleString("fr-FR", { maximumFractionDigits: 0 })} k`;
+  }
+  return CURRENCY_FORMAT.format(value);
+}
+
 export function parseMoneyInput(raw: string): number | null {
   const cleaned = raw
     .replace(/\s/g, "")

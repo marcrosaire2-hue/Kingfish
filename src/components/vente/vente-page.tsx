@@ -9,8 +9,9 @@ import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
 import { RegistreDrawer } from "@/components/registre-drawer";
-import { useSession } from "@/components/session-provider";
+import { QrScanner } from "@/components/stock-zogbo/qr-scanner";
 import { formatFcfa, parseMoneyInput } from "@/lib/format";
+import { parseQrIdFromScan } from "@/lib/parse-qr-id";
 import {
   ajouterEnAttente,
   installerSupportHorsLigne,
@@ -37,10 +38,6 @@ import type {
   VenteSite,
 } from "@/lib/types";
 import { previousIsoDate, shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
-import {
-  venteActionEnabled,
-  type SiteRolesConfig,
-} from "@/lib/site-roles-model";
 
 type Board = {
   date: string;
@@ -49,6 +46,7 @@ type Board = {
   products: VenteProduct[];
   recent: VenteLogEntry[];
   caToday: number;
+  ventesSansStock?: boolean;
 };
 
 type CartLine = {
@@ -58,23 +56,23 @@ type CartLine = {
   name: string;
   unitPrice: number;
   qty: number;
+  /** Unité QR tracée — une ligne = une unité, non duplicable. */
+  qrId?: string;
 };
 
-type CatKey = "plat" | "accompagnement" | "boisson" | "combo" | "extra";
+type CatKey = "plat" | "accompagnement" | "boisson" | "extra";
 
 /** Onglet UI → kind API (`extra` = saisie libre). */
 const CAT_KIND: Record<Exclude<CatKey, "extra">, VenteProduct["kind"]> = {
   plat: "plat",
   accompagnement: "local",
   boisson: "boisson",
-  combo: "combo",
 };
 
 const CAT_LABELS: Record<CatKey, string> = {
   plat: "Plats",
   accompagnement: "Accompagnements",
   boisson: "Boissons",
-  combo: "Combos",
   extra: "Hors catalogue",
 };
 
@@ -226,8 +224,9 @@ const ProductGrid = memo(function ProductGrid({
           p.stockLeft !== undefined &&
           p.stockLeft <= 0;
         const blocked = disabledPv || outOfStock || !canSell;
+        const showStockUi = p.kind !== "local";
         const reason = !canSell
-          ? "Caisse en cours d’ouverture…"
+          ? "Ouvrez la caisse pour vendre"
           : disabledPv
             ? p.blockReason || "Prix de vente manquant"
             : outOfStock
@@ -236,42 +235,35 @@ const ProductGrid = memo(function ProductGrid({
         const badgeLabel =
           outOfStock && p.blockReason?.toLowerCase().includes("pas encore reçu")
             ? "PAS REÇU"
-            : outOfStock &&
-                p.blockReason?.toLowerCase().includes("pas encore préparé")
+            : outOfStock && p.blockReason?.toLowerCase().includes("pas encore préparé")
               ? "À PRÉPARER"
               : outOfStock
-                ? "RUPTURE"
+                ? "ÉPUISÉ"
                 : null;
-        const seuil =
-          typeof p.alertThreshold === "number" && p.alertThreshold > 0
-            ? p.alertThreshold
-            : null;
-        const resteAffiche =
-          p.stockLeft !== null && p.stockLeft !== undefined
-            ? p.stockLeft
-            : null;
         return (
           <article
             key={`${p.kind}-${p.productId}`}
             className={`vente-card${blocked ? " is-disabled" : ""}${
-              p.lowStock && !outOfStock ? " is-low" : ""
-            }${outOfStock ? " is-rupture" : ""}`}
-            title={reason ?? p.hint ?? undefined}
+              showStockUi && p.lowStock && !outOfStock ? " is-low" : ""
+            }`}
+            title={
+              showStockUi ? (reason ?? p.hint ?? undefined) : undefined
+            }
           >
             <div className="vente-card-media" aria-hidden>
               <ProductIcon kind={p.kind} name={p.name} size="lg" />
-              {badgeLabel ? (
+              {showStockUi && badgeLabel ? (
                 <span
                   className={`vente-out-badge${
                     badgeLabel === "PAS REÇU" || badgeLabel === "À PRÉPARER"
                       ? " is-wait"
-                      : " is-rupture"
+                      : ""
                   }`}
                 >
-                  {badgeLabel === "RUPTURE" ? "RUPTURE DE STOCK" : badgeLabel}
+                  {badgeLabel}
                 </span>
-              ) : p.lowStock && !outOfStock ? (
-                <span className="vente-low-badge">STOCK FAIBLE</span>
+              ) : showStockUi && p.lowStock && !outOfStock ? (
+                <span className="vente-low-badge">Bientôt épuisé</span>
               ) : null}
             </div>
             <div className="vente-card-body">
@@ -279,23 +271,9 @@ const ProductGrid = memo(function ProductGrid({
               <span className="vente-price mono">
                 {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
               </span>
-              {resteAffiche !== null ? (
-                <p
-                  className={`vente-stock-meta${
-                    outOfStock
-                      ? " is-rupture"
-                      : p.lowStock
-                        ? " is-low"
-                        : ""
-                  }`}
-                >
-                  Reste {resteAffiche}
-                  {seuil !== null ? ` · seuil ${seuil}` : ""}
-                </p>
-              ) : null}
-              {reason ? (
+              {showStockUi && reason ? (
                 <p className="vente-unavailable-reason">{reason}</p>
-              ) : p.hint && resteAffiche === null ? (
+              ) : showStockUi && p.hint ? (
                 <p className="vente-hint">{p.hint}</p>
               ) : null}
             </div>
@@ -461,12 +439,6 @@ const MealComposer = memo(function MealComposer({
                               ? ` · ${formatFcfa(accPrice)}`
                               : ""}
                           </span>
-                          {a.hint ? (
-                            <span className="vente-hint-inline">
-                              {" "}
-                              · {a.hint}
-                            </span>
-                          ) : null}
                         </span>
                         <span className="vente-acc-qty">
                           <button
@@ -539,7 +511,15 @@ const CartLines = memo(function CartLines({
       {cart.map((l) => (
         <li key={l.key}>
           <div>
-            <strong>{l.name}</strong>
+            <strong>
+              {l.name}
+              {l.qrId ? (
+                <span className="vente-qr-badge" title={l.qrId}>
+                  {" "}
+                  · QR
+                </span>
+              ) : null}
+            </strong>
             <div className="muted mono">
               {formatFcfa(l.unitPrice)} × {l.qty}
             </div>
@@ -556,6 +536,7 @@ const CartLines = memo(function CartLines({
             <button
               type="button"
               className="vente-plus"
+              disabled={Boolean(l.qrId)}
               onClick={() => onChangeQty(l.key, 1)}
             >
               +
@@ -572,7 +553,6 @@ type TicketsListProps = {
   busyKey: string | null;
   canViewHistory: boolean;
   canPurge: boolean;
-  canCancel: boolean;
   onFacture: (ticket: PosTicket) => void;
   onCancel: (ticket: PosTicket) => void;
   onDeletePermanent: (ticket: PosTicket) => void;
@@ -583,7 +563,6 @@ const TicketsList = memo(function TicketsList({
   busyKey,
   canViewHistory,
   canPurge,
-  canCancel,
   onFacture,
   onCancel,
   onDeletePermanent,
@@ -622,16 +601,14 @@ const TicketsList = memo(function TicketsList({
                   >
                     Facture
                   </button>
-                  {canCancel ? (
-                    <button
-                      type="button"
-                      className="btn-link"
-                      disabled={!!busyKey}
-                      onClick={() => onCancel(t)}
-                    >
-                      Annuler
-                    </button>
-                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={!!busyKey}
+                    onClick={() => onCancel(t)}
+                  >
+                    Annuler
+                  </button>
                   {canPurge ? (
                     <button
                       type="button"
@@ -657,15 +634,16 @@ const TicketsList = memo(function TicketsList({
   );
 });
 
-export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean }) {
+export function VentePage({
+  canViewHistory = false,
+  initialSite = "zogbo",
+}: {
+  canViewHistory?: boolean;
+  initialSite?: VenteSite;
+}) {
   const pathname = usePathname();
-  const { user: sessionUser, ready: sessionReady } = useSession();
   const [date, setDate] = useState(() => todayIsoDate());
-  /**
-   * Null tant que la session n'a pas parlé : un défaut « gbegamey » faisait
-   * afficher / ouvrir la mauvaise caisse pour les comptes Zogbo (accès refusé).
-   */
-  const [site, setSite] = useState<VenteSite | null>(null);
+  const [site, setSite] = useState<VenteSite>(initialSite);
   const [allowedSites, setAllowedSites] = useState<VenteSite[]>([]);
   /** Ventes encaissées hors ligne, en attente d'envoi au serveur. */
   const [enAttente, setEnAttente] = useState(0);
@@ -692,6 +670,10 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [extraDesc, setExtraDesc] = useState("");
   const [extraPrice, setExtraPrice] = useState("");
   const [posBusy, setPosBusy] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [cameraOn, setCameraOn] = useState(false);
+  const [scanInput, setScanInput] = useState("");
+  const [scanBusy, setScanBusy] = useState(false);
   const [composerPlatId, setComposerPlatId] = useState("");
   const [composerAccQtys, setComposerAccQtys] = useState<Record<string, number>>({});
   const [composerQty, setComposerQty] = useState(1);
@@ -703,15 +685,12 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const [ruptureAlert, setRuptureAlert] = useState<string | null>(null);
   const [canManagePast, setCanManagePast] = useState(false);
   const [canPurge, setCanPurge] = useState(false);
-  const [sitePolicies, setSitePolicies] = useState<SiteRolesConfig | null>(null);
-  /** Masquer temporairement les produits en rupture (gérant / encadrement). */
-  const [hideUnavailable, setHideUnavailable] = useState(false);
   /** Ruptures connues au dernier chargement (pour ne signaler que les nouvelles). */
   const prevRuptures = useRef<Set<string> | null>(null);
   const ruptureAlertTimer = useRef<number | null>(null);
 
   /** Produits actuellement à zéro (plats/boissons suivis). Accompagnements : jamais bloqués. */
-  const ruptureProducts = useMemo(
+  const ruptureCount = useMemo(
     () =>
       board?.products.filter(
         (p) =>
@@ -719,30 +698,9 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
           p.stockLeft !== null &&
           p.stockLeft !== undefined &&
           p.stockLeft <= 0,
-      ) ?? [],
+      ).length ?? 0,
     [board],
   );
-  const ruptureCount = ruptureProducts.length;
-
-  const lowStockProducts = useMemo(
-    () =>
-      board?.products.filter(
-        (p) =>
-          Boolean(p.lowStock) &&
-          (p.stockLeft === null ||
-            p.stockLeft === undefined ||
-            p.stockLeft > 0),
-      ) ?? [],
-    [board],
-  );
-
-  const topVentesJour = useMemo(() => {
-    if (!board?.products.length) return [];
-    return [...board.products]
-      .filter((p) => (p.soldToday ?? 0) > 0)
-      .sort((a, b) => (b.soldToday ?? 0) - (a.soldToday ?? 0))
-      .slice(0, 5);
-  }, [board]);
 
   useEffect(() => {
     if (!board) return;
@@ -767,7 +725,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     prevRuptures.current = ruptures;
     if (nouvelles.length === 0) return;
     setRuptureAlert(
-      `${nouvelles.length === 1 ? "RUPTURE DE STOCK :" : "RUPTURES DE STOCK :"} ${nouvelles.join(", ")}`,
+      `${nouvelles.length === 1 ? "ÉPUISÉ :" : "ÉPUISÉS :"} ${nouvelles.join(", ")}`,
     );
     if (ruptureAlertTimer.current !== null) {
       window.clearTimeout(ruptureAlertTimer.current);
@@ -782,7 +740,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
    *  rapide de date dans le calendrier). */
   const loadSeq = useRef(0);
 
-  async function load(nextDate = date, nextSite: VenteSite) {
+  async function load(nextDate = date, nextSite = site) {
     const seq = ++loadSeq.current;
     // Rechargement silencieux quand la page affiche déjà des données : pas de
     // gel sur un loader, les produits restent sous le doigt pendant la mise
@@ -809,22 +767,20 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       setBoard(venteBody as Board);
       setCanManagePast(Boolean(venteBody.canManagePast));
       setCanPurge(Boolean(venteBody.canPurge));
-      if (venteBody.sitePolicies) {
-        setSitePolicies(venteBody.sitePolicies as SiteRolesConfig);
-      }
-      // Toujours aligner l'UI sur le site autorisé par le serveur (anti-IDOR).
+      const allowed =
+        (venteBody.allowedSites as VenteSite[] | undefined) ?? [];
+      setAllowedSites(allowed);
       const resolvedSite =
-        (venteBody.site as VenteSite | undefined) ??
-        (Array.isArray(venteBody.allowedSites) &&
-        venteBody.allowedSites.length === 1
-          ? (venteBody.allowedSites[0] as VenteSite)
-          : null);
-      if (resolvedSite === "zogbo" || resolvedSite === "gbegamey") {
+        (typeof venteBody.site === "string"
+          ? (venteBody.site as VenteSite)
+          : null) ??
+        (allowed.length === 1 ? allowed[0] : null) ??
+        nextSite;
+      if (resolvedSite !== nextSite) {
         setSite(resolvedSite);
+        return;
       }
-      setAllowedSites(
-        (venteBody.allowedSites as VenteSite[] | undefined) ?? [],
-      );
+      setSite(resolvedSite);
 
       if (posRes.ok) {
         const posBody = await posRes.json();
@@ -877,13 +833,10 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
 
   /** Ouvre la caisse de la zone sans quitter l'écran de vente. */
   async function openCaisseHere() {
-    const caisseSite =
-      (sessionUser?.site === "zogbo" || sessionUser?.site === "gbegamey"
-        ? sessionUser.site
-        : null) ??
-      board?.site ??
-      site;
-    if (!caisseSite) return;
+    if (allowedSites.length && !allowedSites.includes(site)) {
+      setError("Site non autorisé pour ce compte.");
+      return;
+    }
     setOpeningCaisse(true);
     setError(null);
     try {
@@ -893,7 +846,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         body: JSON.stringify({
           action: "open",
           date,
-          caisse: caisseSite,
+          caisse: site,
           soldeInitial: 0,
         }),
       });
@@ -903,13 +856,13 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         // Tiroir déjà ouvert ailleurs : on se rattache au lieu d'afficher
         // « fermée » + erreur contradictoire.
         if (/déjà ouverte/i.test(msg)) {
-          await load(date, caisseSite);
+          await load(date, site);
           setFlash(msg.replace(/\.$/, "") + " — session reprise.");
           return;
         }
         throw new Error(msg);
       }
-      await load(date, caisseSite);
+      await load(date, site);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ouverture caisse impossible");
     } finally {
@@ -924,13 +877,11 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   }
 
   useEffect(() => {
-    if (!sessionReady || !site) return;
     void load(date, site);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [date, site, pathname, sessionReady]);
+  }, [date, site, pathname]);
 
   useEffect(() => {
-    if (!site) return;
     let cancelled = false;
     void (async () => {
       try {
@@ -954,15 +905,9 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     };
   }, [site]);
 
-  /** Encaissement possible : caisse du jour, correction gérant, et droit rôle/site. */
-  const canSell =
-    (Boolean(caisse) || backdateMode) &&
-    venteActionEnabled(
-      sitePolicies,
-      sessionUser?.role,
-      board?.site ?? site ?? "zogbo",
-      "sell",
-    );
+  /** Encaissement possible : caisse du jour, ou correction gérant (backdate). */
+  const canSell = Boolean(caisse) || backdateMode;
+  const ignoreStock = backdateMode || board?.ventesSansStock === true;
 
   const plats = useMemo(
     () => board?.products.filter((p) => p.kind === "plat") ?? [],
@@ -976,29 +921,14 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
 
   const products = useMemo(() => {
     if (!board || cat === "extra") return [];
-    let list: VenteProduct[];
-    if (cat === "plat") list = plats;
-    else if (cat === "accompagnement") list = accompagnements;
-    else {
-      const kind = CAT_KIND[cat];
-      list = board.products.filter((p) => p.kind === kind);
-    }
-    if (!hideUnavailable || backdateMode) return list;
-    return list.filter((p) => {
-      if (p.kind === "local") return true;
-      if (p.stockLeft === null || p.stockLeft === undefined) return true;
-      return p.stockLeft > 0;
-    });
-  }, [board, cat, plats, accompagnements, hideUnavailable, backdateMode]);
+    if (cat === "plat") return plats;
+    if (cat === "accompagnement") return accompagnements;
+    const kind = CAT_KIND[cat];
+    return board.products.filter((p) => p.kind === kind);
+  }, [board, cat, plats, accompagnements]);
 
   const categories = useMemo(() => {
-    const keys: CatKey[] = [
-      "plat",
-      "accompagnement",
-      "boisson",
-      "combo",
-      "extra",
-    ];
+    const keys: CatKey[] = ["plat", "accompagnement", "boisson", "extra"];
     return keys.map((key) => ({
       key,
       label: CAT_LABELS[key],
@@ -1035,27 +965,29 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     };
   }, []);
 
-  // Zone POS + opérateur facture : issus de SessionProvider (déjà chargé
-  // pour le menu) — pas de second /api/auth/me qui laissait un défaut Gbégamey.
+  // Compte connecté : affiché sur le panier et repris sur la facture, pour
+  // qu'on sache toujours qui a enregistré l'opération.
   useEffect(() => {
-    if (!sessionReady) return;
-    if (sessionUser) {
-      setOperateur(sessionUser.name ?? null);
-      if (typeof sessionUser.id === "string") {
-        setOfflineQueueUser(sessionUser.id);
+    let annule = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = await res.json();
+        if (!annule) {
+          setOperateur(body.user?.name ?? null);
+          if (typeof body.user?.id === "string") {
+            setOfflineQueueUser(body.user.id);
+          }
+        }
+      } catch {
+        /* le serveur renverra de toute façon le nom sur le ticket */
       }
-      if (sessionUser.site === "zogbo" || sessionUser.site === "gbegamey") {
-        setSite(sessionUser.site);
-        setAllowedSites([sessionUser.site]);
-      } else {
-        setAllowedSites(["zogbo", "gbegamey"]);
-        setSite((prev) => prev ?? "zogbo");
-      }
-    } else {
-      // Session absente : on laisse le chargement échouer proprement côté API.
-      setSite((prev) => prev ?? "zogbo");
-    }
-  }, [sessionReady, sessionUser]);
+    })();
+    return () => {
+      annule = true;
+    };
+  }, []);
 
   const composerPlat = useMemo(
     () => plats.find((p) => p.productId === composerPlatId) ?? null,
@@ -1139,7 +1071,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       // Accompagnements toujours vendables, même à stock nul.
       // Correction gérant (jour passé) : stock non bloquant.
       if (
-        !backdateMode &&
+        !ignoreStock &&
         product.kind !== "local" &&
         product.stockLeft !== null &&
         product.stockLeft !== undefined &&
@@ -1169,7 +1101,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         ];
       });
     },
-    [backdateMode],
+    [ignoreStock],
   );
 
   const addEmballage = useCallback(
@@ -1203,10 +1135,81 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
   const changeCartQty = useCallback((key: string, delta: number) => {
     setCart((prev) =>
       prev
-        .map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l))
+        .map((l) => {
+          if (l.key !== key) return l;
+          if (l.qrId && delta > 0) return l;
+          return { ...l, qty: l.qty + delta };
+        })
         .filter((l) => l.qty > 0),
     );
   }, []);
+
+  const handleQrScan = useCallback(
+    async (raw: string) => {
+      const qrId = parseQrIdFromScan(raw) ?? String(raw ?? "").trim();
+      if (!qrId) return;
+      if (!canSell) {
+        setError(
+          backdateMode
+            ? "Correction de jour passé impossible pour le moment."
+            : "Ouvrez une caisse avant de scanner.",
+        );
+        return;
+      }
+      if (cart.some((l) => l.qrId === qrId)) {
+        setFlash("Ce QR est déjà dans le panier");
+        window.setTimeout(() => setFlash(null), 2000);
+        return;
+      }
+      setScanBusy(true);
+      setError(null);
+      try {
+        const res = await fetch("/api/vente", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "scan-qr",
+            qrId,
+            site,
+            date,
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "QR invalide");
+        if (!body.canSell) {
+          throw new Error(body.message || "QR non vendable");
+        }
+        const unitPrice =
+          Math.round(Number(body.unitPrice) || 0) ||
+          board?.products.find((p) => p.productId === body.unit.productId)
+            ?.unitPrice ||
+          0;
+        if (unitPrice <= 0) {
+          throw new Error("Prix du plat introuvable.");
+        }
+        setCart((prev) => [
+          ...prev,
+          {
+            key: `qr:${qrId}`,
+            kind: "plat",
+            productId: body.unit.productId,
+            name: body.unit.productName,
+            unitPrice,
+            qty: 1,
+            qrId,
+          },
+        ]);
+        setScanInput("");
+        setFlash(`${body.unit.productName} ajouté au panier`);
+        window.setTimeout(() => setFlash(null), 2000);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Scan impossible");
+      } finally {
+        setScanBusy(false);
+      }
+    },
+    [canSell, backdateMode, cart, site, date, board],
+  );
 
   const commitMeal = useCallback(() => {
     if (!composerPlat) {
@@ -1214,7 +1217,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       return;
     }
     if (
-      !backdateMode &&
+      !ignoreStock &&
       composerPlat.stockLeft !== null &&
       composerPlat.stockLeft !== undefined &&
       composerPlat.stockLeft <= 0
@@ -1223,7 +1226,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       return;
     }
     if (
-      !backdateMode &&
+      !ignoreStock &&
       composerPlat.stockLeft !== null &&
       composerPlat.stockLeft !== undefined &&
       composerQty > composerPlat.stockLeft
@@ -1252,21 +1255,10 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
     accPriceFor,
     resetComposer,
     backdateMode,
+    ignoreStock,
   ]);
 
-  /** Site réellement affiché / utilisé : board serveur > session > état local. */
-  const activeSite: VenteSite = board?.site ?? site ?? "zogbo";
-  const siteLabel = activeSite === "zogbo" ? "Zogbo" : "Gbégamey";
-  const userRole = sessionUser?.role;
-  const canCancelSite = venteActionEnabled(
-    sitePolicies,
-    userRole,
-    activeSite,
-    "cancel",
-  );
-  const canDeleteSite =
-    canPurge &&
-    venteActionEnabled(sitePolicies, userRole, activeSite, "delete");
+  const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
   const recentCount = board?.recent.length ?? 0;
   const cartTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
   const reductionN = Math.max(
@@ -1280,15 +1272,11 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
       setError("Panier vide");
       return;
     }
-    if (!site) {
-      setError("Site en cours de préparation…");
-      return;
-    }
     if (!canSell) {
       setError(
         backdateMode
           ? "Correction de jour passé impossible pour le moment."
-          : "Caisse en cours d’ouverture — réessayez dans un instant.",
+          : "Ouvrez une caisse avant de valider.",
       );
       return;
     }
@@ -1312,6 +1300,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         name: l.name,
         qty: l.qty,
         unitPrice: l.unitPrice,
+        qrId: l.qrId,
       })),
     };
     try {
@@ -1384,7 +1373,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             action: "cancel",
             id: ticket.id,
             date,
-            site: activeSite,
+            site,
           }),
         });
         const body = await res.json();
@@ -1405,7 +1394,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
         setBusyKey(null);
       }
     },
-    [date, activeSite],
+    [date, site],
   );
 
   const deleteTicketPermanent = useCallback(
@@ -1434,7 +1423,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             action: "delete",
             id: ticket.id,
             date,
-            site: activeSite,
+            site,
             reason: reason.trim(),
           }),
         });
@@ -1479,7 +1468,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             action: "delete",
             id: entry.id,
             date,
-            site: activeSite,
+            site,
             reason: reason.trim(),
           }),
         });
@@ -1509,7 +1498,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             action: "undo",
             id: entry.id,
             date,
-            site: activeSite,
+            site,
           }),
         });
         const body = await res.json();
@@ -1601,7 +1590,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             </button>
           </div>
           <ExportExcelButton
-            onExport={() => exportVenteExcel(date, activeSite)}
+            onExport={() => exportVenteExcel(date, site)}
             disabled={loading}
           />
           {canViewHistory ? (
@@ -1635,102 +1624,18 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
           </div>
         ) : null}
 
-        {ruptureCount > 0 || lowStockProducts.length > 0 ? (
-          <div className="vente-stock-alerts" role="status">
-            {ruptureCount > 0 ? (
-              <div className="vente-rupture-bar">
-                <div className="vente-stock-alerts-main">
-                  <strong>
-                    RUPTURE DE STOCK · {ruptureCount} produit
-                    {ruptureCount > 1 ? "s" : ""}
-                  </strong>
-                  <span>
-                    {activeSite === "gbegamey"
-                      ? "Site Gbégamey — stock local uniquement."
-                      : "Site Zogbo — stock local uniquement."}
-                  </span>
-                  <span className="vente-stock-alerts-names">
-                    {ruptureProducts
-                      .slice(0, 4)
-                      .map((p) => p.name)
-                      .join(", ")}
-                    {ruptureProducts.length > 4
-                      ? ` +${ruptureProducts.length - 4}`
-                      : ""}
-                  </span>
-                </div>
-                <div className="vente-stock-alerts-actions">
-                  <Link href="/stock" className="btn btn-ghost">
-                    Voir le stock
-                  </Link>
-                  {canManagePast ? (
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      onClick={() => setHideUnavailable((v) => !v)}
-                    >
-                      {hideUnavailable
-                        ? "Afficher indisponibles"
-                        : "Masquer indisponibles"}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-            {lowStockProducts.length > 0 ? (
-              <div className="vente-low-bar">
-                <strong>
-                  STOCK FAIBLE · {lowStockProducts.length} produit
-                  {lowStockProducts.length > 1 ? "s" : ""}
-                </strong>
-                <span className="vente-stock-alerts-names">
-                  {lowStockProducts
-                    .slice(0, 5)
-                    .map((p) => {
-                      const reste =
-                        p.stockLeft !== null && p.stockLeft !== undefined
-                          ? p.stockLeft
-                          : "?";
-                      const seuil =
-                        typeof p.alertThreshold === "number" &&
-                        p.alertThreshold > 0
-                          ? p.alertThreshold
-                          : null;
-                      return seuil !== null
-                        ? `${p.name} (${reste}/${seuil})`
-                        : `${p.name} (${reste})`;
-                    })
-                    .join(" · ")}
-                </span>
-                <Link href="/stock" className="btn btn-ghost">
-                  Consulter le stock
-                </Link>
-              </div>
-            ) : null}
+        {ruptureCount > 0 ? (
+          <div className="vente-rupture-bar" role="status">
+            <strong>
+              {ruptureCount} produit{ruptureCount > 1 ? "s" : ""} non vendable
+              {ruptureCount > 1 ? "s" : ""}
+            </strong>
+            <span>
+              {site === "gbegamey"
+                ? "— souvent : pas encore reçu de Zogbo, ou stock épuisé. Voyez le motif sous chaque article."
+                : "— souvent : pas encore préparé, ou stock épuisé. Voyez le motif sous chaque article."}
+            </span>
           </div>
-        ) : null}
-
-        {topVentesJour.length > 0 ? (
-          <section
-            className="vente-top-strip"
-            aria-label="Top ventes du jour"
-          >
-            <header>
-              <strong>Top ventes du jour</strong>
-              <span className="muted">
-                {activeSite === "zogbo" ? "Zogbo" : "Gbégamey"} · quantités
-              </span>
-            </header>
-            <ul>
-              {topVentesJour.map((p, i) => (
-                <li key={`${p.kind}-${p.productId}`}>
-                  <span className="vente-top-rank">{i + 1}</span>
-                  <span className="vente-top-name">{p.name}</span>
-                  <strong className="mono">{p.soldToday}</strong>
-                </li>
-              ))}
-            </ul>
-          </section>
         ) : null}
 
         <div className={`vente-hero${canSell ? " is-ready" : " is-idle"}`}>
@@ -1772,7 +1677,9 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                     ? `Ajoutez au panier puis validez · tiroir ouvert par ${caisse.userName}`
                     : backdateMode
                       ? "Correction de jour passé — validez sans rouvrir la caisse"
-                      : "Préparation de la caisse…"}
+                      : caisseActive
+                        ? `Caisse déjà ouverte le ${caisseActive.date} par ${caisseActive.userName}`
+                        : "Ouvrez la caisse de la zone pour encaisser"}
             </span>
           </div>
           <div className="vente-hero-side">
@@ -1786,7 +1693,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                     <button
                       key={s}
                       type="button"
-                      className={`site-btn${activeSite === s ? " is-active" : ""}`}
+                      className={`site-btn${site === s ? " is-active" : ""}`}
                       onClick={() => setSite(s)}
                     >
                       {s === "zogbo" ? "Zogbo" : "Gbégamey"}
@@ -1796,7 +1703,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
               ) : null}
             {loading ? null : caisse ? (
               <Link
-                href={`/caisse?caisse=${activeSite}`}
+                href={`/caisse?caisse=${site}`}
                 className="btn btn-ghost vente-hero-cta"
               >
                 Voir la caisse
@@ -1825,7 +1732,10 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
               <button
                 type="button"
                 className="btn btn-primary vente-hero-cta"
-                disabled={openingCaisse}
+                disabled={
+                  openingCaisse ||
+                  (allowedSites.length > 0 && !allowedSites.includes(site))
+                }
                 onClick={() => void openCaisseHere()}
               >
                 {openingCaisse
@@ -1868,26 +1778,40 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
             Caisse du {caisseActive.date.slice(8)}/{caisseActive.date.slice(5, 7)}{" "}
             encore ouverte (ouverte par {caisseActive.userName}). Pour démarrer
             aujourd&apos;hui, fermez-la sur{" "}
-            <Link href={`/caisse?caisse=${activeSite}`}>Caisse</Link>.
+            <Link href={`/caisse?caisse=${site}`}>Caisse</Link>.
           </p>
         ) : null}
 
-        {!loading && !canSell && !backdateMode ? (
-          <p className="ui-info" role="status">
+        {!loading && board && !canSell && !backdateMode ? (
+          <p className="error-banner" role="alert">
             {caisseActive
-              ? `Caisse ${siteLabel} ouverte le ${caisseActive.date} par ${caisseActive.userName}. `
-              : `Ouverture automatique de la caisse ${siteLabel}… `}
-            {caisseActive ? (
-              <button
-                type="button"
-                className="btn-link"
-                onClick={() => void rejoindreCaisseActive()}
-              >
-                Afficher ce jour
-              </button>
-            ) : null}
+              ? `Caisse ${siteLabel} déjà ouverte par ${caisseActive.userName} (jour ${caisseActive.date}). `
+              : `Caisse ${siteLabel} fermée — ouvrez-la pour encaisser. `}
+            <button
+              type="button"
+              className="btn-link"
+              disabled={openingCaisse || allowedSites.includes(site) === false}
+              onClick={() =>
+                caisseActive
+                  ? void rejoindreCaisseActive()
+                  : void openCaisseHere()
+              }
+            >
+              {openingCaisse
+                ? "…"
+                : caisseActive
+                  ? "Afficher ce jour"
+                  : "Ouvrir maintenant"}
+            </button>
             {" · "}
-            <Link href={`/caisse?caisse=${activeSite}`}>Voir la caisse</Link>
+            <Link href={`/caisse?caisse=${site}`}>Fond de caisse détaillé</Link>
+          </p>
+        ) : null}
+
+        {!loading && board?.ventesSansStock && !backdateMode ? (
+          <p className="ui-info" role="status">
+            Vente libre — stock non saisi pour ce jour. Les ventes ne sont pas
+            plafonnées tant que le stock n&apos;a pas été enregistré.
           </p>
         ) : null}
 
@@ -1980,7 +1904,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
               <MealComposer
                 plats={plats}
                 canSell={canSell}
-                ignoreStock={backdateMode}
+                ignoreStock={ignoreStock}
                 busyKey={busyKey}
                 composerPlatId={composerPlatId}
                 composerPlat={composerPlat}
@@ -1995,21 +1919,12 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                 accPriceFor={accPriceFor}
               />
             ) : (
-              <>
-                {cat === "accompagnement" && accompagnements.length > 0 ? (
-                  <p className="ui-info vente-acc-banner">
-                    Vente à l&apos;unité — chaque + ajoute une portion au
-                    panier.
-                  </p>
-                ) : null}
-
-                <ProductGrid
-                  products={products}
-                  canSell={canSell}
-                  ignoreStock={backdateMode}
-                  onAdd={addToCart}
-                />
-              </>
+              <ProductGrid
+                products={products}
+                canSell={canSell}
+                ignoreStock={ignoreStock}
+                onAdd={addToCart}
+              />
             )}
           </div>
 
@@ -2024,6 +1939,63 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                     : "Vide — touchez + sur un produit"}
                 </p>
               </header>
+
+              <div className="vente-qr-scan">
+                <button
+                  type="button"
+                  className={`btn btn-block btn-ghost${scanOpen ? " is-active" : ""}`}
+                  onClick={() => {
+                    setScanOpen((v) => {
+                      const next = !v;
+                      if (!next) setCameraOn(false);
+                      return next;
+                    });
+                  }}
+                >
+                  {scanOpen ? "Masquer le scan QR" : "Scanner un QR plat"}
+                </button>
+
+                {scanOpen ? (
+                  <>
+                    <p className="section-hint">
+                      Scannez le QR d&apos;un plat pour l&apos;ajouter au panier.
+                    </p>
+                    <div className="stock-zogbo-scan-row">
+                      <input
+                        type="text"
+                        className="input"
+                        placeholder="KF-…"
+                        value={scanInput}
+                        disabled={scanBusy}
+                        onChange={(e) => setScanInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void handleQrScan(scanInput);
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={scanBusy || !scanInput.trim()}
+                        onClick={() => void handleQrScan(scanInput)}
+                      >
+                        OK
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      className={`btn btn-block${cameraOn ? " is-active" : ""}`}
+                      disabled={scanBusy}
+                      onClick={() => setCameraOn((v) => !v)}
+                    >
+                      {cameraOn ? "Arrêter la caméra" : "Scanner avec la caméra"}
+                    </button>
+                    <QrScanner
+                      active={cameraOn && !scanBusy}
+                      onDetected={(id) => void handleQrScan(id)}
+                    />
+                  </>
+                ) : null}
+              </div>
 
               {!cart.length ? (
                 <p className="muted vente-cart-empty">
@@ -2152,8 +2124,7 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   tickets={tickets}
                   busyKey={busyKey}
                   canViewHistory={canViewHistory}
-                  canPurge={canDeleteSite}
-                  canCancel={canCancelSite}
+                  canPurge={canPurge}
                   onFacture={openFacture}
                   onCancel={cancelTicket}
                   onDeletePermanent={deleteTicketPermanent}
@@ -2310,17 +2281,15 @@ export function VentePage({ canViewHistory = false }: { canViewHistory?: boolean
                   </div>
                 </div>
                 <span className="reg-actions">
-                  {canCancelSite ? (
-                    <button
-                      type="button"
-                      className="btn-link"
-                      disabled={!!busyKey}
-                      onClick={() => void undo(entry)}
-                    >
-                      Annuler
-                    </button>
-                  ) : null}
-                  {canDeleteSite ? (
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={!!busyKey}
+                    onClick={() => void undo(entry)}
+                  >
+                    Annuler
+                  </button>
+                  {canPurge ? (
                     <button
                       type="button"
                       className="btn-link btn-link-danger"

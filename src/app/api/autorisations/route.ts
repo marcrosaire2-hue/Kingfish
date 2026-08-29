@@ -29,7 +29,7 @@ async function requireExecutiveAdmin() {
   const user = await requireUser();
   if (!isExecutiveAdminAccount(user.username) || user.role !== "admin") {
     throw new AuthError(
-      "La page Autorisations est réservée au compte direction.",
+      "La matrice d’autorisations est réservée au compte direction.",
       403,
     );
   }

@@ -31,8 +31,7 @@ const RANGE_FROM = "2020-01-01";
  * Achats libres (hors catalogue) : imprévus, divers, dépannage — un produit
  * qui n'a pas de fiche matière. Chaque achat porte sa propre date, choisie à
  * la saisie : rien ici ne dépend d'une date de page affichée ailleurs, qui
- * avait fait atterrir des achats sous de mauvaises dates par le passé. Les
- * achats de matières, eux, se saisissent sur Approvisionnement.
+ * avait fait atterrir des achats sous de mauvaises dates par le passé.
  */
 export function AchatsPage() {
   const [entries, setEntries] = useState<
@@ -384,7 +383,7 @@ export function AchatsPage() {
               Pour un produit qui n&apos;est pas une matière de stock : la
               date à laquelle l&apos;achat a réellement eu lieu, ce que vous
               achetez, la quantité et le prix. L&apos;achat est enregistré
-              sans toucher au compteur de stock d&apos;Approvisionnement.
+              sans toucher au stock matières du catalogue.
             </p>
           </section>
 

@@ -1,5 +1,6 @@
-import { CombosPage } from "@/components/combos/combos-page";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <CombosPage />;
+/** Les formules ont été retirées du produit. */
+export default function CombosRedirectPage() {
+  redirect("/stock-zogbo");
 }

@@ -112,6 +112,7 @@ export async function POST(request: Request) {
         name?: string;
         qty: number;
         unitPrice?: number;
+        qrId?: string | null;
       }>;
       reason?: string;
       confirm?: boolean;

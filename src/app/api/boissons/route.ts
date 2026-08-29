@@ -69,12 +69,15 @@ export async function PUT(request: Request) {
     if (!canUseSite(effectiveSite(user.role, user.site), body.site)) {
       return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
     }
-    const saved = await saveBoissonsDay({
-      date: body.date,
-      site: body.site,
-      status: body.status,
-      lines: body.lines,
-    });
+    const saved = await saveBoissonsDay(
+      {
+        date: body.date,
+        site: body.site,
+        status: body.status,
+        lines: body.lines,
+      },
+      { stockSaisie: true },
+    );
     await logActivity({
       user,
       kind: "boissons",

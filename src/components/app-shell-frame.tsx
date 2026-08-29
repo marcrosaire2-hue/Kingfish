@@ -33,20 +33,6 @@ const NAV_ITEMS: {
     group: "home",
   },
   {
-    href: "/rapport-quotidien",
-    label: "Rapport du jour",
-    key: "rapport-quotidien",
-    mark: "R",
-    group: "home",
-  },
-  {
-    href: "/controle",
-    label: "Contrôle écarts",
-    key: "controle",
-    mark: "≠",
-    group: "home",
-  },
-  {
     href: "/compte-resultat",
     label: "Compte de résultat",
     key: "compte-resultat",
@@ -69,25 +55,17 @@ const NAV_ITEMS: {
     groupLabel: "Quotidien",
   },
   {
-    href: "/caisse",
-    label: "Caisse",
-    key: "caisse",
-    mark: "€",
+    href: "/stock-zogbo",
+    label: "Stock Zogbo",
+    key: "zogbo",
+    mark: "Z",
     group: "ops",
   },
-  { href: "/zogbo", label: "Zogbo", key: "zogbo", mark: "Z", group: "ops" },
   {
     href: "/gbegamey",
     label: "Gbégamey",
     key: "gbegamey",
     mark: "G",
-    group: "ops",
-  },
-  {
-    href: "/appro",
-    label: "Approvisionnement",
-    key: "appro",
-    mark: "M",
     group: "ops",
   },
   {
@@ -102,20 +80,6 @@ const NAV_ITEMS: {
     label: "Pertes",
     key: "pertes",
     mark: "P",
-    group: "ops",
-  },
-  {
-    href: "/stock",
-    label: "Stock",
-    key: "stock",
-    mark: "S",
-    group: "ops",
-  },
-  {
-    href: "/combos",
-    label: "Combos",
-    key: "parametres",
-    mark: "F",
     group: "ops",
   },
   {
@@ -134,13 +98,6 @@ const NAV_ITEMS: {
     groupLabel: "Pilotage",
   },
   {
-    href: "/quantites-vendues",
-    label: "Qté vendues",
-    key: "quantites-vendues",
-    mark: "Σ",
-    group: "pilot",
-  },
-  {
     href: "/regularisation",
     label: "Régularisation",
     key: "regularisation",
@@ -155,24 +112,10 @@ const NAV_ITEMS: {
     group: "pilot",
   },
   {
-    href: "/parametres",
-    label: "Paramètres",
-    key: "parametres",
-    mark: "P",
-    group: "pilot",
-  },
-  {
     href: "/reglages",
     label: "Réglages POS",
     key: "reglages",
     mark: "T",
-    group: "pilot",
-  },
-  {
-    href: "/journal-stock",
-    label: "Journal stock",
-    key: "journal-stock",
-    mark: "J",
     group: "pilot",
   },
   {
@@ -182,13 +125,6 @@ const NAV_ITEMS: {
     mark: "E",
     group: "admin",
     groupLabel: "Compte",
-  },
-  {
-    href: "/autorisations",
-    label: "Autorisations",
-    key: "autorisations",
-    mark: "A",
-    group: "admin",
   },
 ];
 
@@ -200,27 +136,18 @@ function isActive(pathname: string, href: string) {
 export function AppShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, nav, ready } = useSession();
-  const { meta, setMeta, setActionsSlot } = usePageChrome();
+  const { user, nav } = useSession();
+  const { chrome, setChrome } = usePageChrome();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navBusy, setNavBusy] = useState(false);
 
   useEffect(() => {
-    // Session révoquée (tokenVersion, désactivation) : /api/auth/me renvoie
-    // 401 → cache vidé. On renvoie au login sans laisser l’UI « fantôme ».
-    if (ready && !user) {
-      clearSessionCache();
-      router.replace("/login");
-    }
-  }, [ready, user, router]);
-
-  useEffect(() => {
     setMenuOpen(false);
     setNavBusy(true);
-    setMeta({ title: "King Fish" });
+    setChrome({ title: "King Fish" });
     const t = window.setTimeout(() => setNavBusy(false), 450);
     return () => window.clearTimeout(t);
-  }, [pathname, setMeta]);
+  }, [pathname, setChrome]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -261,7 +188,7 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
         .join("")
     : "·";
 
-  const mainClass = meta.mainClassName ? ` ${meta.mainClassName}` : "";
+  const mainClass = chrome.mainClassName ? ` ${chrome.mainClassName}` : "";
 
   return (
     <div className={`app-shell${menuOpen ? " is-nav-open" : ""}`}>
@@ -375,12 +302,12 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
 
         <header className="page-header">
           <div>
-            <h1>{meta.title}</h1>
-            {meta.subtitle ? (
-              <p className="page-subtitle">{meta.subtitle}</p>
+            <h1>{chrome.title}</h1>
+            {chrome.subtitle ? (
+              <p className="page-subtitle">{chrome.subtitle}</p>
             ) : null}
           </div>
-          <div className="page-actions" ref={setActionsSlot} />
+          <div className="page-actions">{chrome.actions}</div>
         </header>
 
         <main className={`page-body page-body-route${navBusy ? " is-busy" : ""}`}>

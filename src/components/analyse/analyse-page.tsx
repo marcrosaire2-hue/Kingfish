@@ -3,26 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
-import { ContextBar } from "@/components/context-bar";
 import {
   CHART_COLORS,
-  DonutChart,
-  GroupedBarChart,
   HorizontalBars,
 } from "@/components/charts/charts";
+import { AnalyseChartsPanel } from "@/components/analyse/analyse-charts-panel";
 import { formatFcfa } from "@/lib/format";
 import { SITE_LABELS } from "@/lib/auth-types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import type {
   AnalysePeriod,
   AnalyseReport,
+  HealthCard,
   HealthTone,
   Insight,
   InsightKind,
   ProductAdvice,
-  RankedProduct,
 } from "@/lib/analyse-calc";
-import { KIND_LABELS } from "@/lib/analyse-calc";
 
 type Payload = {
   report: AnalyseReport;
@@ -63,6 +60,41 @@ function fmtPct(n: number | null | undefined): string {
   return `${sign}${n.toFixed(0)} %`;
 }
 
+function toneLabel(tone: HealthTone | Insight["tone"]): string {
+  if (tone === "ok") return "Favorable";
+  if (tone === "risque") return "Risque";
+  if (tone === "attention") return "Vigilance";
+  return "Indéterminé";
+}
+
+function deltaClass(n: number | null | undefined): string {
+  if (n === null || n === undefined || n === 0) return "";
+  return n > 0 ? "is-up" : "is-down";
+}
+
+function healthOf(
+  health: HealthCard[],
+  key: HealthCard["key"],
+): HealthCard | undefined {
+  return health.find((c) => c.key === key);
+}
+
+const KIND_LABELS: Record<string, string> = {
+  plat: "Plat",
+  boisson: "Boisson",
+  local: "Accomp.",
+  extra: "Extra",
+};
+
+type AnalyseSection = "synthese" | "signaux" | "graphiques" | "produits";
+
+const SECTIONS: { id: AnalyseSection; label: string }[] = [
+  { id: "synthese", label: "Synthèse" },
+  { id: "signaux", label: "Signaux" },
+  { id: "graphiques", label: "Graphiques" },
+  { id: "produits", label: "Produits" },
+];
+
 function InsightCard({ item }: { item: Insight }) {
   return (
     <article className={`analyse-insight ${toneClass(item.tone)}`}>
@@ -84,48 +116,20 @@ function InsightCard({ item }: { item: Insight }) {
   );
 }
 
-function ProductMobileCard({ product: p }: { product: RankedProduct }) {
+function HealthChip({
+  tone,
+  label,
+  summary,
+}: {
+  tone: HealthTone;
+  label: string;
+  summary: string;
+}) {
   return (
-    <article className="analyse-product-card">
-      <header>
-        <div>
-          <strong className="analyse-product-name">{p.name}</strong>
-          <span className="analyse-product-kind">
-            {KIND_LABELS[p.kind] ?? p.kind}
-          </span>
-        </div>
-        <span className={`analyse-advice ${adviceClass(p.advice)}`}>
-          {p.advice}
-        </span>
-      </header>
-      <dl className="analyse-product-metrics">
-        <div>
-          <dt>Qté</dt>
-          <dd className="mono">{p.qty}</dd>
-        </div>
-        <div>
-          <dt>CA net</dt>
-          <dd className="mono">{formatFcfa(p.caNet)}</dd>
-        </div>
-        <div>
-          <dt>Marge</dt>
-          <dd className="mono">
-            {p.marginPct === null ? "—" : `${p.marginPct.toFixed(0)} %`}
-          </dd>
-        </div>
-        <div>
-          <dt>Évolution</dt>
-          <dd className="mono">{fmtPct(p.qtyChangePct)}</dd>
-        </div>
-      </dl>
-      <footer className="analyse-product-footer muted">
-        <span>
-          Remise {formatFcfa(p.remises)}
-          {" · "}
-          Coût{" "}
-          {p.costKnown ? formatFcfa(p.costAmount) : "inconnu"}
-        </span>
-      </footer>
+    <article className={`analyse-health-card ${toneClass(tone)}`}>
+      <span className="analyse-health-tone">{toneLabel(tone)}</span>
+      <h2>{label}</h2>
+      <p>{summary}</p>
     </article>
   );
 }
@@ -133,9 +137,10 @@ function ProductMobileCard({ product: p }: { product: RankedProduct }) {
 export function AnalysePage() {
   const [period, setPeriod] = useState<AnalysePeriod>("month");
   const [date, setDate] = useState(todayIsoDate);
-  const [site, setSite] = useState("zogbo");
+  const [site, setSite] = useState("all");
   const [shift, setShift] = useState("all");
   const [kind, setKind] = useState("all");
+  const [section, setSection] = useState<AnalyseSection>("synthese");
   const [payload, setPayload] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -163,6 +168,10 @@ export function AnalysePage() {
 
   const report = payload?.report;
   const lockedSite = payload?.lockedSite ?? false;
+  const commercial = report ? healthOf(report.health, "commercial") : undefined;
+  const margeHealth = report ? healthOf(report.health, "marge") : undefined;
+  const depenseHealth = report ? healthOf(report.health, "depenses") : undefined;
+  const stocksHealth = report ? healthOf(report.health, "stocks") : undefined;
 
   const kindSlices = useMemo(() => {
     if (!report) return [];
@@ -186,9 +195,7 @@ export function AnalysePage() {
         title="Analyse"
         subtitle="Lecture managériale du CA, des marges et des charges."
       >
-        <div className="analyse-shell">
-          <BrandLoader variant="ligne" label="Analyse des données…" />
-        </div>
+        <BrandLoader variant="ligne" label="Analyse des données…" />
       </AppShell>
     );
   }
@@ -198,309 +205,323 @@ export function AnalysePage() {
       title="Analyse"
       subtitle="Lecture managériale du CA, des marges, des stocks et des charges — sans réécrire la comptabilité."
     >
-      <div className="analyse-shell">
-      <div className="section-tabs" role="tablist" aria-label="Période">
-        {PERIODS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            role="tab"
-            aria-selected={period === p.id}
-            className={`section-tab${period === p.id ? " is-active" : ""}`}
-            onClick={() => setPeriod(p.id)}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      <ContextBar date={date} onDateChange={setDate}>
-        {lockedSite ? null : (
-          <label className="date-field date-field-pill">
-            <span>Site</span>
-            <select value={site} onChange={(e) => setSite(e.target.value)}>
-              <option value="zogbo">{SITE_LABELS.zogbo}</option>
-              <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
-            </select>
-          </label>
-        )}
-        <label className="date-field date-field-pill">
-          <span>Équipe</span>
-          <select value={shift} onChange={(e) => setShift(e.target.value)}>
-            <option value="all">Toutes</option>
-            <option value="jour">Jour</option>
-            <option value="nuit">Nuit</option>
-            <option value="aucune">Hors équipe</option>
-          </select>
-        </label>
-        <label className="date-field date-field-pill">
-          <span>Nature</span>
-          <select value={kind} onChange={(e) => setKind(e.target.value)}>
-            <option value="all">Toutes</option>
-            <option value="plat">Plats</option>
-            <option value="boisson">Boissons</option>
-            <option value="local">Accompagnements</option>
-            <option value="extra">Extra</option>
-          </select>
-        </label>
-      </ContextBar>
-
-      {error ? (
-        <p className="error-banner" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      {report ? (
-        <div className={`analyse analyse-page${loading ? " is-loading" : ""}`}>
-          <p className="analyse-window muted">
-            {report.window.label} · comparé à {report.window.previousLabel}
-            {report.filteredCa
-              ? " · CA filtré (CMV et charges restent au périmètre maison / site)"
-              : ""}
-          </p>
-
-          <section className="analyse-health" aria-label="Santé de l’activité">
-            {report.health.map((card) => (
-              <article
-                key={card.key}
-                className={`analyse-health-card ${toneClass(card.tone)}`}
-              >
-                <span className="analyse-health-tone">
-                  {card.tone === "ok"
-                    ? "Favorable"
-                    : card.tone === "risque"
-                      ? "Risque"
-                      : card.tone === "attention"
-                        ? "Vigilance"
-                        : "Indéterminé"}
-                </span>
-                <h2>{card.label}</h2>
-                <p>{card.summary}</p>
-              </article>
-            ))}
-          </section>
-
-          <section className="dash-kpi-grid analyse-kpi-grid" aria-label="Indicateurs">
-            <div className="dash-kpi">
-              <span className="dash-kpi-label">CA net</span>
-              <span className="dash-kpi-value mono">
-                {formatFcfa(report.current.caNet)}
-              </span>
-              <span className="analyse-delta">{fmtPct(report.caChangePct)}</span>
-            </div>
-            <div className="dash-kpi dash-kpi-accent">
-              <span className="dash-kpi-label">Marge brute (CMV)</span>
-              <span className="dash-kpi-value mono">
-                {report.current.margeBrute === null
-                  ? "n.d."
-                  : formatFcfa(report.current.margeBrute)}
-              </span>
-              <span className="analyse-delta muted">Fait d’exploitation</span>
-            </div>
-            <div className="dash-kpi">
-              <span className="dash-kpi-label">Charges d’exploitation</span>
-              <span className="dash-kpi-value mono">
-                {formatFcfa(report.current.chargesExploitation)}
-              </span>
-              <span className="analyse-delta">
-                {fmtPct(report.chargesChangePct)}
-              </span>
-            </div>
-            <div className="dash-kpi dash-kpi-warn">
-              <span className="dash-kpi-label">Résultat</span>
-              <span className="dash-kpi-value mono">
-                {formatFcfa(report.current.resultat)}
-              </span>
-              <span className="analyse-delta">
-                {fmtPct(report.resultatChangePct)}
-              </span>
-            </div>
-          </section>
-
-          <div className="dash-grid">
-            <section className="panel">
-              <h2 className="panel-title">Période vs précédente</h2>
-              <GroupedBarChart
-                labels={["CA net", "CMV", "Charges", "Résultat"]}
-                series={[
-                  {
-                    key: "prev",
-                    label: "Précédente",
-                    color: CHART_COLORS.accompagnements,
-                    values: [
-                      report.previous.caNet,
-                      report.previous.cmv,
-                      report.previous.chargesExploitation,
-                      report.previous.resultat,
-                    ],
-                  },
-                  {
-                    key: "cur",
-                    label: "Période",
-                    color: CHART_COLORS.zogbo,
-                    values: [
-                      report.current.caNet,
-                      report.current.cmv,
-                      report.current.chargesExploitation,
-                      report.current.resultat,
-                    ],
-                  },
-                ]}
-              />
-            </section>
-            <section className="panel">
-              <h2 className="panel-title">Mix par nature</h2>
-              {kindSlices.length ? (
-                <DonutChart
-                  slices={kindSlices}
-                  centerLabel="CA net"
-                  centerValue={formatFcfa(report.current.caNet)}
-                />
-              ) : (
-                <p className="muted">Pas de ventes sur la période.</p>
-              )}
-            </section>
-          </div>
-
-          <div className="dash-grid">
-            <section className="panel">
-              <h2 className="panel-title">Sites</h2>
-              <HorizontalBars
-                rows={report.bySite.map((r, i) => ({
-                  key: r.key,
-                  label: r.label,
-                  value: r.caNet,
-                  color: i === 0 ? CHART_COLORS.zogbo : CHART_COLORS.gbegamey,
-                }))}
-              />
-            </section>
-            <section className="panel">
-              <h2 className="panel-title">Équipes</h2>
-              <HorizontalBars
-                rows={report.byShift.map((r) => ({
-                  key: r.key,
-                  label: r.label,
-                  value: r.caNet,
-                  color: CHART_COLORS.plats,
-                }))}
-              />
-            </section>
-          </div>
-
-          <section className="analyse-columns">
-            <div>
-              <h2 className="panel-title">Ce qui va bien</h2>
-              {report.positives.length ? (
-                report.positives.map((item) => (
-                  <InsightCard key={item.id} item={item} />
-                ))
-              ) : (
-                <p className="muted">Pas de signal positif assez net.</p>
-              )}
-            </div>
-            <div>
-              <h2 className="panel-title">À surveiller</h2>
-              {report.watches.length ? (
-                report.watches.map((item) => (
-                  <InsightCard key={item.id} item={item} />
-                ))
-              ) : (
-                <p className="muted">Aucune alerte relative.</p>
-              )}
-            </div>
-            <div>
-              <h2 className="panel-title">Conseils</h2>
-              {report.conseils.length ? (
-                report.conseils.map((item) => (
-                  <InsightCard key={item.id} item={item} />
-                ))
-              ) : (
-                <p className="muted">Rien à recommander sans signal mesurable.</p>
-              )}
-            </div>
-          </section>
-
-          <section className="panel analyse-products">
-            <h2 className="panel-title">Produits</h2>
-            {report.products.length === 0 ? (
-              <p className="muted">Aucune vente active sur la période.</p>
-            ) : (
-              <>
-                <div className="analyse-products-cards" aria-label="Produits (mobile)">
-                  {report.products.map((p) => (
-                    <ProductMobileCard
-                      key={`m-${p.kind}:${p.productId}`}
-                      product={p}
-                    />
-                  ))}
-                </div>
-                <div className="table-scroll analyse-products-table">
-                  <table className="data-table analyse-table">
-                    <thead>
-                      <tr>
-                        <th>Produit</th>
-                        <th>Nature</th>
-                        <th className="num">Qté</th>
-                        <th className="num">CA net</th>
-                        <th className="num">Remise</th>
-                        <th className="num">Coût</th>
-                        <th className="num">Marge</th>
-                        <th className="num">Évolution</th>
-                        <th>Conseil</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {report.products.map((p) => (
-                        <tr key={`${p.kind}:${p.productId}`}>
-                          <td>{p.name}</td>
-                          <td>{KIND_LABELS[p.kind] ?? p.kind}</td>
-                          <td className="num mono">{p.qty}</td>
-                          <td className="num mono">{formatFcfa(p.caNet)}</td>
-                          <td className="num mono">{formatFcfa(p.remises)}</td>
-                          <td className="num mono">
-                            {p.costKnown
-                              ? formatFcfa(p.costAmount)
-                              : "coût inconnu"}
-                          </td>
-                          <td className="num mono">
-                            {p.marginPct === null
-                              ? "—"
-                              : `${p.marginPct.toFixed(0)} %`}
-                          </td>
-                          <td className="num mono">{fmtPct(p.qtyChangePct)}</td>
-                          <td>
-                            <span
-                              className={`analyse-advice ${adviceClass(p.advice)}`}
-                            >
-                              {p.advice}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
-          </section>
-
-          <section className="panel analyse-notes">
-            <h2 className="panel-title">Limites de lecture</h2>
-            <ul>
-              {report.limitations.map((line) => (
-                <li key={line}>{line}</li>
+      <div className="analyse-page">
+        <div className="analyse-toolbar panel">
+          <div className="analyse-toolbar-top">
+            <div className="section-tabs analyse-period-tabs" role="tablist" aria-label="Période">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={period === p.id}
+                  className={`section-tab${period === p.id ? " is-active" : ""}`}
+                  onClick={() => setPeriod(p.id)}
+                >
+                  {p.label}
+                </button>
               ))}
-            </ul>
-            <p className="muted">
-              Achats stock {formatFcfa(report.current.achatsStock)} · acquisitions{" "}
-              {formatFcfa(report.current.acquisitionsImmobilisations)} · sorties de
-              caisse {formatFcfa(report.current.caisseDepenses)} (hors résultat, M1 /
-              G8 / G9).
-            </p>
-          </section>
+            </div>
+            <span className="context-pill context-pill-currency" title="Devise">
+              FCFA
+            </span>
+          </div>
+          <div className="analyse-filters">
+            <label className="date-field date-field-pill">
+              <span>
+                {period === "day"
+                  ? "Jour"
+                  : period === "week"
+                    ? "Semaine du"
+                    : "Mois"}
+              </span>
+              <input
+                type="date"
+                value={date}
+                max={todayIsoDate()}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                  setDate(v);
+                }}
+              />
+            </label>
+            {lockedSite ? null : (
+              <label className="date-field date-field-pill">
+                <span>Site</span>
+                <select value={site} onChange={(e) => setSite(e.target.value)}>
+                  <option value="all">Les deux sites</option>
+                  <option value="zogbo">{SITE_LABELS.zogbo}</option>
+                  <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
+                </select>
+              </label>
+            )}
+            <label className="date-field date-field-pill">
+              <span>Équipe</span>
+              <select value={shift} onChange={(e) => setShift(e.target.value)}>
+                <option value="all">Toutes</option>
+                <option value="jour">Jour</option>
+                <option value="nuit">Nuit</option>
+                <option value="aucune">Hors équipe</option>
+              </select>
+            </label>
+            <label className="date-field date-field-pill">
+              <span>Nature</span>
+              <select value={kind} onChange={(e) => setKind(e.target.value)}>
+                <option value="all">Toutes</option>
+                <option value="plat">Plats</option>
+                <option value="boisson">Boissons</option>
+                <option value="local">Accompagnements</option>
+                <option value="extra">Extra</option>
+              </select>
+            </label>
+          </div>
         </div>
-      ) : null}
+
+        {error ? (
+          <p className="error-banner" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        {report ? (
+          <>
+            <nav
+              className="analyse-section-nav"
+              role="tablist"
+              aria-label="Sections analyse"
+            >
+              {SECTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={section === s.id}
+                  className={`analyse-section-tab${section === s.id ? " is-active" : ""}`}
+                  onClick={() => setSection(s.id)}
+                >
+                  {s.label}
+                  {s.id === "produits" && report.products.length > 0 ? (
+                    <span className="analyse-section-badge">
+                      {report.products.length}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </nav>
+
+            <div className={`analyse${loading ? " is-loading" : ""}`}>
+              {section === "synthese" ? (
+                <div className="analyse-section-panel" role="tabpanel">
+                  <section className="dash-ca-final" aria-label="Résultat de la période">
+                    <div className="dash-ca-final-main">
+                      <span className="dash-ca-final-label">CA net</span>
+                      <strong className="dash-ca-final-value mono">
+                        {formatFcfa(report.current.caNet)}
+                      </strong>
+                      <span className="dash-ca-final-hint">
+                        {report.window.label}
+                        {" · "}
+                        <span className={`analyse-delta ${deltaClass(report.caChangePct)}`}>
+                          {fmtPct(report.caChangePct)}
+                        </span>
+                        {" vs "}
+                        {report.window.previousLabel}
+                        {report.filteredCa
+                          ? " · CA filtré (CMV et charges restent au périmètre maison / site)"
+                          : ""}
+                      </span>
+                    </div>
+                    <div className="dash-ca-final-side">
+                      <div>
+                        <span>Marge brute</span>
+                        <strong className="mono">
+                          {report.current.margeBrute === null
+                            ? "n.d."
+                            : formatFcfa(report.current.margeBrute)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Charges</span>
+                        <strong className="mono">
+                          {formatFcfa(report.current.chargesExploitation)}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Résultat</span>
+                        <strong className="mono">
+                          {formatFcfa(report.current.resultat)}
+                        </strong>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="analyse-health" aria-label="Santé de l’activité">
+                    <HealthChip
+                      tone={commercial?.tone ?? "indetermine"}
+                      label={commercial?.label ?? "Santé commerciale"}
+                      summary={commercial?.summary ?? ""}
+                    />
+                    <HealthChip
+                      tone={margeHealth?.tone ?? "indetermine"}
+                      label={margeHealth?.label ?? "Santé de la marge"}
+                      summary={margeHealth?.summary ?? ""}
+                    />
+                    <HealthChip
+                      tone={depenseHealth?.tone ?? "indetermine"}
+                      label={depenseHealth?.label ?? "Niveau de dépenses"}
+                      summary={depenseHealth?.summary ?? ""}
+                    />
+                    <HealthChip
+                      tone={stocksHealth?.tone ?? "indetermine"}
+                      label={stocksHealth?.label ?? "Santé des stocks"}
+                      summary={stocksHealth?.summary ?? ""}
+                    />
+                  </section>
+
+                  <div className="analyse-split-panels">
+                    <section className="panel">
+                      <h2 className="panel-title">Sites</h2>
+                      <HorizontalBars
+                        rows={report.bySite.map((r, i) => ({
+                          key: r.key,
+                          label: r.label,
+                          value: r.caNet,
+                          color: i === 0 ? CHART_COLORS.zogbo : CHART_COLORS.gbegamey,
+                        }))}
+                      />
+                    </section>
+                    <section className="panel">
+                      <h2 className="panel-title">Équipes</h2>
+                      <HorizontalBars
+                        rows={report.byShift.map((r) => ({
+                          key: r.key,
+                          label: r.label,
+                          value: r.caNet,
+                          color: CHART_COLORS.plats,
+                        }))}
+                      />
+                    </section>
+                  </div>
+                </div>
+              ) : null}
+
+              {section === "signaux" ? (
+                <div className="analyse-section-panel" role="tabpanel">
+                  <section className="analyse-brief" aria-label="Lecture managériale">
+                    <div className="panel analyse-brief-col">
+                      <h2 className="panel-title">Ce qui va bien</h2>
+                      {report.positives.length ? (
+                        report.positives.map((item) => (
+                          <InsightCard key={item.id} item={item} />
+                        ))
+                      ) : (
+                        <p className="muted">Pas de signal positif assez net.</p>
+                      )}
+                    </div>
+                    <div className="panel analyse-brief-col">
+                      <h2 className="panel-title">À surveiller</h2>
+                      {report.watches.length ? (
+                        report.watches.map((item) => (
+                          <InsightCard key={item.id} item={item} />
+                        ))
+                      ) : (
+                        <p className="muted">Aucune alerte relative.</p>
+                      )}
+                    </div>
+                    <div className="panel analyse-brief-col">
+                      <h2 className="panel-title">Conseils</h2>
+                      {report.conseils.length ? (
+                        report.conseils.map((item) => (
+                          <InsightCard key={item.id} item={item} />
+                        ))
+                      ) : (
+                        <p className="muted">Rien à recommander sans signal mesurable.</p>
+                      )}
+                    </div>
+                  </section>
+                </div>
+              ) : null}
+
+              {section === "graphiques" ? (
+                <div className="analyse-section-panel" role="tabpanel">
+                  <AnalyseChartsPanel report={report} kindSlices={kindSlices} />
+                </div>
+              ) : null}
+
+              {section === "produits" ? (
+                <div className="analyse-section-panel" role="tabpanel">
+                  <section className="panel panel-wide">
+                    <h2 className="panel-title">Produits</h2>
+                    <div className="table-scroll">
+                      <table className="data-table analyse-table">
+                        <thead>
+                          <tr>
+                            <th>Produit</th>
+                            <th>Nature</th>
+                            <th className="num">Qté</th>
+                            <th className="num">CA net</th>
+                            <th className="num">Remise</th>
+                            <th className="num">Coût</th>
+                            <th className="num">Marge</th>
+                            <th className="num">Évolution</th>
+                            <th>Conseil</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {report.products.length === 0 ? (
+                            <tr>
+                              <td colSpan={9} className="muted">
+                                Aucune vente active sur la période.
+                              </td>
+                            </tr>
+                          ) : (
+                            report.products.map((p) => (
+                              <tr key={`${p.kind}:${p.productId}`}>
+                                <td>{p.name}</td>
+                                <td>{KIND_LABELS[p.kind] ?? p.kind}</td>
+                                <td className="num mono">{p.qty}</td>
+                                <td className="num mono">{formatFcfa(p.caNet)}</td>
+                                <td className="num mono">{formatFcfa(p.remises)}</td>
+                                <td className="num mono">
+                                  {p.costKnown ? formatFcfa(p.costAmount) : "coût inconnu"}
+                                </td>
+                                <td className="num mono">
+                                  {p.marginPct === null ? "—" : `${p.marginPct.toFixed(0)} %`}
+                                </td>
+                                <td className="num mono">{fmtPct(p.qtyChangePct)}</td>
+                                <td>
+                                  <span className={`analyse-advice ${adviceClass(p.advice)}`}>
+                                    {p.advice}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </section>
+
+                  <details className="panel analyse-notes">
+                    <summary className="panel-title">Limites de lecture</summary>
+                    <ul>
+                      {report.limitations.map((line) => (
+                        <li key={line}>{line}</li>
+                      ))}
+                    </ul>
+                    <p className="muted">
+                      Achats stock {formatFcfa(report.current.achatsStock)} · acquisitions{" "}
+                      {formatFcfa(report.current.acquisitionsImmobilisations)} · sorties de
+                      caisse {formatFcfa(report.current.caisseDepenses)} (hors résultat, M1 /
+                      G8 / G9).
+                    </p>
+                  </details>
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : null}
       </div>
     </AppShell>
   );

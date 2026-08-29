@@ -183,10 +183,9 @@ export async function resolveEffectiveNav(
     else allowed.delete(resource.navKey);
   }
 
-  // Compte direction : ne jamais perdre Autorisations + Équipe.
+  // Compte direction : ne jamais perdre Équipe ni le tableau de bord.
   if (isExecutiveAdminAccount(user.username)) {
     allowed.add("admin");
-    allowed.add("autorisations");
     allowed.add("synthese");
   }
 
