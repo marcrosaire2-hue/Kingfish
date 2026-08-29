@@ -7,6 +7,7 @@ import { getDb } from "@/lib/mongodb";
 import {
   assertValidRoleSite,
   effectiveShift,
+  isExecutiveAdminAccount,
   isShift,
   type AppUser,
   type UserRole,
@@ -366,13 +367,19 @@ export async function changeOwnPassword(input: {
   );
 }
 
-export async function deleteUser(id: string): Promise<void> {
+export async function deleteUser(
+  id: string,
+  options?: { actorUsername?: string },
+): Promise<void> {
   const db = await getDb();
   const col = db.collection<UserDoc>("users");
   const _id = new ObjectId(id);
   const existing = await col.findOne({ _id });
   if (!existing) throw new Error("Utilisateur introuvable.");
-  if (existing.username === "admin") {
+  if (
+    existing.username === "admin" &&
+    !isExecutiveAdminAccount(options?.actorUsername)
+  ) {
     throw new Error("Impossible de supprimer le compte admin principal.");
   }
   await col.deleteOne({ _id });

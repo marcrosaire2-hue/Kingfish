@@ -211,6 +211,11 @@ export function assertAdminCanManageTarget(
     throw new Error("Accès administrateur requis.");
   }
 
+  if (isExecutiveAdminAccount(actor.username)) {
+    assertValidRoleSite(target.role, target.site);
+    return;
+  }
+
   const actorSite = effectiveSite(actor.role, actor.site);
   const targetSite = effectiveSite(target.role, target.site);
 
@@ -245,9 +250,10 @@ export function assertAdminCanManageTarget(
 }
 
 export function userVisibleToAdmin(
-  actor: { role: UserRole; site: UserSite },
+  actor: { role: UserRole; site: UserSite; username?: string },
   user: { role: UserRole; site: UserSite; username: string },
 ): boolean {
+  if (isExecutiveAdminAccount(actor.username)) return true;
   if (isGlobalAdmin(actor)) return true;
   const actorSite = effectiveSite(actor.role, actor.site);
   if (actorSite === "tous") return true;

@@ -321,7 +321,7 @@ export async function DELETE(request: Request) {
         { status: 403 },
       );
     }
-    await deleteUser(id);
+    await deleteUser(id, { actorUsername: admin.username });
     await logActivity({
       user: admin,
       kind: "user",

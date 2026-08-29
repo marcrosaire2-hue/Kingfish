@@ -300,6 +300,8 @@ export function AdminPage() {
   }
 
   const actorIsGlobal = actor ? isGlobalAdmin(actor) : true;
+  const actorCanDeleteAny =
+    !!actor && isExecutiveAdminAccount(actor.username);
   const showAutorisations =
     !!actor &&
     actor.role === "admin" &&
@@ -624,7 +626,9 @@ export function AdminPage() {
                             ? sitesCreatableBy(actor, u.role)
                             : (["zogbo", "gbegamey", "tous"] as UserSite[]);
                           const lockedPrincipal =
-                            isPrincipalAdminAccount(u.username) && !actorIsGlobal;
+                            isPrincipalAdminAccount(u.username) &&
+                            !actorIsGlobal &&
+                            !actorCanDeleteAny;
                           return (
                             <tr
                               key={u.id}
@@ -734,7 +738,8 @@ export function AdminPage() {
                                 </button>
                               </td>
                               <td className="col-actions">
-                                {!isPrincipalAdminAccount(u.username) ? (
+                                {actorCanDeleteAny ||
+                                !isPrincipalAdminAccount(u.username) ? (
                                   <button
                                     type="button"
                                     className="btn-icon"

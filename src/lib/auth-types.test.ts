@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertAdminCanManageTarget,
   canAccessPath,
   canManagePastVentes,
   defaultSiteForRole,
   effectiveSite,
   navForUser,
   sitesForRole,
+  userVisibleToAdmin,
 } from "@/lib/auth-types";
 
 describe("rôle Comptable", () => {
@@ -197,6 +199,25 @@ describe("l'API suit les droits de l'écran", () => {
     expect(canAccessPath("admin", "/vente", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/parametres", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/zogbo", "tous", "marc")).toBe(false);
+  });
+
+  it("donne à Marc la visibilité et la gestion de tous les comptes", () => {
+    const marc = { role: "admin" as const, site: "tous" as const, username: "marc" };
+    const zoneGerant = {
+      role: "gerant" as const,
+      site: "zogbo" as const,
+      username: "paul",
+    };
+    const principal = {
+      role: "admin" as const,
+      site: "tous" as const,
+      username: "admin",
+    };
+
+    expect(userVisibleToAdmin(marc, zoneGerant)).toBe(true);
+    expect(userVisibleToAdmin(marc, principal)).toBe(true);
+    expect(() => assertAdminCanManageTarget(marc, principal)).not.toThrow();
+    expect(() => assertAdminCanManageTarget(marc, zoneGerant)).not.toThrow();
   });
 
   it("donne au DAF les mêmes écrans qu’un admin, sans la page Équipe", () => {
