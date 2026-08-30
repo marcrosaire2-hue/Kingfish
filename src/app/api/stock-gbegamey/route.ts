@@ -5,9 +5,8 @@ import { logActivity } from "@/lib/log-activity";
 import { reportError } from "@/lib/report-error";
 import {
   generatePlatQrUnits,
-  getStockZogboPayload,
+  getStockSitePayload,
   listPlatUnits,
-  preparePlatUnits,
   saveAccompanimentStock,
   sendPlatQrUnits,
 } from "@/lib/stock-unit-repo";
@@ -17,17 +16,20 @@ import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
-async function requireStockZogboAccess() {
+async function requireStockGbegameyAccess() {
   const user = await requireUser();
-  if (!canUseSite(user.site, "zogbo")) {
-    throw new AuthError("Accès Stock Zogbo non autorisé pour ce compte.", 403);
+  if (!canUseSite(user.site, "gbegamey")) {
+    throw new AuthError(
+      "Accès Stock Gbégamey non autorisé pour ce compte.",
+      403,
+    );
   }
   return user;
 }
 
 export async function GET(request: Request) {
   try {
-    await requireStockZogboAccess();
+    await requireStockGbegameyAccess();
     const { searchParams } = new URL(request.url);
     const date = searchParams.get("date") || todayIsoDate();
     const productId = searchParams.get("productId");
@@ -44,7 +46,9 @@ export async function GET(request: Request) {
           : undefined;
       const siteParam = searchParams.get("site");
       const site: "zogbo" | "gbegamey" | undefined =
-        siteParam === "zogbo" || siteParam === "gbegamey" ? siteParam : undefined;
+        siteParam === "zogbo" || siteParam === "gbegamey"
+          ? siteParam
+          : undefined;
 
       const units = await listPlatUnits({
         date,
@@ -55,17 +59,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ units });
     }
 
-    const payload = await getStockZogboPayload(date);
+    const payload = await getStockSitePayload(date, "gbegamey");
     return NextResponse.json(payload);
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    reportError("GET /api/stock-zogbo", error);
+    reportError("GET /api/stock-gbegamey", error);
     return NextResponse.json(
       {
         error:
           error instanceof Error
             ? error.message
-            : "Impossible de charger Stock Zogbo.",
+            : "Impossible de charger Stock Gbégamey.",
       },
       { status: 500 },
     );
@@ -74,7 +78,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const user = await requireStockZogboAccess();
+    const user = await requireStockGbegameyAccess();
     requireStockWrite(user);
     const body = (await request.json()) as {
       action?: string;
@@ -88,26 +92,6 @@ export async function POST(request: Request) {
 
     const date = body.date || todayIsoDate();
     const action = body.action ?? "";
-
-    if (action === "prepare") {
-      if (!body.productId) {
-        return NextResponse.json({ error: "productId requis." }, { status: 400 });
-      }
-      const payload = await preparePlatUnits({
-        date,
-        productId: body.productId,
-        qty: body.qty ?? 0,
-      });
-      await logActivity({
-        user,
-        kind: "zogbo",
-        title: `Préparation · ${body.productId}`,
-        detail: `+${body.qty} · ${date}`,
-        date,
-        site: "zogbo",
-      });
-      return NextResponse.json({ payload });
-    }
 
     if (action === "generate-qr") {
       if (!body.productId) {
@@ -126,29 +110,34 @@ export async function POST(request: Request) {
         date,
         productId: body.productId,
         qty: body.qty ?? 0,
+        site: "gbegamey",
         kind: body.kind,
       });
       await logActivity({
         user,
-        kind: "zogbo",
+        kind: "gbegamey",
         title: `QR générés · ${body.productId}`,
         detail: `${result.units.length} unité(s) · ${date}`,
         date,
-        site: "zogbo",
+        site: "gbegamey",
       });
       return NextResponse.json(result);
     }
 
     if (action === "send") {
       const qrIds = Array.isArray(body.qrIds) ? body.qrIds : [];
-      const result = await sendPlatQrUnits({ date, qrIds });
+      const result = await sendPlatQrUnits({
+        date,
+        qrIds,
+        payloadSite: "gbegamey",
+      });
       await logActivity({
         user,
         kind: "transfert",
-        title: `Envoi QR Gbégamey`,
+        title: `Réception QR Gbégamey`,
         detail: `${result.sent.length} unité(s) · ${date}`,
         date,
-        site: "zogbo",
+        site: "gbegamey",
       });
       return NextResponse.json(result);
     }
@@ -163,6 +152,7 @@ export async function POST(request: Request) {
       const payload = await saveAccompanimentStock({
         date,
         accompanimentLines: body.accompanimentLines,
+        site: "gbegamey",
       });
       return NextResponse.json({ payload });
     }
@@ -172,14 +162,14 @@ export async function POST(request: Request) {
     if (error instanceof AuthError) return authErrorResponse(error);
     const message =
       error instanceof Error ? error.message : "Opération impossible.";
-    reportError("POST /api/stock-zogbo", error);
+    reportError("POST /api/stock-gbegamey", error);
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }
 
 export async function PUT(request: Request) {
   try {
-    const user = await requireStockZogboAccess();
+    const user = await requireStockGbegameyAccess();
     requireStockWrite(user);
     const body = (await request.json()) as {
       date?: string;
@@ -191,6 +181,7 @@ export async function PUT(request: Request) {
     const payload = await saveAccompanimentStock({
       date: body.date,
       accompanimentLines: body.accompanimentLines,
+      site: "gbegamey",
     });
     return NextResponse.json({ payload });
   } catch (error) {

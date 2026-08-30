@@ -1,23 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { buildQrPrintSheetHtml, qrSheetFilename } from "@/lib/qr-print-sheet";
+import { buildQrPrintSheetPdf, qrSheetFilename } from "@/lib/qr-print-sheet";
 
 describe("qr-print-sheet", () => {
-  it("builds an HTML sheet with all QR ids", async () => {
-    const html = await buildQrPrintSheetHtml({
+  it("builds a PDF with the QR labels", async () => {
+    const pdf = await buildQrPrintSheetPdf({
       title: "Poulet · 2 QR",
       items: [
-        { qrId: "KF-TEST-1", productName: "Poulet" },
-        { qrId: "KF-TEST-2", productName: "Poulet" },
+        { qrId: "KF-A7K3Q2", stickerCode: "A7K3Q2", productName: "Poulet" },
+        { qrId: "KF-B8M4R3", stickerCode: "B8M4R3", productName: "Poulet" },
       ],
     });
-    expect(html).toContain("KF-TEST-1");
-    expect(html).toContain("KF-TEST-2");
-    expect(html).toContain("data:image/png;base64,");
+    expect(pdf.byteLength).toBeGreaterThan(200);
+    expect(Buffer.from(pdf.subarray(0, 5)).toString("ascii")).toBe("%PDF-");
   });
 
   it("slugifies product names for filenames", () => {
     expect(
       qrSheetFilename({ productName: "Poulet Braisé", date: "2026-08-30" }),
-    ).toBe("qr-poulet-braise-2026-08-30.html");
+    ).toBe("qr-poulet-braise-2026-08-30.pdf");
   });
 });

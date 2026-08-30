@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import type { SessionUser } from "@/lib/auth-types";
-import { canManageUsers, effectiveSite, hasFinanceAccess } from "@/lib/auth-types";
+import {
+  canManageUsers,
+  canWriteStock,
+  effectiveSite,
+  hasFinanceAccess,
+} from "@/lib/auth-types";
 import { reportError } from "@/lib/report-error";
 import { getSessionUser } from "@/lib/session";
 
@@ -30,6 +35,16 @@ export async function requireUserManagementAdmin(): Promise<SessionUser> {
     throw new AuthError("Gestion des comptes non autorisée pour ce profil.", 403);
   }
   return user;
+}
+
+/** Bloque toute écriture de stock pour un rôle lecteur (DAF, comptable). */
+export function requireStockWrite(user: SessionUser): void {
+  if (!canWriteStock(user.role)) {
+    throw new AuthError(
+      "Consultation uniquement : saisie de stock non autorisée.",
+      403,
+    );
+  }
 }
 
 export class AuthError extends Error {

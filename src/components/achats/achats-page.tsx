@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
+import {
+  CataloguePaginationBar,
+  CatalogueSkeleton,
+} from "@/components/parametres/catalogue-view";
+import "@/components/parametres/parametres-catalogue.css";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
 import type { Fournisseur, MatieresMovement } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
-import { BrandLoader } from "@/components/brand-loader";
 import {
-  DashKpiGrid,
-  DashboardShell,
-} from "@/components/dashboard/dashboard-layout";
-import {
-  MovementRow,
   emptyDraftLibre,
+  formatDateFr,
   movementRows,
   type DraftLibre,
   type StockPayload,
@@ -26,18 +26,63 @@ function isLibre(m: MatieresMovement): boolean {
   return m.type === "autre";
 }
 
-// Bornes larges plutôt qu'un sélecteur de plage : la page montre tous les
-// achats libres, sans notion de « jour affiché ». +1 an couvre une saisie
-// datée par erreur dans le futur sans la rendre invisible.
 const RANGE_FROM = "2020-01-01";
+const PAGE_SIZE = 10;
+
+type StatutFilter = "all" | "valide" | "corrige" | "annule";
+
+function useDebouncedValue<T>(value: T, delayMs = 280): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
+}
+
+function normalizeSearch(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function paginate<T>(items: T[], page: number, pageSize: number) {
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * pageSize;
+  return {
+    items: items.slice(start, start + pageSize),
+    page: safePage,
+    totalPages,
+    total,
+    from: total === 0 ? 0 : start + 1,
+    to: Math.min(start + pageSize, total),
+  };
+}
+
+function statutLabel(m: MatieresMovement): string {
+  if (m.cancelledAt) return "Annulé";
+  if (m.editedAt) return "Corrigé";
+  return "Validé";
+}
+
+function statutKey(m: MatieresMovement): Exclude<StatutFilter, "all"> {
+  if (m.cancelledAt) return "annule";
+  if (m.editedAt) return "corrige";
+  return "valide";
+}
 
 /**
- * Achats libres (hors catalogue) : imprévus, divers, dépannage — un produit
- * qui n'a pas de fiche matière. Chaque achat porte sa propre date, choisie à
- * la saisie : rien ici ne dépend d'une date de page affichée ailleurs, qui
- * avait fait atterrir des achats sous de mauvaises dates par le passé.
+ * Achats libres (hors catalogue). UI alignée sur la maquette SaaS ;
+ * logique métier inchangée (POST /api/matieres, pas d’édition / annulation).
  */
 export function AchatsPage() {
+  const formRef = useRef<HTMLElement | null>(null);
+  const productInputRef = useRef<HTMLInputElement | null>(null);
+
   const [entries, setEntries] = useState<
     Array<{ date: string; movement: MatieresMovement }>
   >([]);
@@ -45,16 +90,16 @@ export function AchatsPage() {
     emptyDraftLibre(),
   );
   const [busyLibre, setBusyLibre] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  /** Achat en cours de correction — un seul à la fois. */
-  const [editId, setEditId] = useState<string | null>(null);
-  const [draftEdit, setDraftEdit] = useState<DraftLibre>(() =>
-    emptyDraftLibre(),
-  );
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [statutFilter, setStatutFilter] = useState<StatutFilter>("all");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const debouncedSearch = useDebouncedValue(search);
 
   function reload() {
     void (async () => {
@@ -70,10 +115,14 @@ export function AchatsPage() {
           historique?: Array<{ date: string; movement: MatieresMovement }>;
           error?: string;
         };
-        if (!res.ok) throw new Error(body.error || "Erreur");
-        setEntries((body.historique ?? []).filter(({ movement }) => isLibre(movement)));
+        if (!res.ok) throw new Error(body.error || "Impossible de charger les achats.");
+        setEntries(
+          (body.historique ?? []).filter(({ movement }) => isLibre(movement)),
+        );
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Erreur");
+        setError(
+          e instanceof Error ? e.message : "Impossible de charger les achats.",
+        );
       } finally {
         setLoading(false);
       }
@@ -84,7 +133,6 @@ export function AchatsPage() {
     reload();
   }, []);
 
-  // Fournisseurs proposés à la saisie : gérés dans Réglages.
   useEffect(() => {
     let annule = false;
     void (async () => {
@@ -102,11 +150,36 @@ export function AchatsPage() {
     };
   }, []);
 
-  // Plus récent en premier.
   const sorted = useMemo(
     () => [...entries].sort((a, b) => b.date.localeCompare(a.date)),
     [entries],
   );
+
+  const filtered = useMemo(() => {
+    const q = normalizeSearch(debouncedSearch);
+    return sorted.filter(({ date, movement: m }) => {
+      if (statutFilter !== "all" && statutKey(m) !== statutFilter) return false;
+      if (!q) return true;
+      const blob = [m.name, m.fournisseurNom ?? "", date, statutLabel(m)].join(
+        " ",
+      );
+      return normalizeSearch(blob).includes(q);
+    });
+  }, [sorted, debouncedSearch, statutFilter]);
+
+  const paged = useMemo(
+    () => paginate(filtered, page, PAGE_SIZE),
+    [filtered, page],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, statutFilter]);
+
+  function focusNewPurchase() {
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => productInputRef.current?.focus(), 280);
+  }
 
   async function submitPurchaseLibre(row: DraftLibre) {
     const name = row.name.trim();
@@ -158,163 +231,133 @@ export function AchatsPage() {
     }
   }
 
-  function startEdit(m: MatieresMovement, dayDate: string) {
-    setError(null);
-    setFlash(null);
-    setEditId(m.id);
-    setDraftEdit({
-      name: m.name,
-      qty: String(m.qty),
-      price: String(m.unitPrice),
-      fournisseurId: m.fournisseurId ?? "",
-      date: dayDate,
-    });
-  }
-
-  async function submitEdit(m: MatieresMovement, dayDate: string) {
-    const qty = Number(draftEdit.qty.replace(",", "."));
-    const price = Number(draftEdit.price.replace(",", "."));
-    if (!(qty > 0) || !(price > 0)) {
-      setError("Quantité et prix unitaire obligatoires.");
-      return;
-    }
-    if (!draftEdit.date) {
-      setError("Choisissez la date de l'achat.");
-      return;
-    }
-    setBusyId(`edit-${m.id}`);
-    setError(null);
-    setFlash(null);
-    try {
-      const res = await fetch("/api/matieres", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "edit",
-          date: dayDate,
-          movementId: m.id,
-          qty,
-          unitPrice: price,
-          name: draftEdit.name.trim(),
-          fournisseurId: draftEdit.fournisseurId || undefined,
-          newDate: draftEdit.date !== dayDate ? draftEdit.date : undefined,
-        }),
-      });
-      const body = (await res.json()) as StockPayload & {
-        error?: string;
-        depense?: { id: string; montant: number } | null;
-        depenseWarning?: string | null;
-      };
-      if (!res.ok) throw new Error(body.error || "Erreur");
-      setEditId(null);
-      if (body.depenseWarning) setFlash(body.depenseWarning);
-      else if (body.depense) {
-        setFlash(
-          `Achat corrigé — dépense de caisse ramenée à ${formatFcfa(body.depense.montant)}.`,
-        );
-      } else setFlash("Achat corrigé.");
-      reload();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function cancelMovement(m: MatieresMovement, dayDate: string) {
-    if (!window.confirm(`Annuler cet achat ?\n\n+${m.qty} × ${m.name}`)) {
-      return;
-    }
-    setBusyId(`cancel-${m.id}`);
-    setError(null);
-    setFlash(null);
-    try {
-      const res = await fetch("/api/matieres", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "cancel",
-          date: dayDate,
-          movementId: m.id,
-        }),
-      });
-      const body = (await res.json()) as StockPayload & { error?: string };
-      if (!res.ok) throw new Error(body.error || "Erreur");
-      if (body.depenseWarning) setFlash(body.depenseWarning);
-      else setFlash("Achat annulé.");
-      reload();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  const totalMontant = entries
-    .filter(({ movement }) => !movement.cancelledAt)
-    .reduce((s, { movement }) => s + movement.qty * movement.unitPrice, 0);
-  const totalCount = entries.filter(({ movement }) => !movement.cancelledAt).length;
+  const actifs = entries.filter(({ movement }) => !movement.cancelledAt);
+  const totalMontant = actifs.reduce(
+    (s, { movement }) => s + movement.qty * movement.unitPrice,
+    0,
+  );
+  const totalCount = actifs.length;
 
   return (
     <AppShell
       title="Achats"
       subtitle="Hors catalogue uniquement. Les matières du catalogue se saisissent dans Approvisionnement. Les sorties de caisse liées restent dans Caisse."
+      mainClassName="main-achats"
       actions={
         <>
-          <Link href="/appro" className="btn btn-ghost">
+          <Link href="/appro" className="btn btn-ghost achats-header-btn">
             Approvisionnement
           </Link>
           <ExportExcelButton
             disabled={loading}
+            className="btn btn-ghost achats-header-btn"
             onExport={() => {
               downloadExcel(excelFilename("achats-libres", todayIsoDate()), [
-                {
-                  name: "Achats",
-                  rows: movementRows(sorted),
-                },
+                { name: "Achats", rows: movementRows(sorted) },
               ]);
               return Promise.resolve();
             }}
           />
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={focusNewPurchase}
+          >
+            + Nouvel achat
+          </button>
         </>
       }
     >
-      <DashboardShell>
-      {error ? <p className="error-banner" role="alert">{error}</p> : null}
-      {flash ? <p className="ui-info" role="status">{flash}</p> : null}
+      <div className="catalogue-view achats-page">
+        <p className="achats-pill" role="status">
+          <span className="achats-pill-icon" aria-hidden>
+            ⌕
+          </span>
+          Achats libres — registre hors catalogue
+        </p>
 
-      <p className="ui-info" role="note">
-        Pour un équipement durable (frigo, table…) ou un emballage revendu en
-        caisse, utilisez plutôt{" "}
-        <Link href="/immobilisations">Immobilisations</Link> — chaque écran
-        crée sa propre dépense de caisse, ne saisissez pas le même achat aux
-        deux endroits.
-      </p>
+        {error ? (
+          <div className="catalogue-alert catalogue-alert-danger" role="alert">
+            <span className="catalogue-alert-icon" aria-hidden>
+              !
+            </span>
+            <span>
+              {error}
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm catalogue-retry"
+                onClick={() => reload()}
+              >
+                Réessayer
+              </button>
+            </span>
+          </div>
+        ) : null}
 
-      {!loading ? (
-        <DashKpiGrid
-          className="achats-kpi-grid"
-          items={[
-            {
-              label: "Total des achats",
-              value: formatFcfa(totalMontant),
-              tone: "accent",
-            },
-            {
-              label: "Achats enregistrés",
-              value: String(totalCount),
-            },
-          ]}
-        />
-      ) : null}
+        {flash ? (
+          <div className="catalogue-info achats-flash" role="status">
+            <span className="catalogue-info-mark" aria-hidden>
+              ✓
+            </span>
+            <p>{flash}</p>
+          </div>
+        ) : null}
 
-      {loading ? (
-        <BrandLoader variant="ligne" label="Chargement des achats…" />
-      ) : (
-        <>
-          <section className="panel">
-            <h2 className="panel-title">Nouvel achat libre</h2>
-            <div className="libre-buy">
+        <div className="achats-warn-banner" role="note">
+          <span className="achats-warn-icon" aria-hidden>
+            ⚠
+          </span>
+          <p>
+            Pour un équipement durable (frigo, table…) ou un emballage revendu
+            en caisse, utilisez plutôt{" "}
+            <Link href="/immobilisations">Immobilisations</Link> — chaque écran
+            crée sa propre dépense de caisse, ne saisissez pas le même achat
+            aux deux endroits.
+          </p>
+        </div>
+
+        <div className="achats-kpi-grid" aria-label="Totaux achats">
+          <div className="achats-kpi achats-kpi-gold">
+            <span className="achats-kpi-ico" aria-hidden>
+              ₣
+            </span>
+            <div>
+              <span className="catalogue-kpi-label">Total des achats</span>
+              <strong className="catalogue-kpi-value">
+                {loading ? "…" : formatFcfa(totalMontant)}
+              </strong>
+              <span className="achats-kpi-hint">
+                Cumul des achats libres actifs
+              </span>
+            </div>
+          </div>
+          <div className="achats-kpi achats-kpi-blue">
+            <span className="achats-kpi-ico" aria-hidden>
+              ≡
+            </span>
+            <div>
+              <span className="catalogue-kpi-label">Achats enregistrés</span>
+              <strong className="catalogue-kpi-value">
+                {loading ? "…" : totalCount}
+              </strong>
+              <span className="achats-kpi-hint">
+                Hors lignes annulées
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <section className="catalogue-panel" ref={formRef} id="nouvel-achat">
+          <div className="catalogue-toolbar">
+            <h2 className="panel-title" style={{ margin: 0 }}>
+              Nouvel achat libre
+            </h2>
+          </div>
+          <div
+            className={`achats-form-grid${fournisseurs.length > 0 ? " has-fournisseur" : ""}`}
+          >
+            <label className="achats-field">
+              <span className="achats-field-label">Date</span>
               <input
                 type="date"
                 className="input-text"
@@ -325,7 +368,11 @@ export function AchatsPage() {
                 }
                 aria-label="Date de l'achat"
               />
+            </label>
+            <label className="achats-field">
+              <span className="achats-field-label">Produit</span>
               <input
+                ref={productInputRef}
                 type="text"
                 className="input-text"
                 placeholder="Nom du produit…"
@@ -335,6 +382,9 @@ export function AchatsPage() {
                 }
                 aria-label="Nom du produit acheté"
               />
+            </label>
+            <label className="achats-field">
+              <span className="achats-field-label">Quantité</span>
               <input
                 type="number"
                 min={0}
@@ -347,19 +397,28 @@ export function AchatsPage() {
                 }
                 aria-label="Quantité achetée"
               />
-              <input
-                type="number"
-                min={0}
-                step="any"
-                className="input-num"
-                placeholder="Prix / u"
-                value={draftLibre.price}
-                onChange={(e) =>
-                  setDraftLibre((d) => ({ ...d, price: e.target.value }))
-                }
-                aria-label="Prix unitaire"
-              />
-              {fournisseurs.length > 0 ? (
+            </label>
+            <label className="achats-field">
+              <span className="achats-field-label">Prix unitaire</span>
+              <div className="achats-price-wrap">
+                <input
+                  type="number"
+                  min={0}
+                  step="any"
+                  className="input-num"
+                  placeholder="Prix / u"
+                  value={draftLibre.price}
+                  onChange={(e) =>
+                    setDraftLibre((d) => ({ ...d, price: e.target.value }))
+                  }
+                  aria-label="Prix unitaire"
+                />
+                <span className="achats-price-suffix">FCFA</span>
+              </div>
+            </label>
+            {fournisseurs.length > 0 ? (
+              <label className="achats-field">
+                <span className="achats-field-label">Fournisseur</span>
                 <select
                   className="input-select"
                   value={draftLibre.fournisseurId}
@@ -378,56 +437,314 @@ export function AchatsPage() {
                     </option>
                   ))}
                 </select>
-              ) : null}
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busyLibre}
-                onClick={() => void submitPurchaseLibre(draftLibre)}
-              >
-                + Achat
-              </button>
-            </div>
-            <p className="muted libre-hint">
-              Pour un produit qui n&apos;est pas une matière de stock : la
-              date à laquelle l&apos;achat a réellement eu lieu, ce que vous
-              achetez, la quantité et le prix. L&apos;achat est enregistré
-              sans toucher au stock matières du catalogue.
+              </label>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-primary achats-form-submit"
+              disabled={busyLibre}
+              onClick={() => void submitPurchaseLibre(draftLibre)}
+            >
+              {busyLibre ? "…" : "+ Ajouter"}
+            </button>
+          </div>
+          <div className="achats-form-hint">
+            <span className="catalogue-info-mark" aria-hidden>
+              i
+            </span>
+            <p>
+              Pour un produit qui n&apos;est pas une matière de stock : la date
+              réelle de l&apos;achat, le nom, la quantité et le prix.
+              L&apos;achat n&apos;est ni modifiable ni annulable une fois
+              enregistré.
             </p>
-          </section>
+          </div>
+        </section>
 
-          <section className="panel">
-            <h2 className="panel-title">Liste des achats</h2>
-            {sorted.length === 0 ? (
-              <p className="muted">Aucun achat libre enregistré.</p>
+        {loading ? (
+          <CatalogueSkeleton />
+        ) : (
+          <section className="catalogue-panel">
+            <div className="catalogue-toolbar achats-list-toolbar">
+              <div className="catalogue-search-wrap">
+                <span className="catalogue-search-icon" aria-hidden>
+                  ⌕
+                </span>
+                <input
+                  type="search"
+                  className="catalogue-search"
+                  placeholder="Rechercher un achat…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  aria-label="Rechercher un achat"
+                />
+              </div>
+              <div className="achats-filters">
+                <button
+                  type="button"
+                  className={`catalogue-filter-btn${filtersOpen || statutFilter !== "all" ? " is-active" : ""}`}
+                  aria-expanded={filtersOpen}
+                  onClick={() => setFiltersOpen((v) => !v)}
+                >
+                  Filtres
+                  {statutFilter !== "all" ? " · 1" : ""}
+                </button>
+                {filtersOpen ? (
+                  <div className="achats-filters-panel" role="group" aria-label="Filtres statut">
+                    {(
+                      [
+                        ["all", "Tous"],
+                        ["valide", "Validé"],
+                        ["corrige", "Corrigé"],
+                        ["annule", "Annulé"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        className={`achats-filter-chip${statutFilter === key ? " is-active" : ""}`}
+                        onClick={() => setStatutFilter(key)}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {filtered.length === 0 ? (
+              <div className="catalogue-empty">
+                <p className="catalogue-empty-title">
+                  {sorted.length === 0
+                    ? "Aucun achat enregistré"
+                    : "Aucun achat trouvé"}
+                </p>
+                <p className="catalogue-empty-hint">
+                  {sorted.length === 0
+                    ? "Aucun achat libre ne correspond actuellement."
+                    : "Modifiez votre recherche ou vos filtres."}
+                </p>
+                {sorted.length === 0 ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={focusNewPurchase}
+                  >
+                    + Nouvel achat
+                  </button>
+                ) : null}
+              </div>
             ) : (
-              <ul className="vente-log">
-                {sorted.map(({ date: d, movement: m }) => (
-                  <MovementRow
-                    key={m.id}
-                    m={m}
-                    dayDate={d}
-                    fournisseurs={fournisseurs}
-                    busyId={busyId}
-                    editing={editId === m.id}
-                    draftEdit={draftEdit}
-                    onDraftChange={(patch) =>
-                      setDraftEdit((dr) => ({ ...dr, ...patch }))
-                    }
-                    onStartEdit={startEdit}
-                    onStopEdit={() => setEditId(null)}
-                    onSubmitEdit={(mv, dd) => void submitEdit(mv, dd)}
-                    onCancelMovement={(mv, dd) => void cancelMovement(mv, dd)}
-                    showAmount
-                    allowDateEdit
-                  />
-                ))}
-              </ul>
+              <>
+                <div className="catalogue-table-wrap stock-zogbo-desktop-table">
+                  <table className="catalogue-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Désignation</th>
+                        <th scope="col">Fournisseur</th>
+                        <th scope="col">Qté</th>
+                        <th scope="col">Prix unitaire</th>
+                        <th scope="col">Montant</th>
+                        <th scope="col">Statut</th>
+                        <th scope="col" className="col-actions">
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paged.items.map(({ date: d, movement: m }) => {
+                        const open = detailId === m.id;
+                        return (
+                          <tr
+                            key={m.id}
+                            className={
+                              m.cancelledAt
+                                ? "row-warn"
+                                : open
+                                  ? "is-expanded"
+                                  : undefined
+                            }
+                          >
+                            <td>{formatDateFr(d)}</td>
+                            <td>
+                              <span className="catalogue-product-name achats-name">
+                                {m.name}
+                              </span>
+                            </td>
+                            <td>{m.fournisseurNom || "—"}</td>
+                            <td>
+                              <span className="catalogue-qty-badge">
+                                {m.qty}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="catalogue-price-badge catalogue-price-badge-sale">
+                                {formatFcfa(m.unitPrice)}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="catalogue-price-badge catalogue-price-badge-cost">
+                                {formatFcfa(m.qty * m.unitPrice)}
+                              </span>
+                            </td>
+                            <td>
+                              <span
+                                className={`achats-status${
+                                  m.cancelledAt
+                                    ? " achats-status-warn"
+                                    : m.editedAt
+                                      ? " achats-status-muted"
+                                      : " achats-status-ok"
+                                }`}
+                              >
+                                {statutLabel(m)}
+                              </span>
+                            </td>
+                            <td className="col-actions">
+                              <button
+                                type="button"
+                                className={`catalogue-action-btn${open ? " is-active" : ""}`}
+                                aria-label={
+                                  open
+                                    ? `Masquer le détail de ${m.name}`
+                                    : `Voir le détail de ${m.name}`
+                                }
+                                aria-expanded={open}
+                                onClick={() =>
+                                  setDetailId(open ? null : m.id)
+                                }
+                              >
+                                {open ? "−" : "i"}
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {detailId ? (
+                  <div className="achats-detail stock-zogbo-desktop-table">
+                    {(() => {
+                      const row = paged.items.find(
+                        (e) => e.movement.id === detailId,
+                      );
+                      if (!row) return null;
+                      const m = row.movement;
+                      return (
+                        <p>
+                          <strong>{m.name}</strong>
+                          {" · "}
+                          {formatDateFr(row.date)}
+                          {" · "}
+                          {m.qty} × {formatFcfa(m.unitPrice)} ={" "}
+                          {formatFcfa(m.qty * m.unitPrice)}
+                          {m.fournisseurNom
+                            ? ` · Fournisseur : ${m.fournisseurNom}`
+                            : ""}
+                          {m.depenseId ? " · Dépense de caisse liée" : ""}
+                          {" · Lecture seule (non modifiable)"}
+                        </p>
+                      );
+                    })()}
+                  </div>
+                ) : null}
+
+                <div className="stock-zogbo-mobile-list">
+                  {paged.items.map(({ date: d, movement: m }) => {
+                    const open = detailId === m.id;
+                    return (
+                      <article
+                        key={m.id}
+                        className={`stock-mobile-card${m.cancelledAt ? " is-warn" : ""}`}
+                      >
+                        <div className="stock-mobile-card-head">
+                          <span className="catalogue-product-name">
+                            {m.name}
+                          </span>
+                          <span
+                            className={`achats-status${
+                              m.cancelledAt
+                                ? " achats-status-warn"
+                                : " achats-status-ok"
+                            }`}
+                          >
+                            {statutLabel(m)}
+                          </span>
+                        </div>
+                        <div className="catalogue-mobile-card-prices">
+                          <div>
+                            <span className="catalogue-mobile-price-label">
+                              Date
+                            </span>
+                            <strong>{formatDateFr(d)}</strong>
+                          </div>
+                          <div>
+                            <span className="catalogue-mobile-price-label">
+                              Quantité
+                            </span>
+                            <strong>{m.qty}</strong>
+                          </div>
+                          <div>
+                            <span className="catalogue-mobile-price-label">
+                              Prix unitaire
+                            </span>
+                            <strong>{formatFcfa(m.unitPrice)}</strong>
+                          </div>
+                          <div>
+                            <span className="catalogue-mobile-price-label">
+                              Montant
+                            </span>
+                            <strong>
+                              {formatFcfa(m.qty * m.unitPrice)}
+                            </strong>
+                          </div>
+                        </div>
+                        <p className="catalogue-meta" style={{ margin: 0 }}>
+                          {m.fournisseurNom
+                            ? `Fournisseur : ${m.fournisseurNom}`
+                            : "Sans fournisseur"}
+                          {m.depenseId ? " · dépense liée" : ""}
+                        </p>
+                        <div className="catalogue-mobile-card-actions">
+                          <button
+                            type="button"
+                            className={`catalogue-action-btn${open ? " is-active" : ""}`}
+                            onClick={() =>
+                              setDetailId(open ? null : m.id)
+                            }
+                          >
+                            Voir
+                          </button>
+                        </div>
+                        {open ? (
+                          <p className="achats-detail-inline">
+                            Lecture seule — non modifiable ni annulable
+                            {m.depenseId ? " · dépense de caisse liée" : ""}
+                          </p>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </div>
+
+                <CataloguePaginationBar
+                  from={paged.from}
+                  to={paged.to}
+                  total={paged.total}
+                  page={paged.page}
+                  totalPages={paged.totalPages}
+                  onPage={setPage}
+                  itemLabel="achat"
+                />
+              </>
             )}
           </section>
-        </>
-      )}
-      </DashboardShell>
+        )}
+      </div>
     </AppShell>
   );
 }

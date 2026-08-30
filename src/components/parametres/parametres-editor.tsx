@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { ExportExcelButton } from "@/components/export-excel-button";
+import { CatalogueView } from "@/components/parametres/catalogue-view";
 import { PriceInput } from "@/components/parametres/price-input";
 import { QtyInput } from "@/components/qty-input";
 import { formatFcfa, formatUpdatedAt, newId } from "@/lib/format";
@@ -20,46 +21,9 @@ type ZoneKey = "zogbo" | "gbegamey" | "cuisine";
 type ZogboSection = "base" | "accompagnements" | "drinks";
 type GbegameySection = "accompagnements" | "drinks";
 type CuisineSection = "matieres" | "composition";
-type CatalogueSectionKey =
-  | "base"
-  | "accompagnements"
-  | "drinks"
-  | "matieres"
-  | "composition";
+type CatalogueSectionKey = "base" | "accompagnements" | "drinks";
 
 export type ParametresEditorMode = "zones" | "catalogue";
-
-const CATALOGUE_SECTIONS: {
-  key: CatalogueSectionKey;
-  label: string;
-  hint: string;
-}[] = [
-  {
-    key: "base",
-    label: "Plats de base",
-    hint: "Production Zogbo — prix aussi utilisés pour les ventes à Gbégamey (transferts).",
-  },
-  {
-    key: "accompagnements",
-    label: "Accompagnements",
-    hint: "Riz, telibo, piron… — catalogue partagé, vendus seuls ou avec un plat.",
-  },
-  {
-    key: "drinks",
-    label: "Boissons",
-    hint: "Catalogue boissons (partagé) — stock et ventes en bouteilles.",
-  },
-  {
-    key: "matieres",
-    label: "Matières",
-    hint: "Aliments sources : unité, prix d’achat, seuil d’alerte, stock bloquant.",
-  },
-  {
-    key: "composition",
-    label: "Composition",
-    hint: "Recettes : matières consommées par produit vendable (plats / accompagnements).",
-  },
-];
 
 const ZONE_TABS: { key: ZoneKey; label: string }[] = [
   { key: "zogbo", label: "Zogbo" },
@@ -262,16 +226,49 @@ export function ParametresEditor({
   }
 
   const sectionHint =
-    mode === "catalogue"
-      ? CATALOGUE_SECTIONS.find((s) => s.key === catalogueSection)?.hint
-      : zone === "zogbo"
-        ? ZOGBO_SECTIONS.find((s) => s.key === zogboSection)?.hint
-        : zone === "gbegamey"
-          ? GBEGAMEY_SECTIONS.find((s) => s.key === gbegameySection)?.hint
-          : CUISINE_SECTIONS.find((s) => s.key === cuisineSection)?.hint;
+    zone === "zogbo"
+      ? ZOGBO_SECTIONS.find((s) => s.key === zogboSection)?.hint
+      : zone === "gbegamey"
+        ? GBEGAMEY_SECTIONS.find((s) => s.key === gbegameySection)?.hint
+        : CUISINE_SECTIONS.find((s) => s.key === cuisineSection)?.hint;
 
   const rawMaterials = data.rawMaterials ?? [];
   const recipes = data.recipes ?? [];
+
+  async function reload() {
+    setSaving(true);
+    setError(null);
+    try {
+      const remote = await fetchParametres();
+      setData(remote);
+      setDirty(false);
+      setReady(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur de chargement");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (mode === "catalogue") {
+    return (
+      <CatalogueView
+        data={data}
+        ready={ready}
+        saving={saving}
+        dirty={dirty}
+        savedFlash={savedFlash}
+        error={error}
+        catalogueSection={catalogueSection}
+        onCatalogueSectionChange={setCatalogueSection}
+        onUpdate={update}
+        onSave={() => void handleSave()}
+        onReset={() => void handleReset()}
+        drinksWithoutPrice={drinksWithoutPrice}
+        onRetry={() => void reload()}
+      />
+    );
+  }
 
   return (
   <div className="parametres-editor">
@@ -335,38 +332,7 @@ export function ParametresEditor({
         </p>
       ) : null}
 
-      {mode === "catalogue" ? (
-        <div
-          className="section-tabs"
-          role="tablist"
-          aria-label="Catalogue"
-        >
-          {CATALOGUE_SECTIONS.map((s) => (
-            <button
-              key={s.key}
-              type="button"
-              role="tab"
-              aria-selected={catalogueSection === s.key}
-              className={`section-tab${catalogueSection === s.key ? " is-active" : ""}`}
-              onClick={() => setCatalogueSection(s.key)}
-            >
-              {s.label}
-              <span className="section-count">
-                {s.key === "base"
-                  ? data.baseDishes.length
-                  : s.key === "accompagnements"
-                    ? data.localDishes.length
-                    : s.key === "drinks"
-                      ? data.drinks.length
-                      : s.key === "matieres"
-                        ? rawMaterials.length
-                        : recipes.length}
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : (
-        <>
+      <>
           <div className="section-tabs" role="tablist" aria-label="Point">
             {ZONE_TABS.map((z) => (
               <button
@@ -457,8 +423,7 @@ export function ParametresEditor({
               ))}
             </div>
           )}
-        </>
-      )}
+      </>
 
       <div className="ui-info" role="note">
         <span className="ui-info-mark" aria-hidden>
@@ -467,69 +432,28 @@ export function ParametresEditor({
         <p>{sectionHint}</p>
       </div>
 
-      {mode === "catalogue" && catalogueSection === "base" ? (
+      {zone === "zogbo" && zogboSection === "base" ? (
         <BaseDishesTable
           rows={data.baseDishes}
           onChange={(baseDishes) => update({ ...data, baseDishes })}
         />
       ) : null}
 
-      {mode === "catalogue" && catalogueSection === "accompagnements" ? (
+      {zone === "zogbo" && zogboSection === "accompagnements" ? (
         <LocalDishesTable
           rows={data.localDishes}
           onChange={(localDishes) => update({ ...data, localDishes })}
         />
       ) : null}
 
-      {mode === "catalogue" && catalogueSection === "drinks" ? (
+      {zone === "zogbo" && zogboSection === "drinks" ? (
         <DrinksTable
           rows={data.drinks}
           onChange={(drinks) => update({ ...data, drinks })}
         />
       ) : null}
 
-      {mode === "catalogue" && catalogueSection === "matieres" ? (
-        <RawMaterialsTable
-          rows={rawMaterials}
-          onChange={(next) => update({ ...data, rawMaterials: next })}
-        />
-      ) : null}
-
-      {mode === "catalogue" && catalogueSection === "composition" ? (
-        <RecipesTable
-          recipes={recipes}
-          materials={rawMaterials}
-          products={[
-            ...data.baseDishes.map((d) => ({ id: d.id, name: d.name })),
-            ...data.localDishes.map((d) => ({ id: d.id, name: d.name })),
-          ]}
-          onChange={(next) => update({ ...data, recipes: next })}
-        />
-      ) : null}
-
-      {mode === "zones" && zone === "zogbo" && zogboSection === "base" ? (
-        <BaseDishesTable
-          rows={data.baseDishes}
-          onChange={(baseDishes) => update({ ...data, baseDishes })}
-        />
-      ) : null}
-
-      {mode === "zones" && zone === "zogbo" && zogboSection === "accompagnements" ? (
-        <LocalDishesTable
-          rows={data.localDishes}
-          onChange={(localDishes) => update({ ...data, localDishes })}
-        />
-      ) : null}
-
-      {mode === "zones" && zone === "zogbo" && zogboSection === "drinks" ? (
-        <DrinksTable
-          rows={data.drinks}
-          onChange={(drinks) => update({ ...data, drinks })}
-        />
-      ) : null}
-
-      {mode === "zones" &&
-      zone === "gbegamey" &&
+      {zone === "gbegamey" &&
       gbegameySection === "accompagnements" ? (
         <LocalDishesTable
           rows={data.localDishes}
@@ -537,21 +461,21 @@ export function ParametresEditor({
         />
       ) : null}
 
-      {mode === "zones" && zone === "gbegamey" && gbegameySection === "drinks" ? (
+      {zone === "gbegamey" && gbegameySection === "drinks" ? (
         <DrinksTable
           rows={data.drinks}
           onChange={(drinks) => update({ ...data, drinks })}
         />
       ) : null}
 
-      {mode === "zones" && zone === "cuisine" && cuisineSection === "matieres" ? (
+      {zone === "cuisine" && cuisineSection === "matieres" ? (
         <RawMaterialsTable
           rows={rawMaterials}
           onChange={(next) => update({ ...data, rawMaterials: next })}
         />
       ) : null}
 
-      {mode === "zones" && zone === "cuisine" && cuisineSection === "composition" ? (
+      {zone === "cuisine" && cuisineSection === "composition" ? (
         <RecipesTable
           recipes={recipes}
           materials={rawMaterials}
@@ -563,8 +487,7 @@ export function ParametresEditor({
         />
       ) : null}
 
-      {mode === "zones" &&
-      zone === "gbegamey" &&
+      {zone === "gbegamey" &&
       gbegameySection === "accompagnements" ? (
         <p className="section-hint">
           Les plats reçus de Zogbo utilisent les prix de{" "}

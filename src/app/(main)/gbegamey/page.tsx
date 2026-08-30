@@ -1,13 +1,27 @@
-import { Suspense } from "react";
-import { GbegameyPage } from "@/components/gbegamey/gbegamey-page";
-import { BrandLoader } from "@/components/brand-loader";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return (
-    <Suspense
-      fallback={<BrandLoader label="Chargement de Gbégamey…" />}
-    >
-      <GbegameyPage />
-    </Suspense>
-  );
+/**
+ * Ancienne URL Gbégamey — le stock est saisi sur Stock Gbégamey.
+ */
+export default function Page({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  const params = new URLSearchParams();
+  const date = searchParams.date;
+  if (typeof date === "string") params.set("date", date);
+
+  const tab = searchParams.tab ?? searchParams.section;
+  if (
+    tab === "local" ||
+    tab === "boissons" ||
+    tab === "ventes" ||
+    tab === "parametres"
+  ) {
+    params.set("tab", tab);
+  }
+
+  const q = params.toString();
+  redirect(q ? `/stock-gbegamey?${q}` : "/stock-gbegamey");
 }

@@ -1,28 +1,43 @@
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { ContextBar } from "@/components/context-bar";
 import { ProductIcon } from "@/components/product-icon";
 import { QtyInput } from "@/components/qty-input";
 import { ZoneBoissonsPanel } from "@/components/zone/zone-boissons-panel";
-import { BrandLoader } from "@/components/brand-loader";
+import {
+  CataloguePaginationBar,
+  CatalogueSkeleton,
+} from "@/components/parametres/catalogue-view";
 import { QrScanner } from "@/components/stock-zogbo/qr-scanner";
 import { ParametresEditor } from "@/components/parametres/parametres-editor";
-import { parseQrIdFromScan } from "@/lib/parse-qr-id";
-import type { GbegameyLocalLine, LocalDish } from "@/lib/types";
+import { useSession } from "@/components/session-provider";
+import "@/components/parametres/parametres-catalogue.css";
+import { formatStickerCode, parseQrIdFromScan } from "@/lib/parse-qr-id";
+import { canWriteStock } from "@/lib/auth-types";
+import type { GbegameyLocalLine, LocalDish, VenteSite } from "@/lib/types";
 import type {
   PlatUnitStats,
   StockUnit,
+  StockUnitKind,
   StockZogboPayload,
 } from "@/lib/stock-unit-types";
 import { STOCK_UNIT_STATUS_LABELS } from "@/lib/stock-unit-types";
-import { qrSheetFilename } from "@/lib/qr-print-sheet";
+import { downloadQrSheet } from "@/lib/download-qr-sheet";
 import { computeLocalLine } from "@/lib/gbegamey-calc";
 import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
 
 type TabKey = "plats" | "acc" | "boissons" | "parametres";
+
+const PAGE_SIZE = 6;
 
 function parseTab(raw: string | null): TabKey {
   if (raw === "acc" || raw === "boissons" || raw === "parametres") return raw;
@@ -33,10 +48,158 @@ function sumPlats(plats: PlatUnitStats[], key: keyof PlatUnitStats): number {
   return plats.reduce((s, p) => s + (Number(p[key]) || 0), 0);
 }
 
-export function StockZogboPage() {
+function useDebouncedValue<T>(value: T, delayMs = 280): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
+}
+
+function normalizeSearch(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function matchesSearch(name: string, query: string): boolean {
+  if (!query) return true;
+  return normalizeSearch(name).includes(normalizeSearch(query));
+}
+
+function paginate<T>(items: T[], page: number, pageSize: number) {
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * pageSize;
+  return {
+    items: items.slice(start, start + pageSize),
+    page: safePage,
+    totalPages,
+    total,
+    from: total === 0 ? 0 : start + 1,
+    to: Math.min(start + pageSize, total),
+  };
+}
+
+function StockSearch({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="catalogue-search-wrap">
+      <span className="catalogue-search-icon" aria-hidden>
+        ⌕
+      </span>
+      <input
+        type="search"
+        className="catalogue-search"
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
+  );
+}
+
+function QrQtyControls({
+  productId,
+  productName,
+  kind,
+  draftQr,
+  onDraft,
+  busy,
+  onGenerate,
+}: {
+  productId: string;
+  productName: string;
+  kind: StockUnitKind;
+  draftQr: Record<string, string>;
+  onDraft: (key: string, value: string) => void;
+  busy: string | null;
+  onGenerate: (
+    productId: string,
+    productName: string,
+    kind: StockUnitKind,
+  ) => void;
+}) {
+  const draftKey = kind === "plat" ? productId : `${kind}:${productId}`;
+  const busyKey = `qr-${kind}-${productId}`;
+  return (
+    <div className="catalogue-inline-qr">
+      <input
+        type="number"
+        min={1}
+        className="input input-qty"
+        placeholder="Qté"
+        aria-label={`Quantité de QR — ${productName}`}
+        value={draftQr[draftKey] ?? ""}
+        onChange={(e) => onDraft(draftKey, e.target.value)}
+      />
+      <button
+        type="button"
+        className="btn btn-sm btn-primary"
+        disabled={busy === busyKey}
+        onClick={() => onGenerate(productId, productName, kind)}
+      >
+        {busy === busyKey ? "…" : "PDF"}
+      </button>
+    </div>
+  );
+}
+
+function StockErrorBanner({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
+  return (
+    <div className="catalogue-alert catalogue-alert-danger" role="alert">
+      <span className="catalogue-alert-icon" aria-hidden>
+        !
+      </span>
+      <span>
+        {message}
+        {onRetry ? (
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm catalogue-retry"
+            onClick={onRetry}
+          >
+            Réessayer
+          </button>
+        ) : null}
+      </span>
+    </div>
+  );
+}
+
+export function StockZogboPage({
+  site = "zogbo",
+}: {
+  site?: VenteSite;
+}) {
+  const isGbegamey = site === "gbegamey";
+  const apiBase = isGbegamey ? "/api/stock-gbegamey" : "/api/stock-zogbo";
+  const scanWorkflow = isGbegamey ? "gbegamey-receive" : "zogbo-send";
+  const siteTitle = isGbegamey ? "Stock Gbégamey" : "Stock Zogbo";
   const searchParams = useSearchParams();
   const router = useRouter();
-  const tab = parseTab(searchParams.get("tab"));
+  const { user } = useSession();
+  const readOnly = Boolean(user && !canWriteStock(user.role));
+  const requestedTab = parseTab(searchParams.get("tab"));
+  const tab =
+    readOnly && requestedTab === "parametres" ? "plats" : requestedTab;
   const dateFromUrl = searchParams.get("date");
   const [date, setDate] = useState(() => {
     if (dateFromUrl && /^\d{4}-\d{2}-\d{2}$/.test(dateFromUrl)) return dateFromUrl;
@@ -64,8 +227,16 @@ export function StockZogboPage() {
   const [accDirty, setAccDirty] = useState(false);
   const [localDishes, setLocalDishes] = useState<LocalDish[]>([]);
   const [cameraOn, setCameraOn] = useState(false);
+  const [platSearch, setPlatSearch] = useState("");
+  const [platPage, setPlatPage] = useState(1);
+  const [accSearch, setAccSearch] = useState("");
+  const [accPage, setAccPage] = useState(1);
+
+  const debouncedPlatSearch = useDebouncedValue(platSearch);
+  const debouncedAccSearch = useDebouncedValue(accSearch);
 
   const plats = payload?.plats ?? [];
+  const accStats = payload?.accStats ?? [];
 
   const totals = useMemo(
     () => ({
@@ -83,7 +254,8 @@ export function StockZogboPage() {
     if (next === "plats") params.delete("tab");
     else params.set("tab", next);
     const q = params.toString();
-    router.replace(q ? `/stock-zogbo?${q}` : "/stock-zogbo");
+    const path = isGbegamey ? "/stock-gbegamey" : "/stock-zogbo";
+    router.replace(q ? `${path}?${q}` : path);
   }
 
   const load = useCallback(async (nextDate = date) => {
@@ -91,7 +263,7 @@ export function StockZogboPage() {
     setError(null);
     try {
       const res = await fetch(
-        `/api/stock-zogbo?date=${encodeURIComponent(nextDate)}`,
+        `/api/${isGbegamey ? "stock-gbegamey" : "stock-zogbo"}?date=${encodeURIComponent(nextDate)}`,
         { cache: "no-store" },
       );
       const body = (await res.json()) as StockZogboPayload & { error?: string };
@@ -105,7 +277,7 @@ export function StockZogboPage() {
     } finally {
       setLoading(false);
     }
-  }, [date]);
+  }, [date, apiBase]);
 
   useEffect(() => {
     if (tab === "parametres") return;
@@ -116,7 +288,7 @@ export function StockZogboPage() {
     action: string,
     data: Record<string, unknown>,
   ): Promise<StockZogboPayload | null> {
-    const res = await fetch("/api/stock-zogbo", {
+    const res = await fetch(apiBase, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ date, action, ...data }),
@@ -131,46 +303,28 @@ export function StockZogboPage() {
     return next;
   }
 
-  async function downloadQrSheet(input: {
-    qrIds: string[];
-    productName: string;
-  }) {
-    const res = await fetch("/api/stock-units/sheet", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        qrIds: input.qrIds,
-        productName: input.productName,
-        date,
-        title: `${input.productName} · ${input.qrIds.length} QR · ${date}`,
-      }),
-    });
-    if (!res.ok) {
-      const body = (await res.json()) as { error?: string };
-      throw new Error(body.error ?? "Téléchargement des QR impossible.");
-    }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = qrSheetFilename({
-      productName: input.productName,
-      date,
-    });
-    anchor.click();
-    URL.revokeObjectURL(url);
-  }
-
-  async function handleGenerateQr(productId: string, productName: string) {
-    const qty = Math.round(Number(draftQr[productId]) || 0);
+  async function handleGenerateQr(
+    productId: string,
+    productName: string,
+    kind: StockUnitKind = "plat",
+  ) {
+    if (readOnly) return;
+    const draftKey = kind === "plat" ? productId : `${kind}:${productId}`;
+    const qty = Math.round(Number(draftQr[draftKey]) || 0);
     if (qty <= 0) return;
-    setBusy(`qr-${productId}`);
+    setBusy(`qr-${kind}-${productId}`);
     setError(null);
     try {
-      const res = await fetch("/api/stock-zogbo", {
+      const res = await fetch(apiBase, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, action: "generate-qr", productId, qty }),
+        body: JSON.stringify({
+          date,
+          action: "generate-qr",
+          productId,
+          qty,
+          kind,
+        }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "Opération refusée.");
@@ -185,8 +339,9 @@ export function StockZogboPage() {
       await downloadQrSheet({
         qrIds: units.map((u) => u.qrId),
         productName,
+        date,
       });
-      setDraftQr((d) => ({ ...d, [productId]: "" }));
+      setDraftQr((d) => ({ ...d, [draftKey]: "" }));
       if (expandedProductId === productId) {
         await loadUnits(productId, false);
       }
@@ -198,11 +353,11 @@ export function StockZogboPage() {
   }
 
   async function handleSendSelected() {
-    if (!selectedQr.size) return;
+    if (readOnly || !selectedQr.size) return;
     setBusy("send");
     setError(null);
     try {
-      const res = await fetch("/api/stock-zogbo", {
+      const res = await fetch(apiBase, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -231,6 +386,7 @@ export function StockZogboPage() {
   }
 
   async function lookupQr(raw: string) {
+    if (readOnly) return;
     const id = parseQrIdFromScan(raw);
     if (!id) {
       setError("Identifiant QR invalide.");
@@ -240,7 +396,7 @@ export function StockZogboPage() {
     setError(null);
     try {
       const res = await fetch(
-        `/api/stock-units?qrId=${encodeURIComponent(id)}&date=${encodeURIComponent(date)}`,
+        `/api/stock-units?qrId=${encodeURIComponent(id)}&date=${encodeURIComponent(date)}&workflow=${encodeURIComponent(scanWorkflow)}`,
       );
       const body = await res.json();
       if (!res.ok) throw new Error(body.error ?? "QR introuvable.");
@@ -276,7 +432,7 @@ export function StockZogboPage() {
     setExpandedProductId(productId);
     try {
       const res = await fetch(
-        `/api/stock-zogbo?date=${encodeURIComponent(date)}&units=1&productId=${encodeURIComponent(productId)}`,
+        `${apiBase}?date=${encodeURIComponent(date)}&units=1&productId=${encodeURIComponent(productId)}`,
       );
       const body = await res.json();
       if (!res.ok) throw new Error(body.error);
@@ -296,14 +452,15 @@ export function StockZogboPage() {
     },
     // lookupQr dépend de date — recréé à chaque rendu ; acceptable pour le scan.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [date],
+    [date, scanWorkflow],
   );
 
   async function saveAcc() {
+    if (readOnly) return;
     setBusy("acc");
     setError(null);
     try {
-      const res = await fetch("/api/stock-zogbo", {
+      const res = await fetch(apiBase, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ date, accompanimentLines: accLines }),
@@ -326,6 +483,44 @@ export function StockZogboPage() {
     );
   }, [accLines, localDishes]);
 
+  const filteredPlats = useMemo(
+    () =>
+      plats.filter((p) => matchesSearch(p.productName, debouncedPlatSearch)),
+    [plats, debouncedPlatSearch],
+  );
+
+  const pagedPlats = useMemo(
+    () => paginate(filteredPlats, platPage, PAGE_SIZE),
+    [filteredPlats, platPage],
+  );
+
+  const filteredAcc = useMemo(
+    () => accComputed.filter((r) => matchesSearch(r.name, debouncedAccSearch)),
+    [accComputed, debouncedAccSearch],
+  );
+
+  const pagedAcc = useMemo(
+    () => paginate(filteredAcc, accPage, PAGE_SIZE),
+    [filteredAcc, accPage],
+  );
+
+  const accQrByProduct = useMemo(
+    () => new Map(accStats.map((s) => [s.productId, s])),
+    [accStats],
+  );
+
+  const patchDraftQr = (key: string, value: string) => {
+    setDraftQr((d) => ({ ...d, [key]: value }));
+  };
+
+  useEffect(() => {
+    setPlatPage(1);
+  }, [debouncedPlatSearch]);
+
+  useEffect(() => {
+    setAccPage(1);
+  }, [debouncedAccSearch]);
+
   function patchAcc(productId: string, patch: Partial<GbegameyLocalLine>) {
     setAccLines((lines) =>
       lines.map((l) => (l.productId === productId ? { ...l, ...patch } : l)),
@@ -344,22 +539,31 @@ export function StockZogboPage() {
 
   return (
     <AppShell
-      title={tab === "parametres" ? "Catalogue & paramètres" : "Stock Zogbo"}
+      title={tab === "parametres" ? "Catalogue & paramètres" : siteTitle}
       subtitle={
         tab === "parametres"
-          ? "Catalogue produits, matières et recettes."
-          : "Saisie du stock — plats tracés par QR, accompagnements et boissons."
+          ? "Gérez vos produits, matières et recettes."
+          : readOnly
+            ? "Consultation du stock — aucune saisie."
+            : "Saisie du stock — plats tracés par QR, accompagnements et boissons."
+      }
+      mainClassName={
+        tab === "parametres" ? "main-catalogue" : "main-stock-zogbo"
       }
     >
-      <div className="stock-zogbo-page">
+      <div className="stock-zogbo-page catalogue-view">
         {tab !== "parametres" ? (
-          <ContextBar date={date} onDateChange={setDate} siteLabel="Zogbo" />
+          <ContextBar
+            date={date}
+            onDateChange={setDate}
+            siteLabel={isGbegamey ? "Gbégamey" : "Zogbo"}
+          />
         ) : null}
 
         <div
-          className="section-tabs zogbo-cats"
+          className="section-tabs catalogue-stock-tabs"
           role="tablist"
-          aria-label="Sections Stock Zogbo"
+          aria-label={`Sections ${siteTitle}`}
         >
           <button
             type="button"
@@ -390,76 +594,113 @@ export function StockZogboPage() {
           >
             Boissons
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "parametres"}
-            className={`section-tab${tab === "parametres" ? " is-active" : ""}`}
-            onClick={() => setTab("parametres")}
-          >
-            Catalogue
-          </button>
+          {readOnly ? null : (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "parametres"}
+              className={`section-tab${tab === "parametres" ? " is-active" : ""}`}
+              onClick={() => setTab("parametres")}
+            >
+              Catalogue
+            </button>
+          )}
         </div>
 
         {error && tab !== "parametres" ? (
-          <p className="error-banner" role="alert">
-            {error}
-          </p>
+          <StockErrorBanner message={error} onRetry={() => void load(date)} />
+        ) : null}
+
+        {readOnly && tab !== "parametres" ? (
+          <div className="catalogue-info" role="note">
+            <span className="catalogue-info-mark" aria-hidden>
+              i
+            </span>
+            <p>
+              Consultation uniquement — vous ne pouvez ni saisir, ni générer de
+              QR, ni scanner.
+            </p>
+          </div>
         ) : null}
 
         {tab === "parametres" ? (
           <ParametresEditor mode="catalogue" />
         ) : loading ? (
-          <BrandLoader label="Chargement du stock Zogbo…" />
+          <CatalogueSkeleton />
         ) : tab === "plats" ? (
           <>
-            <div className="stock-zogbo-kpis" aria-label="Totaux du jour">
-              <div className="stock-zogbo-kpi">
-                <span className="stock-zogbo-kpi-label">Préparé</span>
-                <strong className="stock-zogbo-kpi-value">{totals.prepared}</strong>
+            <div className="catalogue-kpi-grid" aria-label="Totaux du jour">
+              <div className="catalogue-kpi">
+                <span className="catalogue-kpi-label">Préparé</span>
+                <strong className="catalogue-kpi-value">{totals.prepared}</strong>
               </div>
-              <div className="stock-zogbo-kpi">
-                <span className="stock-zogbo-kpi-label">QR générés</span>
-                <strong className="stock-zogbo-kpi-value">{totals.qrGenerated}</strong>
+              <div className="catalogue-kpi">
+                <span className="catalogue-kpi-label">QR générés</span>
+                <strong className="catalogue-kpi-value">{totals.qrGenerated}</strong>
               </div>
-              <div className="stock-zogbo-kpi">
-                <span className="stock-zogbo-kpi-label">Envoyé Gbé</span>
-                <strong className="stock-zogbo-kpi-value">{totals.qrSent}</strong>
+              <div className="catalogue-kpi">
+                <span className="catalogue-kpi-label">
+                  {isGbegamey ? "Reçu Zogbo" : "Envoyé Gbé"}
+                </span>
+                <strong className="catalogue-kpi-value">{totals.qrSent}</strong>
               </div>
-              <div className="stock-zogbo-kpi stock-zogbo-kpi-accent">
-                <span className="stock-zogbo-kpi-label">Reste Zogbo</span>
-                <strong className="stock-zogbo-kpi-value">{totals.remaining}</strong>
+              <div className="catalogue-kpi catalogue-kpi-accent">
+                <span className="catalogue-kpi-label">
+                  {isGbegamey ? "Reste Gbégamey" : "Reste Zogbo"}
+                </span>
+                <strong className="catalogue-kpi-value">{totals.remaining}</strong>
               </div>
-              <div className="stock-zogbo-kpi">
-                <span className="stock-zogbo-kpi-label">Vendu</span>
-                <strong className="stock-zogbo-kpi-value">{totals.sold}</strong>
+              <div className="catalogue-kpi">
+                <span className="catalogue-kpi-label">Vendu</span>
+                <strong className="catalogue-kpi-value">{totals.sold}</strong>
               </div>
             </div>
 
-            <div className="stock-zogbo-layout">
-              <section className="panel panel-wide stock-zogbo-main">
-                <div className="param-meta zogbo-meta">
-                  <p>
-                    <strong>{formatDisplayDate(date)}</strong>
-                    {" · "}
-                    Préparez et générez les QR, puis envoyez unité par unité vers
-                    Gbégamey.
-                  </p>
+            <p className="catalogue-meta">
+              <span className="catalogue-meta-icon" aria-hidden>
+                📅
+              </span>
+              <strong>{formatDisplayDate(date)}</strong>
+              {" · "}
+              {isGbegamey
+                ? "Générez les QR sur place, recevez les plats de Zogbo par scan, puis vendez-les à la caisse."
+                : "Préparez et générez les QR, puis envoyez vers Gbégamey."}
+            </p>
+
+            <div className="catalogue-info" role="note">
+              <span className="catalogue-info-mark" aria-hidden>
+                i
+              </span>
+              <p>
+                {readOnly
+                  ? "Les plats du jour, les QR générés et les ventes s’affichent ici."
+                  : "Indiquez une quantité : les QR et le code collé sont générés en PDF à imprimer. Le compteur « Préparé » est mis à jour automatiquement."}
+              </p>
+            </div>
+
+            <div
+              className={`stock-zogbo-layout-premium${readOnly ? " is-readonly" : ""}`}
+            >
+              <section className="catalogue-panel stock-zogbo-main">
+                <div className="catalogue-toolbar">
+                  <StockSearch
+                    value={platSearch}
+                    onChange={setPlatSearch}
+                    placeholder="Rechercher un plat…"
+                  />
                 </div>
 
-                <div className="ui-info" role="note">
-                  <span className="ui-info-mark" aria-hidden>
-                    i
-                  </span>
-                  <p>
-                    Indiquez une <strong>quantité</strong> : les QR uniques sont
-                    créés et téléchargés dans un fichier HTML (imprimable en PDF).
-                    Le compteur « Préparé » est mis à jour automatiquement.
-                  </p>
-                </div>
-
-                <div className="table-scroll">
-                  <table className="data-table zogbo-table stock-zogbo-table">
+                {filteredPlats.length === 0 ? (
+                  <div className="catalogue-empty">
+                    <p className="catalogue-empty-title">Aucun plat trouvé</p>
+                    <p className="catalogue-empty-hint">
+                      Modifiez votre recherche.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="catalogue-table-wrap stock-zogbo-desktop-table">
+                      <table className="catalogue-table stock-zogbo-table">
                     <thead>
                       <tr>
                         <th scope="col">Plat</th>
@@ -470,7 +711,7 @@ export function StockZogboPage() {
                           QR
                         </th>
                         <th scope="col" className="col-qty">
-                          Envoyé
+                          {isGbegamey ? "Reçu" : "Envoyé"}
                         </th>
                         <th scope="col" className="col-qty">
                           Reste
@@ -478,73 +719,101 @@ export function StockZogboPage() {
                         <th scope="col" className="col-qty">
                           Vendu
                         </th>
-                        <th scope="col" className="col-action">
-                          Générer QR
-                        </th>
+                        {readOnly ? null : (
+                          <th scope="col" className="col-action">
+                            Générer QR
+                          </th>
+                        )}
                         <th scope="col" className="col-actions">
                           <span className="sr-only">Détail</span>
                         </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {plats.map((row) => {
+                      {pagedPlats.items.map((row) => {
                         const expanded = expandedProductId === row.productId;
                         return (
                           <Fragment key={row.productId}>
                             <tr
                               className={expanded ? "is-expanded" : undefined}
                             >
-                              <td className="stock-zogbo-name">
-                                <ProductIcon kind="plat" name={row.productName} />
-                                <span>{row.productName}</span>
-                              </td>
-                              <td className="col-qty num">{row.prepared}</td>
-                              <td className="col-qty num">
-                                {row.qrGenerated}
-                                {row.qrToGenerate > 0 ? (
-                                  <span className="stock-zogbo-pending">
-                                    +{row.qrToGenerate}
-                                  </span>
-                                ) : null}
-                              </td>
-                              <td className="col-qty num">{row.qrSent}</td>
-                              <td className="col-qty num stock-zogbo-remain">
-                                {row.qrRemainingZogbo}
-                              </td>
-                              <td className="col-qty num">{row.soldAggregate}</td>
-                              <td className="col-action">
-                                <div className="stock-zogbo-inline-action">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    className="input input-qty"
-                                    placeholder="Qté"
-                                    aria-label={`Quantité de QR — ${row.productName}`}
-                                    value={draftQr[row.productId] ?? ""}
-                                    onChange={(e) =>
-                                      setDraftQr((d) => ({
-                                        ...d,
-                                        [row.productId]: e.target.value,
-                                      }))
-                                    }
+                              <td>
+                                <div className="catalogue-product-cell">
+                                  <ProductIcon
+                                    kind="plat"
+                                    name={row.productName}
                                   />
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-primary"
-                                    disabled={busy === `qr-${row.productId}`}
-                                    onClick={() =>
-                                      void handleGenerateQr(
-                                        row.productId,
-                                        row.productName,
-                                      )
-                                    }
-                                  >
-                                    {busy === `qr-${row.productId}`
-                                      ? "…"
-                                      : "Fichier"}
-                                  </button>
+                                  <span className="catalogue-product-name">
+                                    {row.productName}
+                                  </span>
                                 </div>
                               </td>
+                              <td>
+                                <span className="catalogue-qty-badge">
+                                  {row.prepared}
+                                </span>
+                              </td>
+                              <td>
+                                <span className="catalogue-qty-badge">
+                                  {row.qrGenerated}
+                                  {row.qrToGenerate > 0 ? (
+                                    <span className="stock-zogbo-pending">
+                                      +{row.qrToGenerate}
+                                    </span>
+                                  ) : null}
+                                </span>
+                              </td>
+                              <td>
+                                <span className="catalogue-qty-badge">
+                                  {row.qrSent}
+                                </span>
+                              </td>
+                              <td>
+                                <span className="catalogue-qty-badge catalogue-qty-badge-accent">
+                                  {row.qrRemainingZogbo}
+                                </span>
+                              </td>
+                              <td>
+                                <span className="catalogue-qty-badge">
+                                  {row.soldAggregate}
+                                </span>
+                              </td>
+                              {readOnly ? null : (
+                                <td className="col-action">
+                                  <div className="catalogue-inline-qr">
+                                    <input
+                                      type="number"
+                                      min={1}
+                                      className="input input-qty"
+                                      placeholder="Qté"
+                                      aria-label={`Quantité de QR — ${row.productName}`}
+                                      value={draftQr[row.productId] ?? ""}
+                                      onChange={(e) =>
+                                        setDraftQr((d) => ({
+                                          ...d,
+                                          [row.productId]: e.target.value,
+                                        }))
+                                      }
+                                    />
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-primary"
+                                      disabled={busy === `qr-plat-${row.productId}`}
+                                      onClick={() =>
+                                        void handleGenerateQr(
+                                          row.productId,
+                                          row.productName,
+                                          "plat",
+                                        )
+                                      }
+                                    >
+                                      {busy === `qr-plat-${row.productId}`
+                                        ? "…"
+                                        : "PDF"}
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
                               <td className="col-actions">
                                 <button
                                   type="button"
@@ -561,12 +830,14 @@ export function StockZogboPage() {
                                 key={`${row.productId}-units`}
                                 className="stock-zogbo-units-row"
                               >
-                                <td colSpan={8}>
+                                <td colSpan={readOnly ? 7 : 8}>
                                   <UnitsBlock
                                     units={expandedUnits}
                                     selectedQr={selectedQr}
                                     onToggleSelect={toggleSelect}
                                     loading={busy === `units-${row.productId}`}
+                                    selectableSite={site}
+                                    readOnly={readOnly}
                                   />
                                 </td>
                               </tr>
@@ -577,12 +848,121 @@ export function StockZogboPage() {
                     </tbody>
                   </table>
                 </div>
+
+                    <div className="stock-zogbo-mobile-list">
+                      {pagedPlats.items.map((row) => {
+                        const expanded = expandedProductId === row.productId;
+                        return (
+                          <article key={row.productId} className="stock-mobile-card">
+                            <div className="stock-mobile-card-head">
+                              <ProductIcon
+                                kind="plat"
+                                name={row.productName}
+                                size="lg"
+                              />
+                              <span className="catalogue-product-name">
+                                {row.productName}
+                              </span>
+                            </div>
+                            <div className="stock-mobile-metrics">
+                              <div className="stock-mobile-metric">
+                                <span className="stock-mobile-metric-label">
+                                  Préparé
+                                </span>
+                                <strong>{row.prepared}</strong>
+                              </div>
+                              <div className="stock-mobile-metric">
+                                <span className="stock-mobile-metric-label">
+                                  Reste
+                                </span>
+                                <strong>{row.qrRemainingZogbo}</strong>
+                              </div>
+                              <div className="stock-mobile-metric">
+                                <span className="stock-mobile-metric-label">
+                                  Vendu
+                                </span>
+                                <strong>{row.soldAggregate}</strong>
+                              </div>
+                            </div>
+                            <div className="stock-mobile-actions">
+                              {readOnly ? null : (
+                                <>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    className="input input-qty"
+                                    placeholder="Qté QR"
+                                    aria-label={`Quantité QR ${row.productName}`}
+                                    value={draftQr[row.productId] ?? ""}
+                                    onChange={(e) =>
+                                      setDraftQr((d) => ({
+                                        ...d,
+                                        [row.productId]: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-primary"
+                                    disabled={busy === `qr-plat-${row.productId}`}
+                                    onClick={() =>
+                                      void handleGenerateQr(
+                                        row.productId,
+                                        row.productName,
+                                        "plat",
+                                      )
+                                    }
+                                  >
+                                    {busy === `qr-plat-${row.productId}`
+                                      ? "…"
+                                      : "PDF"}
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                type="button"
+                                className={`btn btn-sm btn-ghost${expanded ? " is-active" : ""}`}
+                                onClick={() => void loadUnits(row.productId)}
+                              >
+                                {expanded ? "−" : "Unités"}
+                              </button>
+                            </div>
+                            {expanded ? (
+                              <UnitsBlock
+                                units={expandedUnits}
+                                selectedQr={selectedQr}
+                                onToggleSelect={toggleSelect}
+                                loading={busy === `units-${row.productId}`}
+                                selectableSite={site}
+                                readOnly={readOnly}
+                              />
+                            ) : null}
+                          </article>
+                        );
+                      })}
+                    </div>
+
+                    <CataloguePaginationBar
+                      from={pagedPlats.from}
+                      to={pagedPlats.to}
+                      total={pagedPlats.total}
+                      page={pagedPlats.page}
+                      totalPages={pagedPlats.totalPages}
+                      onPage={setPlatPage}
+                    />
+                  </>
+                )}
               </section>
 
-              <aside className="panel stock-zogbo-aside">
-                <h2 className="panel-title">Envoi Gbégamey</h2>
+              {readOnly ? null : (
+              <aside className="catalogue-panel stock-aside-premium">
+                <h2 className="panel-title">
+                  {isGbegamey ? "Réception Zogbo" : "Envoi Gbégamey"}
+                </h2>
                 <p className="section-hint">
-                  Scannez ou saisissez un QR pour l&apos;ajouter au lot d&apos;envoi.
+                  {isGbegamey
+                    ? "Scannez ou saisissez un QR préparé à Zogbo pour le recevoir ici."
+                    : "Scannez ou saisissez un QR pour l'ajouter au lot d'envoi."}
                 </p>
 
                 <span className="stock-zogbo-field-label">Identifiant QR</span>
@@ -633,7 +1013,9 @@ export function StockZogboPage() {
 
                 <div className="stock-zogbo-send-queue">
                   <div className="stock-zogbo-send-head">
-                    <span className="stock-zogbo-send-title">Lot d&apos;envoi</span>
+                    <span className="stock-zogbo-send-title">
+                      {isGbegamey ? "Lot de réception" : "Lot d'envoi"}
+                    </span>
                     <span className="section-count">{selectedQr.size}</span>
                   </div>
                   {selectedQr.size === 0 ? (
@@ -663,105 +1045,280 @@ export function StockZogboPage() {
                     disabled={selectedQr.size === 0 || busy === "send"}
                     onClick={() => void handleSendSelected()}
                   >
-                    Envoyer {selectedQr.size > 0 ? selectedQr.size : ""} vers Gbégamey
+                    {isGbegamey
+                      ? `Recevoir ${selectedQr.size > 0 ? selectedQr.size : ""} depuis Zogbo`
+                      : `Envoyer ${selectedQr.size > 0 ? selectedQr.size : ""} vers Gbégamey`}
                   </button>
                 </div>
               </aside>
+              )}
             </div>
           </>
         ) : tab === "acc" ? (
-          <section className="panel panel-wide">
-            <div className="param-meta zogbo-meta">
-              <p>
-                <strong>{formatDisplayDate(date)}</strong>
-                {" · "}
-                Stock local Zogbo — pas de transfert vers Gbégamey.
-              </p>
-            </div>
+          <>
+            <p className="catalogue-meta">
+              <span className="catalogue-meta-icon" aria-hidden>
+                📅
+              </span>
+              <strong>{formatDisplayDate(date)}</strong>
+              {" · "}
+              Stock local {isGbegamey ? "Gbégamey" : "Zogbo"}
+              {isGbegamey
+                ? " — plats reçus ou préparés sur place."
+                : " — pas de transfert vers Gbégamey."}
+            </p>
 
-            <div className="ui-info" role="note">
-              <span className="ui-info-mark" aria-hidden>
+            <div className="catalogue-info" role="note">
+              <span className="catalogue-info-mark" aria-hidden>
                 i
               </span>
               <p>
-                Saisissez le <strong>préparé</strong> et le{" "}
-                <strong>comptage</strong> (stock initial du jour). Les ventes
-                sont mises à jour par la caisse.
+                {readOnly
+                  ? "Stock des accompagnements — consultation uniquement."
+                  : "Saisissez le préparé et le comptage (stock initial du jour). Les ventes sont mises à jour par la caisse."}
               </p>
             </div>
 
-            <div className="table-scroll">
-              <table className="data-table zogbo-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Accompagnement</th>
-                    <th scope="col" className="col-qty">
-                      Dispo
-                    </th>
-                    <th scope="col" className="col-qty">
-                      Préparé
-                    </th>
-                    <th scope="col" className="col-qty">
-                      Comptage
-                    </th>
-                    <th scope="col" className="col-qty">
-                      Vendu
-                    </th>
-                    <th scope="col" className="col-qty">
-                      Reste
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {accComputed.map((row) => (
-                    <tr key={row.productId}>
-                      <td className="stock-zogbo-name">
-                        <ProductIcon kind="local" name={row.name} />
-                        <span>{row.name}</span>
-                      </td>
-                      <td className="col-qty num">{row.available}</td>
-                      <td className="col-qty">
-                        <QtyInput
-                          value={row.prepared}
-                          ariaLabel={`Préparé ${row.name}`}
-                          onChange={(prepared) =>
-                            patchAcc(row.productId, {
-                              prepared: prepared ?? 0,
-                            })
-                          }
-                        />
-                      </td>
-                      <td className="col-qty">
-                        <QtyInput
-                          value={row.counted}
-                          allowEmpty
-                          ariaLabel={`Comptage ${row.name}`}
-                          onChange={(counted) =>
-                            patchAcc(row.productId, { counted })
-                          }
-                        />
-                      </td>
-                      <td className="col-qty num">{row.sold}</td>
-                      <td className="col-qty num">{row.theoreticalRemaining}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <section className="catalogue-panel">
+              <div className="catalogue-toolbar">
+                <StockSearch
+                  value={accSearch}
+                  onChange={setAccSearch}
+                  placeholder="Rechercher un accompagnement…"
+                />
+                {readOnly ? null : (
+                  <button
+                    type="button"
+                    className={`btn btn-primary${!accDirty ? " btn-saved" : ""}`}
+                    disabled={!accDirty || busy === "acc"}
+                    onClick={() => void saveAcc()}
+                  >
+                    {busy === "acc" ? "Enregistrement…" : "Enregistrer"}
+                  </button>
+                )}
+              </div>
 
-            <div className="stock-zogbo-footer-actions">
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={!accDirty || busy === "acc"}
-                onClick={() => void saveAcc()}
-              >
-                {busy === "acc" ? "Enregistrement…" : "Enregistrer"}
-              </button>
-            </div>
-          </section>
+              {filteredAcc.length === 0 ? (
+                <div className="catalogue-empty">
+                  <p className="catalogue-empty-title">
+                    Aucun accompagnement trouvé
+                  </p>
+                  <p className="catalogue-empty-hint">
+                    Modifiez votre recherche.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="catalogue-table-wrap stock-zogbo-desktop-table">
+                    <table className="catalogue-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Accompagnement</th>
+                          <th scope="col">Dispo</th>
+                          <th scope="col">Préparé</th>
+                          <th scope="col">Comptage</th>
+                          <th scope="col">Vendu</th>
+                          <th scope="col">Reste</th>
+                          <th scope="col">QR</th>
+                          {readOnly ? null : (
+                            <th scope="col" className="col-action">
+                              Générer QR
+                            </th>
+                          )}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pagedAcc.items.map((row) => (
+                          <tr key={row.productId}>
+                            <td>
+                              <div className="catalogue-product-cell">
+                                <ProductIcon kind="local" name={row.name} />
+                                <span className="catalogue-product-name">
+                                  {row.name}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <span className="catalogue-qty-badge">
+                                {row.available}
+                              </span>
+                            </td>
+                            <td>
+                              {readOnly ? (
+                                <span className="catalogue-qty-badge">
+                                  {row.prepared}
+                                </span>
+                              ) : (
+                                <QtyInput
+                                  value={row.prepared}
+                                  ariaLabel={`Préparé ${row.name}`}
+                                  onChange={(prepared) =>
+                                    patchAcc(row.productId, {
+                                      prepared: prepared ?? 0,
+                                    })
+                                  }
+                                />
+                              )}
+                            </td>
+                            <td>
+                              {readOnly ? (
+                                <span className="catalogue-qty-badge">
+                                  {row.counted ?? "—"}
+                                </span>
+                              ) : (
+                                <QtyInput
+                                  value={row.counted}
+                                  allowEmpty
+                                  ariaLabel={`Comptage ${row.name}`}
+                                  onChange={(counted) =>
+                                    patchAcc(row.productId, { counted })
+                                  }
+                                />
+                              )}
+                            </td>
+                            <td>
+                              <span className="catalogue-qty-badge">
+                                {row.sold}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="catalogue-qty-badge catalogue-qty-badge-accent">
+                                {row.theoreticalRemaining}
+                              </span>
+                            </td>
+                            <td>
+                              <span className="catalogue-qty-badge">
+                                {accQrByProduct.get(row.productId)?.qrGenerated ?? 0}
+                              </span>
+                            </td>
+                            {readOnly ? null : (
+                              <td className="col-action">
+                                <QrQtyControls
+                                  productId={row.productId}
+                                  productName={row.name}
+                                  kind="local"
+                                  draftQr={draftQr}
+                                  onDraft={patchDraftQr}
+                                  busy={busy}
+                                  onGenerate={(id, name, kind) =>
+                                    void handleGenerateQr(id, name, kind)
+                                  }
+                                />
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="stock-zogbo-mobile-list">
+                    {pagedAcc.items.map((row) => (
+                      <article
+                        key={row.productId}
+                        className="stock-mobile-card"
+                      >
+                        <div className="stock-mobile-card-head">
+                          <ProductIcon kind="local" name={row.name} size="lg" />
+                          <span className="catalogue-product-name">
+                            {row.name}
+                          </span>
+                        </div>
+                        <div className="stock-mobile-metrics">
+                          <div className="stock-mobile-metric">
+                            <span className="stock-mobile-metric-label">
+                              Dispo
+                            </span>
+                            <strong>{row.available}</strong>
+                          </div>
+                          <div className="stock-mobile-metric">
+                            <span className="stock-mobile-metric-label">
+                              Vendu
+                            </span>
+                            <strong>{row.sold}</strong>
+                          </div>
+                          <div className="stock-mobile-metric">
+                            <span className="stock-mobile-metric-label">
+                              Reste
+                            </span>
+                            <strong>{row.theoreticalRemaining}</strong>
+                          </div>
+                        </div>
+                        <div className="stock-mobile-card-prices catalogue-mobile-card-prices">
+                          <div>
+                            <span className="catalogue-mobile-price-label">
+                              Préparé
+                            </span>
+                            {readOnly ? (
+                              <strong>{row.prepared}</strong>
+                            ) : (
+                              <QtyInput
+                                value={row.prepared}
+                                ariaLabel={`Préparé ${row.name}`}
+                                onChange={(prepared) =>
+                                  patchAcc(row.productId, {
+                                    prepared: prepared ?? 0,
+                                  })
+                                }
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <span className="catalogue-mobile-price-label">
+                              Comptage
+                            </span>
+                            {readOnly ? (
+                              <strong>{row.counted ?? "—"}</strong>
+                            ) : (
+                              <QtyInput
+                                value={row.counted}
+                                allowEmpty
+                                ariaLabel={`Comptage ${row.name}`}
+                                onChange={(counted) =>
+                                  patchAcc(row.productId, { counted })
+                                }
+                              />
+                            )}
+                          </div>
+                        </div>
+                        {readOnly ? null : (
+                          <div className="stock-mobile-actions">
+                            <QrQtyControls
+                              productId={row.productId}
+                              productName={row.name}
+                              kind="local"
+                              draftQr={draftQr}
+                              onDraft={patchDraftQr}
+                              busy={busy}
+                              onGenerate={(id, name, kind) =>
+                                void handleGenerateQr(id, name, kind)
+                              }
+                            />
+                          </div>
+                        )}
+                      </article>
+                    ))}
+                  </div>
+
+                  <CataloguePaginationBar
+                    from={pagedAcc.from}
+                    to={pagedAcc.to}
+                    total={pagedAcc.total}
+                    page={pagedAcc.page}
+                    totalPages={pagedAcc.totalPages}
+                    onPage={setAccPage}
+                  />
+                </>
+              )}
+            </section>
+          </>
         ) : (
-          <ZoneBoissonsPanel date={date} site="zogbo" />
+          <ZoneBoissonsPanel
+            date={date}
+            site={site}
+            premium
+            readOnly={readOnly}
+          />
         )}
       </div>
     </AppShell>
@@ -773,11 +1330,15 @@ function UnitsBlock({
   selectedQr,
   onToggleSelect,
   loading,
+  selectableSite = "zogbo",
+  readOnly = false,
 }: {
   units: StockUnit[];
   selectedQr: Set<string>;
   onToggleSelect: (qrId: string) => void;
   loading: boolean;
+  selectableSite?: VenteSite;
+  readOnly?: boolean;
 }) {
   if (loading) {
     return <p className="section-hint">Chargement des unités…</p>;
@@ -787,26 +1348,33 @@ function UnitsBlock({
   }
 
   return (
-    <div className="stock-zogbo-units-block">
+    <div className="catalogue-units-block">
       <p className="stock-zogbo-units-title">
-        {units.length} unité(s) — cochez pour l&apos;envoi
+        {readOnly
+          ? `${units.length} unité(s)`
+          : `${units.length} unité(s) — cochez pour ${selectableSite === "gbegamey" ? "la réception" : "l'envoi"}`}
       </p>
-      <ul className="stock-zogbo-units-grid">
+      <ul className="catalogue-units-grid">
         {units.map((u) => {
-          const selectable = u.status === "prepare" && u.site === "zogbo";
+          const selectable =
+            !readOnly && u.status === "prepare" && u.site === "zogbo";
           return (
             <li
               key={u.qrId}
-              className={`stock-zogbo-unit-card${selectedQr.has(u.qrId) ? " is-selected" : ""}`}
+              className={`catalogue-unit-card${selectedQr.has(u.qrId) ? " is-selected" : ""}`}
             >
               <label className="stock-zogbo-unit-check">
-                <input
-                  type="checkbox"
-                  checked={selectedQr.has(u.qrId)}
-                  disabled={!selectable}
-                  onChange={() => onToggleSelect(u.qrId)}
-                />
-                <span className="mono">{u.qrId}</span>
+                {readOnly ? null : (
+                  <input
+                    type="checkbox"
+                    checked={selectedQr.has(u.qrId)}
+                    disabled={!selectable}
+                    onChange={() => onToggleSelect(u.qrId)}
+                  />
+                )}
+                <span className="mono">
+                  {formatStickerCode(u.stickerCode || u.qrId)}
+                </span>
               </label>
               <span className="badge">{STOCK_UNIT_STATUS_LABELS[u.status]}</span>
             </li>

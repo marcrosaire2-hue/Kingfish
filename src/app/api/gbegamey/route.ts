@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
 import type { GbegameyLocalLine, GbegameyTransferLine } from "@/lib/types";
-import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
+import { AuthError, authErrorResponse, requireStockWrite, requireUser } from "@/lib/api-auth";
 import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import {
@@ -66,6 +66,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     const user = await requireGbegameyAccess();
+    requireStockWrite(user);
     const body = (await request.json()) as {
       date?: string;
       status?: "ouverte" | "cloturee";
@@ -127,6 +128,7 @@ export async function PUT(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireGbegameyAccess();
+    requireStockWrite(user);
     const body = (await request.json()) as {
       action?: "receive" | "cancel-receive";
       date?: string;

@@ -542,7 +542,7 @@ export function AdminPage() {
                         : form.role === "daf"
                           ? "DAF : droits opérationnels sur les deux sites, sans gestion des comptes."
                           : form.role === "comptable"
-                            ? "Comptable : finance, stocks et immobilisations — sans vente POS."
+                            ? "Comptable : finance et consultation des stocks — sans vente ni saisie."
                             : form.site === "tous"
                               ? "Accès aux deux zones."
                               : `${SITE_LABELS[form.site]} — ventes créditées à l’équipe choisie.`}

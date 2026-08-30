@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
+import { AuthError, authErrorResponse, requireStockWrite, requireUser } from "@/lib/api-auth";
 import { canUseSite } from "@/lib/auth-types";
 import {
-  buildQrPrintSheetHtml,
+  buildQrPrintSheetPdf,
   qrSheetFilename,
   type QrPrintItem,
 } from "@/lib/qr-print-sheet";
@@ -10,9 +10,9 @@ import { lookupStockUnit } from "@/lib/stock-unit-repo";
 
 export const runtime = "nodejs";
 
-async function requireStockZogboAccess() {
+async function requireStockQrAccess() {
   const user = await requireUser();
-  if (!canUseSite(user.site, "zogbo")) {
+  if (!canUseSite(user.site, "zogbo") && !canUseSite(user.site, "gbegamey")) {
     throw new AuthError("Accès non autorisé.", 403);
   }
   return user;
@@ -20,7 +20,8 @@ async function requireStockZogboAccess() {
 
 export async function POST(request: Request) {
   try {
-    await requireStockZogboAccess();
+    const user = await requireStockQrAccess();
+    requireStockWrite(user);
     const body = (await request.json()) as {
       qrIds?: string[];
       title?: string;
@@ -47,20 +48,24 @@ export async function POST(request: Request) {
         );
       }
       if (!sheetDate) sheetDate = unit.date;
-      items.push({ qrId: unit.qrId, productName: unit.productName });
+      items.push({
+        qrId: unit.qrId,
+        stickerCode: unit.stickerCode,
+        productName: unit.productName,
+      });
     }
 
-    const productName = body.productName?.trim() || items[0]?.productName || "Plat";
+    const productName = body.productName?.trim() || items[0]?.productName || "Article";
     const date = sheetDate || new Date().toISOString().slice(0, 10);
-    const title =
-      body.title?.trim() ||
-      `${productName} · ${items.length} QR · ${date}`;
-    const html = await buildQrPrintSheetHtml({ title, items });
+    const pdf = await buildQrPrintSheetPdf({
+      title: body.title?.trim() || `${productName} · ${items.length} QR · ${date}`,
+      items,
+    });
     const filename = qrSheetFilename({ productName, date });
 
-    return new NextResponse(html, {
+    return new NextResponse(Buffer.from(pdf), {
       headers: {
-        "Content-Type": "text/html; charset=utf-8",
+        "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });

@@ -21,7 +21,7 @@ import type {
   VentesDaySummary,
 } from "@/lib/types";
 import { isValidDate } from "@/lib/day-doc";
-import { restorePlatUnitAfterSaleCancel } from "@/lib/stock-unit-repo";
+import { restorePlatUnitAfterSaleCancel, listSellableQrProductIds } from "@/lib/stock-unit-repo";
 import {
   dayVentesSansStock,
   isVentesSansStockActive,
@@ -328,13 +328,14 @@ export async function getVenteBoard(
   );
 
   const parametres = await getParametres();
-  const [zogbo, gbegamey, boissons, recent, caToday] =
+  const [zogbo, gbegamey, boissons, recent, caToday, qrProductIds] =
     await Promise.all([
       getZogboDayPayload(date),
       getGbegameyDayPayload(date),
       getBoissonsDayPayload(date),
       listRecentVentes(date, site, recentLimit),
       sumCaForSite(date, site),
+      listSellableQrProductIds(site),
     ]);
 
   const caParEquipe = await sumCaByShift(date, site);
@@ -379,6 +380,7 @@ export async function getVenteBoard(
           : isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold),
         hint: status.hint,
         blockReason: status.blockReason,
+        qrRequired: qrProductIds.has(dish.id),
       });
     }
     const accById = new Map(
@@ -394,6 +396,7 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
+        qrRequired: qrProductIds.has(dish.id),
       });
     }
   } else {
@@ -429,6 +432,7 @@ export async function getVenteBoard(
           : isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold),
         hint: status.hint,
         blockReason: status.blockReason,
+        qrRequired: qrProductIds.has(dish.id),
       });
     }
     // Même règle qu'à Zogbo : un accompagnement jamais préparé ni compté
@@ -443,6 +447,7 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
+        qrRequired: qrProductIds.has(dish.id),
       });
     }
   }
@@ -499,6 +504,7 @@ export async function getVenteBoard(
           : !untracked && stockLeft <= 0
             ? "Stock boisson épuisé"
             : null,
+      qrRequired: qrProductIds.has(drink.id),
     });
   }
 

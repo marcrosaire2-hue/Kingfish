@@ -135,7 +135,7 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     id: "gbegamey",
     navKey: "gbegamey",
     label: "Stock Gbégamey",
-    path: "/gbegamey",
+    path: "/stock-gbegamey",
     category: "quotidien",
     description: "Inventaire et réceptions Gbégamey.",
     actions: ["access", "view", "update"],

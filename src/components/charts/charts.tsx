@@ -545,10 +545,11 @@ export function DonutChart({
   const cy = size / 2;
   const r = 82;
   const stroke = 26;
+  const ringSlices = slices.filter((s) => s.value > 0);
   const totalValue = slices.reduce((s, x) => s + Math.max(0, x.value), 0);
   const total = totalValue || 1;
   const circ = 2 * Math.PI * r;
-  const gap = slices.length > 1 ? 6 : 0;
+  const gap = ringSlices.length > 1 ? 6 : 0;
   let offset = 0;
   const compactCenter = formatFcfaCompact(totalValue);
   const fullCenter = centerValue || formatFcfa(totalValue);
@@ -579,7 +580,7 @@ export function DonutChart({
             fill="var(--paper)"
             opacity={0.55}
           />
-          {slices.map((sl) => {
+          {ringSlices.map((sl) => {
             const raw = (Math.max(0, sl.value) / total) * circ;
             const len = Math.max(0, raw - gap);
             const el = (

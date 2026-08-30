@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import {
   canAccessPath,
+  canWriteStock,
   effectiveSite,
   homeForRole,
 } from "@/lib/auth-types";
@@ -31,11 +32,15 @@ const API_VERS_ECRAN: Record<string, string> = {
 /**
  * Données de référence lisibles par tout compte connecté : la page Appro a
  * besoin de la liste des fournisseurs, et la caisse des moyens de paiement,
- * sans pour autant donner accès aux Réglages. Aucun montant n'y figure.
- * L'écriture, elle, reste soumise aux droits de l'écran Réglages.
+ * sans pour autant donner accès aux Réglages. La vente et les pertes lisent
+ * les emballages via GET /api/immobilisations, sans ouvrir l’écran registre.
+ * L'écriture, elle, reste soumise aux droits de l'écran correspondant.
  */
 function estLectureDeReference(pathname: string, method: string): boolean {
-  return method === "GET" && pathname === "/api/pos-config";
+  return (
+    method === "GET" &&
+    (pathname === "/api/pos-config" || pathname === "/api/immobilisations")
+  );
 }
 
 function pageEquivalent(pathname: string): string {
@@ -45,6 +50,23 @@ function pageEquivalent(pathname: string): string {
     }
   }
   return pathname.replace(/^\/api/, "");
+}
+
+/** Écritures de stock (plats, QR, boissons) — DAF et comptable en lecture. */
+function estEcritureDeStock(pathname: string): boolean {
+  return (
+    pathname === "/api/zogbo" ||
+    pathname.startsWith("/api/zogbo/") ||
+    pathname === "/api/gbegamey" ||
+    pathname.startsWith("/api/gbegamey/") ||
+    pathname === "/api/stock-zogbo" ||
+    pathname.startsWith("/api/stock-zogbo/") ||
+    pathname === "/api/stock-gbegamey" ||
+    pathname.startsWith("/api/stock-gbegamey/") ||
+    pathname.startsWith("/api/stock-units") ||
+    pathname === "/api/boissons" ||
+    pathname.startsWith("/api/boissons/")
+  );
 }
 
 /** Politiques ventes : Équipe (/admin) ou Réglages POS. */
@@ -103,6 +125,17 @@ export async function middleware(request: NextRequest) {
         );
       }
       return NextResponse.next();
+    }
+    if (
+      request.method !== "GET" &&
+      request.method !== "HEAD" &&
+      estEcritureDeStock(pathname) &&
+      !canWriteStock(user.role)
+    ) {
+      return NextResponse.json(
+        { error: "Consultation uniquement : saisie de stock non autorisée." },
+        { status: 403 },
+      );
     }
     if (
       !canAccessPath(

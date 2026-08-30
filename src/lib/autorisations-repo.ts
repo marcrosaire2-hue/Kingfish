@@ -1,8 +1,10 @@
 import { ObjectId, type WithId } from "mongodb";
 import {
   defaultNavKeysForRole,
+  filterNavKeysBySite,
   isExecutiveAdminAccount,
   roleNavUnscoped,
+  stripRoleDeniedNavKeys,
   type NavKey,
   type SessionUser,
   type UserRole,
@@ -198,8 +200,8 @@ export async function resolveEffectiveNav(
   if (user.role !== "admin") {
     allowed.delete("admin");
   }
-
-  return [...allowed];
+  const filtered = stripRoleDeniedNavKeys([...allowed], user.role);
+  return filterNavKeysBySite(filtered, user.role, user.site);
 }
 
 export function assertSafeAutorisationsSave(input: {

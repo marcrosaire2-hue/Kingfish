@@ -7,6 +7,8 @@ function unit(partial: Partial<StockUnit> & Pick<StockUnit, "qrId">): StockUnit 
     id: "1",
     productId: "poulet",
     productName: "Poulet",
+    stickerCode: "A7K3Q2",
+    kind: "plat",
     batchId: "b1",
     date: "2026-08-29",
     site: "zogbo",
@@ -56,5 +58,21 @@ describe("scanStockUnit vente", () => {
     );
     expect(result.allowedActions).toEqual([]);
     expect(result.message).toMatch(/déjà été vendu/i);
+  });
+
+  it("allows sell at gbegamey for locally generated prepare unit", () => {
+    const result = scanStockUnit(
+      unit({ qrId: "KF-5", site: "gbegamey", status: "prepare" }),
+      { date: "2026-08-29", site: "gbegamey", workflow: "vente" },
+    );
+    expect(result.allowedActions).toContain("sell");
+  });
+
+  it("allows receive scan at gbegamey for prepare unit still at zogbo", () => {
+    const result = scanStockUnit(unit({ qrId: "KF-6" }), {
+      date: "2026-08-29",
+      workflow: "gbegamey-receive",
+    });
+    expect(result.allowedActions).toContain("send");
   });
 });

@@ -457,7 +457,7 @@ async function mutateZogboDay(
   return updateDayDocument<
     ZogboDoc,
     ZogboDayPayload & { movement: ZogboMovement }
-  >("zogbo_jours", date, async () => {
+  >("zogbo_jours", date, async (existing) => {
     const payload = await getZogboDayPayload(date);
     const applied = mutate(payload.day);
 
@@ -465,6 +465,7 @@ async function mutateZogboDay(
     const status = payload.day.status;
     const lines = applied.lines.map((l) => normalizeZogboLine(l));
     const movements = applied.movements;
+    const ventesSansStock = existing?.ventesSansStock === true;
 
     return {
       set: {
@@ -472,7 +473,7 @@ async function mutateZogboDay(
         lines,
         movements,
         updatedAt,
-        ventesSansStock: false,
+        ventesSansStock,
       },
       result: {
         day: {
@@ -481,7 +482,7 @@ async function mutateZogboDay(
           lines,
           movements,
           updatedAt,
-          ventesSansStock: false,
+          ventesSansStock,
         },
         baseDishes: payload.baseDishes,
         localDishes: payload.localDishes,

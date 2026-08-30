@@ -647,6 +647,11 @@ export type VenteProduct = {
    * Ex. « Aucun envoi Zogbo », « Ouvrez la caisse », « PV manquant ».
    */
   blockReason?: string | null;
+  /**
+   * Unités QR encore vendables pour cet article sur ce site.
+   * Tant qu’il n’y en a pas, la caisse vend sans code (stock agrégé).
+   */
+  qrRequired?: boolean;
 };
 
 export type VenteLogEntry = {

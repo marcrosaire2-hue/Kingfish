@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { roleSiteLabel, type NavKey } from "@/lib/auth-types";
-import { APP_LOGO, APP_NAME, APP_SHORT, APP_TAGLINE } from "@/lib/brand";
+import { APP_LOGO, APP_NAME, APP_SHORT } from "@/lib/brand";
 import { usePageChrome } from "@/components/page-chrome-context";
 import { clearSessionCache, useSession } from "@/components/session-provider";
 import { setOfflineQueueUser } from "@/lib/offline-queue";
@@ -62,8 +62,8 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
-    href: "/gbegamey",
-    label: "Gbégamey",
+    href: "/stock-gbegamey",
+    label: "Stock Gbégamey",
     key: "gbegamey",
     mark: "G",
     group: "ops",
@@ -212,7 +212,10 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
           />
           <span className="brand-text">
             <span className="brand-name">{APP_SHORT}</span>
-            <span className="brand-tag">{APP_TAGLINE}</span>
+            <span className="brand-tag">
+              <span>Production · Vente</span>
+              <span>Stock</span>
+            </span>
           </span>
         </Link>
 

@@ -47,12 +47,14 @@ export function ZoneVentesPanel({
   ventes,
   summary,
   loading,
+  premium = false,
 }: {
   date: string;
   site: VenteSite;
   ventes: VenteLogEntry[];
   summary: VentesDaySummary | null;
   loading: boolean;
+  premium?: boolean;
 }) {
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
   const kindRows = summary
@@ -64,33 +66,83 @@ export function ZoneVentesPanel({
       )
     : [];
 
-  return (
-    <div className="zone-panel">
-      <div className="param-meta">
-        <p>
-          Journal des ventes {siteLabel} — détail de chaque ligne enregistrée
-          (carnet, caisse, import…).
-        </p>
-      </div>
+  const wrapClass = premium
+    ? "zone-panel-premium catalogue-view"
+    : "zone-panel";
 
-      <div className="stat-row">
-        <div className="stat-chip accent">
-          <span className="stat-label">CA journal (FCFA)</span>
-          <span className="stat-value mono">
-            {formatFcfa(summary?.montant ?? 0)}
+  return (
+    <div className={wrapClass}>
+      {premium ? (
+        <p className="catalogue-meta">
+          <span className="catalogue-meta-icon" aria-hidden>
+            📅
           </span>
+          Journal des ventes <strong>{siteLabel}</strong> — détail de chaque
+          ligne enregistrée (carnet, caisse, import…).
+        </p>
+      ) : (
+        <div className="param-meta">
+          <p>
+            Journal des ventes {siteLabel} — détail de chaque ligne enregistrée
+            (carnet, caisse, import…).
+          </p>
         </div>
-        <div className="stat-chip">
-          <span className="stat-label">Lignes / transactions</span>
-          <span className="stat-value mono">{summary?.lignes ?? 0}</span>
+      )}
+
+      {premium ? (
+        <div className="catalogue-kpi-grid" aria-label="Totaux ventes">
+          <div className="catalogue-kpi catalogue-kpi-accent">
+            <span className="catalogue-kpi-label">CA journal</span>
+            <strong className="catalogue-kpi-value">
+              {formatFcfa(summary?.montant ?? 0)}
+            </strong>
+          </div>
+          <div className="catalogue-kpi">
+            <span className="catalogue-kpi-label">Lignes</span>
+            <strong className="catalogue-kpi-value">
+              {summary?.lignes ?? 0}
+            </strong>
+          </div>
+          <div className="catalogue-kpi">
+            <span className="catalogue-kpi-label">Articles vendus</span>
+            <strong className="catalogue-kpi-value">
+              {summary?.articles ?? 0}
+            </strong>
+          </div>
         </div>
-        <div className="stat-chip">
-          <span className="stat-label">Articles vendus</span>
-          <span className="stat-value mono">{summary?.articles ?? 0}</span>
+      ) : (
+        <div className="stat-row">
+          <div className="stat-chip accent">
+            <span className="stat-label">CA journal (FCFA)</span>
+            <span className="stat-value mono">
+              {formatFcfa(summary?.montant ?? 0)}
+            </span>
+          </div>
+          <div className="stat-chip">
+            <span className="stat-label">Lignes / transactions</span>
+            <span className="stat-value mono">{summary?.lignes ?? 0}</span>
+          </div>
+          <div className="stat-chip">
+            <span className="stat-label">Articles vendus</span>
+            <span className="stat-value mono">{summary?.articles ?? 0}</span>
+          </div>
         </div>
-      </div>
+      )}
 
       {summary && summary.lignes > 0 ? (
+        premium ? (
+          <div className="catalogue-info" role="note">
+            <span className="catalogue-info-mark" aria-hidden>
+              i
+            </span>
+            <p>
+              Le CA affiché provient de ce journal. Les onglets Plats /
+              Boissons suivent les <strong>compteurs de stock</strong> : si une
+              vente n’a pas mis à jour le stock (import carnet, reprise), le
+              détail apparaît ici mais pas dans les compteurs.
+            </p>
+          </div>
+        ) : (
         <div className="ui-info" role="note">
           <span className="ui-info-mark" aria-hidden>
             i
@@ -102,12 +154,13 @@ export function ZoneVentesPanel({
             détail apparaît ici mais pas dans les compteurs.
           </p>
         </div>
+        )
       ) : null}
 
       {kindRows.length > 0 ? (
-        <section className="panel">
+        <section className={premium ? "catalogue-panel" : "panel"}>
           <h3 className="panel-title">Par type de produit</h3>
-          <table className="data-table compact">
+          <table className={premium ? "catalogue-table" : "data-table compact"}>
             <thead>
               <tr>
                 <th>Type</th>
@@ -131,9 +184,9 @@ export function ZoneVentesPanel({
       ) : null}
 
       {sourceRows.length > 0 ? (
-        <section className="panel">
+        <section className={premium ? "catalogue-panel" : "panel"}>
           <h3 className="panel-title">Par source</h3>
-          <table className="data-table compact">
+          <table className={premium ? "catalogue-table" : "data-table compact"}>
             <thead>
               <tr>
                 <th>Source</th>
@@ -154,7 +207,7 @@ export function ZoneVentesPanel({
         </section>
       ) : null}
 
-      <section className="panel panel-wide">
+      <section className={premium ? "catalogue-panel" : "panel panel-wide"}>
         <div className="panel-head-row">
           <h3 className="panel-title">Détail des ventes</h3>
           <Link
@@ -164,7 +217,7 @@ export function ZoneVentesPanel({
             Journal complet
           </Link>
         </div>
-        <table className="data-table zogbo-table">
+        <table className={premium ? "catalogue-table" : "data-table zogbo-table"}>
           <thead>
             <tr>
               <th>Heure</th>

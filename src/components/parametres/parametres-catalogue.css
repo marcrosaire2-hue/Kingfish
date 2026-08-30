@@ -1,0 +1,1426 @@
+/* ==========================================================================
+   King Fish — Catalogue & paramètres (mode catalogue / Stock Zogbo)
+   Refonte visuelle premium. Logique métier dans parametres-editor / catalogue-view.
+   ========================================================================== */
+
+.main-catalogue .page-header h1 {
+  font-size: clamp(1.45rem, 4.5vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--sidebar-mid, #003399);
+}
+
+.main-catalogue .page-subtitle {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+}
+
+/* --- Onglets principaux Stock Zogbo ------------------------------------ */
+.catalogue-stock-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  margin-bottom: 1rem;
+  background: #eef1f6;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  width: 100%;
+}
+
+.catalogue-stock-tabs .section-tab {
+  flex: 1 1 auto;
+  justify-content: center;
+  min-width: 0;
+  border-radius: 12px;
+}
+
+@media (min-width: 640px) {
+  .catalogue-stock-tabs {
+    width: fit-content;
+    max-width: 100%;
+    border-radius: 999px;
+  }
+
+  .catalogue-stock-tabs .section-tab {
+    flex: 0 1 auto;
+    border-radius: var(--radius);
+  }
+}
+
+/* --- Conteneur catalogue ---------------------------------------------- */
+.catalogue-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.catalogue-view-top {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+@media (min-width: 900px) {
+  .catalogue-view-top {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.25rem;
+  }
+
+  .catalogue-view-top-actions {
+    flex-shrink: 0;
+  }
+}
+
+.catalogue-view-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.catalogue-view-actions .btn-primary {
+  min-width: 7.5rem;
+}
+
+.catalogue-view-actions .btn-primary.btn-saved {
+  background: var(--accent, #c9a227);
+  border-color: var(--accent, #c9a227);
+}
+
+.catalogue-user-chip {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .catalogue-user-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.35rem 0.65rem 0.35rem 0.4rem;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    font-size: 0.82rem;
+  }
+
+  .catalogue-user-chip .user-avatar {
+    width: 2rem;
+    height: 2rem;
+    font-size: 0.75rem;
+  }
+
+  .catalogue-user-chip .user-name {
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+
+  .catalogue-user-chip .user-role {
+    font-size: 0.72rem;
+    color: var(--ink-soft);
+  }
+}
+
+.catalogue-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--ink-soft);
+}
+
+.catalogue-meta-icon {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 10%, var(--surface));
+  color: var(--sidebar-mid, #003399);
+  font-size: 0.75rem;
+}
+
+.catalogue-meta strong {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+/* --- Alertes ---------------------------------------------------------- */
+.catalogue-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.catalogue-alert-danger {
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
+  background: color-mix(in srgb, var(--danger-soft) 70%, var(--surface));
+  color: var(--danger);
+}
+
+.catalogue-alert-danger.is-clickable {
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.14s ease;
+}
+
+.catalogue-alert-danger.is-clickable:hover {
+  background: color-mix(in srgb, var(--danger-soft) 90%, var(--surface));
+}
+
+.catalogue-alert-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.catalogue-alert-chevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  opacity: 0.65;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.catalogue-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 25%, var(--line));
+  background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface));
+  color: var(--ink);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.catalogue-info-mark {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+/* --- Onglets catalogue (Plats / Acc / Boissons) ----------------------- */
+.catalogue-section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  width: 100%;
+  border-bottom: 2px solid var(--line);
+}
+
+.catalogue-section-tabs .catalogue-section-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.65rem 1rem;
+  margin-bottom: -2px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 650;
+  font-size: 0.9rem;
+  cursor: pointer;
+  box-shadow: none;
+  transition:
+    color 0.14s ease,
+    border-color 0.14s ease;
+}
+
+.catalogue-section-tabs .catalogue-section-tab:hover {
+  color: var(--ink);
+  background: transparent;
+}
+
+.catalogue-section-tabs .catalogue-section-tab.is-active {
+  color: var(--sidebar-mid, #003399);
+  border-bottom-color: var(--sidebar-mid, #003399);
+  font-weight: 800;
+  background: transparent;
+  box-shadow: none;
+}
+
+.catalogue-section-tabs .section-count {
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 10%, transparent);
+  font-size: 0.72rem;
+}
+
+/* --- Carte tableau ---------------------------------------------------- */
+.catalogue-panel {
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  border-radius: 16px;
+  box-shadow: 0 4px 22px color-mix(in srgb, var(--ink) 4%, transparent);
+  overflow: hidden;
+}
+
+.catalogue-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--line);
+}
+
+@media (min-width: 640px) {
+  .catalogue-toolbar {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.15rem;
+  }
+}
+
+.catalogue-search-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  max-width: 100%;
+}
+
+@media (min-width: 640px) {
+  .catalogue-search-wrap {
+    max-width: 22rem;
+  }
+}
+
+.catalogue-search-icon {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-soft);
+  pointer-events: none;
+  font-size: 0.9rem;
+}
+
+.catalogue-search {
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0.5rem 0.85rem 0.5rem 2.35rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8f9fb;
+  font-size: max(16px, 0.9rem);
+  color: var(--ink);
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+
+.catalogue-search:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sidebar-mid, #003399) 45%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar-mid, #003399) 12%, transparent);
+  background: var(--surface);
+}
+
+.catalogue-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.65rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-weight: 650;
+  font-size: 0.88rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.catalogue-filter-btn.is-active {
+  border-color: color-mix(in srgb, var(--sidebar-mid, #003399) 40%, var(--line));
+  color: var(--sidebar-mid, #003399);
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 6%, var(--surface));
+}
+
+/* --- Tableau desktop -------------------------------------------------- */
+.catalogue-table-wrap {
+  overflow-x: auto;
+}
+
+.catalogue-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.catalogue-table thead th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: #f8f9fb;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.catalogue-table tbody td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  vertical-align: middle;
+}
+
+.catalogue-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.catalogue-table tbody tr:hover {
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 3%, var(--surface));
+}
+
+.catalogue-table tbody tr.row-warn {
+  background: color-mix(in srgb, var(--danger-soft) 35%, var(--surface));
+}
+
+.catalogue-product-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 10rem;
+}
+
+.catalogue-product-cell .product-icon {
+  flex-shrink: 0;
+}
+
+.catalogue-product-name {
+  font-weight: 700;
+  color: var(--ink);
+  line-height: 1.3;
+}
+
+.catalogue-product-name .name-input {
+  width: 100%;
+  min-width: 8rem;
+  font-weight: 700;
+}
+
+.catalogue-price-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.catalogue-price-badge-sale {
+  background: color-mix(in srgb, #2a7ec8 14%, var(--surface));
+  color: #1a5f9e;
+}
+
+.catalogue-price-badge-cost {
+  background: color-mix(in srgb, #16a34a 14%, var(--surface));
+  color: #15803d;
+}
+
+.catalogue-price-badge-warn {
+  background: color-mix(in srgb, var(--danger-soft) 80%, var(--surface));
+  color: var(--danger);
+}
+
+.catalogue-table .col-actions {
+  width: 5.5rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.catalogue-row-actions {
+  display: inline-flex;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.catalogue-action-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 2.15rem;
+  height: 2.15rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease,
+    color 0.12s ease;
+}
+
+.catalogue-action-btn:hover {
+  border-color: color-mix(in srgb, var(--sidebar-mid, #003399) 35%, var(--line));
+  color: var(--sidebar-mid, #003399);
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 6%, var(--surface));
+}
+
+.catalogue-action-btn.is-danger:hover {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.catalogue-action-btn.is-active {
+  border-color: var(--sidebar-mid, #003399);
+  color: var(--sidebar-mid, #003399);
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 10%, var(--surface));
+}
+
+/* --- Pagination ------------------------------------------------------- */
+.catalogue-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+@media (min-width: 640px) {
+  .catalogue-footer {
+    flex-direction: row;
+    padding: 0.85rem 1.15rem;
+  }
+}
+
+.catalogue-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.catalogue-page-btn {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.15rem;
+  height: 2.15rem;
+  padding: 0 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-weight: 650;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.catalogue-page-btn:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--sidebar-mid, #003399) 35%, var(--line));
+  color: var(--sidebar-mid, #003399);
+}
+
+.catalogue-page-btn.is-active {
+  background: var(--sidebar-mid, #003399);
+  border-color: var(--sidebar-mid, #003399);
+  color: #fff;
+}
+
+.catalogue-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --- Ajout produit ---------------------------------------------------- */
+.catalogue-add-row {
+  padding: 0.85rem 1rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.catalogue-add-row .btn-add {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .catalogue-add-row .btn-add {
+    width: auto;
+  }
+}
+
+/* --- Cartes mobile ---------------------------------------------------- */
+.catalogue-mobile-list {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .catalogue-table-wrap {
+    display: none;
+  }
+
+  .catalogue-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.75rem;
+  }
+}
+
+.catalogue-mobile-card {
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.catalogue-mobile-card.is-warn {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+  background: color-mix(in srgb, var(--danger-soft) 25%, var(--surface));
+}
+
+.catalogue-mobile-card-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.catalogue-mobile-card-prices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+}
+
+.catalogue-mobile-price-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+  margin-bottom: 0.2rem;
+}
+
+.catalogue-mobile-card-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.catalogue-mobile-card-actions .catalogue-action-btn {
+  flex: 1;
+  max-width: 5rem;
+}
+
+/* --- Skeleton --------------------------------------------------------- */
+.catalogue-skeleton {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.catalogue-skeleton-line {
+  height: 2.75rem;
+  border-radius: 10px;
+  background: linear-gradient(
+    90deg,
+    #eef1f6 0%,
+    #f5f7fa 50%,
+    #eef1f6 100%
+  );
+  background-size: 200% 100%;
+  animation: catalogue-shimmer 1.2s ease-in-out infinite;
+}
+
+.catalogue-skeleton-line.short {
+  width: 45%;
+}
+
+@keyframes catalogue-shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+/* --- État vide -------------------------------------------------------- */
+.catalogue-empty {
+  padding: 2.5rem 1.25rem;
+  text-align: center;
+}
+
+.catalogue-empty-title {
+  margin: 0 0 0.35rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.catalogue-empty-hint {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+/* --- Boissons : champs compacts --------------------------------------- */
+.catalogue-drinks-hint {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--line);
+  line-height: 1.45;
+}
+
+.catalogue-table .price-field,
+.catalogue-table .qty-input,
+.catalogue-table .input-num {
+  max-width: 7.5rem;
+}
+
+.catalogue-retry {
+  margin-top: 0.5rem;
+}
+
+/* ==========================================================================
+   Stock Zogbo — Plats / Accompagnements / Boissons (même design catalogue)
+   ========================================================================== */
+
+.main-catalogue .context-bar,
+.main-stock-zogbo .context-bar,
+.main-gbegamey .context-bar {
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.main-stock-zogbo .page-header h1,
+.main-gbegamey .page-header h1 {
+  font-size: clamp(1.45rem, 4.5vw, 1.85rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--sidebar-mid, #003399);
+}
+
+.catalogue-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: 0.65rem;
+}
+
+.catalogue-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  border-radius: 14px;
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.catalogue-kpi-accent {
+  border-color: color-mix(in srgb, var(--accent, #c9a227) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent, #c9a227) 8%, var(--surface));
+}
+
+.catalogue-kpi-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.catalogue-kpi-value {
+  font-family: var(--font-mono);
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--ink);
+}
+
+.catalogue-kpi-accent .catalogue-kpi-value {
+  color: var(--sidebar-mid, #003399);
+}
+
+.stock-zogbo-layout-premium {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
+  gap: 1rem;
+  align-items: start;
+}
+
+.stock-zogbo-layout-premium.is-readonly {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 1023px) {
+  .stock-zogbo-layout-premium {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stock-aside-premium {
+  position: sticky;
+  top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+}
+
+.stock-aside-premium .panel-title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--sidebar-mid, #003399);
+}
+
+.stock-aside-premium .section-hint {
+  margin: 0;
+}
+
+.stock-aside-premium .stock-zogbo-field-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-soft);
+}
+
+.stock-aside-premium .stock-zogbo-scan-row .input {
+  border-radius: 12px;
+  min-height: 2.65rem;
+}
+
+.stock-aside-premium .stock-zogbo-send-queue {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #f8f9fb;
+  padding: 0.75rem;
+}
+
+.catalogue-qty-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 10%, var(--surface));
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.catalogue-qty-badge-accent {
+  background: color-mix(in srgb, var(--accent, #c9a227) 18%, var(--surface));
+  color: var(--sidebar-mid, #003399);
+}
+
+.catalogue-table tr.is-expanded td {
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 4%, var(--surface));
+}
+
+.catalogue-units-block {
+  padding: 0.75rem 0.25rem;
+}
+
+.catalogue-units-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 0.5rem;
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+}
+
+.catalogue-unit-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.catalogue-unit-card.is-selected {
+  border-color: var(--sidebar-mid, #003399);
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 6%, var(--surface));
+}
+
+.catalogue-inline-qr {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.catalogue-inline-qr .input-qty {
+  width: 4rem;
+  min-height: 2.35rem;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.stock-mobile-card {
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.stock-mobile-card.is-warn {
+  border-color: color-mix(in srgb, var(--danger) 30%, var(--line));
+  background: color-mix(in srgb, var(--danger-soft) 25%, var(--surface));
+}
+
+.stock-mobile-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.stock-mobile-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.45rem;
+  margin-bottom: 0.65rem;
+}
+
+.stock-mobile-metric {
+  text-align: center;
+  padding: 0.4rem;
+  border-radius: 10px;
+  background: #f8f9fb;
+}
+
+.stock-mobile-metric-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: 0.15rem;
+}
+
+.stock-mobile-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.stock-mobile-actions .btn {
+  flex: 1;
+  min-width: 0;
+}
+
+.stock-acc-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0.85rem 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.zone-panel-premium {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.zone-panel-premium .catalogue-kpi-grid {
+  margin: 0;
+}
+
+.zone-panel-premium .toolbar-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 767px) {
+  .stock-zogbo-desktop-table {
+    display: none;
+  }
+
+  .stock-zogbo-mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.65rem;
+    padding: 0.75rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .stock-zogbo-mobile-list {
+    display: none;
+  }
+}
+
+/* ==========================================================================
+   Achats — design maquette SaaS (données / API inchangées)
+   ========================================================================== */
+
+.main-achats .page-header h1 {
+  font-size: clamp(1.55rem, 4.5vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--sidebar-mid, #003399);
+}
+
+.main-achats .page-subtitle {
+  max-width: 42rem;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.achats-header-btn {
+  border-radius: 12px;
+}
+
+.achats-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.4rem 0.85rem;
+  width: fit-content;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--sidebar-mid, #003399) 18%, var(--line));
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 8%, var(--surface));
+  color: var(--sidebar-mid, #003399);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.achats-pill-icon {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--sidebar-mid, #003399);
+  color: #fff;
+  font-size: 0.7rem;
+}
+
+.achats-warn-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  margin: 0;
+  padding: 0.9rem 1.05rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 35%, var(--line));
+  background: color-mix(in srgb, var(--warn-soft) 75%, var(--surface));
+  color: var(--ink);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.achats-warn-banner p {
+  margin: 0;
+}
+
+.achats-warn-icon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.achats-kpi-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .achats-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.achats-kpi {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 1rem 1.15rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  background: var(--surface);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.achats-kpi-gold {
+  border-color: color-mix(in srgb, var(--accent, #f0b018) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent-soft, #fff8e6) 70%, var(--surface));
+}
+
+.achats-kpi-blue {
+  border-color: color-mix(in srgb, #2a7ec8 28%, var(--line));
+  background: color-mix(in srgb, #2a7ec8 8%, var(--surface));
+}
+
+.achats-kpi-ico {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 10%, var(--surface));
+  color: var(--sidebar-mid, #003399);
+  font-weight: 800;
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.achats-kpi-gold .achats-kpi-ico {
+  background: color-mix(in srgb, var(--accent, #f0b018) 25%, var(--surface));
+  color: var(--accent-ink, #004888);
+}
+
+.achats-kpi-hint {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.achats-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .achats-form-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .achats-form-grid .achats-form-submit {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+@media (min-width: 1100px) {
+  .achats-form-grid {
+    grid-template-columns: 9.5rem minmax(12rem, 1.6fr) 6.5rem 9.5rem auto;
+    align-items: end;
+  }
+
+  .achats-form-grid.has-fournisseur {
+    grid-template-columns: 9rem minmax(10rem, 1.3fr) 6rem 8.5rem minmax(8rem, 1fr) auto;
+  }
+
+  .achats-form-grid .achats-form-submit {
+    grid-column: auto;
+    justify-self: stretch;
+  }
+}
+
+.achats-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.achats-field-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.achats-field .input-text,
+.achats-field .input-num,
+.achats-field .input-select,
+.achats-field input[type="date"] {
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #f8f9fb;
+  font-size: max(16px, 0.9rem);
+  color: var(--ink);
+}
+
+.achats-field .input-text:focus,
+.achats-field .input-num:focus,
+.achats-field .input-select:focus,
+.achats-field input[type="date"]:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--sidebar-mid, #003399) 45%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar-mid, #003399) 12%, transparent);
+  background: var(--surface);
+}
+
+.achats-price-wrap {
+  position: relative;
+}
+
+.achats-price-wrap .input-num {
+  padding-right: 3.4rem;
+}
+
+.achats-price-suffix {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  pointer-events: none;
+}
+
+.achats-form-submit {
+  min-height: 2.65rem;
+  min-width: 7.5rem;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+
+.achats-form-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0.65rem 1.15rem 1rem;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+.achats-form-hint p {
+  margin: 0;
+}
+
+.achats-list-toolbar {
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.achats-filters {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+.achats-filters-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+@media (min-width: 640px) {
+  .achats-filters-panel {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    z-index: 5;
+    min-width: 12rem;
+    padding: 0.55rem;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 10%, transparent);
+  }
+}
+
+.achats-filter-chip {
+  border: 1px solid var(--line);
+  background: #f8f9fb;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.achats-filter-chip.is-active {
+  border-color: var(--sidebar-mid, #003399);
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 10%, var(--surface));
+  color: var(--sidebar-mid, #003399);
+}
+
+.achats-name {
+  color: var(--sidebar-mid, #003399);
+}
+
+.achats-detail {
+  margin: 0;
+  padding: 0.75rem 1.15rem;
+  border-top: 1px solid var(--line);
+  background: #f8f9fb;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+}
+
+.achats-detail p {
+  margin: 0;
+}
+
+.achats-detail-inline {
+  margin: 0.55rem 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.achats-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.achats-status-ok {
+  background: color-mix(in srgb, #16a34a 14%, var(--surface));
+  color: #15803d;
+}
+
+.achats-status-muted {
+  background: #eef1f6;
+  color: var(--ink-soft);
+}
+
+.achats-status-warn {
+  background: color-mix(in srgb, var(--warn-soft) 70%, var(--surface));
+  color: var(--warn);
+}
+
+.achats-flash {
+  border-color: color-mix(in srgb, #16a34a 28%, var(--line));
+  background: color-mix(in srgb, #16a34a 8%, var(--surface));
+}
+
+.catalogue-empty .btn {
+  margin-top: 0.85rem;
+}
+
+/* Pertes / Immobilisations — même langage visuel qu’Achats */
+.main-pertes .page-header h1,
+.main-immo .page-header h1 {
+  font-size: clamp(1.55rem, 4.5vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--sidebar-mid, #003399);
+}
+
+.main-pertes .page-subtitle,
+.main-immo .page-subtitle {
+  max-width: 44rem;
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.achats-kpi-warn {
+  border-color: color-mix(in srgb, var(--warn) 35%, var(--line));
+  background: color-mix(in srgb, var(--warn-soft) 55%, var(--surface));
+}
+
+.achats-kpi-warn .achats-kpi-ico {
+  background: color-mix(in srgb, var(--warn) 22%, var(--surface));
+  color: var(--warn);
+}
+
+.pertes-toolbar,
+.immo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.65rem;
+}
+
+.pertes-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem 0.5rem;
+}
+
+@media (min-width: 900px) {
+  .pertes-form-grid {
+    grid-template-columns: minmax(12rem, 1.4fr) 7rem minmax(9rem, 1fr) minmax(10rem, 1.2fr) auto;
+    align-items: end;
+  }
+
+  .pertes-form-grid .achats-form-submit {
+    justify-self: stretch;
+  }
+}
+
+.immo-form-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  padding: 1rem 1.15rem 0.5rem;
+}
+
+@media (min-width: 900px) {
+  .immo-form-grid {
+    grid-template-columns: repeat(3, 1fr);
+    align-items: end;
+  }
+
+  .immo-form-grid .immo-field-full {
+    grid-column: 1 / -1;
+  }
+}

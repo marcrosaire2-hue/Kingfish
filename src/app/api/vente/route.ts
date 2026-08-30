@@ -182,7 +182,13 @@ export async function POST(request: Request) {
       });
       const unit = await lookupStockUnit(qrId);
       if (!unit) {
-        return NextResponse.json({ error: "QR introuvable." }, { status: 404 });
+        return NextResponse.json(
+          {
+            error:
+              "Code introuvable. Vérifiez le code collé sous le QR (ex. A7K-3Q2).",
+          },
+          { status: 404 },
+        );
       }
       const scan = scanStockUnit(unit, {
         date,
@@ -191,7 +197,14 @@ export async function POST(request: Request) {
       });
       const parametres = await getParametres();
       const dish = parametres.baseDishes.find((d) => d.id === unit.productId);
-      const unitPrice = dish?.unitPrice ?? 0;
+      const acc = parametres.localDishes.find((d) => d.id === unit.productId);
+      const drink = parametres.drinks.find((d) => d.id === unit.productId);
+      const unitPrice =
+        unit.kind === "boisson"
+          ? (drink?.salePrice ?? 0)
+          : unit.kind === "local"
+            ? (acc?.unitPrice ?? 0)
+            : (dish?.unitPrice ?? 0);
       const canSell = scan.allowedActions.includes("sell");
       return NextResponse.json({
         ...scan,

@@ -29,7 +29,7 @@ type Payload = {
 
 /**
  * Lecture seule : écarts de transport Zogbo → Gbégamey du jour.
- * La confirmation se fait sur /gbegamey (Réceptions).
+ * La confirmation se fait sur /stock-gbegamey (Réceptions).
  */
 export function ControlePage() {
   const [date, setDate] = useState(() => todayIsoDate());
@@ -105,11 +105,11 @@ export function ControlePage() {
                   }}
                 />
               </label>
-              <Link href="/gbegamey?tab=transfer" className="btn btn-ghost">
+              <Link href="/stock-gbegamey" className="btn btn-ghost">
                 Ouvrir réceptions
               </Link>
-              <Link href="/zogbo" className="btn btn-ghost">
-                Ouvrir Zogbo
+              <Link href="/stock-zogbo" className="btn btn-ghost">
+                Ouvrir Stock Zogbo
               </Link>
             </>
           }

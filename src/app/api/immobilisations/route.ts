@@ -55,11 +55,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
-    if (!canManagePastVentes(user.role)) {
+    if (user.role === "gerant" || !canManagePastVentes(user.role)) {
       return NextResponse.json(
         {
           error:
-            "Réservé au gérant, au comptable, au DAF ou à l’administrateur.",
+            "Réservé au comptable, au DAF ou à l’administrateur.",
         },
         { status: 403 },
       );

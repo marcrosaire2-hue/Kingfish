@@ -25,6 +25,7 @@ import {
 } from "@/lib/vente-repo";
 import {
   claimPlatUnitForSale,
+  listSellableQrProductIds,
   restorePlatUnitAfterSaleCancel,
 } from "@/lib/stock-unit-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -282,6 +283,8 @@ export async function validatePosTicket(input: {
     }
   }
 
+  const qrRequiredIds = await listSellableQrProductIds(input.site);
+
   try {
     for (const line of input.lines) {
       const qty = Math.round(Number(line.qty) || 0);
@@ -312,9 +315,20 @@ export async function validatePosTicket(input: {
         });
       } else {
         const qrId = line.qrId ? String(line.qrId).trim() : null;
+        if (
+          (line.kind === "plat" ||
+            line.kind === "local" ||
+            line.kind === "boisson") &&
+          !qrId &&
+          qrRequiredIds.has(line.productId)
+        ) {
+          throw new Error(
+            `Code étiquette requis pour « ${line.name || "cet article"} ». Saisissez le code collé sous le QR.`,
+          );
+        }
         if (qrId) {
-          if (line.kind !== "plat") {
-            throw new Error("Le scan QR ne concerne que les plats.");
+          if (line.kind === "combo") {
+            throw new Error("Le scan QR ne concerne pas les ventes libres.");
           }
           if (qty !== 1) {
             throw new Error("Une unité QR ne peut être vendue qu'à la quantité 1.");

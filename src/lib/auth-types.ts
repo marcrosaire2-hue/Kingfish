@@ -1,15 +1,13 @@
 export type UserRole =
   | "gerant"
   /**
-   * Comptable : pilotage financier + saisie des stocks par zone (plats,
-   * accompagnements, boissons, matières) et immobilisations. Pas de vente POS
-   * ni de gestion des comptes.
+   * Comptable : finance et consultation des stocks. Pas de vente POS,
+   * pas de saisie de stock, pas d’analyse ni de registre d’activité.
    */
   | "comptable"
   /**
-   * Directeur Administratif et Financier : mêmes écrans / droits opérationnels
-   * qu’un administrateur global, sans gestion des comptes. Peut être créé,
-   * modifié ou supprimé par un admin (ex. Marc).
+   * Directeur Administratif et Financier : finance et consultation, sans
+   * vente POS, sans saisie de stock, sans gestion des comptes.
    */
   | "daf"
   | "admin";
@@ -297,7 +295,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "appro",
     "pertes",
     "stock",
-    "immobilisations",
     "parametres",
     // Journal des ventes de sa zone (tickets, détail, export).
     "journal-ventes",
@@ -308,11 +305,9 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "rapport-quotidien",
     "controle",
   ],
-  // Finance + stocks par zone (plats, accompagnements, boissons, matières)
-  // et immobilisations (emballages / actifs).
+  // Finance + consultation des stocks. Pas d’analyse, ni registre.
   comptable: [
     "synthese",
-    "analyse",
     "compte-resultat",
     "comptabilite",
     "caisse",
@@ -323,30 +318,24 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "immobilisations",
     "journal-ventes",
     "quantites-vendues",
-    "historique",
     "rapport-quotidien",
     "controle",
   ],
-  // Même périmètre qu’admin, sans la page Équipe (gestion des comptes).
+  // Finance + consultation des stocks. Pas de vente, pertes, registre,
+  // régularisation, réglages POS ni comptabilité.
   daf: [
     "synthese",
     "analyse",
     "compte-resultat",
-    "comptabilite",
-    "vente",
     "caisse",
     "parametres",
     "zogbo",
     "gbegamey",
     "appro",
-    "pertes",
-    "reglages",
     "journal-ventes",
     "quantites-vendues",
-    "regularisation",
     "stock",
     "immobilisations",
-    "historique",
     "rapport-quotidien",
     "controle",
   ],
@@ -420,6 +409,52 @@ export function roleNavUnscoped(
   return [...ROLE_NAV[role]];
 }
 
+/** Pages refusées au DAF même si un JWT / une matrice les réintroduit. */
+const DAF_DENIED_NAV: readonly NavKey[] = [
+  "vente",
+  "pertes",
+  "regularisation",
+  "historique",
+  "reglages",
+  "comptabilite",
+];
+
+/** Pages refusées au comptable même si un JWT / une matrice les réintroduit. */
+const COMPTABLE_DENIED_NAV: readonly NavKey[] = ["analyse", "historique"];
+
+export function stripRoleDeniedNavKeys(
+  keys: NavKey[],
+  role: UserRole,
+): NavKey[] {
+  if (role === "gerant") {
+    return keys.filter((k) => k !== "immobilisations");
+  }
+  if (role === "daf") {
+    return keys.filter((k) => !DAF_DENIED_NAV.includes(k));
+  }
+  if (role === "comptable") {
+    return keys.filter((k) => !COMPTABLE_DENIED_NAV.includes(k));
+  }
+  return keys;
+}
+
+/** Retire l’autre zone du menu (Zogbo ↔ Gbégamey). */
+export function filterNavKeysBySite(
+  keys: NavKey[],
+  role: UserRole,
+  site: UserSite,
+): NavKey[] {
+  const withoutRoleDenied = stripRoleDeniedNavKeys(keys, role);
+  const scoped = effectiveSite(role, site);
+  if (scoped === "zogbo") {
+    return withoutRoleDenied.filter((k) => k !== "gbegamey");
+  }
+  if (scoped === "gbegamey") {
+    return withoutRoleDenied.filter((k) => k !== "zogbo");
+  }
+  return withoutRoleDenied;
+}
+
 /**
  * Menu filtré par rôle + site : un compte Zogbo ne voit pas Gbégamey
  * (et inversement).
@@ -432,16 +467,7 @@ export function navForUser(
   if (role === "admin" && username && isExecutiveAdminAccount(username)) {
     return [...EXECUTIVE_ADMIN_NAV];
   }
-  const scoped = effectiveSite(role, site);
-  let keys = [...ROLE_NAV[role]];
-
-  if (scoped === "zogbo") {
-    keys = keys.filter((k) => k !== "gbegamey");
-  } else if (scoped === "gbegamey") {
-    keys = keys.filter((k) => k !== "zogbo");
-  }
-
-  return keys;
+  return filterNavKeysBySite([...ROLE_NAV[role]], role, site);
 }
 
 /** Menu code (héritage) avant application des overrides Mongo. */
@@ -463,8 +489,11 @@ export function navForSession(user: {
   username: string;
   nav?: NavKey[];
 }): NavKey[] {
-  if (user.nav && user.nav.length > 0) return [...user.nav];
-  return navForUser(user.role, user.site, user.username);
+  const keys =
+    user.nav && user.nav.length > 0
+      ? [...user.nav]
+      : navForUser(user.role, user.site, user.username);
+  return filterNavKeysBySite(keys, user.role, user.site);
 }
 
 /**
@@ -501,6 +530,7 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/parametres")) return allowed.includes("parametres");
   if (pathname.startsWith("/stock-zogbo")) return allowed.includes("zogbo");
   if (pathname.startsWith("/zogbo")) return allowed.includes("zogbo");
+  if (pathname.startsWith("/stock-gbegamey")) return allowed.includes("gbegamey");
   if (pathname.startsWith("/gbegamey")) return allowed.includes("gbegamey");
   if (pathname.startsWith("/combos")) {
     return (
@@ -542,9 +572,7 @@ function canAccessPathWithAllowed(
     return allowed.includes("regularisation");
   }
   if (pathname.startsWith("/immobilisations")) {
-    return (
-      allowed.includes("immobilisations") || allowed.includes("vente")
-    );
+    return allowed.includes("immobilisations");
   }
   if (pathname.startsWith("/stock")) {
     return allowed.includes("stock");
@@ -569,8 +597,17 @@ export function canAccessPath(
   ) {
     return false;
   }
-  const allowed = navOverride ?? navForUser(role, site, username);
+  const allowed = filterNavKeysBySite(
+    navOverride ?? navForUser(role, site, username),
+    role,
+    site,
+  );
   return canAccessPathWithAllowed(allowed, pathname);
+}
+
+/** DAF et comptable consultent le stock ; ils ne préparent, ne scanne ni n’enregistrent. */
+export function canWriteStock(role: UserRole): boolean {
+  return role !== "daf" && role !== "comptable";
 }
 
 export function homeForRole(_role: UserRole): string {

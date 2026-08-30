@@ -7,9 +7,15 @@ import { parseQrIdFromScan } from "@/lib/parse-qr-id";
 type QrScannerProps = {
   active: boolean;
   onDetected: (qrId: string) => void;
+  /** Masque l'import photo — vente au comptoir : caméra seulement. */
+  cameraOnly?: boolean;
 };
 
-export function QrScanner({ active, onDetected }: QrScannerProps) {
+export function QrScanner({
+  active,
+  onDetected,
+  cameraOnly = false,
+}: QrScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const controlsRef = useRef<{ stop: () => void } | null>(null);
@@ -35,7 +41,9 @@ export function QrScanner({ active, onDetected }: QrScannerProps) {
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
           setStatus(
-            "Caméra non disponible sur ce navigateur. Utilisez la photo ou la saisie manuelle.",
+            cameraOnly
+              ? "Caméra non disponible sur ce navigateur."
+              : "Caméra non disponible sur ce navigateur. Utilisez la photo ou la saisie manuelle.",
           );
           return;
         }
@@ -100,7 +108,7 @@ export function QrScanner({ active, onDetected }: QrScannerProps) {
       controlsRef.current?.stop();
       controlsRef.current = null;
     };
-  }, [active]);
+  }, [active, cameraOnly]);
 
   async function onFileChange(file: File | null) {
     if (!file) return;
@@ -142,18 +150,20 @@ export function QrScanner({ active, onDetected }: QrScannerProps) {
         </div>
       ) : null}
 
-      <label className="btn btn-block btn-ghost qr-scanner-file">
-        {fileBusy ? "Lecture…" : "Importer une photo du QR"}
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          capture="environment"
-          className="sr-only"
-          disabled={fileBusy}
-          onChange={(e) => void onFileChange(e.target.files?.[0] ?? null)}
-        />
-      </label>
+      {!cameraOnly ? (
+        <label className="btn btn-block btn-ghost qr-scanner-file">
+          {fileBusy ? "Lecture…" : "Importer une photo du QR"}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="sr-only"
+            disabled={fileBusy}
+            onChange={(e) => void onFileChange(e.target.files?.[0] ?? null)}
+          />
+        </label>
+      ) : null}
     </div>
   );
 }

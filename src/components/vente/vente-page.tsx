@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import "./vente-pos.css";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { ContextBar } from "@/components/context-bar";
@@ -11,7 +12,7 @@ import { ProductIcon } from "@/components/product-icon";
 import { RegistreDrawer } from "@/components/registre-drawer";
 import { QrScanner } from "@/components/stock-zogbo/qr-scanner";
 import { formatFcfa, parseMoneyInput } from "@/lib/format";
-import { parseQrIdFromScan } from "@/lib/parse-qr-id";
+import { formatStickerCode, parseQrIdFromScan } from "@/lib/parse-qr-id";
 import {
   ajouterEnAttente,
   installerSupportHorsLigne,
@@ -58,7 +59,18 @@ type CartLine = {
   qty: number;
   /** Unité QR tracée — une ligne = une unité, non duplicable. */
   qrId?: string;
+  stickerCode?: string;
 };
+
+type PendingCodeAdd = {
+  product: VenteProduct;
+  unitPrice?: number;
+};
+
+function venteKindFromUnit(kind: unknown): VenteProduct["kind"] {
+  if (kind === "local" || kind === "boisson") return kind;
+  return "plat";
+}
 
 type CatKey = "plat" | "accompagnement" | "boisson" | "extra";
 
@@ -74,6 +86,23 @@ const CAT_LABELS: Record<CatKey, string> = {
   accompagnement: "Accompagnements",
   boisson: "Boissons",
   extra: "Hors catalogue",
+};
+
+const CAT_SHORT_LABELS: Record<CatKey, string> = {
+  plat: "Plats",
+  accompagnement: "Acc.",
+  boisson: "Boissons",
+  extra: "Extra",
+};
+
+const CAT_ICON: Record<
+  CatKey,
+  { kind: VenteProduct["kind"]; name: string }
+> = {
+  plat: { kind: "plat", name: "Plat" },
+  accompagnement: { kind: "local", name: "Accompagnement" },
+  boisson: { kind: "boisson", name: "Boisson" },
+  extra: { kind: "extra", name: "Extra" },
 };
 
 const SALE_TYPES: SaleType[] = ["Sur place", "Rapido"];
@@ -283,7 +312,11 @@ const ProductGrid = memo(function ProductGrid({
                 className="vente-plus"
                 disabled={blocked}
                 aria-label={
-                  reason ? `${p.name} — ${reason}` : `Ajouter ${p.name}`
+                  reason
+                    ? `${p.name} — ${reason}`
+                    : p.qrRequired
+                      ? `Saisir le code de ${p.name}`
+                      : `Ajouter ${p.name}`
                 }
                 onClick={() => onAdd(p)}
               >
@@ -334,12 +367,12 @@ const MealComposer = memo(function MealComposer({
   accPriceFor,
 }: MealComposerProps) {
   return (
-    <section className="vente-meal-composer vente-panel">
+    <section className="vente-meal-composer vente-panel vente-sale-card">
       <header className="vente-panel-head">
         <h2>Vente plat + accompagnements</h2>
         <p>
-          Choisissez le plat, puis les accompagnements souhaités
-          (optionnels). Chaque ligne part séparément au panier.
+          Choisissez le plat, puis les accompagnements. Le code collé n’est
+          demandé que si des QR sont déjà en stock pour l’article.
         </p>
       </header>
       {plats.length === 0 ? (
@@ -504,75 +537,173 @@ type CartLinesProps = {
 
 type VenteQrScanPanelProps = {
   scanOpen: boolean;
-  scanInput: string;
   scanBusy: boolean;
-  cameraOn: boolean;
   onToggleScan: () => void;
-  onScanInputChange: (value: string) => void;
-  onScanSubmit: (raw: string) => void;
-  onToggleCamera: () => void;
+  onScanSubmit: (raw: string) => void | Promise<boolean>;
 };
 
 const VenteQrScanPanel = memo(function VenteQrScanPanel({
   scanOpen,
-  scanInput,
   scanBusy,
-  cameraOn,
   onToggleScan,
-  onScanInputChange,
   onScanSubmit,
-  onToggleCamera,
 }: VenteQrScanPanelProps) {
+  const [draft, setDraft] = useState("");
+
   return (
     <div className="vente-qr-scan">
+      <form
+        className="vente-sticker-form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const raw = draft.trim();
+          if (!raw || scanBusy) return;
+          void Promise.resolve(onScanSubmit(raw)).then((ok) => {
+            if (ok) setDraft("");
+          });
+        }}
+      >
+        <label className="vente-sticker-field">
+          <span>Code collé sur l’étiquette</span>
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.toUpperCase())}
+            placeholder="A7K-3Q2"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            disabled={scanBusy}
+            aria-label="Code collé sous le QR"
+          />
+        </label>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={scanBusy || !draft.trim()}
+        >
+          Ajouter
+        </button>
+      </form>
+
       <button
         type="button"
-        className={`btn btn-block btn-ghost${scanOpen ? " is-active" : ""}`}
+        className={`vente-qr-scan-toggle btn btn-ghost${scanOpen ? " is-active" : ""}`}
         onClick={onToggleScan}
       >
-        {scanOpen ? "Masquer le scan QR" : "Scanner un QR plat"}
+        <span className="vente-qr-scan-icon" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+            />
+            <path
+              d="M8 12h8"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+            />
+          </svg>
+        </span>
+        {scanOpen ? "Fermer la caméra" : "Scanner le QR"}
       </button>
 
       {scanOpen ? (
         <>
           <p className="section-hint">
-            Scannez le QR d&apos;un plat pour l&apos;ajouter au panier.
+            Cadrez le QR, ou saisissez le code collé dessous.
           </p>
-          <div className="stock-zogbo-scan-row">
-            <input
-              type="text"
-              className="input"
-              placeholder="KF-…"
-              value={scanInput}
-              disabled={scanBusy}
-              onChange={(e) => onScanInputChange(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") onScanSubmit(scanInput);
-              }}
-            />
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={scanBusy || !scanInput.trim()}
-              onClick={() => onScanSubmit(scanInput)}
-            >
-              OK
-            </button>
-          </div>
-          <button
-            type="button"
-            className={`btn btn-block${cameraOn ? " is-active" : ""}`}
-            disabled={scanBusy}
-            onClick={onToggleCamera}
-          >
-            {cameraOn ? "Arrêter la caméra" : "Scanner avec la caméra"}
-          </button>
           <QrScanner
-            active={cameraOn && !scanBusy}
+            active={!scanBusy}
+            cameraOnly
             onDetected={(id) => onScanSubmit(id)}
           />
         </>
       ) : null}
+    </div>
+  );
+});
+
+const StickerCodePrompt = memo(function StickerCodePrompt({
+  item,
+  index,
+  total,
+  busy,
+  error,
+  onSubmit,
+  onCancel,
+}: {
+  item: PendingCodeAdd;
+  index: number;
+  total: number;
+  busy: boolean;
+  error: string | null;
+  onSubmit: (raw: string) => void;
+  onCancel: () => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setDraft("");
+    inputRef.current?.focus();
+  }, [item.product.productId, index]);
+
+  return (
+    <div
+      className="facture-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="vente-sticker-title"
+    >
+      <form
+        className="facture-card vente-sticker-card"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const raw = draft.trim();
+          if (!raw || busy) return;
+          onSubmit(raw);
+        }}
+      >
+        <header className="vente-panel-head">
+          <h2 id="vente-sticker-title">Code collé sur l’étiquette</h2>
+          <p>
+            {item.product.name}
+            {total > 1 ? ` · ${index + 1}/${total}` : ""}
+          </p>
+        </header>
+        <label className="vente-sticker-field">
+          <span>2e code, sous le QR (ex. A7K-3Q2)</span>
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value.toUpperCase())}
+            placeholder="A7K-3Q2"
+            autoCapitalize="characters"
+            autoCorrect="off"
+            spellCheck={false}
+            disabled={busy}
+          />
+        </label>
+        {error ? (
+          <p className="error-banner" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <div className="vente-sticker-actions">
+          <button type="button" className="btn btn-ghost" onClick={onCancel}>
+            Annuler
+          </button>
+          <button
+            type="submit"
+            className="btn btn-primary"
+            disabled={busy || !draft.trim()}
+          >
+            {busy ? "Vérification…" : "Ajouter"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 });
@@ -588,10 +719,13 @@ const CartLines = memo(function CartLines({
           <div>
             <strong>
               {l.name}
-              {l.qrId ? (
-                <span className="vente-qr-badge" title={l.qrId}>
+              {l.stickerCode || l.qrId ? (
+                <span
+                  className="vente-qr-badge"
+                  title={l.qrId}
+                >
                   {" "}
-                  · QR
+                  · {formatStickerCode(l.stickerCode || l.qrId || "")}
                 </span>
               ) : null}
             </strong>
@@ -746,9 +880,11 @@ export function VentePage({
   const [extraPrice, setExtraPrice] = useState("");
   const [posBusy, setPosBusy] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
-  const [cameraOn, setCameraOn] = useState(false);
-  const [scanInput, setScanInput] = useState("");
   const [scanBusy, setScanBusy] = useState(false);
+  const [codeQueue, setCodeQueue] = useState<PendingCodeAdd[]>([]);
+  const [codeQueueTotal, setCodeQueueTotal] = useState(0);
+  const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const catalogRef = useRef<HTMLDivElement>(null);
   const [composerPlatId, setComposerPlatId] = useState("");
   const [composerAccQtys, setComposerAccQtys] = useState<Record<string, number>>({});
   const [composerQty, setComposerQty] = useState(1);
@@ -1143,8 +1279,6 @@ export function VentePage({
   const addToCart = useCallback(
     (product: VenteProduct, unitPriceOverride?: number, qty = 1) => {
       if (product.kind === "boisson" && product.unitPrice <= 0) return;
-      // Accompagnements toujours vendables, même à stock nul.
-      // Correction gérant (jour passé) : stock non bloquant.
       if (
         !ignoreStock &&
         product.kind !== "local" &&
@@ -1220,21 +1354,16 @@ export function VentePage({
   }, []);
 
   const handleQrScan = useCallback(
-    async (raw: string) => {
+    async (raw: string, expected?: PendingCodeAdd | null): Promise<boolean> => {
       const qrId = parseQrIdFromScan(raw) ?? String(raw ?? "").trim();
-      if (!qrId) return;
+      if (!qrId) return false;
       if (!canSell) {
         setError(
           backdateMode
             ? "Correction de jour passé impossible pour le moment."
-            : "Ouvrez une caisse avant de scanner.",
+            : "Ouvrez une caisse avant de vendre.",
         );
-        return;
-      }
-      if (cart.some((l) => l.qrId === qrId)) {
-        setFlash("Ce QR est déjà dans le panier");
-        window.setTimeout(() => setFlash(null), 2000);
-        return;
+        return false;
       }
       setScanBusy(true);
       setError(null);
@@ -1250,52 +1379,83 @@ export function VentePage({
           }),
         });
         const body = await res.json();
-        if (!res.ok) throw new Error(body.error || "QR invalide");
+        if (!res.ok) throw new Error(body.error || "Code invalide");
         if (!body.canSell) {
-          throw new Error(body.message || "QR non vendable");
+          throw new Error(body.message || "Code non vendable");
+        }
+        const unit = body.unit as {
+          qrId: string;
+          productId: string;
+          productName: string;
+          stickerCode?: string;
+          kind?: string;
+        };
+        const canonical = String(unit.qrId || qrId);
+        if (expected && unit.productId !== expected.product.productId) {
+          throw new Error(
+            `Ce code est pour « ${unit.productName} », pas « ${expected.product.name} ».`,
+          );
         }
         const unitPrice =
-          Math.round(Number(body.unitPrice) || 0) ||
-          board?.products.find((p) => p.productId === body.unit.productId)
-            ?.unitPrice ||
-          0;
+          expected?.unitPrice != null && expected.unitPrice > 0
+            ? expected.unitPrice
+            : Math.round(Number(body.unitPrice) || 0) ||
+              board?.products.find((p) => p.productId === unit.productId)
+                ?.unitPrice ||
+              0;
         if (unitPrice <= 0) {
-          throw new Error("Prix du plat introuvable.");
+          throw new Error("Prix introuvable pour cet article.");
         }
-        setCart((prev) => [
-          ...prev,
-          {
-            key: `qr:${qrId}`,
-            kind: "plat",
-            productId: body.unit.productId,
-            name: body.unit.productName,
-            unitPrice,
-            qty: 1,
-            qrId,
-          },
-        ]);
-        setScanInput("");
-        setFlash(`${body.unit.productName} ajouté au panier`);
+        let duplicate = false;
+        setCart((prev) => {
+          if (prev.some((l) => l.qrId === canonical || l.qrId === qrId)) {
+            duplicate = true;
+            return prev;
+          }
+          return [
+            ...prev,
+            {
+              key: `qr:${canonical}`,
+              kind: venteKindFromUnit(unit.kind),
+              productId: unit.productId,
+              name: unit.productName,
+              unitPrice,
+              qty: 1,
+              qrId: canonical,
+              stickerCode: unit.stickerCode,
+            },
+          ];
+        });
+        if (duplicate) {
+          setFlash("Ce code est déjà dans le panier");
+          window.setTimeout(() => setFlash(null), 2000);
+          return false;
+        }
+        if (expected) {
+          setCodeQueue((q) => q.slice(1));
+        }
+        setFlash(`${unit.productName} ajouté au panier`);
         window.setTimeout(() => setFlash(null), 2000);
+        return true;
       } catch (e) {
-        setError(e instanceof Error ? e.message : "Scan impossible");
+        setError(e instanceof Error ? e.message : "Code impossible à vérifier");
+        return false;
       } finally {
         setScanBusy(false);
       }
     },
-    [canSell, backdateMode, cart, site, date, board],
+    [canSell, backdateMode, site, date, board],
   );
 
-  const toggleQrScan = useCallback(() => {
-    setScanOpen((v) => {
-      const next = !v;
-      if (!next) setCameraOn(false);
-      return next;
-    });
+  const requestCodes = useCallback((items: PendingCodeAdd[]) => {
+    if (!items.length) return;
+    setCodeQueue(items);
+    setCodeQueueTotal(items.length);
+    setError(null);
   }, []);
 
-  const toggleQrCamera = useCallback(() => {
-    setCameraOn((v) => !v);
+  const toggleQrScan = useCallback(() => {
+    setScanOpen((open) => !open);
   }, []);
 
   const commitMeal = useCallback(() => {
@@ -1323,14 +1483,27 @@ export function VentePage({
       );
       return;
     }
-    const accLines = composerAccOptions
-      .filter((a) => (composerAccQtys[a.productId] ?? 0) > 0)
-      .map((a) => ({ acc: a, qty: composerAccQtys[a.productId] ?? 0 }));
-
-    addToCart(composerPlat, undefined, composerQty);
-    for (const { acc, qty } of accLines) {
-      addToCart(acc, accPriceFor(acc), qty);
+    const queue: PendingCodeAdd[] = [];
+    if (composerPlat.qrRequired) {
+      for (let i = 0; i < composerQty; i++) {
+        queue.push({ product: composerPlat });
+      }
+    } else {
+      addToCart(composerPlat, undefined, composerQty);
     }
+    for (const a of composerAccOptions) {
+      const qty = composerAccQtys[a.productId] ?? 0;
+      if (qty <= 0) continue;
+      const unitPrice = accPriceFor(a);
+      if (a.qrRequired) {
+        for (let i = 0; i < qty; i++) {
+          queue.push({ product: a, unitPrice });
+        }
+      } else {
+        addToCart(a, unitPrice, qty);
+      }
+    }
+    if (queue.length) requestCodes(queue);
     resetComposer();
     setError(null);
   }, [
@@ -1338,16 +1511,20 @@ export function VentePage({
     composerQty,
     composerAccOptions,
     composerAccQtys,
-    addToCart,
     accPriceFor,
+    addToCart,
     resetComposer,
-    backdateMode,
     ignoreStock,
+    requestCodes,
   ]);
 
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
   const recentCount = board?.recent.length ?? 0;
   const cartTotal = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+  const cartItemCount = useMemo(
+    () => cart.reduce((sum, line) => sum + line.qty, 0),
+    [cart],
+  );
   const reductionN = Math.max(
     0,
     Math.min(cartTotal, Math.round(Number(reduction) || 0)),
@@ -1439,6 +1616,19 @@ export function VentePage({
       setPosBusy(false);
     }
   }, [cart, canSell, backdateMode, date, site, saleType, paymentId, clientNom, reductionN]);
+
+  useEffect(() => {
+    if (!cart.length) setCartSheetOpen(false);
+  }, [cart.length]);
+
+  useEffect(() => {
+    if (!cartSheetOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCartSheetOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [cartSheetOpen]);
 
   const cancelTicket = useCallback(
     async (ticket: PosTicket) => {
@@ -1606,6 +1796,32 @@ export function VentePage({
     setFacture(ticket);
   }, []);
 
+  const scrollToCatalog = useCallback(() => {
+    catalogRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  const cashStatusLabel = useMemo(() => {
+    if (loading && !board) return "Chargement…";
+    if (backdateMode) return `Correction · ${date}`;
+    if (caisse) return `Caisse ${siteLabel} ouverte`;
+    return `Caisse ${siteLabel} fermée`;
+  }, [loading, board, backdateMode, date, caisse, siteLabel]);
+
+  const cashMeta = useMemo(() => {
+    if (flash) return flash;
+    if (loading && !board) return "Chargement du catalogue…";
+    if (caisse) {
+      return `CA validé · tiroir ouvert par ${caisse.userName}`;
+    }
+    if (backdateMode) {
+      return "Correction de jour passé — validez sans rouvrir la caisse";
+    }
+    if (caisseActive) {
+      return `Caisse déjà ouverte le ${caisseActive.date} par ${caisseActive.userName}`;
+    }
+    return "Ouvrez la caisse de la zone pour encaisser";
+  }, [flash, loading, board, caisse, backdateMode, caisseActive]);
+
   async function submitExtra() {
     const unitPrice = parseMoneyInput(extraPrice);
     if (unitPrice === null || unitPrice <= 0) {
@@ -1635,64 +1851,77 @@ export function VentePage({
       /* Poste de vente : tenu à hauteur d'écran, la page ne défile pas. */
       mainClassName="main-vente"
     >
-      <div className="vente-page">
-        <ContextBar
-          date={date}
-          onDateChange={(v) => {
-            if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-            setFlash(null);
-            setDate(v);
-          }}
-          siteLabel={siteLabel}
-        >
-          <div className="vente-date-stepper" role="group" aria-label="Changer de jour">
-            <button
-              type="button"
-              className="btn btn-ghost"
-              title="Jour précédent"
-              onClick={() => {
-                const prev = previousIsoDate(date);
-                if (prev) {
-                  setFlash(null);
-                  setDate(prev);
-                }
-              }}
-            >
-              ←
-            </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              title="Jour suivant"
-              disabled={date >= todayIsoDate()}
-              onClick={() => {
-                const next = shiftIsoDate(date, 1);
-                if (next && next <= todayIsoDate()) {
-                  setFlash(null);
-                  setDate(next);
-                }
-              }}
-            >
-              →
-            </button>
-          </div>
-          <ExportExcelButton
-            onExport={() => exportVenteExcel(date, site)}
-            disabled={loading}
-          />
-          {canViewHistory ? (
-            <Link href="/journal-ventes" className="btn btn-ghost">
-              Journal
-            </Link>
-          ) : null}
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => setJournalOpen(true)}
+      <div
+        className={`vente-page${cart.length ? " has-mobile-cart" : ""}${
+          cartSheetOpen ? " is-cart-open" : ""
+        }`}
+      >
+        <div className="vente-context-wrap">
+          <ContextBar
+            date={date}
+            onDateChange={(v) => {
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+              setFlash(null);
+              setDate(v);
+            }}
+            siteLabel={siteLabel}
           >
-            Journal ({recentCount})
-          </button>
-        </ContextBar>
+            <div
+              className="vente-date-stepper"
+              role="group"
+              aria-label="Changer de jour"
+            >
+              <button
+                type="button"
+                className="btn btn-ghost"
+                title="Jour précédent"
+                onClick={() => {
+                  const prev = previousIsoDate(date);
+                  if (prev) {
+                    setFlash(null);
+                    setDate(prev);
+                  }
+                }}
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                title="Jour suivant"
+                disabled={date >= todayIsoDate()}
+                onClick={() => {
+                  const next = shiftIsoDate(date, 1);
+                  if (next && next <= todayIsoDate()) {
+                    setFlash(null);
+                    setDate(next);
+                  }
+                }}
+              >
+                →
+              </button>
+            </div>
+            <ExportExcelButton
+              onExport={() => exportVenteExcel(date, site)}
+              disabled={loading}
+            />
+            {canViewHistory ? (
+              <Link
+                href="/journal-ventes"
+                className="btn btn-ghost vente-context-journal-link"
+              >
+                Journal
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-ghost vente-journal-btn"
+              onClick={() => setJournalOpen(true)}
+            >
+              Journal ({recentCount})
+            </button>
+          </ContextBar>
+        </div>
 
         {ruptureAlert ? (
           <div className="vente-rupture-alert" role="alert">
@@ -1712,64 +1941,57 @@ export function VentePage({
         ) : null}
 
         {ruptureCount > 0 ? (
-          <div className="vente-rupture-bar" role="status">
+          <button
+            type="button"
+            className="vente-rupture-bar"
+            onClick={scrollToCatalog}
+          >
+            <span className="vente-rupture-bar-icon" aria-hidden>
+              !
+            </span>
             <strong>
               {ruptureCount} produit{ruptureCount > 1 ? "s" : ""} non vendable
               {ruptureCount > 1 ? "s" : ""}
             </strong>
-            <span>
-              {site === "gbegamey"
-                ? "— souvent : pas encore reçu de Zogbo, ou stock épuisé. Voyez le motif sous chaque article."
-                : "— souvent : pas encore préparé, ou stock épuisé. Voyez le motif sous chaque article."}
+            <span className="vente-rupture-bar-chevron" aria-hidden>
+              ›
             </span>
-          </div>
+          </button>
         ) : null}
 
-        <div className={`vente-hero${canSell ? " is-ready" : " is-idle"}`}>
-          <div className="vente-hero-main">
-            <span className="vente-hero-status">
-              <span className="vente-hero-dot" aria-hidden />
-              {caisse
-                ? `Caisse ${siteLabel} ouverte`
-                : backdateMode
-                  ? `Correction · ${date}`
-                  : loading
-                    ? "Chargement de la caisse…"
-                    : `Caisse ${siteLabel} fermée`}
+        <section
+          className={`vente-cash-card${canSell ? " is-open" : " is-closed"}${
+            backdateMode ? " is-backdate" : ""
+          }`}
+          aria-label="État de la caisse"
+        >
+          <div className="vente-cash-card-body">
+            <span className="vente-cash-badge">
+              <span className="vente-cash-badge-dot" aria-hidden />
+              {cashStatusLabel}
             </span>
-            <span className="vente-hero-label">
-              CA validé · {siteLabel}
+            <p className="vente-cash-site">Caisse {siteLabel}</p>
+            <p className="vente-cash-amount mono">
+              {loading && !board ? "…" : formatFcfa(board?.caToday ?? 0)}
+            </p>
+            <p className="vente-cash-meta">
+              {cashMeta}
               {board?.caParEquipe &&
               (board.caParEquipe.jour > 0 || board.caParEquipe.nuit > 0) ? (
                 <span className="vente-equipes">
+                  {" "}
                   Jour {formatFcfa(board.caParEquipe.jour ?? 0)} · Nuit{" "}
                   {formatFcfa(board.caParEquipe.nuit ?? 0)}
                 </span>
               ) : null}
               {enAttente > 0 ? (
                 <span className="vente-attente" role="status">
-                  {enAttente} vente{enAttente > 1 ? "s" : ""} en attente d’envoi
+                  {enAttente} vente{enAttente > 1 ? "s" : ""} en attente
+                  d&apos;envoi
                 </span>
               ) : null}
-            </span>
-            <strong className="vente-hero-value mono">
-              {loading && !board ? "…" : formatFcfa(board?.caToday ?? 0)}
-            </strong>
-            <span className="vente-hero-meta">
-              {flash
-                ? flash
-                : loading
-                  ? "Chargement de la caisse…"
-                  : caisse
-                    ? `Ajoutez au panier puis validez · tiroir ouvert par ${caisse.userName}`
-                    : backdateMode
-                      ? "Correction de jour passé — validez sans rouvrir la caisse"
-                      : caisseActive
-                        ? `Caisse déjà ouverte le ${caisseActive.date} par ${caisseActive.userName}`
-                        : "Ouvrez la caisse de la zone pour encaisser"}
-            </span>
-          </div>
-          <div className="vente-hero-side">
+            </p>
+            <div className="vente-cash-actions">
               {allowedSites.length > 1 ? (
                 <div
                   className="site-switch site-switch-vente"
@@ -1788,50 +2010,51 @@ export function VentePage({
                   ))}
                 </div>
               ) : null}
-            {loading ? null : caisse ? (
-              <Link
-                href={`/caisse?caisse=${site}`}
-                className="btn btn-ghost vente-hero-cta"
-              >
-                Voir la caisse
-              </Link>
-            ) : backdateMode ? (
-              caisseActive && caisseActive.date !== date ? (
+              {loading ? null : caisse ? (
+                <Link
+                  href={`/caisse?caisse=${site}`}
+                  className="vente-cash-link"
+                >
+                  Voir la caisse →
+                </Link>
+              ) : backdateMode ? (
+                caisseActive && caisseActive.date !== date ? (
+                  <button
+                    type="button"
+                    className="vente-cash-link"
+                    onClick={() => void rejoindreCaisseActive()}
+                  >
+                    Rejoindre la caisse →
+                  </button>
+                ) : null
+              ) : caisseActive ? (
                 <button
                   type="button"
-                  className="btn btn-primary vente-hero-cta"
-                  onClick={() => void rejoindreCaisseActive()}
+                  className="vente-cash-link"
+                  disabled={openingCaisse}
+                  onClick={() => void openCaisseHere()}
                 >
-                  Rejoindre la caisse du {caisseActive.date.slice(8)}/
-                  {caisseActive.date.slice(5, 7)}
+                  {openingCaisse ? "Reprise…" : "Reprendre la caisse →"}
                 </button>
-              ) : null
-            ) : caisseActive ? (
-              <button
-                type="button"
-                className="btn btn-primary vente-hero-cta"
-                disabled={openingCaisse}
-                onClick={() => void openCaisseHere()}
-              >
-                {openingCaisse ? "Reprise…" : "Reprendre la caisse ouverte"}
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="btn btn-primary vente-hero-cta"
-                disabled={
-                  openingCaisse ||
-                  (allowedSites.length > 0 && !allowedSites.includes(site))
-                }
-                onClick={() => void openCaisseHere()}
-              >
-                {openingCaisse
-                  ? "Ouverture…"
-                  : `Ouvrir la caisse ${siteLabel}`}
-              </button>
-            )}
+              ) : (
+                <button
+                  type="button"
+                  className="vente-cash-link"
+                  disabled={
+                    openingCaisse ||
+                    (allowedSites.length > 0 && !allowedSites.includes(site))
+                  }
+                  onClick={() => void openCaisseHere()}
+                >
+                  {openingCaisse
+                    ? "Ouverture…"
+                    : `Ouvrir la caisse ${siteLabel} →`}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+          <div className="vente-cash-card-deco" aria-hidden />
+        </section>
 
         {rejets.length > 0 ? (
           <div className="error-banner" role="alert">
@@ -1931,9 +2154,9 @@ export function VentePage({
         ) : null}
 
         <div className="vente-workspace">
-          <div className="vente-catalog">
+          <div className="vente-catalog" ref={catalogRef}>
             <div
-              className="section-tabs vente-cats"
+              className="vente-cat-pills"
               role="tablist"
               aria-label="Catégories"
             >
@@ -1943,30 +2166,38 @@ export function VentePage({
                   type="button"
                   role="tab"
                   aria-selected={cat === c.key}
-                  className={`section-tab${cat === c.key ? " is-active" : ""}`}
+                  className={`vente-cat-pill${cat === c.key ? " is-active" : ""}`}
                   onClick={() => setCat(c.key)}
                 >
-                  {c.label}
-                  <span className="section-count">{c.count}</span>
+                  <span className="vente-cat-pill-icon">
+                    <ProductIcon
+                      kind={CAT_ICON[c.key].kind}
+                      name={CAT_ICON[c.key].name}
+                      size="md"
+                    />
+                  </span>
+                  <span className="vente-cat-pill-label">
+                    <span className="vente-cat-pill-label-long">{c.label}</span>
+                    <span className="vente-cat-pill-label-short">
+                      {CAT_SHORT_LABELS[c.key]}
+                    </span>
+                  </span>
+                  <span className="vente-cat-pill-count">{c.count}</span>
                 </button>
               ))}
             </div>
 
             <VenteQrScanPanel
               scanOpen={scanOpen}
-              scanInput={scanInput}
               scanBusy={scanBusy}
-              cameraOn={cameraOn}
               onToggleScan={toggleQrScan}
-              onScanInputChange={setScanInput}
-              onScanSubmit={(raw) => void handleQrScan(raw)}
-              onToggleCamera={toggleQrCamera}
+              onScanSubmit={(raw) => handleQrScan(raw, codeQueue[0] ?? null)}
             />
 
             {loading && !board ? (
               <BrandLoader variant="ligne" label="Chargement du catalogue…" />
             ) : cat === "extra" ? (
-              <div className="vente-extra vente-panel">
+              <div className="vente-extra vente-panel vente-sale-card">
                 <header className="vente-panel-head">
                   <h2>Vente hors catalogue</h2>
                   <p>Article libre + montant — pour produits absents du catalogue</p>
@@ -2021,21 +2252,35 @@ export function VentePage({
                 products={products}
                 canSell={canSell}
                 ignoreStock={ignoreStock}
-                onAdd={addToCart}
+                onAdd={(p) =>
+                  p.qrRequired ? requestCodes([{ product: p }]) : addToCart(p)
+                }
               />
             )}
           </div>
 
           <aside
-            className={`pos-cart vente-panel${cart.length === 0 ? " is-empty" : ""}`}
+            className={`pos-cart vente-panel${cart.length === 0 ? " is-empty" : ""}${
+              cartSheetOpen ? " is-sheet-open" : ""
+            }`}
           >
-              <header className="vente-panel-head">
-                <h2>Panier</h2>
-                <p>
-                  {cart.length
-                    ? `${cart.reduce((s, l) => s + l.qty, 0)} article${cart.reduce((s, l) => s + l.qty, 0) > 1 ? "s" : ""}`
-                    : "Vide — touchez + sur un produit"}
-                </p>
+              <header className="vente-panel-head vente-cart-head">
+                <div>
+                  <h2>Panier</h2>
+                  <p>
+                    {cart.length
+                      ? `${cartItemCount} article${cartItemCount > 1 ? "s" : ""}`
+                      : "Vide — touchez + sur un produit"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="vente-cart-close"
+                  aria-label="Fermer le panier"
+                  onClick={() => setCartSheetOpen(false)}
+                >
+                  ×
+                </button>
               </header>
 
               {!cart.length ? (
@@ -2173,11 +2418,71 @@ export function VentePage({
               ) : null}
           </aside>
         </div>
+
+        {cart.length > 0 ? (
+          <>
+            <button
+              type="button"
+              className="vente-cart-backdrop"
+              aria-label="Fermer le panier"
+              tabIndex={cartSheetOpen ? 0 : -1}
+              onClick={() => setCartSheetOpen(false)}
+            />
+            <div className="vente-mobile-cart-bar" role="region" aria-label="Résumé du panier">
+              <button
+                type="button"
+                className="vente-mobile-cart-summary"
+                aria-expanded={cartSheetOpen}
+                onClick={() => setCartSheetOpen(true)}
+              >
+                <span className="vente-mobile-cart-count">
+                  {cartItemCount} article{cartItemCount > 1 ? "s" : ""}
+                </span>
+                <strong className="vente-mobile-cart-total mono">
+                  {formatFcfa(cartNet)}
+                </strong>
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost vente-mobile-cart-details"
+                onClick={() => setCartSheetOpen((open) => !open)}
+              >
+                {cartSheetOpen ? "Fermer" : "Détails"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary vente-mobile-cart-validate"
+                disabled={posBusy || !canSell}
+                onClick={() => void validateCart()}
+              >
+                {posBusy ? "…" : "Commander"}
+              </button>
+            </div>
+          </>
+        ) : null}
       </div>
 
       {/* Opération en cours : le logo occupe l'écran et absorbe les clics,
           le temps que le serveur réponde. */}
       {posBusy ? <BrandLoader variant="voile" label="Enregistrement de la commande…" /> : null}
+
+      {codeQueue[0] ? (
+        <StickerCodePrompt
+          item={codeQueue[0]}
+          index={Math.max(0, codeQueueTotal - codeQueue.length)}
+          total={codeQueueTotal}
+          busy={scanBusy}
+          error={error}
+          onSubmit={(raw) => {
+            void handleQrScan(raw, codeQueue[0]);
+          }}
+          onCancel={() => {
+            setCodeQueue([]);
+            setCodeQueueTotal(0);
+            setError(null);
+          }}
+        />
+      ) : null}
 
       {/* Facture de la commande : générée à chaque validation, elle porte le
           détail complet de la transaction avant toute impression. */}

@@ -120,12 +120,28 @@ export function DashboardSectionNav<T extends string>({
 }
 
 export type DashKpiTone = "accent" | "warn" | "muted";
+export type DashKpiAccent =
+  | "green"
+  | "blue"
+  | "purple"
+  | "sky"
+  | "orange"
+  | "gold"
+  | "muted";
+
+export type DashKpiItem = {
+  label: string;
+  value: string;
+  tone?: DashKpiTone;
+  accent?: DashKpiAccent;
+  icon?: ReactNode;
+};
 
 export function DashKpiGrid({
   items,
   className,
 }: {
-  items: { label: string; value: string; tone?: DashKpiTone }[];
+  items: DashKpiItem[];
   className?: string;
 }) {
   return (
@@ -133,10 +149,17 @@ export function DashKpiGrid({
       {items.map((it) => (
         <div
           key={it.label}
-          className={`dash-kpi${it.tone ? ` dash-kpi-${it.tone}` : ""}`}
+          className={`dash-kpi${it.tone ? ` dash-kpi-${it.tone}` : ""}${it.accent ? ` dash-kpi-tone-${it.accent}` : ""}${it.icon ? " has-icon" : ""}`}
         >
-          <span className="dash-kpi-label">{it.label}</span>
-          <span className="dash-kpi-value mono">{it.value}</span>
+          {it.icon ? (
+            <span className="dash-kpi-ico" aria-hidden>
+              {it.icon}
+            </span>
+          ) : null}
+          <div className="dash-kpi-copy">
+            <span className="dash-kpi-label">{it.label}</span>
+            <span className="dash-kpi-value mono">{it.value}</span>
+          </div>
         </div>
       ))}
     </div>

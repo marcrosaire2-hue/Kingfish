@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
-import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
+import { AuthError, authErrorResponse, requireStockWrite, requireUser } from "@/lib/api-auth";
 import { canUseSite } from "@/lib/auth-types";
 import { reportError } from "@/lib/report-error";
 import {
@@ -12,9 +12,9 @@ import {
 
 export const runtime = "nodejs";
 
-async function requireStockZogboAccess() {
+async function requireStockQrAccess() {
   const user = await requireUser();
-  if (!canUseSite(user.site, "zogbo")) {
+  if (!canUseSite(user.site, "zogbo") && !canUseSite(user.site, "gbegamey")) {
     throw new AuthError("Accès non autorisé.", 403);
   }
   return user;
@@ -22,7 +22,7 @@ async function requireStockZogboAccess() {
 
 export async function GET(request: Request) {
   try {
-    await requireStockZogboAccess();
+    await requireStockQrAccess();
     const { searchParams } = new URL(request.url);
     const qrId = searchParams.get("qrId")?.trim();
     const date = searchParams.get("date")?.trim();
@@ -56,7 +56,10 @@ export async function GET(request: Request) {
 
     const scan = scanStockUnit(unit, {
       date: date || unit.date,
-      workflow: "zogbo-send",
+      workflow:
+        searchParams.get("workflow") === "gbegamey-receive"
+          ? "gbegamey-receive"
+          : "zogbo-send",
     });
 
     return NextResponse.json(scan);
@@ -72,25 +75,40 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await requireStockZogboAccess();
+    const user = await requireStockQrAccess();
+    requireStockWrite(user);
     const body = (await request.json()) as {
       action?: string;
       qrId?: string;
       qrIds?: string[];
       date?: string;
+      payloadSite?: "zogbo" | "gbegamey";
+      workflow?: string;
     };
 
     const action = body.action ?? "lookup";
     const qrId = String(body.qrId ?? "").trim();
     const date = body.date;
+    const payloadSite =
+      body.payloadSite === "gbegamey" ? "gbegamey" : "zogbo";
+    const lookupWorkflow =
+      body.workflow === "gbegamey-receive" ? "gbegamey-receive" : "zogbo-send";
 
     if (action === "send-one" && qrId && date) {
-      const result = await sendPlatQrUnits({ date, qrIds: [qrId] });
+      const result = await sendPlatQrUnits({
+        date,
+        qrIds: [qrId],
+        payloadSite,
+      });
       return NextResponse.json(result);
     }
 
     if (action === "send-batch" && date && Array.isArray(body.qrIds)) {
-      const result = await sendPlatQrUnits({ date, qrIds: body.qrIds });
+      const result = await sendPlatQrUnits({
+        date,
+        qrIds: body.qrIds,
+        payloadSite,
+      });
       return NextResponse.json(result);
     }
 
@@ -110,7 +128,7 @@ export async function POST(request: Request) {
 
     const scan = scanStockUnit(unit, {
       date: date || unit.date,
-      workflow: "zogbo-send",
+      workflow: lookupWorkflow,
     });
     return NextResponse.json(scan);
   } catch (error) {

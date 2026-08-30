@@ -1,0 +1,613 @@
+/* ==========================================================================
+   King Fish — Vente POS Premium
+   Refonte visuelle mobile-first. La logique métier reste dans vente-page.tsx.
+   ========================================================================== */
+
+.main-vente .page-header h1 {
+  font-size: clamp(1.5rem, 5vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--sidebar-mid, #003399);
+}
+
+/* --- Contexte date / journal -------------------------------------------- */
+.vente-context-wrap .context-bar {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  box-shadow: 0 4px 18px color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.vente-context-wrap .context-bar-main {
+  width: 100%;
+  justify-content: stretch;
+}
+
+.vente-context-wrap .date-field-pill {
+  width: 100%;
+  flex: 1 1 auto;
+}
+
+.vente-context-wrap .date-field-pill input {
+  width: 100%;
+  min-height: 2.75rem;
+  font-size: max(16px, 1rem);
+  font-weight: 700;
+  color: var(--sidebar-mid, #003399);
+}
+
+.vente-context-wrap .context-bar-actions {
+  width: 100%;
+  justify-content: center;
+}
+
+.vente-context-wrap .vente-journal-btn {
+  width: 100%;
+  max-width: 14rem;
+  margin-inline: auto;
+  min-height: 2.65rem;
+  border-radius: 999px;
+  font-weight: 700;
+}
+
+/* --- Alerte ruptures ---------------------------------------------------- */
+.vente-rupture-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  padding: 0.65rem 0.85rem;
+  margin: 0;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
+  background: color-mix(in srgb, var(--danger-soft, #fee2e2) 65%, var(--surface));
+  color: var(--danger);
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background 0.15s ease;
+}
+
+.vente-rupture-bar:hover {
+  background: color-mix(in srgb, var(--danger-soft, #fee2e2) 85%, var(--surface));
+}
+
+.vente-rupture-bar-icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 1.35rem;
+  height: 1.35rem;
+  border-radius: 50%;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.vente-rupture-bar strong {
+  flex: 1 1 auto;
+  font-weight: 700;
+}
+
+.vente-rupture-bar-chevron {
+  flex-shrink: 0;
+  opacity: 0.7;
+  font-size: 1.1rem;
+}
+
+/* --- Carte caisse premium ----------------------------------------------- */
+.vente-cash-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  padding: 1rem 1.05rem 1.1rem;
+  border-radius: 20px;
+  overflow: hidden;
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    var(--sidebar-mid, #0a3d8f) 0%,
+    var(--sidebar, #062a66) 55%,
+    #041e4a 100%
+  );
+  box-shadow:
+    0 14px 36px color-mix(in srgb, var(--sidebar) 32%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #fff 12%, transparent);
+}
+
+.vente-cash-card.is-closed {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--sidebar-mid) 75%, #334155) 0%,
+    #1e293b 100%
+  );
+}
+
+.vente-cash-card.is-backdate {
+  background: linear-gradient(135deg, #475569 0%, #334155 100%);
+}
+
+.vente-cash-card-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding-right: 4.5rem;
+}
+
+.vente-cash-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  width: fit-content;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--accent, #ffb800);
+  color: #1a1200;
+}
+
+.vente-cash-card.is-closed .vente-cash-badge {
+  background: color-mix(in srgb, #fff 18%, transparent);
+  color: #e2e8f0;
+}
+
+.vente-cash-badge-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #15803d;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #15803d 35%, transparent);
+}
+
+.vente-cash-card.is-closed .vente-cash-badge-dot {
+  background: #ef4444;
+  box-shadow: none;
+}
+
+.vente-cash-site {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, #fff 75%, transparent);
+}
+
+.vente-cash-amount {
+  margin: 0;
+  font-size: clamp(1.75rem, 6vw, 2.15rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+}
+
+.vente-cash-meta {
+  margin: 0;
+  font-size: 0.82rem;
+  color: color-mix(in srgb, #fff 72%, transparent);
+  line-height: 1.4;
+}
+
+.vente-cash-card .vente-equipes,
+.vente-cash-card .vente-attente {
+  display: inline-block;
+  margin-top: 0.25rem;
+  margin-left: 0;
+}
+
+.vente-cash-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.vente-cash-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, #fff 28%, transparent);
+  background: color-mix(in srgb, #fff 10%, transparent);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.vente-cash-link:hover {
+  background: color-mix(in srgb, #fff 16%, transparent);
+}
+
+.vente-cash-card .site-switch-vente {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.vente-cash-card .site-btn {
+  min-height: 2.35rem;
+  padding-inline: 0.65rem;
+  font-size: 0.8rem;
+  background: color-mix(in srgb, #fff 10%, transparent);
+  border-color: color-mix(in srgb, #fff 22%, transparent);
+  color: #fff;
+}
+
+.vente-cash-card .site-btn.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #1a1200;
+}
+
+.vente-cash-card-deco {
+  position: absolute;
+  right: 0.5rem;
+  bottom: 0.25rem;
+  width: 5.5rem;
+  height: 5.5rem;
+  opacity: 0.92;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 65% 35%, #ffb800 0%, #ffb800 18%, transparent 19%),
+    radial-gradient(circle at 40% 60%, #ffd54f 0%, #ffd54f 12%, transparent 13%),
+    linear-gradient(145deg, #1d4ed8 0%, #1e3a8a 100%);
+  border-radius: 18px 18px 28px 18px;
+  box-shadow: 0 8px 20px color-mix(in srgb, #000 25%, transparent);
+  transform: rotate(-8deg);
+}
+
+/* --- Catégories en pilules ---------------------------------------------- */
+.vente-cat-pills {
+  display: flex;
+  gap: 0.55rem;
+  overflow-x: auto;
+  padding: 0.2rem 0.1rem 0.35rem;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.vente-cat-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.vente-cat-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+  min-width: 4.6rem;
+  max-width: 100%;
+  padding: 0.55rem 0.55rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--ink) 3%, transparent);
+  cursor: pointer;
+  touch-action: manipulation;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.vente-cat-pill:hover {
+  border-color: color-mix(in srgb, var(--sidebar-mid) 35%, var(--line));
+}
+
+.vente-cat-pill.is-active {
+  border-color: color-mix(in srgb, var(--sidebar-mid) 55%, var(--line));
+  background: color-mix(in srgb, var(--sidebar-mid) 6%, var(--surface));
+  box-shadow:
+    0 4px 16px color-mix(in srgb, var(--sidebar-mid) 14%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--sidebar-mid) 12%, transparent);
+}
+
+.vente-cat-pill-icon {
+  display: grid;
+  place-items: center;
+  width: 2.65rem;
+  height: 2.65rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--line) 22%, transparent);
+  color: var(--ink-soft);
+}
+
+.vente-cat-pill.is-active .vente-cat-pill-icon {
+  background: color-mix(in srgb, var(--sidebar-mid) 14%, var(--surface));
+  color: var(--sidebar-mid, #0a3d8f);
+}
+
+.vente-cat-pill-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.2;
+  color: var(--ink-soft);
+  width: 100%;
+  max-width: 100%;
+  padding: 0 0.15rem;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  box-sizing: border-box;
+}
+
+.vente-cat-pill.is-active .vente-cat-pill-label {
+  color: var(--sidebar-mid, #0a3d8f);
+}
+
+.vente-cat-pill-count {
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.vente-cat-pill.is-active .vente-cat-pill-count {
+  color: var(--sidebar-mid, #0a3d8f);
+}
+
+/* --- Scanner QR --------------------------------------------------------- */
+.vente-qr-scan {
+  margin-bottom: 0.5rem;
+}
+
+.vente-qr-scan-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-height: 2.85rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--sidebar-mid) 25%, var(--line));
+  background: var(--surface);
+  color: var(--sidebar-mid, #0a3d8f);
+  font-weight: 700;
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--ink) 3%, transparent);
+}
+
+.vente-qr-scan-toggle.is-active {
+  background: color-mix(in srgb, var(--sidebar-mid) 8%, var(--surface));
+  border-color: color-mix(in srgb, var(--sidebar-mid) 40%, var(--line));
+}
+
+.vente-qr-scan-icon {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.vente-qr-scan-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.vente-sticker-form {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.55rem;
+  align-items: end;
+  margin-bottom: 0.55rem;
+}
+
+.vente-sticker-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.vente-sticker-field span {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.vente-sticker-field input {
+  width: 100%;
+  min-height: 2.85rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--sidebar-mid) 28%, var(--line));
+  background: var(--surface);
+  padding: 0 0.85rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+}
+
+.vente-sticker-form .btn-primary {
+  min-height: 2.85rem;
+  border-radius: 14px;
+  padding-inline: 1rem;
+}
+
+.vente-sticker-card {
+  max-width: 26rem;
+  width: min(26rem, calc(100vw - 1.5rem));
+  padding: 1.15rem 1.2rem 1.2rem;
+}
+
+.vente-sticker-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+@media (max-width: 640px) {
+  .vente-sticker-form {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* --- Carte formulaire vente --------------------------------------------- */
+.vente-sale-card.vente-panel,
+.vente-meal-composer.vente-panel {
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--ink) 4%, transparent);
+  padding: 1rem 1.05rem 1.1rem;
+}
+
+.vente-sale-card .vente-panel-head h2,
+.vente-meal-composer .vente-panel-head h2 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--sidebar-mid, #0a3d8f);
+}
+
+.vente-sale-card .vente-panel-head p,
+.vente-meal-composer .vente-panel-head p {
+  font-size: 0.84rem;
+  color: var(--ink-soft);
+}
+
+.vente-meal-composer .btn-primary {
+  min-height: 3rem;
+  border-radius: 14px;
+  font-weight: 800;
+  background: var(--accent, #ffb800);
+  border-color: var(--accent, #ffb800);
+  color: #1a1200;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
+.vente-meal-composer .btn-primary:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+/* --- Grille produits ---------------------------------------------------- */
+.vente-grid .vente-card {
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--line) 75%, transparent);
+  box-shadow: 0 3px 14px color-mix(in srgb, var(--ink) 3%, transparent);
+}
+
+.vente-grid .vente-plus {
+  background: var(--accent, #ffb800);
+  border-color: var(--accent, #ffb800);
+  color: #1a1200;
+}
+
+/* --- Panier desktop ----------------------------------------------------- */
+.pos-cart.vente-panel {
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--line) 78%, transparent);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 5%, transparent);
+}
+
+.pos-cart-foot .btn-primary {
+  background: var(--accent, #ffb800);
+  border-color: var(--accent, #ffb800);
+  color: #1a1200;
+  font-weight: 800;
+  border-radius: 14px;
+}
+
+.vente-mobile-cart-validate {
+  background: var(--accent, #ffb800) !important;
+  border-color: var(--accent, #ffb800) !important;
+  color: #1a1200 !important;
+  font-weight: 800;
+}
+
+/* --- Desktop : contexte horizontal -------------------------------------- */
+.vente-cat-pill-label-short {
+  display: inline;
+}
+
+.vente-cat-pill-label-long {
+  display: none;
+}
+
+@media (min-width: 721px) {
+  .vente-cat-pill-label-short {
+    display: none;
+  }
+
+  .vente-cat-pill-label-long {
+    display: inline;
+  }
+
+  .vente-context-wrap .context-bar {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .vente-context-wrap .context-bar-main {
+    width: auto;
+    flex: 1 1 auto;
+  }
+
+  .vente-context-wrap .context-bar-actions {
+    width: auto;
+    flex: 0 0 auto;
+    justify-content: flex-end;
+  }
+
+  .vente-context-wrap .vente-journal-btn {
+    width: auto;
+    max-width: none;
+  }
+
+  .vente-cash-card {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: 1.1rem 1.25rem;
+  }
+
+  .vente-cash-card-body {
+    padding-right: 0;
+  }
+
+  .vente-cash-card-deco {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    align-self: center;
+  }
+
+  .vente-cat-pills {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
+
+  .vente-cat-pill {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: none;
+    padding: 0.65rem 0.55rem 0.55rem;
+  }
+}
+
+@media (min-width: 901px) {
+  .vente-workspace-top {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
+    gap: 0.85rem;
+    align-items: start;
+  }
+}

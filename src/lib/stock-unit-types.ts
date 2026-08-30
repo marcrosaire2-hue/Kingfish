@@ -1,7 +1,10 @@
-import type { VenteSite } from "@/lib/types";
+import type { VenteKind, VenteSite } from "@/lib/types";
 
-/** Cycle de vie d'une unité QR tracée (plat uniquement). */
+/** Cycle de vie d'une unité QR tracée. */
 export type StockUnitStatus = "prepare" | "envoye" | "vendu" | "perdu";
+
+/** Nature de l’article étiqueté. */
+export type StockUnitKind = Extract<VenteKind, "plat" | "local" | "boisson">;
 
 export const STOCK_UNIT_STATUS_LABELS: Record<StockUnitStatus, string> = {
   prepare: "Préparé",
@@ -31,6 +34,9 @@ export function canTransitionUnitStatus(
 export type StockUnit = {
   id: string;
   qrId: string;
+  /** Code court collé sous le QR, saisi à la caisse sans scanner. */
+  stickerCode: string;
+  kind: StockUnitKind;
   productId: string;
   productName: string;
   batchId: string;
@@ -72,9 +78,12 @@ export type PlatUnitStats = {
 export type StockZogboPayload = {
   date: string;
   plats: PlatUnitStats[];
+  accStats: PlatUnitStats[];
+  drinkStats: PlatUnitStats[];
   accompanimentLines: import("@/lib/types").GbegameyLocalLine[];
   localDishes: import("@/lib/types").LocalDish[];
   baseDishes: import("@/lib/types").BaseDish[];
+  drinks: import("@/lib/types").Drink[];
 };
 
 export type StockUnitScanResult = {

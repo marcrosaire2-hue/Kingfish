@@ -3,19 +3,21 @@ import {
   assertAdminCanManageTarget,
   canAccessPath,
   canManagePastVentes,
+  canWriteStock,
   defaultSiteForRole,
   effectiveSite,
+  filterNavKeysBySite,
+  navForSession,
   navForUser,
   sitesForRole,
   userVisibleToAdmin,
 } from "@/lib/auth-types";
 
 describe("rôle Comptable", () => {
-  it("ouvre la finance et la saisie stock par zone, sans vente ni Équipe", () => {
+  it("ouvre la finance et la consultation stock, sans vente, analyse ni registre", () => {
     const menu = navForUser("comptable", "tous");
     expect(menu).toEqual([
       "synthese",
-      "analyse",
       "compte-resultat",
       "comptabilite",
       "caisse",
@@ -26,27 +28,48 @@ describe("rôle Comptable", () => {
       "immobilisations",
       "journal-ventes",
       "quantites-vendues",
-      "historique",
       "rapport-quotidien",
       "controle",
     ]);
+    expect(menu).not.toContain("analyse");
+    expect(menu).not.toContain("historique");
     expect(canAccessPath("comptable", "/compte-resultat", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/comptabilite", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/zogbo", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/gbegamey", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/stock-gbegamey", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/achats", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/stock", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/immobilisations", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/analyse", "tous")).toBe(false);
+    expect(canAccessPath("comptable", "/historique", "tous")).toBe(false);
     expect(canAccessPath("comptable", "/admin", "tous")).toBe(false);
     expect(canAccessPath("comptable", "/vente", "tous")).toBe(false);
     expect(canAccessPath("comptable", "/parametres", "tous")).toBe(false);
+    expect(canWriteStock("comptable")).toBe(false);
     expect(canManagePastVentes("comptable")).toBe(true);
   });
 
-  it("couvre les deux sites", () => {
-    expect(sitesForRole("comptable")).toEqual(["tous"]);
-    expect(defaultSiteForRole("comptable")).toBe("tous");
-    expect(effectiveSite("comptable", "tous")).toBe("tous");
+  it("empêche le comptable de récupérer Analyse et Registre via un JWT", () => {
+    const navAvecPages = [
+      "analyse",
+      "historique",
+      "synthese",
+      "zogbo",
+    ] as const;
+    expect(
+      canAccessPath("comptable", "/analyse", "tous", undefined, [
+        ...navAvecPages,
+      ]),
+    ).toBe(false);
+    expect(
+      canAccessPath("comptable", "/historique", "tous", undefined, [
+        ...navAvecPages,
+      ]),
+    ).toBe(false);
+    expect(
+      filterNavKeysBySite([...navAvecPages], "comptable", "tous"),
+    ).toEqual(["synthese", "zogbo"]);
   });
 });
 
@@ -73,9 +96,21 @@ describe("étanchéité des zones", () => {
     expect(menu).not.toContain("gbegamey");
   });
 
-  it("le gérant accède au stock Zogbo sans quitter sa zone", () => {
-    expect(canAccessPath("gerant", "/stock-zogbo", "zogbo")).toBe(true);
-    expect(navForUser("gerant", "zogbo")).toContain("zogbo");
+  it("filterNavKeysBySite retire Gbégamey même si la clé était ajoutée par autorisations", () => {
+    const withGbegamey: ReturnType<typeof navForUser> = [
+      ...navForUser("gerant", "zogbo"),
+      "gbegamey",
+    ];
+    expect(filterNavKeysBySite(withGbegamey, "gerant", "zogbo")).not.toContain(
+      "gbegamey",
+    );
+  });
+
+  it("le gérant accède au stock Gbégamey sans quitter sa zone", () => {
+    expect(canAccessPath("gerant", "/stock-gbegamey", "gbegamey")).toBe(true);
+    expect(canAccessPath("gerant", "/gbegamey", "gbegamey")).toBe(true);
+    expect(canAccessPath("gerant", "/stock-gbegamey", "zogbo")).toBe(false);
+    expect(navForUser("gerant", "gbegamey")).toContain("gbegamey");
   });
 
   it("l’ancienne URL /combos suit le droit zogbo (redirection)", () => {
@@ -164,10 +199,32 @@ describe("l'API suit les droits de l'écran", () => {
     expect(navForUser("gerant", "zogbo")).toContain("parametres");
   });
 
-  it("ouvre Immobilisations au gérant ; l’API reste lisible via Vente", () => {
-    expect(navForUser("gerant", "zogbo")).toContain("immobilisations");
-    expect(canAccessPath("gerant", "/immobilisations", "zogbo")).toBe(true);
-    expect(canAccessPath("gerant", "/immobilisations", "gbegamey")).toBe(true);
+  it("retire Immobilisations au gérant, même si Vente ou un JWT l’ajoute", () => {
+    expect(navForUser("gerant", "zogbo")).not.toContain("immobilisations");
+    expect(navForUser("gerant", "gbegamey")).not.toContain("immobilisations");
+    expect(canAccessPath("gerant", "/immobilisations", "zogbo")).toBe(false);
+    expect(canAccessPath("gerant", "/immobilisations", "gbegamey")).toBe(false);
+    expect(
+      canAccessPath("gerant", "/immobilisations", "zogbo", undefined, [
+        "vente",
+        "immobilisations",
+      ]),
+    ).toBe(false);
+    expect(
+      filterNavKeysBySite(
+        ["vente", "immobilisations", "pertes"],
+        "gerant",
+        "zogbo",
+      ),
+    ).not.toContain("immobilisations");
+    expect(
+      navForSession({
+        role: "gerant",
+        site: "zogbo",
+        username: "gerant-zogbo",
+        nav: ["vente", "immobilisations", "caisse"],
+      }),
+    ).not.toContain("immobilisations");
   });
 
   it("restreint le compte Marc aux écrans direction (tableau, journaux, registre, admin)", () => {
@@ -233,17 +290,62 @@ describe("l'API suit les droits de l'écran", () => {
     ).toBe(true);
   });
 
-  it("donne au DAF les mêmes écrans qu’un admin, sans la page Équipe", () => {
+  it("retire au DAF vente, pertes, registre, régularisation, réglages POS et comptabilité", () => {
     const menu = navForUser("daf", "tous", "daff");
     expect(menu).not.toContain("admin");
-    expect(menu).toContain("vente");
+    expect(menu).not.toContain("vente");
+    expect(menu).not.toContain("pertes");
+    expect(menu).not.toContain("regularisation");
+    expect(menu).not.toContain("historique");
+    expect(menu).not.toContain("reglages");
+    expect(menu).not.toContain("comptabilite");
     expect(menu).toContain("compte-resultat");
+    expect(menu).toContain("zogbo");
+    expect(menu).toContain("gbegamey");
     expect(canAccessPath("daf", "/admin", "tous", "daff")).toBe(false);
-    expect(
-      canAccessPath("daf", "/api/admin/users".replace(/^\/api/, ""), "tous", "daff"),
-    ).toBe(false);
-    expect(canAccessPath("daf", "/vente", "tous", "daff")).toBe(true);
+    expect(canAccessPath("daf", "/vente", "tous", "daff")).toBe(false);
+    expect(canAccessPath("daf", "/pertes", "tous", "daff")).toBe(false);
+    expect(canAccessPath("daf", "/regularisation", "tous", "daff")).toBe(false);
+    expect(canAccessPath("daf", "/historique", "tous", "daff")).toBe(false);
+    expect(canAccessPath("daf", "/reglages", "tous", "daff")).toBe(false);
+    expect(canAccessPath("daf", "/comptabilite", "tous", "daff")).toBe(false);
+    expect(canAccessPath("daf", "/stock-zogbo", "tous", "daff")).toBe(true);
     expect(canAccessPath("daf", "/parametres", "tous", "daff")).toBe(true);
+    expect(canWriteStock("daf")).toBe(false);
+    expect(canWriteStock("comptable")).toBe(false);
+    expect(canWriteStock("gerant")).toBe(true);
     expect(canManagePastVentes("daf")).toBe(true);
+  });
+
+  it("empêche le DAF de récupérer ces pages via un JWT ou une matrice", () => {
+    const navAvecOps = [
+      "vente",
+      "pertes",
+      "regularisation",
+      "historique",
+      "reglages",
+      "comptabilite",
+      "zogbo",
+    ] as const;
+    expect(
+      canAccessPath("daf", "/vente", "tous", "daff", [...navAvecOps]),
+    ).toBe(false);
+    expect(
+      canAccessPath("daf", "/pertes", "tous", "daff", [...navAvecOps]),
+    ).toBe(false);
+    expect(
+      canAccessPath("daf", "/historique", "tous", "daff", [...navAvecOps]),
+    ).toBe(false);
+    expect(
+      filterNavKeysBySite([...navAvecOps], "daf", "tous"),
+    ).toEqual(["zogbo"]);
+    expect(
+      navForSession({
+        role: "daf",
+        site: "tous",
+        username: "daff",
+        nav: [...navAvecOps],
+      }),
+    ).not.toContain("vente");
   });
 });

@@ -1,14 +1,18 @@
 import { ObjectId } from "mongodb";
-import { randomUUID } from "crypto";
+import { randomBytes } from "crypto";
 import { getDb } from "@/lib/mongodb";
 import { isValidDate } from "@/lib/day-doc";
 import { applyZogboMovement } from "@/lib/zogbo-repo";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
+import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
+import { getParametres } from "@/lib/parametres-repo";
+import { normalizeStickerCode, STICKER_ALPHABET } from "@/lib/parse-qr-id";
 import type { GbegameyLocalLine, VenteSite } from "@/lib/types";
 import {
   canTransitionUnitStatus,
   type PlatUnitStats,
   type StockUnit,
+  type StockUnitKind,
   type StockUnitScanResult,
   type StockUnitStatus,
   type StockZogboPayload,
@@ -17,6 +21,8 @@ import {
 type StockUnitDoc = {
   _id: ObjectId;
   qrId: string;
+  stickerCode?: string;
+  kind?: StockUnitKind;
   productId: string;
   productName: string;
   batchId: string;
@@ -34,14 +40,40 @@ type StockUnitDoc = {
 
 let indexesReady: Promise<void> | null = null;
 
-export function createQrId(): string {
-  return `KF-${randomUUID()}`;
+const EMPTY_COUNTS: Record<StockUnitStatus, number> = {
+  prepare: 0,
+  envoye: 0,
+  vendu: 0,
+  perdu: 0,
+};
+
+export function createStickerCode(): string {
+  const bytes = randomBytes(6);
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += STICKER_ALPHABET[bytes[i]! % STICKER_ALPHABET.length];
+  }
+  return code;
+}
+
+export function createQrId(stickerCode = createStickerCode()): string {
+  return `KF-${stickerCode}`;
+}
+
+function unitKind(doc: Pick<StockUnitDoc, "kind">): StockUnitKind {
+  return doc.kind === "local" || doc.kind === "boisson" ? doc.kind : "plat";
 }
 
 function toUnit(doc: StockUnitDoc): StockUnit {
+  const sticker =
+    doc.stickerCode ||
+    normalizeStickerCode(doc.qrId) ||
+    doc.qrId;
   return {
     id: doc._id.toHexString(),
     qrId: doc.qrId,
+    stickerCode: sticker,
+    kind: unitKind(doc),
     productId: doc.productId,
     productName: doc.productName,
     batchId: doc.batchId,
@@ -65,6 +97,10 @@ export async function ensureStockUnitIndexes(): Promise<void> {
       const col = db.collection("stock_units");
       await col.createIndex({ qrId: 1 }, { unique: true, name: "qrId_unique" });
       await col.createIndex(
+        { stickerCode: 1 },
+        { unique: true, sparse: true, name: "sticker_unique" },
+      );
+      await col.createIndex(
         { date: 1, productId: 1, status: 1 },
         { name: "jour_produit_statut" },
       );
@@ -78,19 +114,39 @@ export async function ensureStockUnitIndexes(): Promise<void> {
   await indexesReady;
 }
 
+type UnitCountMaps = {
+  plat: Map<string, Record<StockUnitStatus, number>>;
+  local: Map<string, Record<StockUnitStatus, number>>;
+  boisson: Map<string, Record<StockUnitStatus, number>>;
+};
+
 async function countUnitsByProduct(
   date: string,
-): Promise<Map<string, Record<StockUnitStatus, number>>> {
+  site?: VenteSite,
+): Promise<UnitCountMaps> {
   await ensureStockUnitIndexes();
   const db = await getDb();
+  const match: Record<string, unknown> = { date };
+  if (site) match.site = site;
   const rows = await db
     .collection<StockUnitDoc>("stock_units")
-    .aggregate<{ _id: { productId: string; status: StockUnitStatus }; n: number }>(
+    .aggregate<{
+      _id: {
+        productId: string;
+        status: StockUnitStatus;
+        kind: StockUnitKind;
+      };
+      n: number;
+    }>(
       [
-        { $match: { date } },
+        { $match: match },
         {
           $group: {
-            _id: { productId: "$productId", status: "$status" },
+            _id: {
+              productId: "$productId",
+              status: "$status",
+              kind: { $ifNull: ["$kind", "plat"] },
+            },
             n: { $sum: 1 },
           },
         },
@@ -98,67 +154,211 @@ async function countUnitsByProduct(
     )
     .toArray();
 
-  const map = new Map<string, Record<StockUnitStatus, number>>();
+  const maps: UnitCountMaps = {
+    plat: new Map(),
+    local: new Map(),
+    boisson: new Map(),
+  };
   for (const row of rows) {
+    const kind: StockUnitKind =
+      row._id.kind === "local" || row._id.kind === "boisson"
+        ? row._id.kind
+        : "plat";
     const pid = row._id.productId;
-    const cur =
-      map.get(pid) ??
-      ({ prepare: 0, envoye: 0, vendu: 0, perdu: 0 } as Record<
-        StockUnitStatus,
-        number
-      >);
+    const cur = maps[kind].get(pid) ?? { ...EMPTY_COUNTS };
     cur[row._id.status] = row.n;
-    map.set(pid, cur);
+    maps[kind].set(pid, cur);
   }
-  return map;
+  return maps;
+}
+
+export async function countQrGeneratedByProduct(
+  date: string,
+  site: VenteSite,
+  kind: StockUnitKind,
+): Promise<Record<string, number>> {
+  const maps = await countUnitsByProduct(date, site);
+  const out: Record<string, number> = {};
+  for (const [id, c] of maps[kind]) {
+    out[id] = c.prepare + c.envoye + c.vendu;
+  }
+  return out;
+}
+
+/** Articles pour lesquels un QR est encore vendable sur ce site (stock QR > 0). */
+export async function listSellableQrProductIds(
+  site: VenteSite,
+): Promise<Set<string>> {
+  await ensureStockUnitIndexes();
+  const db = await getDb();
+  const filter =
+    site === "gbegamey"
+      ? {
+          site: "gbegamey" as const,
+          status: { $in: ["prepare", "envoye"] as StockUnitStatus[] },
+        }
+      : { site: "zogbo" as const, status: "prepare" as const };
+  const ids = await db
+    .collection<StockUnitDoc>("stock_units")
+    .distinct("productId", filter);
+  return new Set(
+    ids.map((id) => String(id ?? "").trim()).filter(Boolean),
+  );
+}
+
+function statsFromCounts(
+  productId: string,
+  productName: string,
+  prepared: number,
+  counts: Record<StockUnitStatus, number> | undefined,
+  extra: Partial<PlatUnitStats> = {},
+): PlatUnitStats {
+  const c = counts ?? EMPTY_COUNTS;
+  const qrGenerated = c.prepare + c.envoye + c.vendu + c.perdu;
+  const qrSent = c.envoye + c.vendu;
+  return {
+    productId,
+    productName,
+    prepared,
+    sentAggregate: extra.sentAggregate ?? qrSent,
+    soldAggregate: extra.soldAggregate ?? c.vendu,
+    pertesAggregate: extra.pertesAggregate ?? 0,
+    stockAggregate: extra.stockAggregate ?? c.prepare,
+    qrGenerated,
+    qrSent,
+    qrRemainingZogbo: extra.qrRemainingZogbo ?? c.prepare,
+    qrVendu: c.vendu,
+    qrPerdu: c.perdu,
+    qrToGenerate:
+      extra.qrToGenerate ?? Math.max(0, prepared - qrGenerated),
+  };
 }
 
 export async function getStockZogboPayload(
   date: string,
 ): Promise<StockZogboPayload> {
+  return getStockSitePayload(date, "zogbo");
+}
+
+export async function getStockSitePayload(
+  date: string,
+  site: VenteSite = "zogbo",
+): Promise<StockZogboPayload> {
   if (!isValidDate(date)) throw new Error("Date invalide (attendu YYYY-MM-DD)");
 
-  const [zogbo, unitCounts] = await Promise.all([
+  const [{ drinks }, unitCounts] = await Promise.all([
+    getParametres(),
+    countUnitsByProduct(date, site),
+  ]);
+
+  if (site === "gbegamey") {
+    const gbegamey = await getGbegameyDayPayload(date);
+    const plats: PlatUnitStats[] = gbegamey.baseDishes.map((dish) => {
+      const line = gbegamey.day.transferLines.find(
+        (l) => l.productId === dish.id,
+      );
+      const counts = unitCounts.plat.get(dish.id);
+      const qrGenerated =
+        (counts?.prepare ?? 0) +
+        (counts?.envoye ?? 0) +
+        (counts?.vendu ?? 0) +
+        (counts?.perdu ?? 0);
+      const remaining = (counts?.prepare ?? 0) + (counts?.envoye ?? 0);
+      return statsFromCounts(dish.id, dish.name, qrGenerated, counts, {
+        sentAggregate: line?.received ?? (counts?.envoye ?? 0) + (counts?.vendu ?? 0),
+        soldAggregate: line?.sold ?? counts?.vendu ?? 0,
+        pertesAggregate: line?.pertes ?? 0,
+        stockAggregate: remaining,
+        qrRemainingZogbo: remaining,
+        qrToGenerate: 0,
+      });
+    });
+    const accLines = gbegamey.day.localLines ?? [];
+    const accStats = gbegamey.localDishes.map((dish) => {
+      const line = accLines.find((l) => l.productId === dish.id);
+      return statsFromCounts(
+        dish.id,
+        dish.name,
+        line?.prepared ?? 0,
+        unitCounts.local.get(dish.id),
+        { soldAggregate: line?.sold ?? 0, pertesAggregate: line?.pertes ?? 0 },
+      );
+    });
+    const drinkStats = drinks.map((d) =>
+      statsFromCounts(d.id, d.name, 0, unitCounts.boisson.get(d.id), {
+        qrToGenerate: 0,
+        prepared:
+          (unitCounts.boisson.get(d.id)?.prepare ?? 0) +
+          (unitCounts.boisson.get(d.id)?.envoye ?? 0) +
+          (unitCounts.boisson.get(d.id)?.vendu ?? 0) +
+          (unitCounts.boisson.get(d.id)?.perdu ?? 0),
+      }),
+    );
+
+    return {
+      date,
+      plats,
+      accStats,
+      drinkStats,
+      accompanimentLines: accLines,
+      localDishes: gbegamey.localDishes,
+      baseDishes: gbegamey.baseDishes,
+      drinks,
+    };
+  }
+
+  const [zogbo, platCounts] = await Promise.all([
     getZogboDayPayload(date),
     countUnitsByProduct(date),
   ]);
-
   const plats: PlatUnitStats[] = zogbo.baseDishes.map((dish) => {
     const line = zogbo.day.lines.find((l) => l.productId === dish.id);
-    const counts = unitCounts.get(dish.id) ?? {
-      prepare: 0,
-      envoye: 0,
-      vendu: 0,
-      perdu: 0,
-    };
-    const qrGenerated =
-      counts.prepare + counts.envoye + counts.vendu + counts.perdu;
-    const qrSent = counts.envoye + counts.vendu;
     const prepared = line?.prepared ?? 0;
-
-    return {
-      productId: dish.id,
-      productName: dish.name,
+    return statsFromCounts(
+      dish.id,
+      dish.name,
       prepared,
-      sentAggregate: line?.sentToGbegamey ?? 0,
-      soldAggregate: line?.sold ?? 0,
-      pertesAggregate: line?.pertes ?? 0,
-      stockAggregate: line?.stock ?? 0,
-      qrGenerated,
-      qrSent,
-      qrRemainingZogbo: counts.prepare,
-      qrVendu: counts.vendu,
-      qrPerdu: counts.perdu,
-      qrToGenerate: Math.max(0, prepared - qrGenerated),
-    };
+      platCounts.plat.get(dish.id),
+      {
+        sentAggregate: line?.sentToGbegamey ?? 0,
+        soldAggregate: line?.sold ?? 0,
+        pertesAggregate: line?.pertes ?? 0,
+        stockAggregate: line?.stock ?? 0,
+      },
+    );
+  });
+  const accLines = zogbo.day.accompanimentLines ?? [];
+  const accStats = zogbo.localDishes.map((dish) => {
+    const line = accLines.find((l) => l.productId === dish.id);
+    return statsFromCounts(
+      dish.id,
+      dish.name,
+      line?.prepared ?? 0,
+      unitCounts.local.get(dish.id),
+      { soldAggregate: line?.sold ?? 0, pertesAggregate: line?.pertes ?? 0 },
+    );
+  });
+  const drinkStats = drinks.map((d) => {
+    const counts = unitCounts.boisson.get(d.id);
+    const generated =
+      (counts?.prepare ?? 0) +
+      (counts?.envoye ?? 0) +
+      (counts?.vendu ?? 0) +
+      (counts?.perdu ?? 0);
+    return statsFromCounts(d.id, d.name, generated, counts, {
+      qrToGenerate: 0,
+    });
   });
 
   return {
     date,
     plats,
-    accompanimentLines: zogbo.day.accompanimentLines ?? [],
+    accStats,
+    drinkStats,
+    accompanimentLines: accLines,
     localDishes: zogbo.localDishes,
     baseDishes: zogbo.baseDishes,
+    drinks,
   };
 }
 
@@ -188,92 +388,231 @@ export async function preparePlatUnits(input: {
 }
 
 /**
- * Génère N QR unitaires uniques. Refuse les doublons implicites : N ne peut
- * pas dépasser `prepared − déjà générés`.
+ * Génère N QR unitaires uniques (plat, accompagnement ou boisson).
  */
 export async function generatePlatQrUnits(input: {
   date: string;
   productId: string;
   qty: number;
-}): Promise<{ units: StockUnit[]; payload: StockZogboPayload }> {
+  site?: VenteSite;
+  kind?: StockUnitKind;
+  movementId?: string | null;
+  skipPayload?: boolean;
+}): Promise<{ units: StockUnit[]; payload?: StockZogboPayload }> {
   const qty = Math.round(Number(input.qty));
+  const site: VenteSite = input.site === "gbegamey" ? "gbegamey" : "zogbo";
+  const kind: StockUnitKind =
+    input.kind === "local" || input.kind === "boisson" ? input.kind : "plat";
   if (!Number.isFinite(qty) || qty <= 0) {
     throw new Error("Nombre de QR invalide.");
   }
   if (!isValidDate(input.date)) throw new Error("Date invalide.");
 
   await ensureStockUnitIndexes();
+  const parametres = await getParametres();
+  let productName: string;
 
-  const zogbo = await getZogboDayPayload(input.date);
-  const line = zogbo.day.lines.find((l) => l.productId === input.productId);
-  if (!line) throw new Error("Plat introuvable dans le catalogue.");
-
-  const existing = await countUnitsByProduct(input.date);
-  const counts = existing.get(input.productId) ?? {
-    prepare: 0,
-    envoye: 0,
-    vendu: 0,
-    perdu: 0,
-  };
-  const qrGenerated =
-    counts.prepare + counts.envoye + counts.vendu + counts.perdu;
-  let remaining = line.prepared - qrGenerated;
-
-  if (qty > remaining) {
-    const deficit = qty - remaining;
-    await applyZogboMovement({
+  if (kind === "local") {
+    const dish = parametres.localDishes.find((d) => d.id === input.productId);
+    if (!dish) throw new Error("Accompagnement introuvable dans le catalogue.");
+    productName = dish.name;
+    await ensureAccPreparedForQr({
       date: input.date,
+      site,
       productId: input.productId,
-      type: "prepare",
-      qty: deficit,
+      productName,
+      qty,
     });
-    const refreshed = await getZogboDayPayload(input.date);
-    const refreshedLine = refreshed.day.lines.find(
-      (l) => l.productId === input.productId,
-    );
-    if (!refreshedLine) throw new Error("Plat introuvable dans le catalogue.");
-    remaining = refreshedLine.prepared - qrGenerated;
+  } else if (kind === "boisson") {
+    const drink = parametres.drinks.find((d) => d.id === input.productId);
+    if (!drink) throw new Error("Boisson introuvable dans le catalogue.");
+    productName = drink.name;
+  } else if (site === "gbegamey") {
+    const dish = parametres.baseDishes.find((d) => d.id === input.productId);
+    if (!dish) throw new Error("Plat introuvable dans le catalogue.");
+    productName = dish.name;
+  } else {
+    const zogbo = await getZogboDayPayload(input.date);
+    const line = zogbo.day.lines.find((l) => l.productId === input.productId);
+    if (!line) throw new Error("Plat introuvable dans le catalogue.");
+    productName = line.name;
+
+    const existing = await countUnitsByProduct(input.date);
+    const counts = existing.plat.get(input.productId) ?? EMPTY_COUNTS;
+    const qrGenerated =
+      counts.prepare + counts.envoye + counts.vendu + counts.perdu;
+    let remaining = line.prepared - qrGenerated;
+
     if (qty > remaining) {
-      throw new Error("Préparation automatique insuffisante pour générer les QR.");
+      const deficit = qty - remaining;
+      await applyZogboMovement({
+        date: input.date,
+        productId: input.productId,
+        type: "prepare",
+        qty: deficit,
+      });
+      const refreshed = await getZogboDayPayload(input.date);
+      const refreshedLine = refreshed.day.lines.find(
+        (l) => l.productId === input.productId,
+      );
+      if (!refreshedLine) throw new Error("Plat introuvable dans le catalogue.");
+      remaining = refreshedLine.prepared - qrGenerated;
+      if (qty > remaining) {
+        throw new Error("Préparation automatique insuffisante pour générer les QR.");
+      }
     }
   }
 
   const now = new Date().toISOString();
   const batchId = `${input.date}:${input.productId}:${Date.now()}`;
-  const docs: StockUnitDoc[] = Array.from({ length: qty }, () => ({
-    _id: new ObjectId(),
-    qrId: createQrId(),
-    productId: input.productId,
-    productName: line.name,
-    batchId,
-    date: input.date,
-    site: "zogbo",
-    status: "prepare",
-    movementId: null,
-    preparedAt: now,
-    sentAt: null,
-    soldAt: null,
-    lostAt: null,
-    createdAt: now,
-    updatedAt: now,
-  }));
+  const docs: StockUnitDoc[] = [];
+  const used = new Set<string>();
+  for (let i = 0; i < qty; i++) {
+    let sticker = createStickerCode();
+    let guard = 0;
+    while (used.has(sticker) && guard < 20) {
+      sticker = createStickerCode();
+      guard += 1;
+    }
+    used.add(sticker);
+    docs.push({
+      _id: new ObjectId(),
+      qrId: createQrId(sticker),
+      stickerCode: sticker,
+      kind,
+      productId: input.productId,
+      productName,
+      batchId,
+      date: input.date,
+      site,
+      status: "prepare",
+      movementId: input.movementId ?? null,
+      preparedAt: now,
+      sentAt: null,
+      soldAt: null,
+      lostAt: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
 
   const db = await getDb();
   await db.collection<StockUnitDoc>("stock_units").insertMany(docs);
 
-  const payload = await getStockZogboPayload(input.date);
+  const payload = input.skipPayload
+    ? undefined
+    : await getStockSitePayload(input.date, site);
   return { units: docs.map(toUnit), payload };
+}
+
+/** Annule les QR encore invendus d’un achat boissons — n’altère pas les unités déjà vendues. */
+export async function voidPrepareUnitsByMovement(
+  movementId: string,
+): Promise<number> {
+  const id = String(movementId ?? "").trim();
+  if (!id) return 0;
+  await ensureStockUnitIndexes();
+  const now = new Date().toISOString();
+  const db = await getDb();
+  const result = await db.collection<StockUnitDoc>("stock_units").updateMany(
+    { movementId: id, status: "prepare" },
+    { $set: { status: "perdu", lostAt: now, updatedAt: now } },
+  );
+  return result.modifiedCount;
+}
+
+function withAccPrepared(
+  lines: GbegameyLocalLine[],
+  input: { productId: string; productName: string; needed: number },
+): GbegameyLocalLine[] {
+  const line = lines.find((l) => l.productId === input.productId);
+  if (line) {
+    return lines.map((l) =>
+      l.productId === input.productId ? { ...l, prepared: input.needed } : l,
+    );
+  }
+  return [
+    ...lines,
+    {
+      productId: input.productId,
+      name: input.productName,
+      initialStock: 0,
+      prepared: input.needed,
+      sold: 0,
+      pertes: 0,
+      counted: null,
+      observations: "",
+    },
+  ];
+}
+
+async function ensureAccPreparedForQr(input: {
+  date: string;
+  site: VenteSite;
+  productId: string;
+  productName: string;
+  qty: number;
+}): Promise<void> {
+  const counts = await countUnitsByProduct(input.date, input.site);
+  const c = counts.local.get(input.productId) ?? EMPTY_COUNTS;
+  const qrGenerated = c.prepare + c.envoye + c.vendu + c.perdu;
+  const needed = qrGenerated + input.qty;
+
+  if (input.site === "gbegamey") {
+    const gbegamey = await getGbegameyDayPayload(input.date);
+    const lines = gbegamey.day.localLines ?? [];
+    const prepared = lines.find((l) => l.productId === input.productId)?.prepared ?? 0;
+    if (needed <= prepared) return;
+    await saveGbegameyDay({
+      date: input.date,
+      transferLines: gbegamey.day.transferLines,
+      localLines: withAccPrepared(lines, {
+        productId: input.productId,
+        productName: input.productName,
+        needed,
+      }),
+      stockSaisie: true,
+      status: gbegamey.day.status,
+    });
+    return;
+  }
+
+  const zogbo = await getZogboDayPayload(input.date);
+  const lines = zogbo.day.accompanimentLines ?? [];
+  const prepared = lines.find((l) => l.productId === input.productId)?.prepared ?? 0;
+  if (needed <= prepared) return;
+  await saveZogboDay({
+    date: input.date,
+    lines: zogbo.day.lines,
+    accompanimentLines: withAccPrepared(lines, {
+      productId: input.productId,
+      productName: input.productName,
+      needed,
+    }),
+    stockSaisie: true,
+  });
 }
 
 export async function lookupStockUnit(qrId: string): Promise<StockUnit | null> {
   await ensureStockUnitIndexes();
-  const normalized = String(qrId ?? "").trim();
-  if (!normalized) return null;
+  const raw = String(qrId ?? "").trim();
+  if (!raw) return null;
+  const sticker = normalizeStickerCode(raw);
+  const candidates = [
+    ...new Set(
+      [raw, raw.toUpperCase(), raw.toLowerCase(), `KF-${sticker}`, sticker].filter(
+        Boolean,
+      ),
+    ),
+  ];
 
   const db = await getDb();
-  const doc = await db
-    .collection<StockUnitDoc>("stock_units")
-    .findOne({ qrId: normalized });
+  const doc = await db.collection<StockUnitDoc>("stock_units").findOne({
+    $or: [
+      { qrId: { $in: candidates } },
+      ...(sticker ? [{ stickerCode: sticker }] : []),
+    ],
+  });
   return doc ? toUnit(doc) : null;
 }
 
@@ -282,7 +621,7 @@ export function scanStockUnit(
   context: {
     date: string;
     site?: VenteSite;
-    workflow: "zogbo-send" | "vente";
+    workflow: "zogbo-send" | "gbegamey-receive" | "vente";
   },
 ): StockUnitScanResult {
   const allowedActions: StockUnitScanResult["allowedActions"] = [];
@@ -339,17 +678,17 @@ export function scanStockUnit(
         unit,
         allowedActions,
         message: dateHint
-          ? `Plat prêt à vendre${dateHint}.`
-          : "Plat prêt à vendre.",
+          ? `Article prêt à vendre${dateHint}.`
+          : "Article prêt à vendre.",
       };
     }
 
-    if (unit.site !== "gbegamey" || unit.status !== "envoye") {
+    if (unit.site !== "gbegamey" || (unit.status !== "envoye" && unit.status !== "prepare")) {
       if (unit.site === "zogbo" && unit.status === "prepare") {
         return {
           unit,
           allowedActions: [],
-          message: "Ce plat n'a pas encore été envoyé à Gbégamey.",
+          message: "Cet article n'a pas encore été envoyé à Gbégamey.",
         };
       }
       return {
@@ -365,12 +704,19 @@ export function scanStockUnit(
       unit,
       allowedActions,
       message: dateHint
-        ? `Plat prêt à vendre${dateHint}.`
-        : "Plat prêt à vendre.",
+        ? `Article prêt à vendre${dateHint}.`
+        : "Article prêt à vendre.",
     };
   }
 
-  if (context.workflow === "zogbo-send") {
+  if (context.workflow === "zogbo-send" || context.workflow === "gbegamey-receive") {
+    if (unit.kind !== "plat") {
+      return {
+        unit,
+        allowedActions: [],
+        message: "Seuls les plats s’envoient vers Gbégamey.",
+      };
+    }
     if (unit.date !== context.date) {
       return {
         unit,
@@ -413,6 +759,7 @@ export function scanStockUnit(
 export async function sendPlatQrUnits(input: {
   date: string;
   qrIds: string[];
+  payloadSite?: VenteSite;
 }): Promise<{
   sent: StockUnit[];
   skipped: Array<{ qrId: string; reason: string }>;
@@ -432,9 +779,15 @@ export async function sendPlatQrUnits(input: {
   const byProduct = new Map<string, string[]>();
 
   for (const qrId of ids) {
+    const resolved = await lookupStockUnit(qrId);
+    const canonical = resolved?.qrId ?? qrId;
+    if (resolved && resolved.kind !== "plat") {
+      skipped.push({ qrId, reason: "Seuls les plats s’envoient vers Gbégamey." });
+      continue;
+    }
     const doc = await col.findOneAndUpdate(
       {
-        qrId,
+        qrId: canonical,
         date: input.date,
         site: "zogbo",
         status: "prepare",
@@ -451,7 +804,7 @@ export async function sendPlatQrUnits(input: {
     );
 
     if (!doc) {
-      const existing = await col.findOne({ qrId });
+      const existing = await col.findOne({ qrId: canonical });
       if (!existing) {
         skipped.push({ qrId, reason: "QR introuvable." });
       } else if (existing.status === "envoye" || existing.status === "vendu") {
@@ -473,11 +826,14 @@ export async function sendPlatQrUnits(input: {
     byProduct.set(unit.productId, list);
   }
 
+  const payloadSite: VenteSite =
+    input.payloadSite === "gbegamey" ? "gbegamey" : "zogbo";
+
   if (!sent.length) {
     return {
       sent: [],
       skipped,
-      payload: await getStockZogboPayload(input.date),
+      payload: await getStockSitePayload(input.date, payloadSite),
     };
   }
 
@@ -518,7 +874,7 @@ export async function sendPlatQrUnits(input: {
       : new Error("Échec du mouvement d'envoi — unités QR restaurées.");
   }
 
-  const payload = await getStockZogboPayload(input.date);
+  const payload = await getStockSitePayload(input.date, payloadSite);
   return { sent, skipped, payload };
 }
 
@@ -551,7 +907,20 @@ export async function listPlatUnits(input: {
 export async function saveAccompanimentStock(input: {
   date: string;
   accompanimentLines: GbegameyLocalLine[];
+  site?: VenteSite;
 }): Promise<StockZogboPayload> {
+  const site: VenteSite = input.site === "gbegamey" ? "gbegamey" : "zogbo";
+  if (site === "gbegamey") {
+    const gbegamey = await getGbegameyDayPayload(input.date);
+    await saveGbegameyDay({
+      date: input.date,
+      transferLines: gbegamey.day.transferLines,
+      localLines: input.accompanimentLines,
+      stockSaisie: true,
+      status: gbegamey.day.status,
+    });
+    return getStockSitePayload(input.date, "gbegamey");
+  }
   const zogbo = await getZogboDayPayload(input.date);
   await saveZogboDay({
     date: input.date,
@@ -559,7 +928,7 @@ export async function saveAccompanimentStock(input: {
     accompanimentLines: input.accompanimentLines,
     stockSaisie: true,
   });
-  return getStockZogboPayload(input.date);
+  return getStockSitePayload(input.date, "zogbo");
 }
 
 /** Vérifie la cohérence agrégés ↔ unités (tests / diagnostic). */
@@ -596,18 +965,43 @@ export async function claimPlatUnitForSale(input: {
   const qrId = String(input.qrId ?? "").trim();
   if (!qrId) throw new Error("QR invalide.");
 
-  const filter =
-    input.site === "zogbo"
-      ? { qrId, site: "zogbo" as const, status: "prepare" as const }
-      : { qrId, site: "gbegamey" as const, status: "envoye" as const };
+  const resolved = await lookupStockUnit(qrId);
+  const canonical = resolved?.qrId ?? qrId;
 
   const now = new Date().toISOString();
   const db = await getDb();
-  const doc = await db.collection<StockUnitDoc>("stock_units").findOneAndUpdate(
-    filter,
-    { $set: { status: "vendu", soldAt: now, updatedAt: now } },
-    { returnDocument: "after" },
-  );
+  const col = db.collection<StockUnitDoc>("stock_units");
+
+  const filterZogbo = {
+    qrId: canonical,
+    site: "zogbo" as const,
+    status: "prepare" as const,
+  };
+  const filterGbegameyEnvoye = {
+    qrId: canonical,
+    site: "gbegamey" as const,
+    status: "envoye" as const,
+  };
+  const filterGbegameyPrepare = {
+    qrId: canonical,
+    site: "gbegamey" as const,
+    status: "prepare" as const,
+  };
+
+  const filters =
+    input.site === "zogbo"
+      ? [filterZogbo]
+      : [filterGbegameyEnvoye, filterGbegameyPrepare];
+
+  let doc = null;
+  for (const filter of filters) {
+    doc = await col.findOneAndUpdate(
+      filter,
+      { $set: { status: "vendu", soldAt: now, updatedAt: now } },
+      { returnDocument: "after" },
+    );
+    if (doc) break;
+  }
 
   if (!doc) {
     const existing = await lookupStockUnit(qrId);
@@ -632,11 +1026,18 @@ export async function restorePlatUnitAfterSaleCancel(input: {
   const qrId = String(input.qrId ?? "").trim();
   if (!qrId) return;
 
-  const prevStatus = input.site === "zogbo" ? "prepare" : "envoye";
+  const resolved = await lookupStockUnit(qrId);
+  const canonical = resolved?.qrId ?? qrId;
+
   const now = new Date().toISOString();
   const db = await getDb();
-  await db.collection<StockUnitDoc>("stock_units").updateOne(
-    { qrId, status: "vendu" },
+  const col = db.collection<StockUnitDoc>("stock_units");
+  const current = await col.findOne({ qrId: canonical, status: "vendu" });
+  if (!current) return;
+
+  const prevStatus = current.sentAt ? "envoye" : "prepare";
+  await col.updateOne(
+    { qrId: canonical, status: "vendu" },
     { $set: { status: prevStatus, soldAt: null, updatedAt: now } },
   );
 }

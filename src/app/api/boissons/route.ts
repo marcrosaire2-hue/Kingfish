@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
 import type { BoissonsLine } from "@/lib/types";
-import { authErrorResponse, requireUser } from "@/lib/api-auth";
+import { authErrorResponse, requireStockWrite, requireUser } from "@/lib/api-auth";
 import { canUseSite, effectiveSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
+import { unitsPerCasierOf } from "@/lib/boissons-calc";
 import {
   applyBoissonsPurchase,
   cancelBoissonsMovement,
   getBoissonsDayPayload,
   saveBoissonsDay,
 } from "@/lib/boissons-repo";
+import {
+  countQrGeneratedByProduct,
+  generatePlatQrUnits,
+  voidPrepareUnitsByMovement,
+} from "@/lib/stock-unit-repo";
 import { listVentesByKind, sumCaByKindForSite } from "@/lib/vente-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
@@ -41,7 +47,16 @@ export async function GET(request: Request) {
       site === "zogbo" || site === "gbegamey"
         ? await sumCaByKindForSite(date, site, "boisson")
         : 0;
-    return NextResponse.json({ ...payload, exits, caJournal });
+    const qrGeneratedByProduct =
+      site === "zogbo" || site === "gbegamey"
+        ? await countQrGeneratedByProduct(date, site, "boisson")
+        : {};
+    return NextResponse.json({
+      ...payload,
+      exits,
+      caJournal,
+      qrGeneratedByProduct,
+    });
   } catch (error) {
     return authErrorResponse(error);
   }
@@ -50,6 +65,7 @@ export async function GET(request: Request) {
 export async function PUT(request: Request) {
   try {
     const user = await requireUser();
+    requireStockWrite(user);
     const body = (await request.json()) as {
       date?: string;
       status?: "ouverte" | "cloturee";
@@ -96,12 +112,14 @@ export async function PUT(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
+    requireStockWrite(user);
     const body = (await request.json()) as {
       action?: "cancel";
       date?: string;
       productId?: string;
       movementId?: string;
       qty?: number;
+      qtyBottles?: number;
       site?: "zogbo" | "gbegamey";
     };
 
@@ -118,21 +136,33 @@ export async function POST(request: Request) {
         movementId: body.movementId,
         site: scope === "tous" ? null : scope,
       });
+      const voidedQr = await voidPrepareUnitsByMovement(body.movementId);
       const m = cancelled.movement;
       await logActivity({
         user,
         kind: "boissons",
         title: `Annulation achat · ${m.name}`,
-        detail: `−${m.qty} · entrée annulée`,
+        detail: `−${m.qty} · ${voidedQr} QR annulé(s)`,
         date: body.date,
-        site: body.site ?? null,
+        site: body.site ?? m.site,
       });
       const exits = await listVentesByKind({
         date: body.date,
         kind: "boisson",
         site: body.site ?? "all",
       });
-      return NextResponse.json({ ...cancelled, exits });
+      const qrSite = body.site ?? m.site;
+      const qrGeneratedByProduct = await countQrGeneratedByProduct(
+        body.date,
+        qrSite,
+        "boisson",
+      );
+      return NextResponse.json({
+        ...cancelled,
+        exits,
+        voidedQr,
+        qrGeneratedByProduct,
+      });
     }
 
     if (
@@ -157,11 +187,38 @@ export async function POST(request: Request) {
       qty: body.qty,
     });
     const m = result.movement;
+    const drink = result.drinks.find((d) => d.id === body.productId);
+    const bottles = Math.max(
+      0,
+      Math.round(Number(body.qtyBottles) || 0) ||
+        Math.round(m.qty * unitsPerCasierOf(drink)),
+    );
+    let units: Awaited<ReturnType<typeof generatePlatQrUnits>>["units"] = [];
+    let qrError: string | null = null;
+    if (bottles > 0) {
+      try {
+        const generated = await generatePlatQrUnits({
+          date: body.date,
+          productId: body.productId,
+          qty: bottles,
+          site: body.site,
+          kind: "boisson",
+          movementId: m.id,
+          skipPayload: true,
+        });
+        units = generated.units;
+      } catch (error) {
+        qrError =
+          error instanceof Error
+            ? error.message
+            : "QR des nouvelles bouteilles impossible.";
+      }
+    }
     await logActivity({
       user,
       kind: "boissons",
       title: `Achat · ${m.name}`,
-      detail: `+${m.qty} · dispo ${m.stockAfter}`,
+      detail: `+${bottles || m.qty} bt · ${units.length} QR · dispo ${m.stockAfter}`,
       date: body.date,
       site: body.site ?? null,
     });
@@ -170,7 +227,18 @@ export async function POST(request: Request) {
       kind: "boisson",
       site: body.site ?? "all",
     });
-    return NextResponse.json({ ...result, exits });
+    const qrGeneratedByProduct = await countQrGeneratedByProduct(
+      body.date,
+      body.site,
+      "boisson",
+    );
+    return NextResponse.json({
+      ...result,
+      exits,
+      units,
+      qrError,
+      qrGeneratedByProduct,
+    });
   } catch (error) {
     reportError("POST /api/boissons", error);
     const message =
