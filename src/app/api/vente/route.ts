@@ -23,7 +23,6 @@ import { resolveOperatingDate, ensureActiveCaisseForSite } from "@/lib/caisse-re
 import {
   editVenteQty,
   getVenteBoard,
-  recordExtraVente,
   recordVente,
   undoVente,
   deleteVentePermanently,
@@ -344,35 +343,13 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "extra") {
-      const sellGate = authorizeVenteAction({
-        config: siteRoles,
-        role: user.role,
-        site,
-        action: "sell",
-      });
-      if (!sellGate.ok) {
-        return NextResponse.json(
-          { error: sellGate.error },
-          { status: sellGate.status },
-        );
-      }
-      if (body.description === undefined || body.unitPrice === undefined) {
-        return NextResponse.json(
-          { error: "description et unitPrice requis." },
-          { status: 400 },
-        );
-      }
-      const date = await resolveOperatingDate(site, body.date, {
-        allowBackdate: manager,
-      });
-      const result = await recordExtraVente({
-        date,
-        site,
-        description: body.description,
-        unitPrice: body.unitPrice,
-        actor,
-      });
-      return NextResponse.json(result);
+      return NextResponse.json(
+        {
+          error:
+            "Les ventes hors catalogue ne sont plus autorisées. Choisissez un article du catalogue.",
+        },
+        { status: 410 },
+      );
     }
 
     if (!body.kind || !body.productId) {

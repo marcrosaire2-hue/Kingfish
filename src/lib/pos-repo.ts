@@ -19,7 +19,6 @@ import {
   assertSameTeamCancellation,
   deleteVentePermanently,
   getVenteBoard,
-  recordExtraVente,
   recordVente,
   undoVente,
 } from "@/lib/vente-repo";
@@ -291,28 +290,9 @@ export async function validatePosTicket(input: {
       if (qty <= 0) continue;
 
       if (line.kind === "extra") {
-        const result = await recordExtraVente({
-          date,
-          site: input.site,
-          description: line.name || line.productId || "Extra",
-          unitPrice: Math.round(Number(line.unitPrice) || 0),
-          qty,
-          immobilisationId:
-            line.productId && ObjectId.isValid(line.productId)
-              ? line.productId
-              : null,
-          actor,
-        });
-        createdLogIds.push(result.entry.id);
-        ticketLines.push({
-          kind: "extra",
-          productId: result.entry.productId,
-          name: result.entry.name,
-          qty: result.entry.qty,
-          unitPrice: result.entry.unitPrice,
-          amount: result.entry.amount,
-          venteLogId: result.entry.id,
-        });
+        throw new Error(
+          "Les ventes hors catalogue ne sont plus autorisées. Choisissez un article du catalogue.",
+        );
       } else {
         const qrId = line.qrId ? String(line.qrId).trim() : null;
         if (

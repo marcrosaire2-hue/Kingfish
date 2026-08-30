@@ -11,7 +11,7 @@ import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
 import { RegistreDrawer } from "@/components/registre-drawer";
 import { QrScanner } from "@/components/stock-zogbo/qr-scanner";
-import { formatFcfa, parseMoneyInput } from "@/lib/format";
+import { formatFcfa } from "@/lib/format";
 import { formatStickerCode, parseQrIdFromScan } from "@/lib/parse-qr-id";
 import {
   ajouterEnAttente,
@@ -30,7 +30,6 @@ import {
 } from "@/lib/catalog-zogbo";
 import type {
   CaisseSession,
-  Immobilisation,
   PosConfig,
   PosTicket,
   SaleType,
@@ -72,10 +71,10 @@ function venteKindFromUnit(kind: unknown): VenteProduct["kind"] {
   return "plat";
 }
 
-type CatKey = "plat" | "accompagnement" | "boisson" | "extra";
+type CatKey = "plat" | "accompagnement" | "boisson";
 
-/** Onglet UI → kind API (`extra` = saisie libre). */
-const CAT_KIND: Record<Exclude<CatKey, "extra">, VenteProduct["kind"]> = {
+/** Onglet UI → kind API. */
+const CAT_KIND: Record<CatKey, VenteProduct["kind"]> = {
   plat: "plat",
   accompagnement: "local",
   boisson: "boisson",
@@ -85,14 +84,12 @@ const CAT_LABELS: Record<CatKey, string> = {
   plat: "Plats",
   accompagnement: "Accompagnements",
   boisson: "Boissons",
-  extra: "Hors catalogue",
 };
 
 const CAT_SHORT_LABELS: Record<CatKey, string> = {
   plat: "Plats",
   accompagnement: "Acc.",
   boisson: "Boissons",
-  extra: "Extra",
 };
 
 const CAT_ICON: Record<
@@ -102,7 +99,6 @@ const CAT_ICON: Record<
   plat: { kind: "plat", name: "Plat" },
   accompagnement: { kind: "local", name: "Accompagnement" },
   boisson: { kind: "boisson", name: "Boisson" },
-  extra: { kind: "extra", name: "Extra" },
 };
 
 const SALE_TYPES: SaleType[] = ["Sur place", "Rapido"];
@@ -123,8 +119,7 @@ function formatLogTime(iso: string): string {
   }
 }
 
-/** Nom de client, description d'extra… sont saisis libres : jamais injectés
- *  bruts dans le ticket, un « < » suffirait à en casser la mise en page. */
+/** Nom de client… : jamais injectés bruts dans le ticket. */
 function esc(value: unknown): string {
   return String(value ?? "").replace(
     /[&<>"']/g,
@@ -867,7 +862,6 @@ export function VentePage({
   const [tickets, setTickets] = useState<PosTicket[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
-  const [emballages, setEmballages] = useState<Immobilisation[]>([]);
   const [paymentId, setPaymentId] = useState("");
   const [clientNom, setClientNom] = useState("");
   const [reduction, setReduction] = useState("0");
@@ -876,8 +870,6 @@ export function VentePage({
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [journalOpen, setJournalOpen] = useState(false);
-  const [extraDesc, setExtraDesc] = useState("");
-  const [extraPrice, setExtraPrice] = useState("");
   const [posBusy, setPosBusy] = useState(false);
   const [scanOpen, setScanOpen] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
@@ -1092,30 +1084,6 @@ export function VentePage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, site, pathname]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch(
-          `/api/immobilisations?kind=emballage&active=1&site=${encodeURIComponent(site)}`,
-          { cache: "no-store" },
-        );
-        if (!res.ok) return;
-        const body = await res.json();
-        if (cancelled) return;
-        const list = ((body.items as Immobilisation[]) || []).filter(
-          (i) => i.active && (i.salePrice ?? 0) > 0,
-        );
-        setEmballages(list);
-      } catch {
-        if (!cancelled) setEmballages([]);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [site]);
-
   /** Encaissement possible : caisse du jour, ou correction gérant (backdate). */
   const canSell = Boolean(caisse) || backdateMode;
   const ignoreStock = backdateMode || board?.ventesSansStock === true;
@@ -1131,7 +1099,7 @@ export function VentePage({
   );
 
   const products = useMemo(() => {
-    if (!board || cat === "extra") return [];
+    if (!board) return [];
     if (cat === "plat") return plats;
     if (cat === "accompagnement") return accompagnements;
     const kind = CAT_KIND[cat];
@@ -1139,19 +1107,17 @@ export function VentePage({
   }, [board, cat, plats, accompagnements]);
 
   const categories = useMemo(() => {
-    const keys: CatKey[] = ["plat", "accompagnement", "boisson", "extra"];
+    const keys: CatKey[] = ["plat", "accompagnement", "boisson"];
     return keys.map((key) => ({
       key,
       label: CAT_LABELS[key],
       count:
-        key === "extra"
-          ? (board?.recent.filter((e) => e.kind === "extra").length ?? 0)
-          : key === "plat"
-            ? plats.length
-            : key === "accompagnement"
-              ? accompagnements.length
-              : (board?.products.filter((p) => p.kind === CAT_KIND[key]).length ??
-                0),
+        key === "plat"
+          ? plats.length
+          : key === "accompagnement"
+            ? accompagnements.length
+            : (board?.products.filter((p) => p.kind === CAT_KIND[key]).length ??
+              0),
     }));
   }, [board, plats.length, accompagnements.length]);
 
@@ -1311,34 +1277,6 @@ export function VentePage({
       });
     },
     [ignoreStock],
-  );
-
-  const addEmballage = useCallback(
-    (item: Immobilisation) => {
-      const unitPrice = Math.round(Number(item.salePrice) || 0);
-      if (unitPrice <= 0) return;
-      setCart((prev) => {
-        const key = `extra:${item.id}:${unitPrice}`;
-        const existing = prev.find((l) => l.key === key);
-        if (existing) {
-          return prev.map((l) =>
-            l.key === key ? { ...l, qty: l.qty + 1 } : l,
-          );
-        }
-        return [
-          ...prev,
-          {
-            key,
-            kind: "extra",
-            productId: item.id,
-            name: item.name,
-            unitPrice,
-            qty: 1,
-          },
-        ];
-      });
-    },
-    [],
   );
 
   const changeCartQty = useCallback((key: string, delta: number) => {
@@ -1822,28 +1760,6 @@ export function VentePage({
     return "Ouvrez la caisse de la zone pour encaisser";
   }, [flash, loading, board, caisse, backdateMode, caisseActive]);
 
-  async function submitExtra() {
-    const unitPrice = parseMoneyInput(extraPrice);
-    if (unitPrice === null || unitPrice <= 0) {
-      setError("Indiquez un prix en FCFA.");
-      return;
-    }
-    setCart((prev) => [
-      ...prev,
-      {
-        key: `extra:${Date.now()}`,
-        kind: "extra",
-        productId: `extra-${Date.now()}`,
-        name: extraDesc.trim() || "Extra",
-        unitPrice,
-        qty: 1,
-      },
-    ]);
-    setExtraDesc("");
-    setExtraPrice("");
-    setError(null);
-  }
-
   return (
     <AppShell
       title="Vente"
@@ -2196,39 +2112,6 @@ export function VentePage({
 
             {loading && !board ? (
               <BrandLoader variant="ligne" label="Chargement du catalogue…" />
-            ) : cat === "extra" ? (
-              <div className="vente-extra vente-panel vente-sale-card">
-                <header className="vente-panel-head">
-                  <h2>Vente hors catalogue</h2>
-                  <p>Article libre + montant — pour produits absents du catalogue</p>
-                </header>
-                <label className="vente-extra-field">
-                  <span>Produit / article</span>
-                  <textarea
-                    rows={3}
-                    value={extraDesc}
-                    onChange={(e) => setExtraDesc(e.target.value)}
-                    placeholder="Ex. brochette, article vendu hors catalogue…"
-                  />
-                </label>
-                <label className="vente-extra-field">
-                  <span>Montant (FCFA)</span>
-                  <input
-                    className="qty-input vente-extra-price"
-                    inputMode="numeric"
-                    value={extraPrice}
-                    onChange={(e) => setExtraPrice(e.target.value)}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={!extraDesc.trim() || !canSell}
-                  onClick={() => void submitExtra()}
-                >
-                  Ajouter au panier
-                </button>
-              </div>
             ) : cat === "plat" ? (
               <MealComposer
                 plats={plats}
@@ -2305,39 +2188,6 @@ export function VentePage({
                     ))}
                   </select>
                 </label>
-
-                {emballages.length > 0 ? (
-                  <div
-                    className={`vente-emballages${
-                      saleType === "Rapido" ? " is-rapido" : ""
-                    }`}
-                  >
-                    <span className="vente-field">
-                      <span>
-                        Emballages
-                        {saleType === "Rapido" ? " · emporté" : ""}
-                      </span>
-                    </span>
-                    <div className="vente-emballage-chips">
-                      {emballages.map((e) => (
-                        <button
-                          key={e.id}
-                          type="button"
-                          className="btn btn-ghost vente-emballage-chip"
-                          disabled={!canSell}
-                          title={`Ajouter ${e.name}`}
-                          onClick={() => addEmballage(e)}
-                        >
-                          + {e.name}
-                          <span className="mono">
-                            {" "}
-                            {formatFcfa(e.salePrice ?? 0)}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
 
                 <label className="vente-field">
                   <span>Paiement</span>

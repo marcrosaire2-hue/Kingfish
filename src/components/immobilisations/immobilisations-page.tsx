@@ -290,7 +290,7 @@ export function ImmobilisationsPage() {
             ■
           </span>
           {tab === "emballage"
-            ? "Emballages — revendus en caisse"
+            ? "Emballages — stock patrimonial"
             : "Actifs — matériel durable"}
         </p>
 
@@ -359,8 +359,9 @@ export function ImmobilisationsPage() {
           <p>
             {tab === "emballage" ? (
               <>
-                Les emballages actifs avec une valeur vente apparaissent sur{" "}
-                <strong>Vente</strong> (Rapido) pour ajout au panier. Pour un
+                Les emballages restent au registre patrimonial (stock et coût).
+                Ils ne se vendent plus depuis la page Vente — uniquement le
+                catalogue (plats, accompagnements, boissons). Pour un
                 emballage consommé en cuisine (non revendu), utilisez plutôt{" "}
                 <Link href="/achats">Achats</Link>.
               </>
