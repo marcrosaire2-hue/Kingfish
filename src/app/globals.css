@@ -1619,6 +1619,16 @@ select {
   border-bottom: 1px solid var(--border);
 }
 
+.vente-catalog .vente-qr-scan {
+  margin-bottom: 0;
+  padding: 0.85rem 0.95rem;
+  border-bottom: none;
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ink) 3%, transparent);
+}
+
 .vente-qr-badge {
   font-size: 0.75rem;
   font-weight: 600;

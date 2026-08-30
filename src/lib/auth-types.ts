@@ -563,6 +563,12 @@ export function canAccessPath(
   username?: string,
   navOverride?: NavKey[],
 ): boolean {
+  if (
+    role !== "admin" &&
+    (pathname.startsWith("/admin") || pathname.startsWith("/autorisations"))
+  ) {
+    return false;
+  }
   const allowed = navOverride ?? navForUser(role, site, username);
   return canAccessPathWithAllowed(allowed, pathname);
 }

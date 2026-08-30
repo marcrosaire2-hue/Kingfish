@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   resolveActionDecision,
+  isActionAllowed,
 } from "@/lib/autorisations-repo";
 import { EMPTY_AUTORISATIONS } from "@/lib/autorisations-model";
 
@@ -63,5 +64,37 @@ describe("autorisations — résolution", () => {
       defaultAllowed: true,
     });
     expect(r).toEqual({ value: "allow", source: "user" });
+  });
+
+  it("interdit Équipe aux non-admins même avec override allow", () => {
+    const config = {
+      ...EMPTY_AUTORISATIONS,
+      overrides: [
+        {
+          targetType: "role" as const,
+          targetId: "gerant",
+          resourceId: "admin",
+          actions: { access: "allow" as const },
+        },
+      ],
+    };
+    expect(
+      isActionAllowed({
+        config,
+        role: "gerant",
+        site: "zogbo",
+        resourceId: "admin",
+        action: "access",
+      }),
+    ).toBe(false);
+    expect(
+      isActionAllowed({
+        config,
+        role: "admin",
+        site: "tous",
+        resourceId: "admin",
+        action: "access",
+      }),
+    ).toBe(true);
   });
 });

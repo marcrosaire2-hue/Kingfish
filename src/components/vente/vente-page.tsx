@@ -502,6 +502,81 @@ type CartLinesProps = {
   onChangeQty: (key: string, delta: number) => void;
 };
 
+type VenteQrScanPanelProps = {
+  scanOpen: boolean;
+  scanInput: string;
+  scanBusy: boolean;
+  cameraOn: boolean;
+  onToggleScan: () => void;
+  onScanInputChange: (value: string) => void;
+  onScanSubmit: (raw: string) => void;
+  onToggleCamera: () => void;
+};
+
+const VenteQrScanPanel = memo(function VenteQrScanPanel({
+  scanOpen,
+  scanInput,
+  scanBusy,
+  cameraOn,
+  onToggleScan,
+  onScanInputChange,
+  onScanSubmit,
+  onToggleCamera,
+}: VenteQrScanPanelProps) {
+  return (
+    <div className="vente-qr-scan">
+      <button
+        type="button"
+        className={`btn btn-block btn-ghost${scanOpen ? " is-active" : ""}`}
+        onClick={onToggleScan}
+      >
+        {scanOpen ? "Masquer le scan QR" : "Scanner un QR plat"}
+      </button>
+
+      {scanOpen ? (
+        <>
+          <p className="section-hint">
+            Scannez le QR d&apos;un plat pour l&apos;ajouter au panier.
+          </p>
+          <div className="stock-zogbo-scan-row">
+            <input
+              type="text"
+              className="input"
+              placeholder="KF-…"
+              value={scanInput}
+              disabled={scanBusy}
+              onChange={(e) => onScanInputChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") onScanSubmit(scanInput);
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={scanBusy || !scanInput.trim()}
+              onClick={() => onScanSubmit(scanInput)}
+            >
+              OK
+            </button>
+          </div>
+          <button
+            type="button"
+            className={`btn btn-block${cameraOn ? " is-active" : ""}`}
+            disabled={scanBusy}
+            onClick={onToggleCamera}
+          >
+            {cameraOn ? "Arrêter la caméra" : "Scanner avec la caméra"}
+          </button>
+          <QrScanner
+            active={cameraOn && !scanBusy}
+            onDetected={(id) => onScanSubmit(id)}
+          />
+        </>
+      ) : null}
+    </div>
+  );
+});
+
 const CartLines = memo(function CartLines({
   cart,
   onChangeQty,
@@ -1211,6 +1286,18 @@ export function VentePage({
     [canSell, backdateMode, cart, site, date, board],
   );
 
+  const toggleQrScan = useCallback(() => {
+    setScanOpen((v) => {
+      const next = !v;
+      if (!next) setCameraOn(false);
+      return next;
+    });
+  }, []);
+
+  const toggleQrCamera = useCallback(() => {
+    setCameraOn((v) => !v);
+  }, []);
+
   const commitMeal = useCallback(() => {
     if (!composerPlat) {
       setError("Choisissez un plat.");
@@ -1865,6 +1952,17 @@ export function VentePage({
               ))}
             </div>
 
+            <VenteQrScanPanel
+              scanOpen={scanOpen}
+              scanInput={scanInput}
+              scanBusy={scanBusy}
+              cameraOn={cameraOn}
+              onToggleScan={toggleQrScan}
+              onScanInputChange={setScanInput}
+              onScanSubmit={(raw) => void handleQrScan(raw)}
+              onToggleCamera={toggleQrCamera}
+            />
+
             {loading && !board ? (
               <BrandLoader variant="ligne" label="Chargement du catalogue…" />
             ) : cat === "extra" ? (
@@ -1939,63 +2037,6 @@ export function VentePage({
                     : "Vide — touchez + sur un produit"}
                 </p>
               </header>
-
-              <div className="vente-qr-scan">
-                <button
-                  type="button"
-                  className={`btn btn-block btn-ghost${scanOpen ? " is-active" : ""}`}
-                  onClick={() => {
-                    setScanOpen((v) => {
-                      const next = !v;
-                      if (!next) setCameraOn(false);
-                      return next;
-                    });
-                  }}
-                >
-                  {scanOpen ? "Masquer le scan QR" : "Scanner un QR plat"}
-                </button>
-
-                {scanOpen ? (
-                  <>
-                    <p className="section-hint">
-                      Scannez le QR d&apos;un plat pour l&apos;ajouter au panier.
-                    </p>
-                    <div className="stock-zogbo-scan-row">
-                      <input
-                        type="text"
-                        className="input"
-                        placeholder="KF-…"
-                        value={scanInput}
-                        disabled={scanBusy}
-                        onChange={(e) => setScanInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") void handleQrScan(scanInput);
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        disabled={scanBusy || !scanInput.trim()}
-                        onClick={() => void handleQrScan(scanInput)}
-                      >
-                        OK
-                      </button>
-                    </div>
-                    <button
-                      type="button"
-                      className={`btn btn-block${cameraOn ? " is-active" : ""}`}
-                      disabled={scanBusy}
-                      onClick={() => setCameraOn((v) => !v)}
-                    >
-                      {cameraOn ? "Arrêter la caméra" : "Scanner avec la caméra"}
-                    </button>
-                    <QrScanner
-                      active={cameraOn && !scanBusy}
-                      onDetected={(id) => void handleQrScan(id)}
-                    />
-                  </>
-                ) : null}
-              </div>
 
               {!cart.length ? (
                 <p className="muted vente-cart-empty">

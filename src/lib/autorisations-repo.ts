@@ -137,6 +137,12 @@ export function isActionAllowed(input: {
 }): boolean {
   const resource = resourceById(input.resourceId);
   if (!resource) return false;
+  if (
+    input.role !== "admin" &&
+    (input.resourceId === "admin" || input.resourceId === "autorisations")
+  ) {
+    return false;
+  }
   const defaults = roleNavUnscoped(
     input.role,
     input.username,
@@ -187,6 +193,10 @@ export async function resolveEffectiveNav(
   if (isExecutiveAdminAccount(user.username)) {
     allowed.add("admin");
     allowed.add("synthese");
+  }
+
+  if (user.role !== "admin") {
+    allowed.delete("admin");
   }
 
   return [...allowed];

@@ -220,6 +220,19 @@ describe("l'API suit les droits de l'écran", () => {
     expect(() => assertAdminCanManageTarget(marc, zoneGerant)).not.toThrow();
   });
 
+  it("réserve Équipe au rôle admin même si le menu JWT l’inclut", () => {
+    const navAvecEquipe = ["vente", "admin"] as const;
+    expect(
+      canAccessPath("gerant", "/admin", "zogbo", undefined, [...navAvecEquipe]),
+    ).toBe(false);
+    expect(
+      canAccessPath("daf", "/admin", "tous", "daff", [...navAvecEquipe]),
+    ).toBe(false);
+    expect(
+      canAccessPath("admin", "/admin", "tous", "marc", [...navAvecEquipe]),
+    ).toBe(true);
+  });
+
   it("donne au DAF les mêmes écrans qu’un admin, sans la page Équipe", () => {
     const menu = navForUser("daf", "tous", "daff");
     expect(menu).not.toContain("admin");
