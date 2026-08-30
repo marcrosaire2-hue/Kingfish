@@ -4,21 +4,16 @@ import { FormEvent, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   APP_LOGO,
-  APP_SHORT,
+  APP_NAME,
+  APP_SITES_LABEL,
   APP_TAGLINE,
 } from "@/lib/brand";
-import {
-  EyeIcon,
-  LockIcon,
-  ShieldIcon,
-  Spinner,
-  SubmitArrowIcon,
-  UserIcon,
-} from "./login-icons";
-import { LoginShowcase } from "./login-showcase";
+import { EyeIcon } from "./login-icons";
 import { useSession } from "@/components/session-provider";
 
 const REMEMBER_KEY = "kingfish-remember-user";
+/** Temps mini d’affichage du logo avant d’entrer dans l’app. */
+const LOGO_HOLD_MS = 900;
 
 export function LoginPage() {
   const router = useRouter();
@@ -27,17 +22,15 @@ export function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [remember, setRemember] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  /** Succès auth : écran logo plein page avant navigation. */
+  const [entering, setEntering] = useState(false);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(REMEMBER_KEY);
-      if (saved) {
-        setUsername(saved);
-        setRemember(true);
-      }
+      if (saved) setUsername(saved);
     } catch {
       /* stockage indisponible */
     }
@@ -45,9 +38,11 @@ export function LoginPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (loading) return;
+    if (loading || entering) return;
     setLoading(true);
+    setEntering(true);
     setError(null);
+    const startedAt = Date.now();
     try {
       const res = await fetch("/api/auth/login", {
         method: "POST",
@@ -58,55 +53,84 @@ export function LoginPage() {
       if (!res.ok) throw new Error(body.error || "Connexion impossible");
 
       try {
-        if (remember) localStorage.setItem(REMEMBER_KEY, username.trim());
-        else localStorage.removeItem(REMEMBER_KEY);
+        localStorage.setItem(REMEMBER_KEY, username.trim());
       } catch {
         /* stockage indisponible */
       }
 
-      // "/" seul est un chemin interne valide ; "//" ou "/\" sont des URL
-      // protocole-relatives que certains navigateurs suivent vers un autre
-      // domaine — à exclure pour ne jamais rediriger hors de l'application.
       const next = searchParams.get("next");
-      const isSafeInternalPath =
-        !!next && /^\/(?!\/|\\)/.test(next);
-      const target = isSafeInternalPath
-        ? next
-        : (body.home as string) || "/";
+      const isSafeInternalPath = !!next && /^\/(?!\/|\\)/.test(next);
+      const target = isSafeInternalPath ? next : (body.home as string) || "/";
+
       await refresh();
+
+      const wait = Math.max(0, LOGO_HOLD_MS - (Date.now() - startedAt));
+      if (wait > 0) {
+        await new Promise((resolve) => setTimeout(resolve, wait));
+      }
+
       router.replace(target);
       router.refresh();
     } catch (err) {
+      setEntering(false);
       setError(err instanceof Error ? err.message : "Connexion impossible");
-    } finally {
       setLoading(false);
     }
   }
 
+  if (entering) {
+    return (
+      <div className="route-loader login-route-loader" role="status" aria-live="polite">
+        <div className="route-loader-box">
+          <div className="route-loader-logo-wrap">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={APP_LOGO}
+              alt=""
+              className="route-loader-logo"
+              width={84}
+              height={84}
+            />
+          </div>
+          <p className="route-loader-name">{APP_NAME}</p>
+          <p className="route-loader-tag">{APP_TAGLINE}</p>
+          <div className="route-loader-bar" aria-hidden>
+            <span className="route-loader-bar-fill" />
+          </div>
+          <p className="route-loader-hint">Connexion en cours…</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="login-screen">
-      <div className="login-layout">
-        <section className="login-panel login-panel-form" aria-label="Connexion">
-          <div className="login-form-card">
-            <div className="login-form-wrap">
+      <div className="login-card" role="presentation">
+        <aside className="login-visual">
+          <div className="login-visual-media" aria-hidden />
+          <div className="login-visual-shade" aria-hidden />
+          <header className="login-visual-top">
+            <span className="login-brand">KINGFISH</span>
+          </header>
+          <footer className="login-visual-foot">
+            <img
+              src={APP_LOGO}
+              alt=""
+              className="login-visual-avatar"
+              width={40}
+              height={40}
+            />
+            <div className="login-visual-credit">
+              <strong>{APP_NAME}</strong>
+              <span>{APP_SITES_LABEL}</span>
+            </div>
+          </footer>
+        </aside>
+
+        <section className="login-panel-form" aria-label="Connexion">
+          <div className="login-form-wrap">
             <header className="login-form-head">
-              <img
-                src={APP_LOGO}
-                alt=""
-                className="login-form-logo"
-                width={64}
-                height={64}
-              />
-              <p className="login-welcome">Bienvenue sur</p>
-              <h1 className="login-title">
-                {APP_SHORT}{" "}
-                <span className="login-title-accent">Manager</span>
-              </h1>
-              <p className="login-tagline">{APP_TAGLINE}</p>
-              <p className="login-secure-badge">
-                <ShieldIcon />
-                Accès sécurisé
-              </p>
+              <h1 className="login-title">Welcome To KINGFISH</h1>
             </header>
 
             <form className="login-form" onSubmit={onSubmit} noValidate>
@@ -119,14 +143,11 @@ export function LoginPage() {
                 </p>
               ) : null}
 
-              <label className="login-field login-field-icon">
-                <span className="login-label">Identifiant</span>
-                <span className="login-field-leading" aria-hidden>
-                  <UserIcon />
-                </span>
+              <label className="login-field">
+                <span className="sr-only">Identifiant</span>
                 <input
                   name="username"
-                  placeholder="Votre identifiant"
+                  placeholder="Identifiant"
                   autoComplete="username"
                   autoCapitalize="none"
                   autoCorrect="off"
@@ -142,15 +163,12 @@ export function LoginPage() {
                 />
               </label>
 
-              <label className="login-field login-field-icon login-password">
-                <span className="login-label">Mot de passe</span>
-                <span className="login-field-leading" aria-hidden>
-                  <LockIcon />
-                </span>
+              <label className="login-field login-password">
+                <span className="sr-only">Mot de passe</span>
                 <input
                   name="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Votre mot de passe"
+                  placeholder="Mot de passe"
                   autoComplete="current-password"
                   autoCapitalize="none"
                   autoCorrect="off"
@@ -179,53 +197,16 @@ export function LoginPage() {
                 </button>
               </label>
 
-              <div className="login-form-options">
-                <label className="login-remember">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                    disabled={loading}
-                  />
-                  Se souvenir de moi
-                </label>
-                <span
-                  className="login-forgot"
-                  role="note"
-                  title="Fonctionnalité à venir — contactez votre administrateur."
-                >
-                  Mot de passe oublié ?
-                </span>
-              </div>
-
               <button
                 type="submit"
                 className="btn login-submit"
                 disabled={loading}
               >
-                {loading ? (
-                  <>
-                    <Spinner />
-                    Connexion en cours…
-                  </>
-                ) : (
-                  <>
-                    Se connecter
-                    <SubmitArrowIcon />
-                  </>
-                )}
+                {loading ? "Connexion…" : "Connexion"}
               </button>
             </form>
-
-            <p className="login-foot">
-              <LockIcon />
-              Accès réservé au personnel
-            </p>
-          </div>
           </div>
         </section>
-
-        <LoginShowcase />
       </div>
     </div>
   );
