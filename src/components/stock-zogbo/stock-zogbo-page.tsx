@@ -18,6 +18,7 @@ import type {
   StockZogboPayload,
 } from "@/lib/stock-unit-types";
 import { STOCK_UNIT_STATUS_LABELS } from "@/lib/stock-unit-types";
+import { qrSheetFilename } from "@/lib/qr-print-sheet";
 import { computeLocalLine } from "@/lib/gbegamey-calc";
 import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
 
@@ -45,7 +46,6 @@ export function StockZogboPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [draftPrepare, setDraftPrepare] = useState<Record<string, string>>({});
   const [draftQr, setDraftQr] = useState<Record<string, string>>({});
   const [scanInput, setScanInput] = useState("");
   const [scanResult, setScanResult] = useState<{
@@ -131,28 +131,61 @@ export function StockZogboPage() {
     return next;
   }
 
-  async function handlePrepare(productId: string) {
-    const qty = Math.round(Number(draftPrepare[productId]) || 0);
-    if (qty <= 0) return;
-    setBusy(`prep-${productId}`);
-    setError(null);
-    try {
-      await postAction("prepare", { productId, qty });
-      setDraftPrepare((d) => ({ ...d, [productId]: "" }));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur préparation.");
-    } finally {
-      setBusy(null);
+  async function downloadQrSheet(input: {
+    qrIds: string[];
+    productName: string;
+  }) {
+    const res = await fetch("/api/stock-units/sheet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        qrIds: input.qrIds,
+        productName: input.productName,
+        date,
+        title: `${input.productName} · ${input.qrIds.length} QR · ${date}`,
+      }),
+    });
+    if (!res.ok) {
+      const body = (await res.json()) as { error?: string };
+      throw new Error(body.error ?? "Téléchargement des QR impossible.");
     }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = qrSheetFilename({
+      productName: input.productName,
+      date,
+    });
+    anchor.click();
+    URL.revokeObjectURL(url);
   }
 
-  async function handleGenerateQr(productId: string) {
+  async function handleGenerateQr(productId: string, productName: string) {
     const qty = Math.round(Number(draftQr[productId]) || 0);
     if (qty <= 0) return;
     setBusy(`qr-${productId}`);
     setError(null);
     try {
-      await postAction("generate-qr", { productId, qty });
+      const res = await fetch("/api/stock-zogbo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date, action: "generate-qr", productId, qty }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error ?? "Opération refusée.");
+      if (body.payload) {
+        setPayload(body.payload as StockZogboPayload);
+        setAccLines(body.payload.accompanimentLines ?? []);
+      }
+      const units = (body.units ?? []) as StockUnit[];
+      if (!units.length) {
+        throw new Error("Aucun QR généré.");
+      }
+      await downloadQrSheet({
+        qrIds: units.map((u) => u.qrId),
+        productName,
+      });
       setDraftQr((d) => ({ ...d, [productId]: "" }));
       if (expandedProductId === productId) {
         await loadUnits(productId, false);
@@ -409,7 +442,7 @@ export function StockZogboPage() {
                   <p>
                     <strong>{formatDisplayDate(date)}</strong>
                     {" · "}
-                    Préparez, générez les QR, puis envoyez unité par unité vers
+                    Préparez et générez les QR, puis envoyez unité par unité vers
                     Gbégamey.
                   </p>
                 </div>
@@ -419,9 +452,9 @@ export function StockZogboPage() {
                     i
                   </span>
                   <p>
-                    Chaque plat reçoit un <strong>QR unique par portion</strong>.
-                    Les compteurs « Préparé » et « Envoyé » restent synchronisés
-                    avec les unités tracées.
+                    Indiquez une <strong>quantité</strong> : les QR uniques sont
+                    créés et téléchargés dans un fichier HTML (imprimable en PDF).
+                    Le compteur « Préparé » est mis à jour automatiquement.
                   </p>
                 </div>
 
@@ -446,10 +479,7 @@ export function StockZogboPage() {
                           Vendu
                         </th>
                         <th scope="col" className="col-action">
-                          Préparer
-                        </th>
-                        <th scope="col" className="col-action">
-                          QR
+                          Générer QR
                         </th>
                         <th scope="col" className="col-actions">
                           <span className="sr-only">Détail</span>
@@ -489,34 +519,7 @@ export function StockZogboPage() {
                                     min={1}
                                     className="input input-qty"
                                     placeholder="Qté"
-                                    aria-label={`Quantité à préparer — ${row.productName}`}
-                                    value={draftPrepare[row.productId] ?? ""}
-                                    onChange={(e) =>
-                                      setDraftPrepare((d) => ({
-                                        ...d,
-                                        [row.productId]: e.target.value,
-                                      }))
-                                    }
-                                  />
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-primary"
-                                    disabled={busy === `prep-${row.productId}`}
-                                    onClick={() => handlePrepare(row.productId)}
-                                  >
-                                    +
-                                  </button>
-                                </div>
-                              </td>
-                              <td className="col-action">
-                                <div className="stock-zogbo-inline-action">
-                                  <input
-                                    type="number"
-                                    min={1}
-                                    max={row.qrToGenerate || undefined}
-                                    className="input input-qty"
-                                    placeholder="N"
-                                    aria-label={`Nombre de QR — ${row.productName}`}
+                                    aria-label={`Quantité de QR — ${row.productName}`}
                                     value={draftQr[row.productId] ?? ""}
                                     onChange={(e) =>
                                       setDraftQr((d) => ({
@@ -527,14 +530,18 @@ export function StockZogboPage() {
                                   />
                                   <button
                                     type="button"
-                                    className="btn btn-sm"
-                                    disabled={
-                                      busy === `qr-${row.productId}` ||
-                                      row.qrToGenerate <= 0
+                                    className="btn btn-sm btn-primary"
+                                    disabled={busy === `qr-${row.productId}`}
+                                    onClick={() =>
+                                      void handleGenerateQr(
+                                        row.productId,
+                                        row.productName,
+                                      )
                                     }
-                                    onClick={() => handleGenerateQr(row.productId)}
                                   >
-                                    QR
+                                    {busy === `qr-${row.productId}`
+                                      ? "…"
+                                      : "Fichier"}
                                   </button>
                                 </div>
                               </td>
@@ -554,7 +561,7 @@ export function StockZogboPage() {
                                 key={`${row.productId}-units`}
                                 className="stock-zogbo-units-row"
                               >
-                                <td colSpan={9}>
+                                <td colSpan={8}>
                                   <UnitsBlock
                                     units={expandedUnits}
                                     selectedQr={selectedQr}
@@ -782,7 +789,7 @@ function UnitsBlock({
   return (
     <div className="stock-zogbo-units-block">
       <p className="stock-zogbo-units-title">
-        {units.length} unité(s) — cochez pour l&apos;envoi ou téléchargez le QR
+        {units.length} unité(s) — cochez pour l&apos;envoi
       </p>
       <ul className="stock-zogbo-units-grid">
         {units.map((u) => {
@@ -802,15 +809,6 @@ function UnitsBlock({
                 <span className="mono">{u.qrId}</span>
               </label>
               <span className="badge">{STOCK_UNIT_STATUS_LABELS[u.status]}</span>
-              <a
-                href={`/api/stock-units?qrId=${encodeURIComponent(u.qrId)}&format=png`}
-                target="_blank"
-                rel="noreferrer"
-                className="btn btn-sm"
-                download={`${u.qrId}.png`}
-              >
-                PNG
-              </a>
             </li>
           );
         })}

@@ -217,12 +217,25 @@ export async function generatePlatQrUnits(input: {
   };
   const qrGenerated =
     counts.prepare + counts.envoye + counts.vendu + counts.perdu;
-  const remaining = line.prepared - qrGenerated;
+  let remaining = line.prepared - qrGenerated;
 
   if (qty > remaining) {
-    throw new Error(
-      `Impossible de générer ${qty} QR : seulement ${remaining} unité(s) préparée(s) sans QR (${line.prepared} préparés, ${qrGenerated} QR déjà créés).`,
+    const deficit = qty - remaining;
+    await applyZogboMovement({
+      date: input.date,
+      productId: input.productId,
+      type: "prepare",
+      qty: deficit,
+    });
+    const refreshed = await getZogboDayPayload(input.date);
+    const refreshedLine = refreshed.day.lines.find(
+      (l) => l.productId === input.productId,
     );
+    if (!refreshedLine) throw new Error("Plat introuvable dans le catalogue.");
+    remaining = refreshedLine.prepared - qrGenerated;
+    if (qty > remaining) {
+      throw new Error("Préparation automatique insuffisante pour générer les QR.");
+    }
   }
 
   const now = new Date().toISOString();
