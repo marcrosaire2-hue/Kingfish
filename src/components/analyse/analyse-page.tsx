@@ -8,6 +8,12 @@ import {
   HorizontalBars,
 } from "@/components/charts/charts";
 import { AnalyseChartsPanel } from "@/components/analyse/analyse-charts-panel";
+import {
+  DashboardBody,
+  DashboardSectionNav,
+  DashboardShell,
+  DashboardToolbar,
+} from "@/components/dashboard/dashboard-layout";
 import { formatFcfa } from "@/lib/format";
 import { SITE_LABELS } from "@/lib/auth-types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -205,78 +211,64 @@ export function AnalysePage() {
       title="Analyse"
       subtitle="Lecture managériale du CA, des marges, des stocks et des charges — sans réécrire la comptabilité."
     >
-      <div className="analyse-page">
-        <div className="analyse-toolbar panel">
-          <div className="analyse-toolbar-top">
-            <div className="section-tabs analyse-period-tabs" role="tablist" aria-label="Période">
-              {PERIODS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={period === p.id}
-                  className={`section-tab${period === p.id ? " is-active" : ""}`}
-                  onClick={() => setPeriod(p.id)}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <span className="context-pill context-pill-currency" title="Devise">
-              FCFA
-            </span>
-          </div>
-          <div className="analyse-filters">
-            <label className="date-field date-field-pill">
-              <span>
-                {period === "day"
-                  ? "Jour"
-                  : period === "week"
-                    ? "Semaine du"
-                    : "Mois"}
-              </span>
-              <input
-                type="date"
-                value={date}
-                max={todayIsoDate()}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-                  setDate(v);
-                }}
-              />
-            </label>
-            {lockedSite ? null : (
+      <DashboardShell>
+        <DashboardToolbar
+          tabs={PERIODS}
+          activeTab={period}
+          onTabChange={(id) => setPeriod(id as AnalysePeriod)}
+          filters={
+            <>
               <label className="date-field date-field-pill">
-                <span>Site</span>
-                <select value={site} onChange={(e) => setSite(e.target.value)}>
-                  <option value="all">Les deux sites</option>
-                  <option value="zogbo">{SITE_LABELS.zogbo}</option>
-                  <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
+                <span>
+                  {period === "day"
+                    ? "Jour"
+                    : period === "week"
+                      ? "Semaine du"
+                      : "Mois"}
+                </span>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    setDate(v);
+                  }}
+                />
+              </label>
+              {lockedSite ? null : (
+                <label className="date-field date-field-pill">
+                  <span>Site</span>
+                  <select value={site} onChange={(e) => setSite(e.target.value)}>
+                    <option value="all">Les deux sites</option>
+                    <option value="zogbo">{SITE_LABELS.zogbo}</option>
+                    <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
+                  </select>
+                </label>
+              )}
+              <label className="date-field date-field-pill">
+                <span>Équipe</span>
+                <select value={shift} onChange={(e) => setShift(e.target.value)}>
+                  <option value="all">Toutes</option>
+                  <option value="jour">Jour</option>
+                  <option value="nuit">Nuit</option>
+                  <option value="aucune">Hors équipe</option>
                 </select>
               </label>
-            )}
-            <label className="date-field date-field-pill">
-              <span>Équipe</span>
-              <select value={shift} onChange={(e) => setShift(e.target.value)}>
-                <option value="all">Toutes</option>
-                <option value="jour">Jour</option>
-                <option value="nuit">Nuit</option>
-                <option value="aucune">Hors équipe</option>
-              </select>
-            </label>
-            <label className="date-field date-field-pill">
-              <span>Nature</span>
-              <select value={kind} onChange={(e) => setKind(e.target.value)}>
-                <option value="all">Toutes</option>
-                <option value="plat">Plats</option>
-                <option value="boisson">Boissons</option>
-                <option value="local">Accompagnements</option>
-                <option value="extra">Extra</option>
-              </select>
-            </label>
-          </div>
-        </div>
+              <label className="date-field date-field-pill">
+                <span>Nature</span>
+                <select value={kind} onChange={(e) => setKind(e.target.value)}>
+                  <option value="all">Toutes</option>
+                  <option value="plat">Plats</option>
+                  <option value="boisson">Boissons</option>
+                  <option value="local">Accompagnements</option>
+                  <option value="extra">Extra</option>
+                </select>
+              </label>
+            </>
+          }
+        />
 
         {error ? (
           <p className="error-banner" role="alert">
@@ -286,31 +278,21 @@ export function AnalysePage() {
 
         {report ? (
           <>
-            <nav
-              className="analyse-section-nav"
-              role="tablist"
-              aria-label="Sections analyse"
-            >
-              {SECTIONS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={section === s.id}
-                  className={`analyse-section-tab${section === s.id ? " is-active" : ""}`}
-                  onClick={() => setSection(s.id)}
-                >
-                  {s.label}
-                  {s.id === "produits" && report.products.length > 0 ? (
-                    <span className="analyse-section-badge">
-                      {report.products.length}
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </nav>
+            <DashboardSectionNav
+              label="Sections analyse"
+              sections={SECTIONS.map((s) => ({
+                id: s.id,
+                label: s.label,
+                badge:
+                  s.id === "produits" && report.products.length > 0
+                    ? report.products.length
+                    : undefined,
+              }))}
+              active={section}
+              onChange={setSection}
+            />
 
-            <div className={`analyse${loading ? " is-loading" : ""}`}>
+            <DashboardBody className={loading ? "is-loading" : undefined}>
               {section === "synthese" ? (
                 <div className="analyse-section-panel" role="tabpanel">
                   <section className="dash-ca-final" aria-label="Résultat de la période">
@@ -519,10 +501,10 @@ export function AnalysePage() {
                   </details>
                 </div>
               ) : null}
-            </div>
+            </DashboardBody>
           </>
         ) : null}
-      </div>
+      </DashboardShell>
     </AppShell>
   );
 }

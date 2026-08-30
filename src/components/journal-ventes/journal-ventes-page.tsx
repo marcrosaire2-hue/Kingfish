@@ -4,6 +4,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
+import {
+  DashboardShell,
+  DashboardToolbar,
+} from "@/components/dashboard/dashboard-layout";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { formatFcfa } from "@/lib/format";
 import {
@@ -418,8 +422,12 @@ export function JournalVentesPage() {
         </>
       }
     >
-      <div className="hist-filters hist-ventes-filters">
-        <label className="date-field">
+      <DashboardShell>
+      <DashboardToolbar
+        showCurrency={false}
+        filters={
+          <>
+        <label className="date-field date-field-pill">
           <span>Du</span>
           <input
             type="date"
@@ -427,7 +435,7 @@ export function JournalVentesPage() {
             onChange={(e) => setFrom(e.target.value)}
           />
         </label>
-        <label className="date-field">
+        <label className="date-field date-field-pill">
           <span>Au</span>
           <input
             type="date"
@@ -435,7 +443,7 @@ export function JournalVentesPage() {
             onChange={(e) => setTo(e.target.value)}
           />
         </label>
-        <label className="date-field">
+        <label className="date-field date-field-pill">
           <span>Site</span>
           {lockedSite ? (
             <input
@@ -461,7 +469,7 @@ export function JournalVentesPage() {
             </select>
           )}
         </label>
-        <label className="date-field">
+        <label className="date-field date-field-pill">
           <span>Statut</span>
           <select
             className="select-input"
@@ -474,7 +482,7 @@ export function JournalVentesPage() {
             <option value="encours">En cours</option>
           </select>
         </label>
-        <label className="date-field">
+        <label className="date-field date-field-pill">
           <span>Source</span>
           <select
             className="select-input"
@@ -486,7 +494,7 @@ export function JournalVentesPage() {
             <option value="aquapro">Importé</option>
           </select>
         </label>
-        <label className="date-field">
+        <label className="date-field date-field-pill">
           <span>Serveur</span>
           <select
             className="select-input"
@@ -501,7 +509,7 @@ export function JournalVentesPage() {
             ))}
           </select>
         </label>
-        <label className="date-field">
+        <label className="date-field date-field-pill">
           <span>Paiement</span>
           <select
             className="select-input"
@@ -516,7 +524,7 @@ export function JournalVentesPage() {
             ))}
           </select>
         </label>
-        <label className="date-field hist-search">
+        <label className="date-field date-field-pill hist-search">
           <span>Recherche</span>
           <input
             type="search"
@@ -525,7 +533,9 @@ export function JournalVentesPage() {
             onChange={(e) => setQ(e.target.value)}
           />
         </label>
-      </div>
+          </>
+        }
+      />
 
       <div className="dash-ca-final hist-ventes-totaux">
         <div className="dash-ca-final-main">
@@ -605,6 +615,7 @@ export function JournalVentesPage() {
             />
           ))
         : null}
+      </DashboardShell>
     </AppShell>
   );
 }

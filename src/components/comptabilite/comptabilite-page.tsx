@@ -2,6 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import {
+  DashKpiGrid,
+  DashboardShell,
+  DashboardToolbar,
+} from "@/components/dashboard/dashboard-layout";
 import { BrandLoader } from "@/components/brand-loader";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { formatFcfa } from "@/lib/format";
@@ -44,34 +49,29 @@ export function ComptabilitePage() {
       title="Comptabilité"
       subtitle={`Journal, grand livre, balance et bilan — site ${site === "zogbo" ? "Zogbo" : "Gbégamey"} (indépendant).`}
     >
-      <div className="site-switch" role="tablist" aria-label="Site" style={{ marginBottom: "0.75rem" }}>
-        {(["zogbo", "gbegamey"] as const).map((s) => (
-          <button
-            key={s}
-            type="button"
-            role="tab"
-            aria-selected={site === s}
-            className={`site-btn${site === s ? " is-active" : ""}`}
-            onClick={() => setSite(s)}
-          >
-            {s === "zogbo" ? "Zogbo" : "Gbégamey"}
-          </button>
-        ))}
-      </div>
-      <div className="section-tabs" role="tablist" aria-label="Vue comptable">
-        {ONGLETS.map((o) => (
-          <button
-            key={o.key}
-            type="button"
-            role="tab"
-            aria-selected={onglet === o.key}
-            className={`section-tab${onglet === o.key ? " is-active" : ""}`}
-            onClick={() => setOnglet(o.key)}
-          >
-            {o.label}
-          </button>
-        ))}
-      </div>
+      <DashboardShell>
+      <DashboardToolbar
+        tabs={ONGLETS.map((o) => ({ id: o.key, label: o.label }))}
+        activeTab={onglet}
+        onTabChange={(id) => setOnglet(id as Onglet)}
+        tabListLabel="Vue comptable"
+        filters={
+          <div className="site-switch" role="tablist" aria-label="Site">
+            {(["zogbo", "gbegamey"] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                role="tab"
+                aria-selected={site === s}
+                className={`site-btn${site === s ? " is-active" : ""}`}
+                onClick={() => setSite(s)}
+              >
+                {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+              </button>
+            ))}
+          </div>
+        }
+      />
 
       {onglet === "journal" ? (
         <JournalView from={from} to={to} setFrom={setFrom} setTo={setTo} site={site} />
@@ -85,6 +85,7 @@ export function ComptabilitePage() {
       {onglet === "bilan" ? (
         <BilanView asOf={asOf} setAsOf={setAsOf} site={site} />
       ) : null}
+      </DashboardShell>
     </AppShell>
   );
 }

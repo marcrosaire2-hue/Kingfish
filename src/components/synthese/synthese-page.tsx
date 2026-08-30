@@ -3,7 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
-import { ContextBar } from "@/components/context-bar";
+import {
+  DashKpiGrid,
+  DashboardShell,
+  DashboardToolbar,
+} from "@/components/dashboard/dashboard-layout";
 import {
   CHART_COLORS,
   DonutChart,
@@ -309,86 +313,88 @@ export function SynthesePage() {
       title="Tableau de bord"
       subtitle={`Vue d’ensemble ${APP_SITES_LABEL}`}
     >
-      <div className="dash-page">
-      {!isGeneral ? (
-        <div className="section-tabs" role="tablist" aria-label="Période">
-          {(
-            [
-              ["day", "Journalier"],
-              ["month", "Mensuel"],
-              ["year", "Annuel"],
-            ] as const
-          ).map(([key, label]) => (
-            <button
-              key={key}
-              type="button"
-              role="tab"
-              aria-selected={view === key}
-              className={`section-tab${view === key ? " is-active" : ""}`}
-              onClick={() => setView(key)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      <ContextBar
-        date={viewMode === "day" ? date : undefined}
-        onDateChange={
-          viewMode === "day" ? (v) => handlePeriodChange(v) : undefined
+      <DashboardShell>
+      <DashboardToolbar
+        tabs={
+          !isGeneral
+            ? [
+                { id: "day", label: "Journalier" },
+                { id: "month", label: "Mensuel" },
+                { id: "year", label: "Annuel" },
+              ]
+            : undefined
         }
-      >
-        <ExportExcelButton
-          onExport={() =>
-            exportSyntheseExcel({
-              view: viewMode,
-              date,
-              month,
-              year,
-            })
-          }
-          disabled={loading}
-        />
-        {viewMode === "month" ? (
-          <label className="date-field date-field-pill">
-            <span>Mois</span>
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
+        activeTab={view}
+        onTabChange={(id) => setView(id as ViewKey)}
+        filters={
+          <>
+            {viewMode === "day" ? (
+              <label className="date-field date-field-pill">
+                <span>Jour</span>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    handlePeriodChange(v);
+                  }}
+                />
+              </label>
+            ) : null}
+            <ExportExcelButton
+              onExport={() =>
+                exportSyntheseExcel({
+                  view: viewMode,
+                  date,
+                  month,
+                  year,
+                })
+              }
+              disabled={loading}
             />
-          </label>
-        ) : null}
-        {viewMode === "year" ? (
-          <label className="date-field date-field-pill">
-            <span>Année</span>
-            <input
-              type="number"
-              min={2020}
-              max={2100}
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-            />
-          </label>
-        ) : null}
-        {viewMode === "day" && !isGeneral ? (
-          <button
-            type="button"
-            className={`btn btn-primary${savedFlash && !dirtyCharges ? " btn-saved" : ""}`}
-            onClick={saveCharges}
-            disabled={!dirtyCharges || saving || loading}
-          >
-            {saving
-              ? "Enregistrement…"
-              : savedFlash
-                ? "Enregistré"
-                : dirtyCharges
-                  ? "Enregistrer charges"
-                  : "À jour"}
-          </button>
-        ) : null}
-      </ContextBar>
+            {viewMode === "month" ? (
+              <label className="date-field date-field-pill">
+                <span>Mois</span>
+                <input
+                  type="month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                />
+              </label>
+            ) : null}
+            {viewMode === "year" ? (
+              <label className="date-field date-field-pill">
+                <span>Année</span>
+                <input
+                  type="number"
+                  min={2020}
+                  max={2100}
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                />
+              </label>
+            ) : null}
+            {viewMode === "day" && !isGeneral ? (
+              <button
+                type="button"
+                className={`btn btn-primary${savedFlash && !dirtyCharges ? " btn-saved" : ""}`}
+                onClick={saveCharges}
+                disabled={!dirtyCharges || saving || loading}
+              >
+                {saving
+                  ? "Enregistrement…"
+                  : savedFlash
+                    ? "Enregistré"
+                    : dirtyCharges
+                      ? "Enregistrer charges"
+                      : "À jour"}
+              </button>
+            ) : null}
+          </>
+        }
+      />
 
       {error ? (
         <p className="error-banner" role="alert">
@@ -505,32 +511,8 @@ export function SynthesePage() {
           }}
         />
       ) : null}
-      </div>
+      </DashboardShell>
     </AppShell>
-  );
-}
-
-function KpiGrid({
-  items,
-}: {
-  items: {
-    label: string;
-    value: string;
-    tone?: "accent" | "warn" | "muted";
-  }[];
-}) {
-  return (
-    <div className="dash-kpi-grid">
-      {items.map((it) => (
-        <div
-          key={it.label}
-          className={`dash-kpi${it.tone ? ` dash-kpi-${it.tone}` : ""}`}
-        >
-          <span className="dash-kpi-label">{it.label}</span>
-          <span className="dash-kpi-value mono">{it.value}</span>
-        </div>
-      ))}
-    </div>
   );
 }
 
@@ -597,7 +579,7 @@ function GeneralDayDashboard({
         Résumé des ventes de la journée, matin comme soir · FCFA
       </p>
 
-      <KpiGrid
+      <DashKpiGrid
         items={[
           {
             label: "CA de la journée",
@@ -861,7 +843,7 @@ function DayDashboard({
         Montants en FCFA
       </p>
 
-      <KpiGrid
+      <DashKpiGrid
         items={[
           { label: "CA final", value: formatFcfa(day.caTotal), tone: "accent" },
           { label: "Point Zogbo", value: formatFcfa(day.caZogbo) },
@@ -1117,7 +1099,7 @@ function MonthDashboard({
         FCFA
       </p>
 
-      <KpiGrid
+      <DashKpiGrid
         items={[
           {
             label: "CA final",
@@ -1285,7 +1267,7 @@ function YearDashboard({
         FCFA
       </p>
 
-      <KpiGrid
+      <DashKpiGrid
         items={[
           {
             label: "CA final",

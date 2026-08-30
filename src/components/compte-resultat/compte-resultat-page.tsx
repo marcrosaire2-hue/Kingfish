@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { ContextBar } from "@/components/context-bar";
+import {
+  DashboardShell,
+  DashboardToolbar,
+} from "@/components/dashboard/dashboard-layout";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { PriceInput } from "@/components/parametres/price-input";
 import { CAISSE_LABELS, ZONE_CAISSES } from "@/lib/caisse-model";
@@ -646,69 +649,74 @@ export function CompteResultatPage() {
         </>
       }
     >
-      <div className="section-tabs" role="tablist" aria-label="Période">
-        {(
-          [
-            { key: "day", label: "Jour" },
-            { key: "month", label: "Mois" },
-            { key: "year", label: "Année" },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={view === t.key}
-            className={`section-tab${view === t.key ? " is-active" : ""}`}
-            onClick={() => setView(t.key)}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      <ContextBar
-        date={view === "day" ? date : undefined}
-        onDateChange={view === "day" ? setDate : undefined}
-        siteLabel={site === "zogbo" ? "Zogbo" : "Gbégamey"}
-      >
-        <div className="site-switch" role="tablist" aria-label="Site">
-          {(["zogbo", "gbegamey"] as const).map((s) => (
-            <button
-              key={s}
-              type="button"
-              role="tab"
-              aria-selected={site === s}
-              className={`site-btn${site === s ? " is-active" : ""}`}
-              onClick={() => setSite(s)}
-            >
-              {s === "zogbo" ? "Zogbo" : "Gbégamey"}
-            </button>
-          ))}
-        </div>
-        {view === "month" ? (
-          <label className="date-field date-field-pill">
-            <span>Mois</span>
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-            />
-          </label>
-        ) : null}
-        {view === "year" ? (
-          <label className="date-field date-field-pill">
-            <span>Année</span>
-            <input
-              type="number"
-              min={2020}
-              max={2100}
-              value={year}
-              onChange={(e) => setYear(e.target.value)}
-            />
-          </label>
-        ) : null}
-      </ContextBar>
+      <DashboardShell>
+      <DashboardToolbar
+        tabs={[
+          { id: "day", label: "Jour" },
+          { id: "month", label: "Mois" },
+          { id: "year", label: "Année" },
+        ]}
+        activeTab={view}
+        onTabChange={(id) => setView(id as ViewKey)}
+        filters={
+          <>
+            {view === "day" ? (
+              <label className="date-field date-field-pill">
+                <span>Jour</span>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    setDate(v);
+                  }}
+                />
+              </label>
+            ) : null}
+            <span className="context-pill context-pill-site">
+              {site === "zogbo" ? "Zogbo" : "Gbégamey"}
+            </span>
+            <div className="site-switch" role="tablist" aria-label="Site">
+              {(["zogbo", "gbegamey"] as const).map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  role="tab"
+                  aria-selected={site === s}
+                  className={`site-btn${site === s ? " is-active" : ""}`}
+                  onClick={() => setSite(s)}
+                >
+                  {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+                </button>
+              ))}
+            </div>
+            {view === "month" ? (
+              <label className="date-field date-field-pill">
+                <span>Mois</span>
+                <input
+                  type="month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                />
+              </label>
+            ) : null}
+            {view === "year" ? (
+              <label className="date-field date-field-pill">
+                <span>Année</span>
+                <input
+                  type="number"
+                  min={2020}
+                  max={2100}
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                />
+              </label>
+            ) : null}
+          </>
+        }
+      />
 
       {error ? <p className="error-banner">{error}</p> : null}
 
@@ -1030,6 +1038,7 @@ export function CompteResultatPage() {
           </aside>
         </div>
       )}
+      </DashboardShell>
     </AppShell>
   );
 }

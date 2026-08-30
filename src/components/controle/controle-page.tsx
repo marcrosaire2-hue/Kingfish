@@ -2,8 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import {
+  DashKpiGrid,
+  DashboardBody,
+  DashboardShell,
+  DashboardToolbar,
+} from "@/components/dashboard/dashboard-layout";
 import { AppShell } from "@/components/app-shell";
-import { ContextBar } from "@/components/context-bar";
 import { BrandLoader } from "@/components/brand-loader";
 import { computeGbegameyDay } from "@/lib/gbegamey-calc";
 import type {
@@ -83,14 +88,32 @@ export function ControlePage() {
       title="Contrôle écarts"
       subtitle="Transport Zogbo → Gbégamey : envois, réceptions et écarts du jour."
     >
-      <ContextBar date={date} onDateChange={setDate}>
-        <Link href="/gbegamey?tab=transfer" className="btn btn-ghost">
-          Ouvrir réceptions
-        </Link>
-        <Link href="/zogbo" className="btn btn-ghost">
-          Ouvrir Zogbo
-        </Link>
-      </ContextBar>
+      <DashboardShell>
+        <DashboardToolbar
+          filters={
+            <>
+              <label className="date-field date-field-pill">
+                <span>Jour</span>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    setDate(v);
+                  }}
+                />
+              </label>
+              <Link href="/gbegamey?tab=transfer" className="btn btn-ghost">
+                Ouvrir réceptions
+              </Link>
+              <Link href="/zogbo" className="btn btn-ghost">
+                Ouvrir Zogbo
+              </Link>
+            </>
+          }
+        />
 
       {error ? (
         <p className="error-banner" role="alert">
@@ -98,20 +121,19 @@ export function ControlePage() {
         </p>
       ) : null}
 
-      <div className="dash-kpi-grid">
-        <div className="dash-kpi">
-          <span className="dash-kpi-label">À confirmer</span>
-          <span className="dash-kpi-value">{pending.length}</span>
-        </div>
-        <div className={`dash-kpi${withVariance.length ? " dash-kpi-warn" : ""}`}>
-          <span className="dash-kpi-label">Avec écart</span>
-          <span className="dash-kpi-value">{withVariance.length}</span>
-        </div>
-        <div className="dash-kpi">
-          <span className="dash-kpi-label">Réceptions du jour</span>
-          <span className="dash-kpi-value">{receipts.length}</span>
-        </div>
-      </div>
+      <DashKpiGrid
+        items={[
+          { label: "À confirmer", value: String(pending.length) },
+          {
+            label: "Avec écart",
+            value: String(withVariance.length),
+            tone: withVariance.length ? "warn" : undefined,
+          },
+          { label: "Réceptions du jour", value: String(receipts.length) },
+        ]}
+      />
+
+      <DashboardBody>
 
       <section className="panel panel-wide">
         <h2 className="panel-title">Plats transferés</h2>
@@ -188,6 +210,8 @@ export function ControlePage() {
           </ul>
         </section>
       ) : null}
+      </DashboardBody>
+      </DashboardShell>
     </AppShell>
   );
 }

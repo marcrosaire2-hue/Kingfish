@@ -3,6 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
+import {
+  DashKpiGrid,
+  DashboardShell,
+  DashboardToolbar,
+} from "@/components/dashboard/dashboard-layout";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { formatFcfa } from "@/lib/format";
 import { exportQuantitesVenduesExcel } from "@/lib/page-exports";
@@ -106,61 +111,67 @@ export function QuantitesVenduesPage() {
         </>
       }
     >
-      <div className="hist-filters hist-ventes-filters">
-        <label className="date-field">
-          <span>Du</span>
-          <input
-            type="date"
-            value={from}
-            onChange={(e) => setFrom(e.target.value)}
-          />
-        </label>
-        <label className="date-field">
-          <span>Au</span>
-          <input
-            type="date"
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </label>
-        <label className="date-field">
-          <span>Site</span>
-          <select
-            className="select-input"
-            value={site}
-            onChange={(e) => setSite(e.target.value as SiteFilter)}
-            disabled={lockedSite}
-          >
-            {!lockedSite ? <option value="all">Tous</option> : null}
-            <option value="zogbo">Zogbo</option>
-            <option value="gbegamey">Gbégamey</option>
-          </select>
-        </label>
-        <label className="date-field">
-          <span>Famille</span>
-          <select
-            className="select-input"
-            value={kind}
-            onChange={(e) => setKind(e.target.value as KindFilter)}
-          >
-            <option value="all">Toutes</option>
-            <option value="plat">Plats</option>
-            <option value="local">Accompagnements</option>
-            <option value="boisson">Boissons</option>
-            <option value="extra">Extras</option>
-          </select>
-        </label>
-        <label className="date-field">
-          <span>Article</span>
-          <input
-            type="search"
-            className="select-input"
-            placeholder="Ex. chawarma…"
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-          />
-        </label>
-      </div>
+      <DashboardShell>
+      <DashboardToolbar
+        showCurrency={false}
+        filters={
+          <>
+            <label className="date-field date-field-pill">
+              <span>Du</span>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </label>
+            <label className="date-field date-field-pill">
+              <span>Au</span>
+              <input
+                type="date"
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </label>
+            <label className="date-field date-field-pill">
+              <span>Site</span>
+              <select
+                className="select-input"
+                value={site}
+                onChange={(e) => setSite(e.target.value as SiteFilter)}
+                disabled={lockedSite}
+              >
+                {!lockedSite ? <option value="all">Tous</option> : null}
+                <option value="zogbo">Zogbo</option>
+                <option value="gbegamey">Gbégamey</option>
+              </select>
+            </label>
+            <label className="date-field date-field-pill">
+              <span>Famille</span>
+              <select
+                className="select-input"
+                value={kind}
+                onChange={(e) => setKind(e.target.value as KindFilter)}
+              >
+                <option value="all">Toutes</option>
+                <option value="plat">Plats</option>
+                <option value="local">Accompagnements</option>
+                <option value="boisson">Boissons</option>
+                <option value="extra">Extras</option>
+              </select>
+            </label>
+            <label className="date-field date-field-pill">
+              <span>Article</span>
+              <input
+                type="search"
+                className="select-input"
+                placeholder="Ex. chawarma…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+            </label>
+          </>
+        }
+      />
 
       {error ? (
         <p className="error-banner" role="alert">
@@ -168,24 +179,14 @@ export function QuantitesVenduesPage() {
         </p>
       ) : null}
 
-      <div className="qv-summary" role="status">
-        <div>
-          <span className="qv-summary-label">Articles</span>
-          <strong className="mono">{data.totals.articles}</strong>
-        </div>
-        <div>
-          <span className="qv-summary-label">Quantité totale</span>
-          <strong className="mono">{data.totals.qty}</strong>
-        </div>
-        <div>
-          <span className="qv-summary-label">CA</span>
-          <strong className="mono">{formatFcfa(data.totals.amount)}</strong>
-        </div>
-        <div>
-          <span className="qv-summary-label">Lignes</span>
-          <strong className="mono">{data.totals.lignes}</strong>
-        </div>
-      </div>
+      <DashKpiGrid
+        items={[
+          { label: "Articles", value: String(data.totals.articles) },
+          { label: "Quantité totale", value: String(data.totals.qty) },
+          { label: "CA", value: formatFcfa(data.totals.amount) },
+          { label: "Lignes", value: String(data.totals.lignes) },
+        ]}
+      />
 
       {loading && rows.length === 0 ? (
         <BrandLoader label="Chargement des ventes…" />
@@ -223,6 +224,7 @@ export function QuantitesVenduesPage() {
           </table>
         </div>
       )}
+      </DashboardShell>
     </AppShell>
   );
 }

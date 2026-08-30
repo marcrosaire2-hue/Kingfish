@@ -3,7 +3,11 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
-import { ContextBar } from "@/components/context-bar";
+import {
+  DashKpiGrid,
+  DashboardShell,
+  DashboardToolbar,
+} from "@/components/dashboard/dashboard-layout";
 import { formatFcfa } from "@/lib/format";
 import type { RapportQuotidien } from "@/lib/rapport-quotidien-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -62,29 +66,46 @@ export function RapportQuotidienPage() {
         ) : undefined
       }
     >
-      <div className="rapport-page">
-        <ContextBar date={date} onDateChange={setDate} siteLabel="Rapport">
-          <div className="site-switch" role="tablist" aria-label="Site">
-            {(
-              [
-                ["all", "Les deux"],
-                ["zogbo", "Zogbo"],
-                ["gbegamey", "Gbégamey"],
-              ] as const
-            ).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                role="tab"
-                aria-selected={site === value}
-                className={`site-btn${site === value ? " is-active" : ""}`}
-                onClick={() => setSite(value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </ContextBar>
+      <DashboardShell>
+        <DashboardToolbar
+          filters={
+            <>
+              <label className="date-field date-field-pill">
+                <span>Jour</span>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    setDate(v);
+                  }}
+                />
+              </label>
+              <div className="site-switch" role="tablist" aria-label="Site">
+                {(
+                  [
+                    ["all", "Les deux"],
+                    ["zogbo", "Zogbo"],
+                    ["gbegamey", "Gbégamey"],
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={site === value}
+                    className={`site-btn${site === value ? " is-active" : ""}`}
+                    onClick={() => setSite(value)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          }
+        />
 
         {error ? (
           <p className="error-banner" role="alert">
@@ -97,34 +118,27 @@ export function RapportQuotidienPage() {
 
         {rapport ? (
           <>
-            <section className="rapport-totaux">
-              <div>
-                <span>CA total</span>
-                <strong className="mono">{formatFcfa(rapport.totaux.ca)}</strong>
-              </div>
-              <div>
-                <span>Ventes</span>
-                <strong className="mono">{rapport.totaux.ventesCount}</strong>
-              </div>
-              <div>
-                <span>Panier moyen</span>
-                <strong className="mono">
-                  {formatFcfa(rapport.totaux.panierMoyen)}
-                </strong>
-              </div>
-              <div>
-                <span>Pertes</span>
-                <strong className="mono">
-                  {formatFcfa(rapport.totaux.pertesMontant)}
-                </strong>
-              </div>
-              <div>
-                <span>Écarts caisse</span>
-                <strong className="mono">
-                  {formatFcfa(rapport.totaux.ecartsCaisse)}
-                </strong>
-              </div>
-            </section>
+            <DashKpiGrid
+              items={[
+                { label: "CA total", value: formatFcfa(rapport.totaux.ca) },
+                {
+                  label: "Ventes",
+                  value: String(rapport.totaux.ventesCount),
+                },
+                {
+                  label: "Panier moyen",
+                  value: formatFcfa(rapport.totaux.panierMoyen),
+                },
+                {
+                  label: "Pertes",
+                  value: formatFcfa(rapport.totaux.pertesMontant),
+                },
+                {
+                  label: "Écarts caisse",
+                  value: formatFcfa(rapport.totaux.ecartsCaisse),
+                },
+              ]}
+            />
 
             {rapport.sites.map((s) => (
               <section key={s.site} className="rapport-site panel">
@@ -203,7 +217,7 @@ export function RapportQuotidienPage() {
             </section>
           </>
         ) : null}
-      </div>
+      </DashboardShell>
     </AppShell>
   );
 }

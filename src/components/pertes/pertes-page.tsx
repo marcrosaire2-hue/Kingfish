@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { ContextBar } from "@/components/context-bar";
+import {
+  DashKpiGrid,
+  DashboardSectionNav,
+  DashboardShell,
+  DashboardToolbar,
+} from "@/components/dashboard/dashboard-layout";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { formatFcfa } from "@/lib/format";
 import { computeMatieresDay } from "@/lib/matieres-calc";
@@ -296,30 +301,47 @@ export function PertesPage() {
         ) : undefined
       }
     >
-      <ContextBar
-        date={date}
-        onDateChange={setDate}
-        siteLabel={site === "zogbo" ? "Zogbo" : "Gbégamey"}
-      >
-        {userSite === "tous" ? (
-          <div className="site-switch" role="tablist" aria-label="Point de vente">
-            <button
-              type="button"
-              className={`site-btn${site === "zogbo" ? " is-active" : ""}`}
-              onClick={() => setSite("zogbo")}
-            >
-              Zogbo
-            </button>
-            <button
-              type="button"
-              className={`site-btn${site === "gbegamey" ? " is-active" : ""}`}
-              onClick={() => setSite("gbegamey")}
-            >
-              Gbégamey
-            </button>
-          </div>
-        ) : null}
-      </ContextBar>
+      <DashboardShell>
+      <DashboardToolbar
+        filters={
+          <>
+            <label className="date-field date-field-pill">
+              <span>Jour</span>
+              <input
+                type="date"
+                value={date}
+                max={todayIsoDate()}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                  setDate(v);
+                }}
+              />
+            </label>
+            <span className="context-pill context-pill-site">
+              {site === "zogbo" ? "Zogbo" : "Gbégamey"}
+            </span>
+            {userSite === "tous" ? (
+              <div className="site-switch" role="tablist" aria-label="Point de vente">
+                <button
+                  type="button"
+                  className={`site-btn${site === "zogbo" ? " is-active" : ""}`}
+                  onClick={() => setSite("zogbo")}
+                >
+                  Zogbo
+                </button>
+                <button
+                  type="button"
+                  className={`site-btn${site === "gbegamey" ? " is-active" : ""}`}
+                  onClick={() => setSite("gbegamey")}
+                >
+                  Gbégamey
+                </button>
+              </div>
+            ) : null}
+          </>
+        }
+      />
 
       {error ? (
         <p className="error-banner" role="alert">
@@ -328,38 +350,30 @@ export function PertesPage() {
       ) : null}
       {flash ? <p className="login-hint">{flash}</p> : null}
 
-      <div className="dash-kpi-grid pertes-kpi-grid">
-        <div
-          className={`dash-kpi${coutDuJour > 0 ? " dash-kpi-warn" : ""}`}
-        >
-          <span className="dash-kpi-label">Pertes du jour</span>
-          <span className="dash-kpi-value">{formatFcfa(coutDuJour)}</span>
-        </div>
-        <div className="dash-kpi">
-          <span className="dash-kpi-label">Déclarations</span>
-          <span className="dash-kpi-value">
-            {pertes.filter((p) => !p.cancelledAt).length}
-          </span>
-        </div>
-      </div>
+      <DashKpiGrid
+        className="pertes-kpi-grid"
+        items={[
+          {
+            label: "Pertes du jour",
+            value: formatFcfa(coutDuJour),
+            tone: coutDuJour > 0 ? "warn" : undefined,
+          },
+          {
+            label: "Déclarations",
+            value: String(pertes.filter((p) => !p.cancelledAt).length),
+          },
+        ]}
+      />
 
-      <div className="section-tabs" role="tablist" aria-label="Famille">
-        {FAMILLES.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              role="tab"
-              aria-selected={famille === f.key}
-              className={`section-tab${famille === f.key ? " is-active" : ""}`}
-              onClick={() => {
-                setFamille(f.key);
-                setProductId("");
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
-      </div>
+      <DashboardSectionNav
+        label="Famille"
+        sections={FAMILLES.map((f) => ({ id: f.key, label: f.label }))}
+        active={famille}
+        onChange={(key) => {
+          setFamille(key);
+          setProductId("");
+        }}
+      />
 
       <form className="panel stack-form" onSubmit={declarer}>
         <label>
@@ -485,6 +499,7 @@ export function PertesPage() {
           </ul>
         )}
       </section>
+      </DashboardShell>
     </AppShell>
   );
 }

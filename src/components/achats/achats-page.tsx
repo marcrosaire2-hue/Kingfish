@@ -10,6 +10,10 @@ import type { Fournisseur, MatieresMovement } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import { BrandLoader } from "@/components/brand-loader";
 import {
+  DashKpiGrid,
+  DashboardShell,
+} from "@/components/dashboard/dashboard-layout";
+import {
   MovementRow,
   emptyDraftLibre,
   movementRows,
@@ -275,6 +279,7 @@ export function AchatsPage() {
         </>
       }
     >
+      <DashboardShell>
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       {flash ? <p className="ui-info" role="status">{flash}</p> : null}
 
@@ -287,16 +292,20 @@ export function AchatsPage() {
       </p>
 
       {!loading ? (
-        <div className="dash-kpi-grid achats-kpi-grid">
-          <div className="dash-kpi dash-kpi-accent">
-            <span className="dash-kpi-label">Total des achats</span>
-            <span className="dash-kpi-value">{formatFcfa(totalMontant)}</span>
-          </div>
-          <div className="dash-kpi">
-            <span className="dash-kpi-label">Achats enregistrés</span>
-            <span className="dash-kpi-value">{totalCount}</span>
-          </div>
-        </div>
+        <DashKpiGrid
+          className="achats-kpi-grid"
+          items={[
+            {
+              label: "Total des achats",
+              value: formatFcfa(totalMontant),
+              tone: "accent",
+            },
+            {
+              label: "Achats enregistrés",
+              value: String(totalCount),
+            },
+          ]}
+        />
       ) : null}
 
       {loading ? (
@@ -418,6 +427,7 @@ export function AchatsPage() {
           </section>
         </>
       )}
+      </DashboardShell>
     </AppShell>
   );
 }
