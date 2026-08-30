@@ -17,6 +17,7 @@ import {
   type StockFamily,
   type StockKind,
   type StockZone,
+  stockKindHasRuptureAlerts,
 } from "@/lib/stock-meta";
 import { isValidDate } from "@/lib/day-doc";
 
@@ -123,7 +124,8 @@ export async function getEpuises(input: {
     onlyActive: false,
     // Le tableau de bord ne liste que le vendable cuisine/salle : les
     // matières premières n'y ont pas leur place.
-    families: ["plats", "accompagnements"],
+    // Plats uniquement : les accompagnements ne déclenchent pas d'alerte.
+    families: ["plats"],
   });
   return rows
     .map((r) => ({
@@ -140,7 +142,7 @@ export async function getEpuises(input: {
           ? r.compte - r.vendu
           : (r.stockVendable ?? r.stockFinal),
     }))
-    .filter((r) => r.stock <= 0)
+    .filter((r) => r.stock <= 0 && stockKindHasRuptureAlerts(r.kind))
     .map(({ stock, ...e }) => ({ ...e, restant: stock }))
     .sort(
       (a, b) =>

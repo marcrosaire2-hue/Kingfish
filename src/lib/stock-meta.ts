@@ -22,6 +22,11 @@ export type StockZone =
 
 export type StockKind = "plat" | "local" | "boisson" | "matiere";
 
+/** Les accompagnements restent vendables sans stock : pas d'alerte rupture. */
+export function stockKindHasRuptureAlerts(kind: StockKind): boolean {
+  return kind !== "local";
+}
+
 export const STOCK_FAMILY_META: {
   family: StockFamily;
   label: string;

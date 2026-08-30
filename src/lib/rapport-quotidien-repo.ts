@@ -9,6 +9,7 @@ import { formatFcfa } from "@/lib/format";
 import { listPertes, sumPertesCost } from "@/lib/pertes-repo";
 import { getQuantitesVendues } from "@/lib/quantites-vendues-repo";
 import { getEpuises, getStockPayload } from "@/lib/stock-repo";
+import { stockKindHasRuptureAlerts } from "@/lib/stock-meta";
 import type { CaisseKey, VenteSite } from "@/lib/types";
 import { sumCaByShift, sumCaForSite } from "@/lib/vente-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -69,7 +70,7 @@ async function blockForSite(
         date,
         scopeSite: site,
         onlyActive: false,
-        families: ["plats", "accompagnements", "boissons"],
+        families: ["plats", "boissons"],
       }),
     ]);
 
@@ -88,6 +89,7 @@ async function blockForSite(
     { name: string; stockLeft: number | null; kind: string }
   >();
   for (const e of epuises.slice(0, 20)) {
+    if (!stockKindHasRuptureAlerts(e.kind)) continue;
     critiqueMap.set(`${e.kind}:${e.productId}`, {
       name: e.name,
       stockLeft: e.restant,
@@ -95,6 +97,7 @@ async function blockForSite(
     });
   }
   for (const row of stock.rows) {
+    if (!stockKindHasRuptureAlerts(row.kind)) continue;
     if (!row.belowThreshold) continue;
     critiqueMap.set(`${row.kind}:${row.productId}`, {
       name: row.name,
