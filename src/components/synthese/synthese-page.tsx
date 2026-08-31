@@ -320,6 +320,7 @@ export function SynthesePage() {
   } | null>(null);
   const [shiftTotals, setShiftTotals] = useState<{
     jour: number;
+    soir: number;
     nuit: number;
     aucune: number;
   } | null>(null);
@@ -401,6 +402,7 @@ export function SynthesePage() {
         setShiftTotals(
           (body.shiftTotals as {
             jour: number;
+            soir: number;
             nuit: number;
             aucune: number;
           } | null) ?? null,
