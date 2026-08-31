@@ -28,6 +28,10 @@ const nextConfig: NextConfig = {
   // Ne pas divulguer la pile technique dans les réponses.
   poweredByHeader: false,
 
+  // Évite un crash au « Collecting page data » sur Render : ces paquets
+  // Node doivent rester externes (pas rebundlés par Turbopack).
+  serverExternalPackages: ["cloudinary", "mongodb"],
+
   async headers() {
     // En local, pas de CSP : React/Turbopack ont besoin de eval() et le HMR
     // WebSocket doit suivre le port réel du serveur (évite les erreurs 3001).

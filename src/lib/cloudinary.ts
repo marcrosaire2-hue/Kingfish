@@ -1,6 +1,20 @@
-import { v2 as cloudinary } from "cloudinary";
+type CloudinaryApi = {
+  config: (cfg: {
+    cloud_name: string;
+    api_key: string;
+    api_secret: string;
+    secure?: boolean;
+  }) => void;
+  uploader: {
+    upload: (
+      file: string,
+      options: Record<string, unknown>,
+    ) => Promise<{ secure_url?: string; public_id?: string }>;
+  };
+};
 
 let configured = false;
+let cloudinaryApi: CloudinaryApi | null = null;
 
 function parseCloudinaryUrl(url: string): {
   cloud_name: string;
@@ -27,22 +41,27 @@ function parseCloudinaryUrl(url: string): {
   return { cloud_name, api_key, api_secret };
 }
 
-function ensureCloudinaryConfigured(): void {
-  if (configured) return;
+async function getCloudinary(): Promise<CloudinaryApi> {
+  if (cloudinaryApi && configured) return cloudinaryApi;
+
   const url = process.env.CLOUDINARY_URL?.trim();
   if (!url) {
     throw new Error(
-      "CLOUDINARY_URL manquant dans .env.local (cloudinary://API_KEY:API_SECRET@CLOUD_NAME).",
+      "CLOUDINARY_URL manquant (cloudinary://API_KEY:API_SECRET@CLOUD_NAME).",
     );
   }
   const cfg = parseCloudinaryUrl(url);
-  cloudinary.config({
+  const mod = await import("cloudinary");
+  const api = mod.v2 as unknown as CloudinaryApi;
+  api.config({
     cloud_name: cfg.cloud_name,
     api_key: cfg.api_key,
     api_secret: cfg.api_secret,
     secure: true,
   });
+  cloudinaryApi = api;
   configured = true;
+  return api;
 }
 
 export type CloudinaryUploadResult = {
@@ -62,7 +81,7 @@ export async function uploadVersementPreuve(input: {
   date: string;
   site: string;
 }): Promise<CloudinaryUploadResult> {
-  ensureCloudinaryConfigured();
+  const cloudinary = await getCloudinary();
 
   const dataUri = `data:${input.mime};base64,${input.bytes.toString("base64")}`;
   const result = await cloudinary.uploader.upload(dataUri, {
