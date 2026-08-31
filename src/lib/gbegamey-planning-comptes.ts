@@ -9,7 +9,14 @@
  * Actif à partir du 2026-09-01.
  */
 import type { UserShift } from "@/lib/auth-types";
-import { BUSINESS_TIMEZONE, todayIsoDate } from "@/lib/zogbo-calc";
+import {
+  EQUIPE_GRACE_MINUTES,
+  isSoirGraceAfterMidnight,
+  isWithinEquipePeriodeStrict,
+  isWithinEquipePeriodeWithGrace,
+  minutesInBusinessTz,
+} from "@/lib/equipe-horaire-marge";
+import { previousIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 
 export const GBEGAMEY_PLANNING_START_ISO = "2026-09-01";
 
@@ -200,23 +207,11 @@ export function jourSlugFromIsoDate(isoDate: string): GbegameyJourSlug {
   return JOUR_SLUGS[dt.getUTCDay()]!;
 }
 
-function hourInBusinessTz(now: Date): number {
-  const formatted = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BUSINESS_TIMEZONE,
-    hour: "2-digit",
-    hour12: false,
-  }).format(now);
-  return Number(formatted) % 24;
-}
-
 export function isWithinGbegameyPeriode(
   periode: GbegameyPeriode,
   now = new Date(),
 ): boolean {
-  const h = hourInBusinessTz(now);
-  if (periode === "nuit") return h >= 0 && h < 8;
-  if (periode === "matin") return h >= 8 && h < 16;
-  return h >= 16;
+  return isWithinEquipePeriodeWithGrace(periode, now);
 }
 
 export function isGbegameyPlanningActive(
@@ -239,7 +234,12 @@ export function assertGbegameyPlanningSale(input: {
   if (!compte) return;
   if (!isGbegameyPlanningActive(input.serviceDate)) return;
 
-  const jour = jourSlugFromIsoDate(input.serviceDate);
+  const now = input.now ?? new Date();
+  let jourDate = input.serviceDate;
+  if (compte.periode === "soir" && isSoirGraceAfterMidnight(now)) {
+    jourDate = previousIsoDate(input.serviceDate) ?? input.serviceDate;
+  }
+  const jour = jourSlugFromIsoDate(jourDate);
 
   if (compte.periode === "nuit" && jour === "mardi") {
     throw new Error(
@@ -247,11 +247,11 @@ export function assertGbegameyPlanningSale(input: {
     );
   }
 
-  // Seule l’équipe nuit gère 00h–08h.
-  if (
-    isWithinGbegameyPeriode("nuit", input.now) &&
-    compte.periode !== "nuit"
-  ) {
+  // 00h–08h strict (hors marge soir 00h–00h15) : seule l’équipe nuit.
+  const m = minutesInBusinessTz(now);
+  const exclusiveNuit =
+    m >= EQUIPE_GRACE_MINUTES && isWithinEquipePeriodeStrict("nuit", now);
+  if (exclusiveNuit && compte.periode !== "nuit") {
     throw new Error(
       "Vente refusée : de 00h00 à 08h00, seule l’Équipe Nuit peut enregistrer des ventes.",
     );
@@ -264,9 +264,9 @@ export function assertGbegameyPlanningSale(input: {
     );
   }
 
-  if (!isWithinGbegameyPeriode(compte.periode, input.now)) {
+  if (!isWithinGbegameyPeriode(compte.periode, now)) {
     throw new Error(
-      `Vente refusée : hors créneau ${compte.periode} (${compte.horaire}). Connectez le compte de la période en cours.`,
+      `Vente refusée : hors créneau ${compte.periode} (${compte.horaire}, marge +${EQUIPE_GRACE_MINUTES} min). Connectez le compte de la période en cours.`,
     );
   }
 }

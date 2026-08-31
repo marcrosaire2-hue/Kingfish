@@ -42,8 +42,9 @@ describe("planning 12 comptes Zogbo", () => {
     expect(jourSlugFromIsoDate("2026-09-06")).toBe("dimanche");
   });
 
-  it("applique les créneaux matin / soir", () => {
+  it("applique les créneaux matin / soir (avec marge 15 min)", () => {
     expect(isWithinZogboPeriode("matin", new Date("2026-09-01T10:00:00+01:00"))).toBe(true);
+    expect(isWithinZogboPeriode("matin", new Date("2026-09-01T16:10:00+01:00"))).toBe(true);
     expect(isWithinZogboPeriode("matin", new Date("2026-09-01T17:00:00+01:00"))).toBe(false);
     expect(isWithinZogboPeriode("soir", new Date("2026-09-01T17:00:00+01:00"))).toBe(true);
     expect(isWithinZogboPeriode("soir", new Date("2026-09-01T10:00:00+01:00"))).toBe(false);

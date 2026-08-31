@@ -5,7 +5,12 @@
  * 1–6  = Matin 08h–16h (mardi → dimanche)
  * 7–12 = Soir  16h–00h (mardi → dimanche)
  */
-import { BUSINESS_TIMEZONE, todayIsoDate } from "@/lib/zogbo-calc";
+import { previousIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
+import {
+  EQUIPE_GRACE_MINUTES,
+  isSoirGraceAfterMidnight,
+  isWithinEquipePeriodeWithGrace,
+} from "@/lib/equipe-horaire-marge";
 
 /** Premier jour d’application du planning (mardi 1er septembre 2026). */
 export const ZOGBO_PLANNING_START_ISO = "2026-09-01";
@@ -96,22 +101,11 @@ export function jourSlugFromIsoDate(isoDate: string): ZogboJourSlug {
   return JOUR_SLUGS[dt.getUTCDay()]!;
 }
 
-function hourInBusinessTz(now: Date): number {
-  const formatted = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BUSINESS_TIMEZONE,
-    hour: "2-digit",
-    hour12: false,
-  }).format(now);
-  return Number(formatted) % 24;
-}
-
 export function isWithinZogboPeriode(
   periode: ZogboPeriode,
   now = new Date(),
 ): boolean {
-  const h = hourInBusinessTz(now);
-  if (periode === "matin") return h >= 8 && h < 16;
-  return h >= 16;
+  return isWithinEquipePeriodeWithGrace(periode, now);
 }
 
 export function isZogboPlanningActive(
@@ -124,6 +118,7 @@ export function isZogboPlanningActive(
 /**
  * Garde d’encaissement pour les 12 comptes planning.
  * Sans effet avant la date d’activation, ni pour les autres comptes.
+ * Marge : 15 min après la fin du créneau.
  */
 export function assertZogboPlanningSale(input: {
   username: string;
@@ -135,7 +130,14 @@ export function assertZogboPlanningSale(input: {
   if (!compte) return;
   if (!isZogboPlanningActive(input.serviceDate)) return;
 
-  const jour = jourSlugFromIsoDate(input.serviceDate);
+  const now = input.now ?? new Date();
+  // Marge soir après minuit : le jour de service reste la veille.
+  let jourDate = input.serviceDate;
+  if (compte.periode === "soir" && isSoirGraceAfterMidnight(now)) {
+    jourDate = previousIsoDate(input.serviceDate) ?? input.serviceDate;
+  }
+  const jour = jourSlugFromIsoDate(jourDate);
+
   if (jour === "lundi") {
     throw new Error(
       "Vente refusée : Zogbo est fermé le lundi. Aucun compte planning n’est prévu ce jour-là.",
@@ -143,12 +145,12 @@ export function assertZogboPlanningSale(input: {
   }
   if (jour !== compte.jourSlug) {
     throw new Error(
-      `Vente refusée : ${compte.name} est réservée au ${compte.jourSlug}. Aujourd’hui (${input.serviceDate}) c’est ${jour}. Connectez le compte du jour.`,
+      `Vente refusée : ${compte.name} est réservée au ${compte.jourSlug}. Aujourd’hui (${input.serviceDate}) c’est ${jourSlugFromIsoDate(input.serviceDate)}. Connectez le compte du jour.`,
     );
   }
-  if (!isWithinZogboPeriode(compte.periode, input.now)) {
+  if (!isWithinZogboPeriode(compte.periode, now)) {
     throw new Error(
-      `Vente refusée : hors créneau ${compte.periode} (${compte.horaire}). Connectez le compte de la période en cours.`,
+      `Vente refusée : hors créneau ${compte.periode} (${compte.horaire}, marge +${EQUIPE_GRACE_MINUTES} min). Connectez le compte de la période en cours.`,
     );
   }
 }
