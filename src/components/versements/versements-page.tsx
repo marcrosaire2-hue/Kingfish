@@ -20,7 +20,7 @@ import {
   type VenteSite,
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
-import { defaultTrancheFromShift } from "@/lib/versements-repo";
+import { defaultTrancheFromShift } from "@/lib/versements-model";
 import "./versements-page.css";
 
 type StatutFilter = "all" | VersementStatut;

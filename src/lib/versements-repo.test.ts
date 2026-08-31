@@ -9,7 +9,7 @@ import {
   parseVersementMontant,
   parseVersementNumero,
   parseVersementTranche,
-} from "@/lib/versements-repo";
+} from "@/lib/versements-model";
 
 describe("droits versements", () => {
   it("seul le gérant déclare ; seul le comptable confirme ; admin/DAF lecteurs", () => {

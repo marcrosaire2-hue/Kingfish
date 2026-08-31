@@ -1,0 +1,140 @@
+/**
+ * Modèle / validation versements — sans Mongo ni Cloudinary
+ * (importable depuis les Client Components).
+ */
+import type { UserRole, UserShift } from "@/lib/auth-types";
+import { effectiveShift } from "@/lib/auth-types";
+import type { VersementTranche } from "@/lib/types";
+
+const TRANCHES: VersementTranche[] = ["nuit", "matin", "soir"];
+
+const MAX_PREUVE_BYTES = 4 * 1024 * 1024;
+const ALLOWED_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/jpg",
+]);
+
+/** Seule l’équipe (gérant) enregistre un versement. Admin et DAF sont lecteurs. */
+export function canDeclareVersement(role: UserRole): boolean {
+  return role === "gerant";
+}
+
+/** Seul le comptable confirme. Admin et DAF sont lecteurs. */
+export function canConfirmVersement(role: UserRole): boolean {
+  return role === "comptable";
+}
+
+export function parseVersementHeure(raw: string): string {
+  const value = raw.trim();
+  if (!/^\d{2}:\d{2}$/.test(value)) {
+    throw new Error("Heure invalide (attendu HH:MM).");
+  }
+  const [h, m] = value.split(":").map(Number) as [number, number];
+  if (h > 23 || m > 59) {
+    throw new Error("Heure invalide (attendu HH:MM).");
+  }
+  return value;
+}
+
+export function parseVersementMontant(raw: unknown): number {
+  const n =
+    typeof raw === "number"
+      ? raw
+      : Number(String(raw ?? "").replace(/\s/g, "").replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error("Montant invalide (strictement positif).");
+  }
+  return Math.round(n);
+}
+
+export function parseVersementNumero(raw: string): string {
+  const value = raw.trim();
+  if (value.length < 3) {
+    throw new Error("Numéro de transaction trop court.");
+  }
+  if (value.length > 80) {
+    throw new Error("Numéro de transaction trop long.");
+  }
+  return value;
+}
+
+export function parseVersementTranche(raw: unknown): VersementTranche {
+  const value = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (!TRANCHES.includes(value as VersementTranche)) {
+    throw new Error(
+      "Tranche d’horaire requise : Nuit (00h–08h), Matin (08h–16h) ou Soir (16h–00h).",
+    );
+  }
+  return value as VersementTranche;
+}
+
+/** Noms des membres présents — au moins un, nettoyés et sans doublon. */
+export function parseVersementMembres(raw: unknown): string[] {
+  const parts = Array.isArray(raw)
+    ? raw.map((x) => String(x ?? ""))
+    : String(raw ?? "")
+        .split(/[\n,;]+/)
+        .map((s) => s.trim());
+
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    const name = part.trim().replace(/\s+/g, " ");
+    if (!name) continue;
+    if (name.length < 2) {
+      throw new Error("Nom de membre trop court.");
+    }
+    if (name.length > 80) {
+      throw new Error("Nom de membre trop long.");
+    }
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  if (names.length === 0) {
+    throw new Error(
+      "Indiquez le nom de chaque membre de l’équipe présent (au moins un).",
+    );
+  }
+  if (names.length > 12) {
+    throw new Error("Trop de membres déclarés (max. 12).");
+  }
+  return names;
+}
+
+/** Propose la tranche à partir du shift du compte connecté. */
+export function defaultTrancheFromShift(
+  shift: UserShift | string | null | undefined,
+): VersementTranche {
+  const s = effectiveShift(shift);
+  if (s === "nuit") return "nuit";
+  if (s === "soir") return "soir";
+  return "matin";
+}
+
+export function assertPreuveFile(input: {
+  mime: string;
+  size: number;
+}): void {
+  const mime = input.mime === "image/jpg" ? "image/jpeg" : input.mime;
+  if (!ALLOWED_MIME.has(mime)) {
+    throw new Error("Capture d’écran : JPEG, PNG ou WebP uniquement.");
+  }
+  if (input.size <= 0) {
+    throw new Error("Capture d’écran manquante.");
+  }
+  if (input.size > MAX_PREUVE_BYTES) {
+    throw new Error("Capture d’écran trop lourde (max. 4 Mo).");
+  }
+}
+
+export function isVersementTranche(
+  value: unknown,
+): value is VersementTranche {
+  return TRANCHES.includes(value as VersementTranche);
+}
