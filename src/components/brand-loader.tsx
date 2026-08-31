@@ -18,12 +18,12 @@ export function BrandLoader({
 }) {
   const contenu = (
     <div className="brand-loader-inner">
-      <span className="brand-loader-mark" aria-hidden>
+      <span className="brand-loader-mark logo-ring-wrap" aria-hidden>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={APP_LOGO}
           alt=""
-          className="brand-loader-logo"
+          className="brand-logo brand-logo-lg"
           width={72}
           height={72}
         />

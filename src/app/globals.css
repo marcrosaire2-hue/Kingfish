@@ -215,13 +215,11 @@ select {
   padding: 0.3rem;
 }
 
-/* ---------- Logo animé ---------- */
+/* ---------- Logo animé (unique partout) ---------- */
 
-/* Souffle discret du logo en permanence (barre latérale, mobile, connexion). */
 .brand-logo,
 .brand-logo-sm,
-.login-logo,
-.login-form-logo {
+.brand-logo-lg {
   animation: kf-logo-breathe 3.2s ease-in-out infinite;
 }
 
@@ -236,6 +234,49 @@ select {
     filter: drop-shadow(
       0 4px 18px color-mix(in srgb, var(--accent) 45%, transparent)
     );
+  }
+}
+
+/* Anneau doré autour du logo pendant les chargements. */
+.logo-ring-wrap {
+  position: relative;
+  width: 6.6rem;
+  height: 6.6rem;
+  display: grid;
+  place-items: center;
+}
+
+.logo-ring-wrap::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  padding: 3px;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--accent, #f0b018) 80%, transparent),
+    transparent 28%,
+    color-mix(in srgb, var(--accent, #f0b018) 25%, transparent) 55%,
+    transparent 78%,
+    color-mix(in srgb, var(--accent, #f0b018) 80%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation: kf-ring-spin 1.6s linear infinite;
+}
+
+@keyframes kf-ring-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -274,58 +315,7 @@ select {
 }
 
 .route-loader-logo-wrap {
-  position: relative;
-  width: 6.6rem;
-  height: 6.6rem;
-  display: grid;
-  place-items: center;
   margin-bottom: 0.5rem;
-}
-
-/* Anneau doré en rotation — repris de la couronne du logo. */
-.route-loader-logo-wrap::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  padding: 3px;
-  background: conic-gradient(
-    from 0deg,
-    color-mix(in srgb, var(--accent, #f0b018) 80%, transparent),
-    transparent 28%,
-    color-mix(in srgb, var(--accent, #f0b018) 25%, transparent) 55%,
-    transparent 78%,
-    color-mix(in srgb, var(--accent, #f0b018) 80%, transparent)
-  );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
-  animation: kf-ring-spin 1.6s linear infinite;
-}
-
-@keyframes kf-ring-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.route-loader-logo {
-  width: 5.25rem;
-  height: 5.25rem;
-  object-fit: contain;
-  border-radius: 18px;
-  background: #ffffff;
-  padding: 0.3rem;
-  box-shadow: 0 8px 24px color-mix(in srgb, #000 20%, transparent);
-  animation: kf-logo-breathe 1.8s ease-in-out infinite;
 }
 
 .route-loader-name {
@@ -2273,13 +2263,10 @@ select {
   padding: 1.25rem 1.35rem 1.4rem;
 }
 
-.login-visual-avatar {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 50%;
-  object-fit: cover;
-  background: #fff;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+.login-visual-foot .brand-logo {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.35),
+    0 4px 14px color-mix(in srgb, #000 22%, transparent);
 }
 
 .login-visual-credit {
@@ -2329,17 +2316,9 @@ select {
   margin-top: 0.75rem;
 }
 
-.login-form-logo {
+.login-form-head .brand-logo {
   display: none;
-  width: 4.25rem;
-  height: 4.25rem;
   margin: 0 auto 0.85rem;
-  border-radius: 50%;
-  object-fit: cover;
-  background: #fff;
-  box-shadow:
-    0 8px 24px color-mix(in srgb, var(--sidebar) 18%, transparent),
-    0 0 0 3px rgba(255, 255, 255, 0.85);
 }
 
 .login-form-tag {
@@ -2559,7 +2538,7 @@ select {
     margin-top: 0;
   }
 
-  .login-form-logo,
+  .login-form-head .brand-logo,
   .login-form-tag {
     display: block;
   }
@@ -7075,11 +7054,6 @@ html.nav-open body {
     font-size: 1.35rem;
   }
 
-  .login-logo {
-    width: 4.75rem;
-    height: 4.75rem;
-  }
-
   .caisse-hero-metrics {
     grid-template-columns: 1fr;
   }
@@ -7103,13 +7077,12 @@ html.nav-open body {
 
   .brand-logo,
   .brand-logo-sm,
-  .login-logo,
-  .login-form-logo,
+  .brand-logo-lg,
   .login-spinner,
-  .route-loader-logo,
-  .route-loader-logo-wrap::before,
+  .logo-ring-wrap::before,
   .route-loader-bar-fill,
-  .route-loader {
+  .route-loader,
+  .side-nav-link .nav-pending.is-pending {
     animation: none !important;
   }
 }
@@ -8245,33 +8218,7 @@ html.nav-open body {
 }
 
 .brand-loader-mark {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 5.6rem;
-  height: 5.6rem;
-}
-
-/* Anneau qui tourne autour du logo : le mouvement vient de l'anneau, le
-   logo ne fait que respirer — un logo qui tourne serait illisible. */
-.brand-loader-mark::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  border: 3px solid color-mix(in srgb, var(--accent) 22%, transparent);
-  border-top-color: var(--accent);
-  animation: brand-loader-tourne 0.9s linear infinite;
-}
-
-.brand-loader-logo {
-  width: 4.1rem;
-  height: 4.1rem;
-  border-radius: 50%;
-  object-fit: cover;
-  background: #fff;
-  box-shadow: 0 8px 22px color-mix(in srgb, var(--ink) 18%, transparent);
-  animation: brand-loader-respire 1.6s ease-in-out infinite;
+  margin-bottom: 0;
 }
 
 .brand-loader-label {
@@ -8281,19 +8228,9 @@ html.nav-open body {
   text-align: center;
 }
 
-@keyframes brand-loader-tourne {
-  to {
-    transform: rotate(1turn);
-  }
-}
-
-@keyframes brand-loader-respire {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(0.93);
+@media (prefers-reduced-motion: reduce) {
+  .logo-ring-wrap::before {
+    animation: none;
   }
 }
 
@@ -8410,17 +8347,15 @@ html.nav-open body {
   transition: opacity 0.15s ease;
 }
 
-.side-nav-link .nav-pending.is-pending {
-  opacity: 1;
-  animation: brand-loader-tourne 0.7s linear infinite;
+@keyframes kf-nav-spin {
+  to {
+    transform: rotate(1turn);
+  }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .brand-loader-mark::after,
-  .brand-loader-logo,
-  .side-nav-link .nav-pending.is-pending {
-    animation: none;
-  }
+.side-nav-link .nav-pending.is-pending {
+  opacity: 1;
+  animation: kf-nav-spin 0.7s linear infinite;
 }
 
 /* ————————————————————————————————————————————————

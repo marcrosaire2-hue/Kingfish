@@ -82,12 +82,12 @@ export function LoginPage() {
     return (
       <div className="route-loader login-route-loader" role="status" aria-live="polite">
         <div className="route-loader-box">
-          <div className="route-loader-logo-wrap">
+          <div className="route-loader-logo-wrap logo-ring-wrap">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={APP_LOGO}
               alt=""
-              className="route-loader-logo"
+              className="brand-logo brand-logo-lg"
               width={84}
               height={84}
             />
@@ -116,7 +116,7 @@ export function LoginPage() {
             <img
               src={APP_LOGO}
               alt=""
-              className="login-visual-avatar"
+              className="brand-logo brand-logo-sm"
               width={40}
               height={40}
             />
@@ -133,7 +133,7 @@ export function LoginPage() {
               <img
                 src={APP_LOGO}
                 alt=""
-                className="login-form-logo"
+                className="brand-logo brand-logo-lg"
                 width={72}
                 height={72}
               />
