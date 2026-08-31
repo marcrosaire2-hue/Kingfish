@@ -1,6 +1,9 @@
 /**
- * Planning des 12 comptes gérant Zogbo (1 compte = 1 jour × 1 créneau).
+ * Planning des 12 comptes gérant Zogbo (équipe1 … équipe12).
  * Actif à partir du 2026-09-01 (mardi) — fermeture tous les lundis.
+ *
+ * 1–6  = Matin 08h–16h (mardi → dimanche)
+ * 7–12 = Soir  16h–00h (mardi → dimanche)
  */
 import { BUSINESS_TIMEZONE, todayIsoDate } from "@/lib/zogbo-calc";
 
@@ -21,7 +24,11 @@ export type ZogboJourSlug = (typeof JOUR_SLUGS)[number];
 export type ZogboPeriode = "matin" | "soir";
 
 export type ZogboPlanningCompte = {
+  /** Identifiant de connexion : equipe1 … equipe12 */
   username: string;
+  /** Libellé affiché : Équipe 1 … Équipe 12 */
+  name: string;
+  numero: number;
   periode: ZogboPeriode;
   jourSlug: Exclude<ZogboJourSlug, "lundi">;
   /** Shift stocké en base (matin → jour, soir → nuit). */
@@ -38,23 +45,38 @@ const JOURS_OUVERTS = [
   "dimanche",
 ] as const;
 
-export const ZOGBO_PLANNING_COMPTES: readonly ZogboPlanningCompte[] =
-  JOURS_OUVERTS.flatMap((jourSlug) => [
-    {
-      username: `zogbo.matin.${jourSlug}`,
-      periode: "matin" as const,
+function buildComptes(): ZogboPlanningCompte[] {
+  const out: ZogboPlanningCompte[] = [];
+  let n = 1;
+  for (const jourSlug of JOURS_OUVERTS) {
+    out.push({
+      numero: n,
+      username: `equipe${n}`,
+      name: `Équipe ${n}`,
+      periode: "matin",
       jourSlug,
-      shift: "jour" as const,
+      shift: "jour",
       horaire: "08h00–16h00",
-    },
-    {
-      username: `zogbo.soir.${jourSlug}`,
-      periode: "soir" as const,
+    });
+    n += 1;
+  }
+  for (const jourSlug of JOURS_OUVERTS) {
+    out.push({
+      numero: n,
+      username: `equipe${n}`,
+      name: `Équipe ${n}`,
+      periode: "soir",
       jourSlug,
-      shift: "nuit" as const,
+      shift: "nuit",
       horaire: "16h00–00h00",
-    },
-  ]);
+    });
+    n += 1;
+  }
+  return out;
+}
+
+export const ZOGBO_PLANNING_COMPTES: readonly ZogboPlanningCompte[] =
+  buildComptes();
 
 const BY_USERNAME = new Map(
   ZOGBO_PLANNING_COMPTES.map((c) => [c.username, c] as const),
@@ -89,7 +111,6 @@ export function isWithinZogboPeriode(
 ): boolean {
   const h = hourInBusinessTz(now);
   if (periode === "matin") return h >= 8 && h < 16;
-  // Soir : 16h00 inclus → 00h00 exclus (fin de journée civile).
   return h >= 16;
 }
 
@@ -121,9 +142,8 @@ export function assertZogboPlanningSale(input: {
     );
   }
   if (jour !== compte.jourSlug) {
-    const attendu = compte.jourSlug;
     throw new Error(
-      `Vente refusée : le compte ${compte.username} est réservé au ${attendu}. Aujourd’hui (${input.serviceDate}) c’est ${jour}. Connectez le compte du jour.`,
+      `Vente refusée : ${compte.name} est réservée au ${compte.jourSlug}. Aujourd’hui (${input.serviceDate}) c’est ${jour}. Connectez le compte du jour.`,
     );
   }
   if (!isWithinZogboPeriode(compte.periode, input.now)) {

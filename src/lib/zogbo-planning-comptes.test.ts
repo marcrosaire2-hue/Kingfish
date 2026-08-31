@@ -9,10 +9,25 @@ import {
 } from "@/lib/zogbo-planning-comptes";
 
 describe("planning 12 comptes Zogbo", () => {
-  it("expose exactement 12 comptes (6 matin + 6 soir)", () => {
+  it("expose exactement equipe1 … equipe12 (6 matin + 6 soir)", () => {
     expect(ZOGBO_PLANNING_COMPTES).toHaveLength(12);
+    expect(ZOGBO_PLANNING_COMPTES.map((c) => c.username)).toEqual(
+      Array.from({ length: 12 }, (_, i) => `equipe${i + 1}`),
+    );
     expect(ZOGBO_PLANNING_COMPTES.filter((c) => c.periode === "matin")).toHaveLength(6);
     expect(ZOGBO_PLANNING_COMPTES.filter((c) => c.periode === "soir")).toHaveLength(6);
+    expect(ZOGBO_PLANNING_COMPTES[0]).toMatchObject({
+      username: "equipe1",
+      name: "Équipe 1",
+      periode: "matin",
+      jourSlug: "mardi",
+    });
+    expect(ZOGBO_PLANNING_COMPTES[11]).toMatchObject({
+      username: "equipe12",
+      name: "Équipe 12",
+      periode: "soir",
+      jourSlug: "dimanche",
+    });
   });
 
   it("s’active à partir du 2026-09-01", () => {
@@ -37,7 +52,7 @@ describe("planning 12 comptes Zogbo", () => {
   it("ne bloque pas avant la date d’activation", () => {
     expect(() =>
       assertZogboPlanningSale({
-        username: "zogbo.matin.mardi",
+        username: "equipe1",
         serviceDate: "2026-08-31",
         now: new Date("2026-08-31T10:00:00+01:00"),
       }),
@@ -47,7 +62,7 @@ describe("planning 12 comptes Zogbo", () => {
   it("refuse le lundi une fois actif", () => {
     expect(() =>
       assertZogboPlanningSale({
-        username: "zogbo.matin.mardi",
+        username: "equipe1",
         serviceDate: "2026-09-07",
         now: new Date("2026-09-07T10:00:00+01:00"),
       }),
@@ -57,24 +72,24 @@ describe("planning 12 comptes Zogbo", () => {
   it("refuse un compte hors jour", () => {
     expect(() =>
       assertZogboPlanningSale({
-        username: "zogbo.matin.mardi",
+        username: "equipe1",
         serviceDate: "2026-09-02",
         now: new Date("2026-09-02T10:00:00+01:00"),
       }),
-    ).toThrow(/réservé au mardi/);
+    ).toThrow(/Équipe 1/);
   });
 
   it("autorise le bon compte le bon jour dans le créneau", () => {
     expect(() =>
       assertZogboPlanningSale({
-        username: "zogbo.matin.mardi",
+        username: "equipe1",
         serviceDate: "2026-09-01",
         now: new Date("2026-09-01T10:00:00+01:00"),
       }),
     ).not.toThrow();
     expect(() =>
       assertZogboPlanningSale({
-        username: "zogbo.soir.mardi",
+        username: "equipe7",
         serviceDate: "2026-09-01",
         now: new Date("2026-09-01T18:00:00+01:00"),
       }),
