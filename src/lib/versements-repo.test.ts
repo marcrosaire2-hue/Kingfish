@@ -3,9 +3,12 @@ import {
   assertPreuveFile,
   canConfirmVersement,
   canDeclareVersement,
+  defaultTrancheFromShift,
   parseVersementHeure,
+  parseVersementMembres,
   parseVersementMontant,
   parseVersementNumero,
+  parseVersementTranche,
 } from "@/lib/versements-repo";
 
 describe("droits versements", () => {
@@ -39,6 +42,33 @@ describe("validation versement", () => {
   it("exige un numéro de transaction", () => {
     expect(parseVersementNumero("MTN-998877")).toBe("MTN-998877");
     expect(() => parseVersementNumero("ab")).toThrow(/Numéro/);
+  });
+
+  it("exige une tranche d’horaire", () => {
+    expect(parseVersementTranche("matin")).toBe("matin");
+    expect(parseVersementTranche("soir")).toBe("soir");
+    expect(parseVersementTranche("nuit")).toBe("nuit");
+    expect(() => parseVersementTranche("")).toThrow(/Tranche/);
+    expect(() => parseVersementTranche("midi")).toThrow(/Tranche/);
+  });
+
+  it("exige les noms des membres présents", () => {
+    expect(parseVersementMembres(["Akpovo Urich", "Sebio"])).toEqual([
+      "Akpovo Urich",
+      "Sebio",
+    ]);
+    expect(parseVersementMembres("Akpovo\nSebio")).toEqual([
+      "Akpovo",
+      "Sebio",
+    ]);
+    expect(() => parseVersementMembres([])).toThrow(/membre/);
+    expect(() => parseVersementMembres(["A"])).toThrow(/court/);
+  });
+
+  it("propose la tranche depuis le shift du compte", () => {
+    expect(defaultTrancheFromShift("jour")).toBe("matin");
+    expect(defaultTrancheFromShift("soir")).toBe("soir");
+    expect(defaultTrancheFromShift("nuit")).toBe("nuit");
   });
 
   it("refuse une preuve hors format ou trop lourde", () => {

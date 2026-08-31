@@ -43,6 +43,44 @@
   letter-spacing: 0.03em;
 }
 
+.main-versements .versements-membres {
+  margin: 0;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.main-versements .versements-membres legend {
+  padding: 0 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.main-versements .versements-membres-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.main-versements .versements-membre-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.main-versements .versements-membre-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.main-versements .versements-add-membre {
+  align-self: flex-start;
+  padding-inline: 0.4rem;
+}
+
 .main-versements .versements-field input,
 .main-versements .versements-field select {
   width: 100%;

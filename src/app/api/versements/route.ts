@@ -123,6 +123,12 @@ export async function POST(request: Request) {
     }
     const bytes = Buffer.from(await preuve.arrayBuffer());
 
+    const membresRaw = form.getAll("membresPresents");
+    const membresPresents =
+      membresRaw.length > 0
+        ? membresRaw.map((v) => String(v))
+        : String(form.get("membresPresents") ?? "");
+
     const entry = await declareVersement({
       date:
         typeof form.get("date") === "string" && String(form.get("date"))
@@ -130,6 +136,8 @@ export async function POST(request: Request) {
           : undefined,
       site,
       heureTransaction: String(form.get("heureTransaction") ?? ""),
+      trancheHoraire: form.get("trancheHoraire"),
+      membresPresents,
       montant: form.get("montant"),
       numeroTransaction: String(form.get("numeroTransaction") ?? ""),
       preuve: { mime: preuve.type || "image/jpeg", bytes },
@@ -146,7 +154,7 @@ export async function POST(request: Request) {
       user,
       kind: "versements",
       title: "Versement déclaré",
-      detail: `En attente · ${entry.montant} FCFA · n° ${entry.numeroTransaction} · tx ${entry.heureTransaction} · ${entry.actorName} (@${entry.actorUsername})`,
+      detail: `En attente · ${entry.montant} FCFA · n° ${entry.numeroTransaction} · ${entry.trancheHoraire} · présents : ${entry.membresPresents.join(", ")} · ${entry.actorName} (@${entry.actorUsername})`,
       date: entry.date,
       site: entry.site,
       amount: entry.montant,

@@ -13,11 +13,14 @@ import {
 import { formatFcfa } from "@/lib/format";
 import {
   VERSEMENT_STATUT_LABELS,
+  VERSEMENT_TRANCHE_LABELS,
   type Versement,
   type VersementStatut,
+  type VersementTranche,
   type VenteSite,
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { defaultTrancheFromShift } from "@/lib/versements-repo";
 import "./versements-page.css";
 
 type StatutFilter = "all" | VersementStatut;
@@ -70,6 +73,8 @@ export function VersementsPage() {
   const [canConfirm, setCanConfirm] = useState(false);
 
   const [heure, setHeure] = useState(() => nowHeureLocale());
+  const [tranche, setTranche] = useState<VersementTranche>("matin");
+  const [membres, setMembres] = useState<string[]>([""]);
   const [montant, setMontant] = useState("");
   const [numero, setNumero] = useState("");
   const [preuve, setPreuve] = useState<File | null>(null);
@@ -87,6 +92,10 @@ export function VersementsPage() {
   useEffect(() => {
     if (scope === "zogbo" || scope === "gbegamey") setSite(scope);
   }, [scope]);
+
+  useEffect(() => {
+    if (user?.shift) setTranche(defaultTrancheFromShift(user.shift));
+  }, [user?.shift]);
 
   const charger = useCallback(async () => {
     if (!scope) return;
@@ -175,6 +184,10 @@ export function VersementsPage() {
       form.set("date", date);
       form.set("site", site);
       form.set("heureTransaction", heure);
+      form.set("trancheHoraire", tranche);
+      for (const nom of membres) {
+        if (nom.trim()) form.append("membresPresents", nom.trim());
+      }
       form.set("montant", montant);
       form.set("numeroTransaction", numero);
       form.set("preuve", preuve);
@@ -186,8 +199,10 @@ export function VersementsPage() {
       if (!res.ok) throw new Error(body.error || "Enregistrement impossible.");
       setMontant("");
       setNumero("");
+      setMembres([""]);
       setPreuve(null);
       setHeure(nowHeureLocale());
+      setTranche(defaultTrancheFromShift(user?.shift));
       setFlash("Versement enregistré — en attente de confirmation.");
       await charger();
     } catch (err) {
@@ -229,7 +244,7 @@ export function VersementsPage() {
         isReaderOnly
           ? "Consultation seule — suivi des déclarations et confirmations"
           : canDeclare
-            ? "Déclarez le versement du soir : heure, montant, n° et capture"
+            ? "Déclarez le versement : tranche d’horaire, membres présents, heure, montant, n° et capture"
             : "Vérifiez la preuve puis confirmez la transaction"
       }
       mainClassName="main-versements"
@@ -271,6 +286,67 @@ export function VersementsPage() {
                   required
                 />
               </label>
+              <label className="versements-field">
+                <span>Tranche d’horaire</span>
+                <select
+                  value={tranche}
+                  onChange={(e) =>
+                    setTranche(e.target.value as VersementTranche)
+                  }
+                  required
+                >
+                  {(
+                    Object.keys(VERSEMENT_TRANCHE_LABELS) as VersementTranche[]
+                  ).map((key) => (
+                    <option key={key} value={key}>
+                      {VERSEMENT_TRANCHE_LABELS[key]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <fieldset className="versements-membres">
+                <legend>Membres présents</legend>
+                <p className="versements-membres-hint">
+                  Indiquez le nom de chaque membre de l’équipe présent.
+                </p>
+                {membres.map((nom, index) => (
+                  <div key={index} className="versements-membre-row">
+                    <input
+                      type="text"
+                      value={nom}
+                      onChange={(e) => {
+                        const next = [...membres];
+                        next[index] = e.target.value;
+                        setMembres(next);
+                      }}
+                      placeholder={`Membre ${index + 1}`}
+                      autoComplete="name"
+                      required={index === 0}
+                    />
+                    {membres.length > 1 ? (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        aria-label={`Retirer le membre ${index + 1}`}
+                        onClick={() =>
+                          setMembres(membres.filter((_, i) => i !== index))
+                        }
+                      >
+                        Retirer
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+                {membres.length < 12 ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost versements-add-membre"
+                    onClick={() => setMembres([...membres, ""])}
+                  >
+                    + Ajouter un membre
+                  </button>
+                ) : null}
+              </fieldset>
               <label className="versements-field">
                 <span>Montant (FCFA)</span>
                 <input
@@ -316,7 +392,14 @@ export function VersementsPage() {
               <button
                 type="submit"
                 className="btn btn-primary versements-submit"
-                disabled={busy || loading || !montant || !numero || !preuve}
+                disabled={
+                  busy ||
+                  loading ||
+                  !montant ||
+                  !numero ||
+                  !preuve ||
+                  !membres.some((m) => m.trim().length >= 2)
+                }
               >
                 {busy ? "Enregistrement…" : "Enregistrer"}
               </button>
@@ -436,11 +519,14 @@ export function VersementsPage() {
                       </strong>
                     </div>
                     <p className="versements-row-meta">
-                      {v.date} · tx {v.heureTransaction} ·{" "}
-                      {SITE_LABELS[v.site]}
+                      {v.date} · {VERSEMENT_TRANCHE_LABELS[v.trancheHoraire]} ·
+                      tx {v.heureTransaction} · {SITE_LABELS[v.site]}
                     </p>
                     <p className="versements-row-meta">
                       {v.actorName} · {SHIFT_LABELS[v.shift]}
+                      {v.membresPresents.length
+                        ? ` · présents : ${v.membresPresents.join(", ")}`
+                        : ""}
                       {v.confirmedByName
                         ? ` → confirmé par ${v.confirmedByName}`
                         : " · en attente comptable"}
@@ -501,6 +587,18 @@ export function VersementsPage() {
               <div>
                 <dt>Heure tx</dt>
                 <dd>{selected.heureTransaction}</dd>
+              </div>
+              <div>
+                <dt>Tranche</dt>
+                <dd>{VERSEMENT_TRANCHE_LABELS[selected.trancheHoraire]}</dd>
+              </div>
+              <div>
+                <dt>Membres présents</dt>
+                <dd>
+                  {selected.membresPresents.length
+                    ? selected.membresPresents.join(", ")
+                    : "—"}
+                </dd>
               </div>
               <div>
                 <dt>N°</dt>

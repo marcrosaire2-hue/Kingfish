@@ -986,6 +986,15 @@ export type MatieresDay = {
  */
 export type VersementStatut = "en_attente" | "confirmee";
 
+/** Tranche d’horaire de service déclarée avec le versement. */
+export type VersementTranche = "nuit" | "matin" | "soir";
+
+export const VERSEMENT_TRANCHE_LABELS: Record<VersementTranche, string> = {
+  nuit: "Nuit (00h00–08h00)",
+  matin: "Matin (08h00–16h00)",
+  soir: "Soir (16h00–00h00)",
+};
+
 export type Versement = {
   id: string;
   /** Jour d’enregistrement (calendrier du restaurant). */
@@ -993,6 +1002,10 @@ export type Versement = {
   site: VenteSite;
   /** Heure de la transaction saisie par l’équipe (HH:MM). */
   heureTransaction: string;
+  /** Créneau de service de l’équipe qui verse. */
+  trancheHoraire: VersementTranche;
+  /** Noms des membres présents lors du versement. */
+  membresPresents: string[];
   montant: number;
   numeroTransaction: string;
   preuveMime: string;

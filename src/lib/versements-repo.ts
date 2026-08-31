@@ -4,7 +4,12 @@ import { effectiveShift } from "@/lib/auth-types";
 import { uploadVersementPreuve } from "@/lib/cloudinary";
 import { assertValidDate } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
-import type { Versement, VersementStatut, VenteSite } from "@/lib/types";
+import type {
+  Versement,
+  VersementStatut,
+  VersementTranche,
+  VenteSite,
+} from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 const COLLECTION = "versements";
@@ -17,7 +22,14 @@ const ALLOWED_MIME = new Set([
   "image/jpg",
 ]);
 
-type VersementDoc = Omit<Versement, "id"> & { _id: ObjectId };
+const TRANCHES: VersementTranche[] = ["nuit", "matin", "soir"];
+
+type VersementDoc = Omit<Versement, "id"> & {
+  _id: ObjectId;
+  /** Anciens documents sans ces champs. */
+  trancheHoraire?: VersementTranche;
+  membresPresents?: string[];
+};
 
 export type VersementActor = {
   id: string;
@@ -71,6 +83,63 @@ export function parseVersementNumero(raw: string): string {
   return value;
 }
 
+export function parseVersementTranche(raw: unknown): VersementTranche {
+  const value = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (!TRANCHES.includes(value as VersementTranche)) {
+    throw new Error(
+      "Tranche d’horaire requise : Nuit (00h–08h), Matin (08h–16h) ou Soir (16h–00h).",
+    );
+  }
+  return value as VersementTranche;
+}
+
+/** Noms des membres présents — au moins un, nettoyés et sans doublon. */
+export function parseVersementMembres(raw: unknown): string[] {
+  const parts = Array.isArray(raw)
+    ? raw.map((x) => String(x ?? ""))
+    : String(raw ?? "")
+        .split(/[\n,;]+/)
+        .map((s) => s.trim());
+
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    const name = part.trim().replace(/\s+/g, " ");
+    if (!name) continue;
+    if (name.length < 2) {
+      throw new Error("Nom de membre trop court.");
+    }
+    if (name.length > 80) {
+      throw new Error("Nom de membre trop long.");
+    }
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  if (names.length === 0) {
+    throw new Error(
+      "Indiquez le nom de chaque membre de l’équipe présent (au moins un).",
+    );
+  }
+  if (names.length > 12) {
+    throw new Error("Trop de membres déclarés (max. 12).");
+  }
+  return names;
+}
+
+/** Propose la tranche à partir du shift du compte connecté. */
+export function defaultTrancheFromShift(
+  shift: UserShift | string | null | undefined,
+): VersementTranche {
+  const s = effectiveShift(shift);
+  if (s === "nuit") return "nuit";
+  if (s === "soir") return "soir";
+  return "matin";
+}
+
 export function assertPreuveFile(input: {
   mime: string;
   size: number;
@@ -87,12 +156,23 @@ export function assertPreuveFile(input: {
   }
 }
 
+function trancheFromLegacyShift(shift: UserShift | undefined): VersementTranche {
+  return defaultTrancheFromShift(shift);
+}
+
 function toPublic(doc: VersementDoc): Versement {
   return {
     id: doc._id.toHexString(),
     date: doc.date,
     site: doc.site,
     heureTransaction: doc.heureTransaction,
+    trancheHoraire:
+      doc.trancheHoraire && TRANCHES.includes(doc.trancheHoraire)
+        ? doc.trancheHoraire
+        : trancheFromLegacyShift(doc.shift),
+    membresPresents: Array.isArray(doc.membresPresents)
+      ? doc.membresPresents
+      : [],
     montant: doc.montant,
     numeroTransaction: doc.numeroTransaction,
     preuveMime: doc.preuveMime,
@@ -152,6 +232,8 @@ export async function declareVersement(input: {
   date?: string;
   site: VenteSite;
   heureTransaction: string;
+  trancheHoraire: unknown;
+  membresPresents: unknown;
   montant: unknown;
   numeroTransaction: string;
   preuve: { mime: string; bytes: Buffer };
@@ -164,6 +246,8 @@ export async function declareVersement(input: {
   const date = input.date || todayIsoDate();
   assertValidDate(date);
   const heureTransaction = parseVersementHeure(input.heureTransaction);
+  const trancheHoraire = parseVersementTranche(input.trancheHoraire);
+  const membresPresents = parseVersementMembres(input.membresPresents);
   const montant = parseVersementMontant(input.montant);
   const numeroTransaction = parseVersementNumero(input.numeroTransaction);
   const mime =
@@ -186,6 +270,8 @@ export async function declareVersement(input: {
     date,
     site: input.site,
     heureTransaction,
+    trancheHoraire,
+    membresPresents,
     montant,
     numeroTransaction,
     preuveMime: mime,
