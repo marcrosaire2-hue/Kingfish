@@ -1,5 +1,6 @@
 import { ObjectId, type Filter } from "mongodb";
 import { effectiveShift, emptyShiftTotals, type UserShift } from "@/lib/auth-types";
+import { isPlanningEquipeAccount } from "@/lib/equipe-planning-access";
 import { adjustCaisseVenteAmount } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
@@ -1459,18 +1460,55 @@ export async function recordExtraVente(input: {
 }
 
 /**
- * Une équipe ne peut pas annuler une vente encaissée par l'autre équipe :
- * l'équipe de nuit ne touche pas aux ventes de l'équipe de jour, et
- * réciproquement. Hors équipe (encadrement) et ventes sans équipe restent
- * annulables par tous.
+ * Une équipe ne peut pas annuler / modifier une vente encaissée par une autre.
+ * Pour les comptes planning (equipe1…), l’isolation se fait par compte
+ * (username / userId), pas seulement par créneau.
  */
 export function assertSameTeamCancellation(input: {
   saleShift: UserShift | string | null | undefined;
   cancellerShift: UserShift | string | null | undefined;
-  /** Gérant / admin : peut annuler toute équipe. */
+  saleUsername?: string | null;
+  cancellerUsername?: string | null;
+  saleUserId?: string | null;
+  cancellerUserId?: string | null;
+  /** Admin / DAF uniquement. */
   bypassTeam?: boolean;
 }): void {
   if (input.bypassTeam) return;
+
+  const saleUser = input.saleUsername?.trim().toLowerCase() || null;
+  const cancellerUser = input.cancellerUsername?.trim().toLowerCase() || null;
+  const planningInvolved =
+    isPlanningEquipeAccount(saleUser) ||
+    isPlanningEquipeAccount(cancellerUser);
+
+  if (planningInvolved) {
+    if (saleUser && cancellerUser) {
+      if (saleUser !== cancellerUser) {
+        throw new Error(
+          "Action refusée : une équipe ne peut pas modifier ni annuler les ventes d’une autre équipe.",
+        );
+      }
+      return;
+    }
+    if (
+      input.saleUserId &&
+      input.cancellerUserId &&
+      input.saleUserId !== input.cancellerUserId
+    ) {
+      throw new Error(
+        "Action refusée : une équipe ne peut pas modifier ni annuler les ventes d’une autre équipe.",
+      );
+    }
+    if (
+      input.saleUserId &&
+      input.cancellerUserId &&
+      input.saleUserId === input.cancellerUserId
+    ) {
+      return;
+    }
+  }
+
   const sale = effectiveShift(input.saleShift);
   const canceller = effectiveShift(input.cancellerShift);
   if (sale === "aucune" || canceller === "aucune") return;
@@ -1481,7 +1519,7 @@ export function assertSameTeamCancellation(input: {
     return "Équipe de nuit";
   };
   throw new Error(
-    `Annulation refusée : une vente de l’${teamLabel(sale)} ne peut pas être annulée par l’${teamLabel(canceller)}.`,
+    `Action refusée : une vente de l’${teamLabel(sale)} ne peut pas être modifiée ni annulée par l’${teamLabel(canceller)}.`,
   );
 }
 
@@ -1510,6 +1548,8 @@ export async function undoVente(input: {
   assertSameTeamCancellation({
     saleShift: doc.shift,
     cancellerShift: input.actor?.shift,
+    saleUsername: doc.actorUsername,
+    cancellerUsername: input.actor?.username,
     bypassTeam: input.bypassTeam,
   });
 
@@ -1634,6 +1674,8 @@ export async function editVenteQty(input: {
   assertSameTeamCancellation({
     saleShift: doc.shift,
     cancellerShift: input.actor?.shift,
+    saleUsername: doc.actorUsername,
+    cancellerUsername: input.actor?.username,
     bypassTeam: input.bypassTeam,
   });
 

@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import {
+  canBypassTeamIsolation,
   canManagePastVentes,
   effectiveShift,
   type SessionUser,
@@ -501,14 +502,17 @@ export async function cancelPosTicket(input: {
   if (doc.statut === "annule") throw new Error("Ticket déjà annulé");
 
   // Une équipe ne peut pas annuler un ticket encaissé par l'autre équipe.
-  const manager = canManagePastVentes(input.user.role);
   assertSameTeamCancellation({
     saleShift: doc.shift,
     cancellerShift: input.user.shift,
-    bypassTeam: manager,
+    saleUserId: doc.userId,
+    cancellerUserId: input.user.id,
+    cancellerUsername: input.user.username,
+    bypassTeam: canBypassTeamIsolation(input.user.role),
   });
 
   // Caisse fermée : le gérant peut encore corriger (annulation / régularisation).
+  const manager = canManagePastVentes(input.user.role);
   if (doc.caisseId && !manager) {
     const caisse = await getCaisseById(doc.caisseId);
     if (caisse && caisse.statut !== "ouverte") {
@@ -532,7 +536,7 @@ export async function cancelPosTicket(input: {
         site: input.site,
         actor,
         bypassClosedDay: manager,
-        bypassTeam: manager,
+        bypassTeam: canBypassTeamIsolation(input.user.role),
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "";

@@ -37,7 +37,7 @@ describe("assertSameTeamCancellation — annulation interdite entre équipes", (
   const refuse = (saleShift: string | null, cancellerShift: string | null) =>
     expect(() =>
       assertSameTeamCancellation({ saleShift, cancellerShift }),
-    ).toThrow(/Annulation refusée/);
+    ).toThrow(/Action refusée/);
 
   it("refuse l'annulation d'une vente de jour par l'équipe de nuit", () => {
     refuse("jour", "nuit");
@@ -53,6 +53,28 @@ describe("assertSameTeamCancellation — annulation interdite entre équipes", (
     ).not.toThrow();
     expect(() =>
       assertSameTeamCancellation({ saleShift: "nuit", cancellerShift: "nuit" }),
+    ).not.toThrow();
+  });
+
+  it("refuse deux comptes planning distincts même au même créneau", () => {
+    expect(() =>
+      assertSameTeamCancellation({
+        saleShift: "jour",
+        cancellerShift: "jour",
+        saleUsername: "equipe14",
+        cancellerUsername: "equipe15",
+      }),
+    ).toThrow(/Action refusée/);
+  });
+
+  it("autorise le même compte planning", () => {
+    expect(() =>
+      assertSameTeamCancellation({
+        saleShift: "jour",
+        cancellerShift: "jour",
+        saleUsername: "equipe14",
+        cancellerUsername: "equipe14",
+      }),
     ).not.toThrow();
   });
 
@@ -72,7 +94,7 @@ describe("assertSameTeamCancellation — annulation interdite entre équipes", (
     }
   });
 
-  it("normalise les alias hérités (matin → jour, soir → nuit)", () => {
+  it("normalise les alias hérités (matin → jour)", () => {
     refuse("matin", "soir");
     expect(() =>
       assertSameTeamCancellation({ saleShift: "matin", cancellerShift: "jour" }),

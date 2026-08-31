@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import {
+  canBypassTeamIsolation,
   canManagePastVentes,
   canUseSite,
   type UserShift,
@@ -234,7 +235,7 @@ export async function POST(request: Request) {
         site,
         actor,
         bypassClosedDay: closedBypass,
-        bypassTeam: manager,
+        bypassTeam: canBypassTeamIsolation(user.role),
       });
       return NextResponse.json(result);
     }
@@ -266,7 +267,7 @@ export async function POST(request: Request) {
         qty,
         actor,
         bypassClosedDay: closedBypass,
-        bypassTeam: true,
+        bypassTeam: canBypassTeamIsolation(user.role),
         bypassStock: true,
       });
       return NextResponse.json(result);
@@ -405,6 +406,7 @@ export async function POST(request: Request) {
         m.includes("insuffisant") ||
         m.includes("déjà annulée") ||
         m.includes("Annulation refusée") ||
+        m.includes("Action refusée") ||
         m.includes("Vente refusée") ||
         m.includes("invalide") ||
         m.includes("ne sont vendus qu") ||

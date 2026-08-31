@@ -650,6 +650,11 @@ export function canManagePastVentes(role: UserRole): boolean {
   );
 }
 
+/** Seuls admin / DAF contournent l’isolation entre équipes de vente. */
+export function canBypassTeamIsolation(role: UserRole): boolean {
+  return role === "admin" || role === "daf";
+}
+
 /** Filtre Mongo / API : rien si « tous », sinon le site unique. */
 export function scopeSiteFilter(
   userSite: UserSite,
