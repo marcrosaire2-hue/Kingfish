@@ -18,7 +18,7 @@ const ACTION_ERROR: Record<VentePolicyAction, string> = {
   delete:
     "Suppression des ventes désactivée pour votre profil ou ce site.",
   cancel:
-    "Annulation des ventes désactivée pour votre profil ou ce site.",
+    "Annulation réservée à l’administrateur.",
 };
 
 export function authorizeVenteAction(input: {

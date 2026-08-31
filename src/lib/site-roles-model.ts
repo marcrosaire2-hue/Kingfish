@@ -42,7 +42,7 @@ export const VENTE_POLICY_ACTION_LABELS: Record<
   },
   cancel: {
     label: "Annuler",
-    hint: "Annuler une vente ou un ticket et reprendre le stock.",
+    hint: "Annuler une vente ou un ticket et reprendre le stock (admin uniquement).",
   },
 };
 
@@ -65,9 +65,9 @@ export const DEFAULT_ROLE_VENTE_PERMISSIONS: Record<
   UserRole,
   VentePolicyPermissions
 > = {
-  gerant: { sell: true, modify: true, delete: false, cancel: true },
+  gerant: { sell: true, modify: true, delete: false, cancel: false },
   comptable: { sell: false, modify: true, delete: false, cancel: false },
-  daf: { sell: true, modify: true, delete: false, cancel: true },
+  daf: { sell: true, modify: true, delete: false, cancel: false },
   admin: { sell: true, modify: true, delete: true, cancel: true },
 };
 
@@ -105,6 +105,8 @@ export function isVenteActionAllowed(
   site: VenteSite,
   action: VentePolicyAction,
 ): boolean {
+  // Règle métier définitive : seule l’admin peut annuler une vente / ticket.
+  if (action === "cancel" && role !== "admin") return false;
   return (
     permissionsForSite(config, site)[action] &&
     permissionsForRole(config, role)[action]
@@ -122,7 +124,8 @@ export function ventePermissionsFor(
     sell: sitePerms.sell && rolePerms.sell,
     modify: sitePerms.modify && rolePerms.modify,
     delete: sitePerms.delete && rolePerms.delete,
-    cancel: sitePerms.cancel && rolePerms.cancel,
+    // Hard gate : même si la config Mongo autorise encore le gérant.
+    cancel: role === "admin" && sitePerms.cancel && rolePerms.cancel,
   };
 }
 

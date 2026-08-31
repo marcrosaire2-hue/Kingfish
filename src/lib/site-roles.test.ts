@@ -11,7 +11,7 @@ import {
 } from "@/lib/site-roles-policy";
 
 describe("site-roles-model", () => {
-  it("autorise tout par défaut pour gérant sur Zogbo", () => {
+  it("refuse l’annulation pour tout rôle sauf admin", () => {
     expect(
       isVenteActionAllowed(
         DEFAULT_SITE_ROLES_CONFIG,
@@ -19,10 +19,21 @@ describe("site-roles-model", () => {
         "zogbo",
         "cancel",
       ),
+    ).toBe(false);
+    expect(
+      isVenteActionAllowed(DEFAULT_SITE_ROLES_CONFIG, "daf", "zogbo", "cancel"),
+    ).toBe(false);
+    expect(
+      isVenteActionAllowed(
+        DEFAULT_SITE_ROLES_CONFIG,
+        "admin",
+        "zogbo",
+        "cancel",
+      ),
     ).toBe(true);
   });
 
-  it("refuse une action désactivée pour un rôle", () => {
+  it("ignore une config qui tenterait d’autoriser le gérant à annuler", () => {
     const config = {
       ...DEFAULT_SITE_ROLES_CONFIG,
       roles: {
@@ -31,7 +42,7 @@ describe("site-roles-model", () => {
           sell: true,
           modify: true,
           delete: false,
-          cancel: false,
+          cancel: true,
         },
       },
     };
@@ -39,6 +50,7 @@ describe("site-roles-model", () => {
       false,
     );
     expect(isVenteActionAllowed(config, "admin", "zogbo", "cancel")).toBe(true);
+    expect(ventePermissionsFor(config, "gerant", "zogbo").cancel).toBe(false);
   });
 
   it("combine site et rôle", () => {
