@@ -3849,15 +3849,34 @@ select {
 
 .jv-group-title {
   margin: 0;
-  padding: 0.4rem 1.1rem;
-  font-size: 0.85rem;
-  font-weight: 700;
-  color: var(--ink-soft);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  padding: 0.55rem 1.1rem 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--ink);
+  border-top: 1px solid var(--line, #d5e0ec);
+  background: var(--surface-elevated, #f4f7fb);
+}
+
+.jv-group-plat .jv-group-title {
+  border-left: 3px solid #0d9488;
+}
+
+.jv-group-accompagnement .jv-group-title {
+  border-left: 3px solid #2563eb;
+}
+
+.jv-group-boisson .jv-group-title {
+  border-left: 3px solid #d97706;
+}
+
+.jv-group-autre .jv-group-title {
+  border-left: 3px solid #7c5cbf;
 }
 
 .jv-group-title .jv-day-head-count {
+  margin-left: 0.55rem;
+  font-weight: 600;
+  color: var(--ink-soft);
   text-transform: none;
   letter-spacing: normal;
 }
