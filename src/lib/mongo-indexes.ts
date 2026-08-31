@@ -70,4 +70,14 @@ export const MONGO_INDEXES: MongoIndexDef[] = [
     index: { transfertId: 1 },
     name: "transfert",
   },
+  {
+    collection: "versements",
+    index: { date: 1, site: 1, statut: 1, createdAt: -1 },
+    name: "jour_site_statut",
+  },
+  {
+    collection: "versements",
+    index: { statut: 1, createdAt: -1 },
+    name: "en_attente",
+  },
 ];

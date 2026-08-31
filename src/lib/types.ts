@@ -978,3 +978,40 @@ export type MatieresDay = {
   movements: MatieresMovement[];
   updatedAt: string | null;
 };
+
+/**
+ * Versement d’espèces / mobile money déclaré par l’équipe après les ventes,
+ * puis confirmé par le comptable. Append-only : pas de modification ni
+ * suppression après enregistrement.
+ */
+export type VersementStatut = "en_attente" | "confirmee";
+
+export type Versement = {
+  id: string;
+  /** Jour d’enregistrement (calendrier du restaurant). */
+  date: string;
+  site: VenteSite;
+  /** Heure de la transaction saisie par l’équipe (HH:MM). */
+  heureTransaction: string;
+  montant: number;
+  numeroTransaction: string;
+  preuveMime: string;
+  /** URL Cloudinary de la capture (HTTPS). */
+  preuveUrl: string;
+  /** public_id Cloudinary (suppression éventuelle côté ops). */
+  preuvePublicId: string;
+  createdAt: string;
+  actorId: string;
+  actorName: string;
+  actorUsername: string;
+  shift: UserShift;
+  statut: VersementStatut;
+  confirmedAt: string | null;
+  confirmedById: string | null;
+  confirmedByName: string | null;
+};
+
+export const VERSEMENT_STATUT_LABELS: Record<VersementStatut, string> = {
+  en_attente: "En attente",
+  confirmee: "Confirmée",
+};

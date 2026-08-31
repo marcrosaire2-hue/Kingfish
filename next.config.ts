@@ -14,7 +14,7 @@ function contentSecurityPolicy(): string {
     "default-src 'self'",
     scriptSrc,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: https://res.cloudinary.com",
     "font-src 'self' data:",
     connectSrc,
     "frame-ancestors 'self'",

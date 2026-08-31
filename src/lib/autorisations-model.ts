@@ -159,6 +159,16 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "create"],
   },
   {
+    id: "versements",
+    navKey: "versements",
+    label: "Versements",
+    path: "/versements",
+    category: "quotidien",
+    description:
+      "Déclaration (équipe) et confirmation (comptable). Admin et DAF : consultation seule.",
+    actions: ["access", "view", "create", "update"],
+  },
+  {
     id: "stock",
     navKey: "stock",
     label: "Stock final",

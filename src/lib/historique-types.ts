@@ -15,6 +15,7 @@ export type HistoriqueKind =
   | "matieres"
   | "immobilisations"
   | "pertes"
+  | "versements"
   | "reprise";
 
 export type HistoriqueSite = VenteSite | "tous" | null;
@@ -54,6 +55,7 @@ export const HISTORIQUE_KIND_LABELS: Record<HistoriqueKind, string> = {
   matieres: "Matières",
   immobilisations: "Immobilisations",
   pertes: "Pertes",
+  versements: "Versements",
   reprise: "Reprise d’historique",
 };
 

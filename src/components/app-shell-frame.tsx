@@ -83,6 +83,13 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
+    href: "/versements",
+    label: "Versements",
+    key: "versements",
+    mark: "$",
+    group: "ops",
+  },
+  {
     href: "/immobilisations",
     label: "Immobilisations",
     key: "immobilisations",
