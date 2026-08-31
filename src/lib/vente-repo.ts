@@ -11,6 +11,7 @@ import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
 import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import { computeZogboLine, shiftIsoDate } from "@/lib/zogbo-calc";
 import { isLegalAccompanimentPrice } from "@/lib/catalog-zogbo";
+import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import type {
   GbegameyLocalLine,
@@ -1181,6 +1182,13 @@ export async function recordVente(input: {
     throw new Error("Une unité QR ne peut être vendue qu'à la quantité 1.");
   }
   if (!isValidDate(input.date)) throw new Error("Date invalide");
+
+  if (input.actor?.username) {
+    assertZogboPlanningSale({
+      username: input.actor.username,
+      serviceDate: input.date,
+    });
+  }
 
   await assertDayNotClosed(input.date, input.site, input.kind, {
     bypassClosedDay: input.bypassClosedDay,

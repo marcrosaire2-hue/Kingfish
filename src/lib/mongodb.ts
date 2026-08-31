@@ -41,21 +41,45 @@ export async function getMongoClient(): Promise<MongoClient> {
 }
 
 /**
- * Crée les index manquants une fois par process. Les erreurs (doublons sur
- * unique, droits) sont journalisées sans bloquer le démarrage.
+ * Crée les index manquants une fois par process. Si un index du même nom
+ * existe déjà avec d’autres options (ex. filtre partiel ajouté plus tard),
+ * on le remplace. Les autres erreurs sont journalisées sans bloquer.
  */
 async function ensureMongoIndexes(db: Db): Promise<void> {
   for (const def of MONGO_INDEXES) {
+    const col = db.collection(def.collection);
+    const options = {
+      name: def.name,
+      background: true,
+      ...(def.unique ? { unique: true } : {}),
+      ...(def.partialFilterExpression
+        ? { partialFilterExpression: def.partialFilterExpression }
+        : {}),
+    };
     try {
-      await db.collection(def.collection).createIndex(def.index, {
-        name: def.name,
-        background: true,
-        ...(def.unique ? { unique: true } : {}),
-        ...(def.partialFilterExpression
-          ? { partialFilterExpression: def.partialFilterExpression }
-          : {}),
-      });
+      await col.createIndex(def.index, options);
     } catch (error) {
+      const code =
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        typeof (error as { code?: unknown }).code === "number"
+          ? (error as { code: number }).code
+          : null;
+      // 85 = IndexOptionsConflict (même nom, options différentes).
+      if (code === 85) {
+        try {
+          await col.dropIndex(def.name);
+          await col.createIndex(def.index, options);
+          continue;
+        } catch (retryError) {
+          reportError(
+            `ensureMongoIndexes ${def.collection}.${def.name} (recreate)`,
+            retryError,
+          );
+          continue;
+        }
+      }
       reportError(`ensureMongoIndexes ${def.collection}.${def.name}`, error);
     }
   }

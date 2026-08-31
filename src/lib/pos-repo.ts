@@ -27,6 +27,7 @@ import {
   listSellableQrProductIds,
   restorePlatUnitAfterSaleCancel,
 } from "@/lib/stock-unit-repo";
+import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import type {
   PosTicket,
@@ -184,6 +185,15 @@ export async function validatePosTicket(input: {
 }> {
   if (!input.lines.length) throw new Error("Panier vide");
 
+  const today = todayIsoDate();
+  const manager = canManagePastVentes(input.user.role);
+  const isBackdate = manager && Boolean(input.date) && input.date < today;
+  const serviceDate = isBackdate && input.date ? input.date : today;
+  assertZogboPlanningSale({
+    username: input.user.username,
+    serviceDate,
+  });
+
   // Vente rejouée après une coupure : si elle a déjà abouti, on renvoie le
   // ticket existant au lieu d'en créer un second. La déduplication se fait
   // par référence de poste ET site — une référence d'un autre point ne peut
@@ -209,10 +219,6 @@ export async function validatePosTicket(input: {
     username: input.user.username,
     shift: input.user.shift,
   };
-
-  const today = todayIsoDate();
-  const manager = canManagePastVentes(input.user.role);
-  const isBackdate = manager && Boolean(input.date) && input.date < today;
 
   let date: string;
   let caisseId: string | null = null;

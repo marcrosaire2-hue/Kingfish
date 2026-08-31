@@ -405,6 +405,7 @@ export async function POST(request: Request) {
         m.includes("insuffisant") ||
         m.includes("déjà annulée") ||
         m.includes("Annulation refusée") ||
+        m.includes("Vente refusée") ||
         m.includes("invalide") ||
         m.includes("ne sont vendus qu") ||
         m.includes("Décrivez") ||
