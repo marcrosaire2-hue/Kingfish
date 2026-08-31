@@ -130,7 +130,15 @@ export function LoginPage() {
         <section className="login-panel-form" aria-label="Connexion">
           <div className="login-form-wrap">
             <header className="login-form-head">
+              <img
+                src={APP_LOGO}
+                alt=""
+                className="login-form-logo"
+                width={72}
+                height={72}
+              />
               <h1 className="login-title">Welcome To KINGFISH</h1>
+              <p className="login-form-tag">{APP_TAGLINE}</p>
             </header>
 
             <form className="login-form" onSubmit={onSubmit} noValidate>

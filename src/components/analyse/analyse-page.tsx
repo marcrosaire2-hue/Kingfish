@@ -200,6 +200,7 @@ export function AnalysePage() {
       <AppShell
         title="Analyse"
         subtitle="Lecture managériale du CA, des marges et des charges."
+        mainClassName="main-analyse"
       >
         <BrandLoader variant="ligne" label="Analyse des données…" />
       </AppShell>
@@ -210,8 +211,16 @@ export function AnalysePage() {
     <AppShell
       title="Analyse"
       subtitle="Lecture managériale du CA, des marges, des stocks et des charges — sans réécrire la comptabilité."
+      mainClassName="main-analyse"
     >
       <DashboardShell>
+        <details className="journal-filters-fold" open>
+          <summary className="journal-filters-summary">
+            Filtres
+            <span className="journal-filters-summary-hint">
+              Période, site, équipe…
+            </span>
+          </summary>
         <DashboardToolbar
           tabs={PERIODS}
           activeTab={period}
@@ -269,6 +278,7 @@ export function AnalysePage() {
             </>
           }
         />
+        </details>
 
         {error ? (
           <p className="error-banner" role="alert">

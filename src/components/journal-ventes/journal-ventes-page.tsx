@@ -396,6 +396,7 @@ export function JournalVentesPage() {
     <AppShell
       title="Journal des ventes"
       subtitle={pageSubtitle}
+      mainClassName="main-journal-ventes"
       actions={
         <>
           <ExportExcelButton
@@ -423,6 +424,11 @@ export function JournalVentesPage() {
       }
     >
       <DashboardShell>
+      <details className="journal-filters-fold" open>
+        <summary className="journal-filters-summary">
+          Filtres
+          <span className="journal-filters-summary-hint">Dates, site, statut…</span>
+        </summary>
       <DashboardToolbar
         showCurrency={false}
         filters={
@@ -536,6 +542,7 @@ export function JournalVentesPage() {
           </>
         }
       />
+      </details>
 
       <div className="dash-ca-final hist-ventes-totaux">
         <div className="dash-ca-final-main">
