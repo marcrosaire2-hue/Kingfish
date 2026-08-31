@@ -25,6 +25,7 @@ import { exportAdminUsersExcel } from "@/lib/page-exports";
 import { BrandLoader } from "@/components/brand-loader";
 import { AutorisationsEditor } from "@/components/admin/autorisations-editor";
 import { ConnexionsPanel } from "@/components/admin/connexions-panel";
+import { VentesLiveNotifier } from "@/components/admin/ventes-live-notifier";
 import { SiteRolesEditor } from "@/components/reglages/site-roles-editor";
 
 const ALL_ROLES: UserRole[] = [
@@ -337,6 +338,8 @@ export function AdminPage() {
             {error}
           </p>
         ) : null}
+
+        <VentesLiveNotifier />
 
         <nav
           className="admin-section-nav"
