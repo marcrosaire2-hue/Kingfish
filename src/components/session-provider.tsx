@@ -131,6 +131,18 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     };
   }, [apply]);
 
+  // Heartbeat : présence admin + coupure auto des comptes hors créneau.
+  useEffect(() => {
+    if (!ready || !user) return;
+    const id = window.setInterval(() => {
+      void (async () => {
+        const payload = await fetchSessionFromNetwork();
+        apply(payload);
+      })();
+    }, 45_000);
+    return () => window.clearInterval(id);
+  }, [ready, user, apply]);
+
   const value = useMemo(
     () => ({ user, nav, ready, refresh }),
     [user, nav, ready, refresh],

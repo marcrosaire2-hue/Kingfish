@@ -24,6 +24,7 @@ import {
 import { exportAdminUsersExcel } from "@/lib/page-exports";
 import { BrandLoader } from "@/components/brand-loader";
 import { AutorisationsEditor } from "@/components/admin/autorisations-editor";
+import { ConnexionsPanel } from "@/components/admin/connexions-panel";
 import { SiteRolesEditor } from "@/components/reglages/site-roles-editor";
 
 const ALL_ROLES: UserRole[] = [
@@ -33,7 +34,7 @@ const ALL_ROLES: UserRole[] = [
   "admin",
 ];
 
-type AdminSection = "comptes" | "ventes" | "autorisations";
+type AdminSection = "comptes" | "connexions" | "ventes" | "autorisations";
 
 type ActorInfo = Pick<SessionUser, "id" | "username" | "role" | "site"> & {
   isGlobal: boolean;
@@ -353,6 +354,15 @@ export function AdminPage() {
             {!loading ? (
               <span className="admin-section-badge">{users.length}</span>
             ) : null}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={section === "connexions"}
+            className={`admin-section-tab${section === "connexions" ? " is-active" : ""}`}
+            onClick={() => setSection("connexions")}
+          >
+            Connexions
           </button>
           <button
             type="button"
@@ -759,6 +769,12 @@ export function AdminPage() {
                 )}
               </section>
             </div>
+          </div>
+        ) : null}
+
+        {section === "connexions" ? (
+          <div className="admin-section-panel" role="tabpanel">
+            <ConnexionsPanel />
           </div>
         ) : null}
 

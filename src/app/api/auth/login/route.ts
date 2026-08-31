@@ -16,6 +16,13 @@ import {
   clientIpFrom,
   registerFailedLogin,
 } from "@/lib/login-throttle";
+import { getPlanningAccountBlockReason } from "@/lib/equipe-planning-access";
+import {
+  recordLoginFailure,
+  recordLoginSuccess,
+  recordRefuseHoraire,
+} from "@/lib/connexions-repo";
+import { logActivity } from "@/lib/log-activity";
 
 function formatDelay(seconds: number): string {
   if (seconds < 60) return `${seconds} seconde${seconds > 1 ? "s" : ""}`;
@@ -53,8 +60,13 @@ export async function POST(request: Request) {
     const user = await authenticateUser(body.username, body.password);
     if (!user) {
       const failed = await registerFailedLogin(body.username, ip);
-      // Message identique quel que soit le cas : ne pas révéler quels
-      // identifiants existent.
+      await recordLoginFailure({
+        username: body.username,
+        detail: failed.blocked
+          ? "Trop de tentatives (verrouillage temporaire)"
+          : "Identifiant ou mot de passe incorrect",
+        ip,
+      });
       return NextResponse.json(
         {
           error: failed.blocked
@@ -68,6 +80,37 @@ export async function POST(request: Request) {
             : undefined,
         },
       );
+    }
+
+    const horaireBlock = getPlanningAccountBlockReason(user.username);
+    if (horaireBlock) {
+      await recordRefuseHoraire({
+        user: {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+          site: user.site,
+          shift: user.shift,
+        },
+        detail: horaireBlock,
+        ip,
+      });
+      await logActivity({
+        user: {
+          id: user.id,
+          username: user.username,
+          name: user.name,
+          role: user.role,
+          site: user.site,
+          shift: user.shift,
+        },
+        kind: "connexion",
+        title: "Connexion refusée (hors créneau)",
+        detail: horaireBlock,
+        site: user.site === "tous" ? "tous" : user.site,
+      });
+      return NextResponse.json({ error: horaireBlock }, { status: 403 });
     }
 
     await clearLoginAttempts(body.username, ip);
@@ -86,6 +129,15 @@ export async function POST(request: Request) {
       { ...sessionUser, nav },
       user.tokenVersion,
     );
+
+    await recordLoginSuccess({ user: sessionUser, ip });
+    await logActivity({
+      user: sessionUser,
+      kind: "connexion",
+      title: "Connexion",
+      detail: `IP ${ip ?? "inconnue"}`,
+      site: sessionUser.site === "tous" ? "tous" : sessionUser.site,
+    });
 
     const response = NextResponse.json({
       user: sessionUser,

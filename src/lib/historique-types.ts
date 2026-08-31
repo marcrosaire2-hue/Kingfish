@@ -16,7 +16,8 @@ export type HistoriqueKind =
   | "immobilisations"
   | "pertes"
   | "versements"
-  | "reprise";
+  | "reprise"
+  | "connexion";
 
 export type HistoriqueSite = VenteSite | "tous" | null;
 
@@ -57,6 +58,7 @@ export const HISTORIQUE_KIND_LABELS: Record<HistoriqueKind, string> = {
   pertes: "Pertes",
   versements: "Versements",
   reprise: "Reprise d’historique",
+  connexion: "Connexion",
 };
 
 export function formatActorLabel(ev: {

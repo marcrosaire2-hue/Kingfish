@@ -80,4 +80,25 @@ export const MONGO_INDEXES: MongoIndexDef[] = [
     index: { statut: 1, createdAt: -1 },
     name: "en_attente",
   },
+  {
+    collection: "connexion_sessions",
+    index: { userId: 1 },
+    name: "user_unique",
+    unique: true,
+  },
+  {
+    collection: "connexion_sessions",
+    index: { lastSeenAt: -1 },
+    name: "presence",
+  },
+  {
+    collection: "connexion_events",
+    index: { at: -1 },
+    name: "recent",
+  },
+  {
+    collection: "connexion_events",
+    index: { username: 1, at: -1 },
+    name: "user_recent",
+  },
 ];
