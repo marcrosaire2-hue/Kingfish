@@ -817,7 +817,7 @@ function GeneralDayDashboard({
 }: {
   day: DayPoint;
   ranking: ProductRankingData;
-  shiftTotals: { jour: number; nuit: number; aucune: number } | null;
+  shiftTotals: { jour: number; soir: number; nuit: number; aucune: number } | null;
   epuises: EpuiseRow[];
 }) {
   const mixSlices = mixFromDay(day);
@@ -848,10 +848,16 @@ function GeneralDayDashboard({
             icon: <KpiGlyph name="matin" />,
           },
           {
-            label: "Soir (équipe nuit)",
-            value: formatFcfa(shiftTotals?.nuit ?? 0),
+            label: "Soir (équipe soir)",
+            value: formatFcfa(shiftTotals?.soir ?? 0),
             accent: "purple",
             icon: <KpiGlyph name="soir" />,
+          },
+          {
+            label: "Nuit (équipe nuit)",
+            value: formatFcfa(shiftTotals?.nuit ?? 0),
+            accent: "sky",
+            icon: <KpiGlyph name="hors" />,
           },
           ...(shiftTotals && shiftTotals.aucune > 0
             ? [

@@ -31,8 +31,8 @@ export type ZogboPlanningCompte = {
   numero: number;
   periode: ZogboPeriode;
   jourSlug: Exclude<ZogboJourSlug, "lundi">;
-  /** Shift stocké en base (matin → jour, soir → nuit). */
-  shift: "jour" | "nuit";
+  /** Shift stocké en base (matin → jour, soir → soir). */
+  shift: "jour" | "soir";
   horaire: string;
 };
 
@@ -67,7 +67,7 @@ function buildComptes(): ZogboPlanningCompte[] {
       name: `Équipe ${n}`,
       periode: "soir",
       jourSlug,
-      shift: "nuit",
+      shift: "soir",
       horaire: "16h00–00h00",
     });
     n += 1;

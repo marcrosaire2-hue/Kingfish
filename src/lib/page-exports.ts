@@ -335,6 +335,7 @@ export async function exportVenteExcel(
           Zone: siteLabel(site),
           "CA (FCFA)": board.caToday,
           "CA équipe de jour (FCFA)": board.caParEquipe?.jour ?? 0,
+          "CA équipe de soir (FCFA)": board.caParEquipe?.soir ?? 0,
           "CA équipe de nuit (FCFA)": board.caParEquipe?.nuit ?? 0,
           "CA hors équipe (FCFA)": board.caParEquipe?.aucune ?? 0,
           "Produits au catalogue": board.products.length,

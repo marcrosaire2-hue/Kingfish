@@ -18,15 +18,27 @@ export type UserSite = "zogbo" | "gbegamey" | "tous";
  * équipe a encaissé, sans rien demander au moment de la vente.
  * Les comptes d'encadrement peuvent n'appartenir à aucune équipe.
  */
-export type UserShift = "jour" | "nuit" | "aucune";
+/**
+ * Créneaux de service :
+ * - jour  = matin 08h–16h
+ * - soir  = 16h–00h
+ * - nuit  = 00h–08h (Gbégamey)
+ * - aucune = hors équipe (encadrement)
+ */
+export type UserShift = "jour" | "soir" | "nuit" | "aucune";
 
 export const SHIFT_LABELS: Record<UserShift, string> = {
   jour: "Équipe de jour",
+  soir: "Équipe de soir",
   nuit: "Équipe de nuit",
   aucune: "Hors équipe",
 };
 
-export const SHIFTS: UserShift[] = ["jour", "nuit", "aucune"];
+export const SHIFTS: UserShift[] = ["jour", "soir", "nuit", "aucune"];
+
+export function emptyShiftTotals(): Record<UserShift, number> {
+  return { jour: 0, soir: 0, nuit: 0, aucune: 0 };
+}
 
 export function isShift(value: unknown): value is UserShift {
   return SHIFTS.includes(value as UserShift);
@@ -34,15 +46,11 @@ export function isShift(value: unknown): value is UserShift {
 
 /**
  * Équipes écrites par les imports de carnets, qui parlent du service en
- * clair. « matin » et « soir » désignent les mêmes équipes que « jour » et
- * « nuit » : sans cette table, ces ventes tombaient en « hors équipe » et le
- * résumé du jour affichait matin et soir à zéro.
+ * clair. « matin » → jour ; « soir » est désormais une équipe à part entière.
  */
 const ALIAS_SHIFT: Record<string, UserShift> = {
   matin: "jour",
   midi: "jour",
-  soir: "nuit",
-  nuit: "nuit",
 };
 
 /** Équipe retenue, en tolérant un compte antérieur à cette notion. */

@@ -1,15 +1,14 @@
 /**
- * Crée / met à jour les 12 comptes gérant Zogbo (equipe1 … equipe12)
- * et exporte les identifiants dans un Excel.
+ * Crée les 20 comptes gérant Gbégamey (equipe13 … equipe32)
+ * et exporte les identifiants dans un Excel à la racine.
  *
- * Planning appliqué dans l’app à partir du 2026-09-01 (fermeture lundi).
- * Désactive les anciens identifiants zogbo.matin.* / zogbo.soir.*.
+ * 7 jours × 3 créneaux − 1 (nuit mardi 00h–08h fermée).
+ * Actif dès 2026-09-01. Met aussi à jour equipe7–12 Zogbo en shift « soir ».
  *
  * Usage :
- *   node --env-file=.env.local scripts/creer-12-comptes-zogbo.mjs --yes
+ *   node --env-file=.env.local scripts/creer-20-comptes-gbegamey.mjs --yes
  */
 import { randomBytes } from "node:crypto";
-import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { MongoClient, ObjectId } from "mongodb";
@@ -31,10 +30,10 @@ if (!uri) {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, "..");
-const OUT_DIR = ROOT;
-const OUT_FILE = path.join(OUT_DIR, "KingFish-Comptes-Zogbo-12.xlsx");
+const OUT_FILE = path.join(ROOT, "KingFish-Comptes-Gbegamey-20.xlsx");
 
 const JOURS = [
+  { slug: "lundi", label: "Lundi" },
   { slug: "mardi", label: "Mardi" },
   { slug: "mercredi", label: "Mercredi" },
   { slug: "jeudi", label: "Jeudi" },
@@ -46,7 +45,7 @@ const JOURS = [
 function genPassword() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
   const bytes = randomBytes(10);
-  let out = "Zg";
+  let out = "Gb";
   for (let i = 0; i < 8; i++) {
     out += alphabet[bytes[i] % alphabet.length];
   }
@@ -54,7 +53,25 @@ function genPassword() {
 }
 
 const COMPTES = [];
-let n = 1;
+let n = 13;
+
+// Nuit 00h–08h — sauf mardi
+for (const j of JOURS.filter((x) => x.slug !== "mardi")) {
+  COMPTES.push({
+    numero: n,
+    periode: "Nuit",
+    jour: j.label,
+    horaire: "00h00–08h00",
+    username: `equipe${n}`,
+    name: `Équipe ${n}`,
+    shift: "nuit",
+    role: "gerant",
+    site: "gbegamey",
+    password: genPassword(),
+  });
+  n += 1;
+}
+// Matin 08h–16h — 7 jours
 for (const j of JOURS) {
   COMPTES.push({
     numero: n,
@@ -65,12 +82,12 @@ for (const j of JOURS) {
     name: `Équipe ${n}`,
     shift: "jour",
     role: "gerant",
-    site: "zogbo",
+    site: "gbegamey",
     password: genPassword(),
-    legacyUsername: `zogbo.matin.${j.slug}`,
   });
   n += 1;
 }
+// Soir 16h–00h — 7 jours
 for (const j of JOURS) {
   COMPTES.push({
     numero: n,
@@ -81,11 +98,15 @@ for (const j of JOURS) {
     name: `Équipe ${n}`,
     shift: "soir",
     role: "gerant",
-    site: "zogbo",
+    site: "gbegamey",
     password: genPassword(),
-    legacyUsername: `zogbo.soir.${j.slug}`,
   });
   n += 1;
+}
+
+if (COMPTES.length !== 20) {
+  console.error(`Attendu 20 comptes, obtenu ${COMPTES.length}`);
+  process.exit(1);
 }
 
 const client = new MongoClient(uri);
@@ -94,18 +115,16 @@ const db = client.db(dbName);
 const col = db.collection("users");
 const now = new Date().toISOString();
 
-console.log("Création / mise à jour des 12 comptes (equipe1 … equipe12)…");
-console.log("  Fermeture lundi · ventes mardi → dimanche");
+console.log("Création / mise à jour des 20 comptes Gbégamey (equipe13 … equipe32)…");
+console.log("  Fermeture : mardi 00h00–08h00 uniquement");
 console.log("");
 
 for (const c of COMPTES) {
   const hash = await bcrypt.hash(c.password, 12);
-  const byNew = await col.findOne({ username: c.username });
-  const byLegacy = await col.findOne({ username: c.legacyUsername });
-
-  if (byNew) {
+  const existing = await col.findOne({ username: c.username });
+  if (existing) {
     await col.updateOne(
-      { _id: byNew._id },
+      { _id: existing._id },
       {
         $set: {
           name: c.name,
@@ -115,29 +134,11 @@ for (const c of COMPTES) {
           active: true,
           passwordHash: hash,
           updatedAt: now,
-          tokenVersion: (byNew.tokenVersion ?? 1) + 1,
+          tokenVersion: (existing.tokenVersion ?? 1) + 1,
         },
       },
     );
-    console.log(`mis à jour : ${c.username} (${c.name})`);
-  } else if (byLegacy) {
-    await col.updateOne(
-      { _id: byLegacy._id },
-      {
-        $set: {
-          username: c.username,
-          name: c.name,
-          role: c.role,
-          site: c.site,
-          shift: c.shift,
-          active: true,
-          passwordHash: hash,
-          updatedAt: now,
-          tokenVersion: (byLegacy.tokenVersion ?? 1) + 1,
-        },
-      },
-    );
-    console.log(`renommé   : ${c.legacyUsername} → ${c.username}`);
+    console.log(`mis à jour : ${c.username} · ${c.periode} ${c.jour}`);
   } else {
     await col.insertOne({
       _id: new ObjectId(),
@@ -152,41 +153,21 @@ for (const c of COMPTES) {
       createdAt: now,
       updatedAt: now,
     });
-    console.log(`créé      : ${c.username} (${c.name})`);
-  }
-
-  // Au cas où l’ancien login existe encore à part.
-  if (byLegacy && byNew && String(byLegacy._id) !== String(byNew._id)) {
-    await col.updateOne(
-      { _id: byLegacy._id },
-      {
-        $set: {
-          active: false,
-          updatedAt: now,
-          tokenVersion: (byLegacy.tokenVersion ?? 1) + 1,
-        },
-      },
-    );
-    console.log(`désactivé : ${c.legacyUsername}`);
+    console.log(`créé      : ${c.username} · ${c.periode} ${c.jour}`);
   }
 }
 
-const leftover = await col.updateMany(
+// Zogbo soir (equipe7–12) : shift nuit → soir (3e créneau formalisé).
+const zogboSoir = await col.updateMany(
   {
-    username: { $regex: /^zogbo\.(matin|soir)\./ },
-    active: true,
+    username: { $in: ["equipe7", "equipe8", "equipe9", "equipe10", "equipe11", "equipe12"] },
   },
   {
-    $set: {
-      active: false,
-      updatedAt: now,
-    },
+    $set: { shift: "soir", updatedAt: now },
     $inc: { tokenVersion: 1 },
   },
 );
-if (leftover.modifiedCount) {
-  console.log(`désactivé ${leftover.modifiedCount} ancien(s) login zogbo.*`);
-}
+console.log(`Zogbo equipe7–12 → shift soir (${zogboSoir.modifiedCount} compte(s))`);
 
 await client.close();
 
@@ -214,20 +195,21 @@ const rows = COMPTES.map((c) => [
   c.horaire,
   c.role,
   c.site,
-  c.shift === "jour" ? "jour (matin)" : "soir",
-  "Ne pas utiliser le lundi (Zogbo fermé) · actif dès 2026-09-01",
+  c.shift,
+  c.periode === "Nuit" && c.jour === "Mardi"
+    ? "FERMÉ"
+    : "Actif dès 2026-09-01 · mardi nuit fermé",
 ]);
 
 const noteRows = [
   [],
-  ["Organisation"],
-  ["Identifiants", "equipe1 … equipe12"],
-  ["Site", "Zogbo"],
-  ["Ouverture", "Mardi → Dimanche"],
-  ["Fermeture", "Lundi (aucun compte prévu)"],
-  ["Matin", "Équipe 1–6 · 08h00–16h00"],
-  ["Soir", "Équipe 7–12 · 16h00–00h00"],
-  ["Total", "12 comptes gérant"],
+  ["Organisation Gbégamey"],
+  ["Identifiants", "equipe13 … equipe32"],
+  ["Nuit", "00h00–08h00 · 6 comptes (pas de mardi)"],
+  ["Matin", "08h00–16h00 · 7 comptes"],
+  ["Soir", "16h00–00h00 · 7 comptes"],
+  ["Fermeture", "Mardi 00h00–08h00"],
+  ["Total", "20 comptes gérant"],
   [],
   [
     "Attention",
@@ -246,13 +228,13 @@ ws["!cols"] = [
   { wch: 12 },
   { wch: 14 },
   { wch: 10 },
-  { wch: 10 },
-  { wch: 14 },
-  { wch: 48 },
+  { wch: 12 },
+  { wch: 12 },
+  { wch: 40 },
 ];
 
 const headerStyle = {
-  fill: { fgColor: { rgb: "004888" } },
+  fill: { fgColor: { rgb: "1B5E20" } },
   font: { bold: true, color: { rgb: "FFFFFF" } },
   alignment: { horizontal: "center" },
 };
@@ -261,10 +243,14 @@ for (let c = 0; c < header.length; c++) {
   if (ws[addr]) ws[addr].s = headerStyle;
 }
 
-const matinFill = { fill: { fgColor: { rgb: "E8F5E9" } } };
-const soirFill = { fill: { fgColor: { rgb: "FFF3E0" } } };
-for (let r = 1; r <= 12; r++) {
-  const fill = r <= 6 ? matinFill : soirFill;
+const fills = {
+  Nuit: { fill: { fgColor: { rgb: "E3F2FD" } } },
+  Matin: { fill: { fgColor: { rgb: "E8F5E9" } } },
+  Soir: { fill: { fgColor: { rgb: "FFF3E0" } } },
+};
+for (let r = 1; r <= 20; r++) {
+  const periode = rows[r - 1][4];
+  const fill = fills[periode] || {};
   for (let c = 0; c < header.length; c++) {
     const addr = XLSX.utils.encode_cell({ r, c });
     if (ws[addr]) ws[addr].s = fill;
@@ -272,11 +258,9 @@ for (let r = 1; r <= 12; r++) {
 }
 
 const wb = XLSX.utils.book_new();
-XLSX.utils.book_append_sheet(wb, ws, "Comptes Zogbo");
-
-await mkdir(OUT_DIR, { recursive: true });
+XLSX.utils.book_append_sheet(wb, ws, "Comptes Gbégamey");
 XLSX.writeFile(wb, OUT_FILE);
 
 console.log("");
 console.log(`Excel écrit : ${OUT_FILE}`);
-console.log("12 comptes prêts (equipe1 … equipe12).");
+console.log("20 comptes prêts (equipe13 … equipe32).");

@@ -261,6 +261,7 @@ export function AnalysePage() {
                 <select value={shift} onChange={(e) => setShift(e.target.value)}>
                   <option value="all">Toutes</option>
                   <option value="jour">Jour</option>
+                  <option value="soir">Soir</option>
                   <option value="nuit">Nuit</option>
                   <option value="aucune">Hors équipe</option>
                 </select>

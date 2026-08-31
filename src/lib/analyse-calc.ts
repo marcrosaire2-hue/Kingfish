@@ -1,5 +1,6 @@
 import { shiftIsoDate } from "@/lib/zogbo-calc";
 import type { UserShift, UserSite } from "@/lib/auth-types";
+import { SHIFT_LABELS as AUTH_SHIFT_LABELS } from "@/lib/auth-types";
 import type { VenteKind, VenteSite } from "@/lib/types";
 
 export type AnalysePeriod = "day" | "week" | "month";
@@ -145,11 +146,7 @@ const SITE_LABELS: Record<VenteSite, string> = {
   gbegamey: "Gbégamey",
 };
 
-const SHIFT_LABELS: Record<UserShift, string> = {
-  jour: "Équipe de jour",
-  nuit: "Équipe de nuit",
-  aucune: "Hors équipe",
-};
+const SHIFT_LABELS: Record<UserShift, string> = AUTH_SHIFT_LABELS;
 
 export const PERIOD_LABELS: Record<AnalysePeriod, string> = {
   day: "jour",
@@ -990,7 +987,7 @@ export function parseAnalyseShift(
   raw: string | null,
 ): AnalyseShiftFilter | null {
   if (!raw || raw === "all" || raw === "tous") return "all";
-  if (raw === "jour" || raw === "nuit" || raw === "aucune") return raw;
+  if (raw === "jour" || raw === "soir" || raw === "nuit" || raw === "aucune") return raw;
   return null;
 }
 

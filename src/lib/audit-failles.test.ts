@@ -317,10 +317,10 @@ describe("F7 — dépense caisse + charge manuelle", () => {
 describe("F8 — CA par équipe net", () => {
   it("une remise de 10 000 sur 100 000 donne 90 000 à l’équipe", () => {
     const byDate = new Map<string, Record<UserShift, number>>([
-      ["2026-08-01", { jour: 100000, nuit: 0, aucune: 0 }],
+      ["2026-08-01", { jour: 100000, soir: 0, nuit: 0, aucune: 0 }],
     ]);
     const reductions = new Map<string, Record<UserShift, number>>([
-      ["2026-08-01", { jour: 10000, nuit: 0, aucune: 0 }],
+      ["2026-08-01", { jour: 10000, soir: 0, nuit: 0, aucune: 0 }],
     ]);
     applyShiftReductions(byDate, reductions);
     expect(byDate.get("2026-08-01")!.jour).toBe(90000);

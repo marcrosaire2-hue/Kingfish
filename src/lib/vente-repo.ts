@@ -1,5 +1,5 @@
 import { ObjectId, type Filter } from "mongodb";
-import { effectiveShift, type UserShift } from "@/lib/auth-types";
+import { effectiveShift, emptyShiftTotals, type UserShift } from "@/lib/auth-types";
 import { adjustCaisseVenteAmount } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
@@ -11,6 +11,7 @@ import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
 import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import { computeZogboLine, shiftIsoDate } from "@/lib/zogbo-calc";
 import { isLegalAccompanimentPrice } from "@/lib/catalog-zogbo";
+import { assertGbegameyPlanningSale } from "@/lib/gbegamey-planning-comptes";
 import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import type {
@@ -529,14 +530,14 @@ export async function sumCaByShift(
     ])
     .toArray();
 
-  const parEquipe: Record<UserShift, number> = { jour: 0, nuit: 0, aucune: 0 };
+  const parEquipe: Record<UserShift, number> = emptyShiftTotals();
   for (const row of rows) {
     // Les ventes antérieures aux équipes n'en portent aucune : elles vont
     // dans « hors équipe » plutôt que d'être attribuées arbitrairement.
     parEquipe[effectiveShift(row._id)] += row.total;
   }
   const reductions = await sumPosReductionsByShift(date, site);
-  for (const shift of ["jour", "nuit", "aucune"] as UserShift[]) {
+  for (const shift of (["jour", "soir", "nuit", "aucune"] as UserShift[])) {
     parEquipe[shift] -= reductions[shift];
   }
   return parEquipe;
@@ -561,7 +562,7 @@ export function applyShiftReductions(
   reductions: Map<string, Record<UserShift, number>>,
 ): void {
   for (const [date, byShift] of reductions) {
-    const bucket = byDate.get(date) ?? { jour: 0, nuit: 0, aucune: 0 };
+    const bucket = byDate.get(date) ?? emptyShiftTotals();
     bucket.jour -= byShift.jour;
     bucket.nuit -= byShift.nuit;
     bucket.aucune -= byShift.aucune;
@@ -603,7 +604,7 @@ export async function sumCaByShiftRange(
   for (const row of rows) {
     const date = row._id.date;
     const shift = effectiveShift(row._id.shift);
-    const bucket = byDate.get(date) ?? { jour: 0, nuit: 0, aucune: 0 };
+    const bucket = byDate.get(date) ?? emptyShiftTotals();
     bucket[shift] += row.total;
     byDate.set(date, bucket);
   }
@@ -612,11 +613,11 @@ export async function sumCaByShiftRange(
   applyShiftReductions(byDate, reductions);
 
   const days: ShiftDayRow[] = [];
-  const totals: Record<UserShift, number> = { jour: 0, nuit: 0, aucune: 0 };
+  const totals: Record<UserShift, number> = emptyShiftTotals();
   let cursor: string | null = from;
   while (cursor && cursor <= to) {
-    const par = byDate.get(cursor) ?? { jour: 0, nuit: 0, aucune: 0 };
-    const total = par.jour + par.nuit + par.aucune;
+    const par = byDate.get(cursor) ?? emptyShiftTotals();
+    const total = par.jour + par.soir + par.nuit + par.aucune;
     days.push({ date: cursor, ...par, total });
     totals.jour += par.jour;
     totals.nuit += par.nuit;
@@ -628,7 +629,7 @@ export async function sumCaByShiftRange(
     days,
     totals: {
       ...totals,
-      total: totals.jour + totals.nuit + totals.aucune,
+      total: totals.jour + totals.soir + totals.nuit + totals.aucune,
     },
   };
 }
@@ -674,7 +675,7 @@ export async function sumPosReductionsByShift(
       { $group: { _id: "$shift", total: { $sum: "$reduction" } } },
     ])
     .toArray();
-  const out: Record<UserShift, number> = { jour: 0, nuit: 0, aucune: 0 };
+  const out: Record<UserShift, number> = emptyShiftTotals();
   for (const row of rows) {
     out[effectiveShift(row._id)] += row.total;
   }
@@ -712,7 +713,7 @@ export async function sumPosReductionsByShiftRange(
   const out = new Map<string, Record<UserShift, number>>();
   for (const row of rows) {
     const date = row._id.date;
-    const bucket = out.get(date) ?? { jour: 0, nuit: 0, aucune: 0 };
+    const bucket = out.get(date) ?? emptyShiftTotals();
     bucket[effectiveShift(row._id.shift)] += row.total;
     out.set(date, bucket);
   }
@@ -1188,6 +1189,10 @@ export async function recordVente(input: {
       username: input.actor.username,
       serviceDate: input.date,
     });
+    assertGbegameyPlanningSale({
+      username: input.actor.username,
+      serviceDate: input.date,
+    });
   }
 
   await assertDayNotClosed(input.date, input.site, input.kind, {
@@ -1470,8 +1475,11 @@ export function assertSameTeamCancellation(input: {
   const canceller = effectiveShift(input.cancellerShift);
   if (sale === "aucune" || canceller === "aucune") return;
   if (sale === canceller) return;
-  const teamLabel = (s: UserShift) =>
-    s === "jour" ? "Équipe de jour" : "Équipe de nuit";
+  const teamLabel = (s: UserShift) => {
+    if (s === "jour") return "Équipe de jour";
+    if (s === "soir") return "Équipe de soir";
+    return "Équipe de nuit";
+  };
   throw new Error(
     `Annulation refusée : une vente de l’${teamLabel(sale)} ne peut pas être annulée par l’${teamLabel(canceller)}.`,
   );

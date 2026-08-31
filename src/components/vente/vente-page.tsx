@@ -1893,10 +1893,13 @@ export function VentePage({
             <p className="vente-cash-meta">
               {cashMeta}
               {board?.caParEquipe &&
-              (board.caParEquipe.jour > 0 || board.caParEquipe.nuit > 0) ? (
+              (board.caParEquipe.jour > 0 ||
+                board.caParEquipe.soir > 0 ||
+                board.caParEquipe.nuit > 0) ? (
                 <span className="vente-equipes">
                   {" "}
-                  Jour {formatFcfa(board.caParEquipe.jour ?? 0)} · Nuit{" "}
+                  Jour {formatFcfa(board.caParEquipe.jour ?? 0)} · Soir{" "}
+                  {formatFcfa(board.caParEquipe.soir ?? 0)} · Nuit{" "}
                   {formatFcfa(board.caParEquipe.nuit ?? 0)}
                 </span>
               ) : null}

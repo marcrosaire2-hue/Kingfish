@@ -7,8 +7,8 @@ import {
 } from "@/lib/auth-types";
 
 describe("équipes de service", () => {
-  it("propose exactement jour, nuit et hors équipe", () => {
-    expect(SHIFTS).toEqual(["jour", "nuit", "aucune"]);
+  it("propose jour, soir, nuit et hors équipe", () => {
+    expect(SHIFTS).toEqual(["jour", "soir", "nuit", "aucune"]);
     for (const eq of SHIFTS) {
       expect(SHIFT_LABELS[eq]).toBeTruthy();
     }
@@ -16,6 +16,7 @@ describe("équipes de service", () => {
 
   it("reconnaît les équipes valides", () => {
     expect(isShift("jour")).toBe(true);
+    expect(isShift("soir")).toBe(true);
     expect(isShift("nuit")).toBe(true);
     expect(isShift("matin")).toBe(false);
     expect(isShift(undefined)).toBe(false);
@@ -30,6 +31,8 @@ describe("équipes de service", () => {
 
   it("conserve une équipe déjà valide", () => {
     expect(effectiveShift("nuit")).toBe("nuit");
+    expect(effectiveShift("soir")).toBe("soir");
     expect(effectiveShift("jour")).toBe("jour");
+    expect(effectiveShift("matin")).toBe("jour");
   });
 });

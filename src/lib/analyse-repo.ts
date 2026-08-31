@@ -341,6 +341,7 @@ export async function loadAnalyseReport(input: {
 
   const byShiftMap = new Map<string, number>([
     ["jour", currentShifts.totals.jour],
+    ["soir", currentShifts.totals.soir],
     ["nuit", currentShifts.totals.nuit],
     ["aucune", currentShifts.totals.aucune],
   ]);

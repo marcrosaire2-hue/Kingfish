@@ -27,6 +27,7 @@ import {
   listSellableQrProductIds,
   restorePlatUnitAfterSaleCancel,
 } from "@/lib/stock-unit-repo";
+import { assertGbegameyPlanningSale } from "@/lib/gbegamey-planning-comptes";
 import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import type {
@@ -190,6 +191,10 @@ export async function validatePosTicket(input: {
   const isBackdate = manager && Boolean(input.date) && input.date < today;
   const serviceDate = isBackdate && input.date ? input.date : today;
   assertZogboPlanningSale({
+    username: input.user.username,
+    serviceDate,
+  });
+  assertGbegameyPlanningSale({
     username: input.user.username,
     serviceDate,
   });

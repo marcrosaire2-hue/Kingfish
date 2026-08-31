@@ -37,7 +37,7 @@ const ROSE_CLAIR = "FFF3E0";
 const REF = {
   UserRole: ["gerant", "comptable", "daf", "admin"],
   UserSite: ["zogbo", "gbegamey", "tous"],
-  UserShift: ["jour", "nuit", "aucune"],
+  UserShift: ["jour", "soir", "nuit", "aucune"],
   VenteSite: ["zogbo", "gbegamey"],
   VenteKind: ["plat", "boisson", "local", "extra"],
   DayStatus: ["ouverte", "cloturee"],
