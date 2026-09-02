@@ -404,58 +404,65 @@ export function RegularisationPage() {
       }
     >
       <div className="reg-page">
-        <div className="hist-filters reg-toolbar">
-          <label className="date-field">
-            <span>Jour</span>
-            <input
-              type="date"
-              value={date}
-              max={todayIsoDate()}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </label>
-          <label className="date-field">
-            <span>Site</span>
-            <select
-              className="select-input"
-              value={site}
-              onChange={(e) => setSite(e.target.value as VenteSite)}
-              disabled={allowedSites.length <= 1}
-            >
-              {allowedSites.map((s) => (
-                <option key={s} value={s}>
-                  {s === "zogbo" ? "Zogbo" : "Gbégamey"}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => void load()}
-            disabled={loading || busy}
-          >
-            Actualiser
-          </button>
+        <header className="reg-hero">
+          <div className="reg-hero-main">
+            <div className="reg-toolbar">
+              <label className="date-field">
+                <span>Jour</span>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayIsoDate()}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </label>
+              <div
+                className="site-switch reg-site-switch"
+                role="group"
+                aria-label="Site"
+              >
+                {allowedSites.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className={`site-btn${site === s ? " is-active" : ""}`}
+                    disabled={allowedSites.length <= 1}
+                    onClick={() => setSite(s)}
+                  >
+                    <span className="site-btn-label">
+                      {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => void load()}
+                disabled={loading || busy}
+              >
+                Actualiser
+              </button>
+            </div>
+            {isPast ? (
+              <p className="reg-hero-note" role="status">
+                Correction du <strong>{date}</strong> · {siteLabel} — hors
+                catalogue ou catalogue, même sans stock.
+              </p>
+            ) : (
+              <p className="reg-hero-note is-warn" role="note">
+                Choisissez une date <strong>passée</strong>. Pour aujourd’hui,
+                utilisez la page Vente.
+              </p>
+            )}
+          </div>
           <div className="reg-ca-pill" aria-label="Chiffre d’affaires du jour">
             <span className="reg-ca-label">CA {siteLabel}</span>
             <strong className="mono">
               {loading ? "…" : formatFcfa(board?.caToday ?? 0)}
             </strong>
           </div>
-        </div>
-
-        {isPast ? (
-          <p className="ui-info" role="status">
-            Correction du <strong>{date}</strong> · {siteLabel} — hors catalogue
-            ou catalogue, même sans stock.
-          </p>
-        ) : (
-          <p className="ui-info" role="note">
-            Choisissez une date <strong>passée</strong>. Pour aujourd’hui,
-            utilisez la page Vente.
-          </p>
-        )}
+        </header>
 
         {error ? (
           <p className="error-banner" role="alert">
@@ -471,282 +478,303 @@ export function RegularisationPage() {
         {loading ? (
           <BrandLoader variant="ligne" label="Chargement…" />
         ) : (
-          <div className="reg-layout">
-            <section className="panel reg-form-panel">
-              <div className="panel-head">
-                <h2 className="panel-title">Nouvelle vente</h2>
-              </div>
-
-              <div className="reg-form">
-                <label className="date-field reg-field-full">
-                  <span>Origine</span>
-                  <select
-                    className="select-input"
-                    value={kind}
-                    onChange={(e) =>
-                      setKind(e.target.value as typeof kind)
-                    }
-                  >
-                    <option value="extra">Hors catalogue (article + prix unitaire)</option>
-                    <option value="plat">Catalogue · Plat</option>
-                    <option value="local">Catalogue · Accompagnement</option>
-                    <option value="boisson">Catalogue · Boisson</option>
-                  </select>
-                </label>
-
-                {kind === "extra" ? (
-                  <>
-                    {emballages.length > 0 ? (
-                      <div className="reg-emballages reg-field-full">
-                        <span className="reg-emballages-label">
-                          Emballages rapides
-                        </span>
-                        <div className="vente-emballage-chips">
-                          {emballages.map((e) => (
-                            <button
-                              key={e.id}
-                              type="button"
-                              className="btn btn-ghost vente-emballage-chip"
-                              disabled={busy || !isPast}
-                              onClick={() => {
-                                setExtraName(e.name);
-                                setExtraMontant(String(e.salePrice ?? 0));
-                                setQty("1");
-                                setSaleType("Rapido");
-                              }}
-                            >
-                              {e.name}
-                              <span className="mono">
-                                {" "}
-                                {formatFcfa(e.salePrice ?? 0)}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null}
-
-                    <label className="date-field reg-field-full">
-                      <span>Produit / article</span>
-                      <input
-                        value={extraName}
-                        onChange={(e) => setExtraName(e.target.value)}
-                        placeholder="Ex. brochette, chawarma…"
-                        autoComplete="off"
-                      />
-                    </label>
-
-                    <label className="date-field">
-                      <span>Quantité</span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={qty}
-                        onChange={(e) => setQty(e.target.value)}
-                      />
-                    </label>
-                    <label className="date-field">
-                      <span>Prix unitaire (FCFA)</span>
-                      <input
-                        type="number"
-                        min={0}
-                        step={50}
-                        value={extraMontant}
-                        onChange={(e) => setExtraMontant(e.target.value)}
-                        placeholder="1500"
-                      />
-                    </label>
-
-                    {lignePreview > 0 ? (
-                      <p className="muted reg-field-full reg-hint">
-                        Total ligne :{" "}
-                        <strong className="mono">
-                          {formatFcfa(lignePreview)}
-                        </strong>
-                        {qtyN > 1 ? (
-                          <span>
-                            {" "}
-                            ({qtyN} ×{" "}
-                            {formatFcfa(Math.round(Number(extraMontant) || 0))})
-                          </span>
-                        ) : null}
-                      </p>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
-                    <label className="date-field reg-field-full">
-                      <span>Produit</span>
-                      <select
-                        className="select-input"
-                        value={productId}
-                        onChange={(e) => setProductId(e.target.value)}
-                      >
-                        {products.length === 0 ? (
-                          <option value="">Aucun produit</option>
-                        ) : (
-                          products.map((p) => (
-                            <option key={p.productId} value={p.productId}>
-                              {p.name}
-                              {p.stockLeft != null
-                                ? ` · reste ${p.stockLeft}`
-                                : ""}
-                            </option>
-                          ))
-                        )}
-                      </select>
-                    </label>
-                    <label className="date-field">
-                      <span>Quantité</span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={qty}
-                        onChange={(e) => setQty(e.target.value)}
-                      />
-                    </label>
-                    <div className="reg-hint muted">
-                      {selected ? (
-                        <>
-                          Prix :{" "}
-                          <strong className="mono">
-                            {formatFcfa(selected.unitPrice)}
-                          </strong>
-                          {qtyN > 0 ? (
-                            <>
-                              {" "}
-                              · Total :{" "}
-                              <strong className="mono">
-                                {formatFcfa(lignePreview)}
-                              </strong>
-                              {qtyN > 1
-                                ? ` (${qtyN} × ${formatFcfa(selected.unitPrice)})`
-                                : ""}
-                            </>
-                          ) : null}
-                          {selected.stockLeft != null
-                            ? ` · stock ${selected.stockLeft}`
-                            : ""}
-                          {selected.stockLeft != null &&
-                          selected.stockLeft <= 0
-                            ? " · sans stock OK"
-                            : ""}
-                        </>
-                      ) : (
-                        "—"
-                      )}
-                    </div>
-                  </>
-                )}
-
-                <label className="date-field">
-                  <span>Type de vente</span>
-                  <select
-                    className="select-input"
-                    value={saleType}
-                    onChange={(e) =>
-                      setSaleType(e.target.value as SaleType)
-                    }
-                  >
-                    {SALE_TYPES.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div className="reg-form-actions reg-field-full">
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    disabled={busy || !isPast}
-                    onClick={ajouterLigne}
-                  >
-                    + Ajouter à la facture
-                  </button>
+          <>
+            <div className="reg-workspace">
+              <section className="panel reg-form-panel">
+                <div className="panel-head">
+                  <h2 className="panel-title">1 · Saisie</h2>
+                  <p className="muted">Composer les lignes de la facture</p>
                 </div>
-              </div>
-            </section>
 
-            <div className="reg-right-col">
-              <section className="panel reg-panier-panel">
-              <div className="panel-head">
-                <h2 className="panel-title">Facture en cours</h2>
-                <p className="muted">
-                  {panier.length} article{panier.length > 1 ? "s" : ""}
-                </p>
-              </div>
+                <div
+                  className="reg-kind-tabs"
+                  role="tablist"
+                  aria-label="Origine de l’article"
+                >
+                  {(
+                    [
+                      ["extra", "Hors catalogue"],
+                      ["plat", "Plats"],
+                      ["local", "Accomp."],
+                      ["boisson", "Boissons"],
+                    ] as const
+                  ).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      role="tab"
+                      aria-selected={kind === id}
+                      className={`reg-kind-tab${kind === id ? " is-active" : ""}`}
+                      onClick={() => setKind(id)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
 
-              {panier.length === 0 ? (
-                <p className="muted reg-empty">
-                  Ajoutez un ou plusieurs articles ci-contre, puis validez
-                  pour les regrouper sur une seule facture.
-                </p>
-              ) : (
-                <>
-                  <ul className="reg-panier-list">
-                    {panier.map((l) => (
-                      <li key={l.key} className="reg-panier-line">
-                        <span>
-                          {l.name} × {l.qty}
-                        </span>
-                        <span className="mono">
-                          {formatFcfa(l.qty * l.unitPrice)}
-                        </span>
-                        <button
-                          type="button"
-                          className="btn-link"
-                          disabled={busy}
-                          onClick={() => retirerLigne(l.key)}
+                <div className="reg-form">
+                  {kind === "extra" ? (
+                    <>
+                      {emballages.length > 0 ? (
+                        <div className="reg-emballages reg-field-full">
+                          <span className="reg-emballages-label">
+                            Emballages rapides
+                          </span>
+                          <div className="vente-emballage-chips">
+                            {emballages.map((e) => (
+                              <button
+                                key={e.id}
+                                type="button"
+                                className="btn btn-ghost vente-emballage-chip"
+                                disabled={busy || !isPast}
+                                onClick={() => {
+                                  setExtraName(e.name);
+                                  setExtraMontant(String(e.salePrice ?? 0));
+                                  setQty("1");
+                                  setSaleType("Rapido");
+                                }}
+                              >
+                                {e.name}
+                                <span className="mono">
+                                  {" "}
+                                  {formatFcfa(e.salePrice ?? 0)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null}
+
+                      <label className="date-field reg-field-full">
+                        <span>Produit / article</span>
+                        <input
+                          value={extraName}
+                          onChange={(e) => setExtraName(e.target.value)}
+                          placeholder="Ex. brochette, chawarma…"
+                          autoComplete="off"
+                        />
+                      </label>
+
+                      <label className="date-field">
+                        <span>Quantité</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={qty}
+                          onChange={(e) => setQty(e.target.value)}
+                        />
+                      </label>
+                      <label className="date-field">
+                        <span>Prix unitaire (FCFA)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          step={50}
+                          value={extraMontant}
+                          onChange={(e) => setExtraMontant(e.target.value)}
+                          placeholder="1500"
+                        />
+                      </label>
+
+                      {lignePreview > 0 ? (
+                        <p className="muted reg-field-full reg-hint">
+                          Total ligne :{" "}
+                          <strong className="mono">
+                            {formatFcfa(lignePreview)}
+                          </strong>
+                          {qtyN > 1 ? (
+                            <span>
+                              {" "}
+                              ({qtyN} ×{" "}
+                              {formatFcfa(
+                                Math.round(Number(extraMontant) || 0),
+                              )}
+                              )
+                            </span>
+                          ) : null}
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      <label className="date-field reg-field-full">
+                        <span>Produit</span>
+                        <select
+                          className="select-input"
+                          value={productId}
+                          onChange={(e) => setProductId(e.target.value)}
                         >
-                          Retirer
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                  <label className="date-field reg-field-full">
-                    <span>Réduction commerciale (FCFA)</span>
-                    <input
-                      type="number"
-                      min={0}
-                      max={panierTotal}
-                      value={reduction}
-                      onChange={(e) => setReduction(e.target.value)}
-                    />
+                          {products.length === 0 ? (
+                            <option value="">Aucun produit</option>
+                          ) : (
+                            products.map((p) => (
+                              <option key={p.productId} value={p.productId}>
+                                {p.name}
+                                {p.stockLeft != null
+                                  ? ` · reste ${p.stockLeft}`
+                                  : ""}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      </label>
+                      <label className="date-field">
+                        <span>Quantité</span>
+                        <input
+                          type="number"
+                          min={1}
+                          value={qty}
+                          onChange={(e) => setQty(e.target.value)}
+                        />
+                      </label>
+                      <div className="reg-hint muted">
+                        {selected ? (
+                          <>
+                            Prix :{" "}
+                            <strong className="mono">
+                              {formatFcfa(selected.unitPrice)}
+                            </strong>
+                            {qtyN > 0 ? (
+                              <>
+                                {" "}
+                                · Total :{" "}
+                                <strong className="mono">
+                                  {formatFcfa(lignePreview)}
+                                </strong>
+                                {qtyN > 1
+                                  ? ` (${qtyN} × ${formatFcfa(selected.unitPrice)})`
+                                  : ""}
+                              </>
+                            ) : null}
+                            {selected.stockLeft != null
+                              ? ` · stock ${selected.stockLeft}`
+                              : ""}
+                            {selected.stockLeft != null &&
+                            selected.stockLeft <= 0
+                              ? " · sans stock OK"
+                              : ""}
+                          </>
+                        ) : (
+                          "—"
+                        )}
+                      </div>
+                    </>
+                  )}
+
+                  <label className="date-field">
+                    <span>Type de vente</span>
+                    <select
+                      className="select-input"
+                      value={saleType}
+                      onChange={(e) =>
+                        setSaleType(e.target.value as SaleType)
+                      }
+                    >
+                      {SALE_TYPES.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
                   </label>
-                  {reductionN > 0 ? (
-                    <p className="reg-panier-total muted">
-                      Sous-total :{" "}
-                      <strong className="mono">{formatFcfa(panierTotal)}</strong>
-                      {" · "}Réduction :{" "}
-                      <strong className="mono">−{formatFcfa(reductionN)}</strong>
-                    </p>
-                  ) : null}
-                  <p className="reg-panier-total">
-                    Total :{" "}
-                    <strong className="mono">{formatFcfa(panierNet)}</strong>
+
+                  <div className="reg-form-actions reg-field-full">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      disabled={busy || !isPast}
+                      onClick={ajouterLigne}
+                    >
+                      + Ajouter à la facture
+                    </button>
+                  </div>
+                </div>
+              </section>
+
+              <section className="panel reg-panier-panel">
+                <div className="panel-head">
+                  <h2 className="panel-title">2 · Facture</h2>
+                  <p className="muted">
+                    {panier.length} article{panier.length > 1 ? "s" : ""}
                   </p>
-                  <button
-                    type="button"
-                    className="btn btn-primary reg-field-full"
-                    disabled={busy || !isPast || !canSellSite}
-                    onClick={() => void validerFacture()}
-                  >
-                    {busy
-                      ? "Enregistrement…"
-                      : `Valider la facture (${panier.length})`}
-                  </button>
-                </>
-              )}
-            </section>
+                </div>
+
+                {panier.length === 0 ? (
+                  <p className="muted reg-empty">
+                    Ajoutez des articles à gauche, puis validez ici pour une
+                    seule facture.
+                  </p>
+                ) : (
+                  <div className="reg-panier-body">
+                    <ul className="reg-panier-list">
+                      {panier.map((l) => (
+                        <li key={l.key} className="reg-panier-line">
+                          <span className="reg-panier-name">
+                            {l.name}
+                            <span className="muted"> × {l.qty}</span>
+                          </span>
+                          <span className="mono reg-panier-amount">
+                            {formatFcfa(l.qty * l.unitPrice)}
+                          </span>
+                          <button
+                            type="button"
+                            className="btn-link"
+                            disabled={busy}
+                            onClick={() => retirerLigne(l.key)}
+                          >
+                            Retirer
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="reg-panier-footer">
+                      <label className="date-field">
+                        <span>Réduction (FCFA)</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={panierTotal}
+                          value={reduction}
+                          onChange={(e) => setReduction(e.target.value)}
+                        />
+                      </label>
+                      {reductionN > 0 ? (
+                        <p className="reg-panier-total muted">
+                          Sous-total{" "}
+                          <strong className="mono">
+                            {formatFcfa(panierTotal)}
+                          </strong>
+                          {" · "}Réduc.{" "}
+                          <strong className="mono">
+                            −{formatFcfa(reductionN)}
+                          </strong>
+                        </p>
+                      ) : null}
+                      <p className="reg-panier-total is-grand">
+                        Total{" "}
+                        <strong className="mono">{formatFcfa(panierNet)}</strong>
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        disabled={busy || !isPast || !canSellSite}
+                        onClick={() => void validerFacture()}
+                      >
+                        {busy
+                          ? "Enregistrement…"
+                          : `Valider la facture (${panier.length})`}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </section>
+            </div>
 
             <section className="panel reg-tickets-panel">
               <div className="panel-head">
-                <h2 className="panel-title">Tickets du jour</h2>
+                <h2 className="panel-title">3 · Tickets du jour</h2>
                 <p className="muted">
-                  {tickets.length} ticket{tickets.length > 1 ? "s" : ""} ·{" "}
-                  {date}
+                  {tickets.length} ticket{tickets.length > 1 ? "s" : ""} · {date}
                 </p>
               </div>
 
@@ -783,18 +811,14 @@ export function RegularisationPage() {
                                   {t.statut === "valide" &&
                                   l.venteLogId &&
                                   canModifySite ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        className="btn-link"
-                                        disabled={busy}
-                                        onClick={() =>
-                                          void modifierLigne(t, l)
-                                        }
-                                      >
-                                        Qty
-                                      </button>
-                                    </>
+                                    <button
+                                      type="button"
+                                      className="btn-link"
+                                      disabled={busy}
+                                      onClick={() => void modifierLigne(t, l)}
+                                    >
+                                      Qty
+                                    </button>
                                   ) : null}
                                 </li>
                               ))}
@@ -833,8 +857,7 @@ export function RegularisationPage() {
                 </div>
               )}
             </section>
-            </div>
-          </div>
+          </>
         )}
       </div>
     </AppShell>
