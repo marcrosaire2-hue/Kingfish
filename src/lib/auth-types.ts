@@ -297,7 +297,6 @@ export type NavKey =
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
   gerant: [
     "synthese",
-    "analyse",
     "vente",
     "caisse",
     "zogbo",
@@ -436,12 +435,15 @@ const DAF_DENIED_NAV: readonly NavKey[] = [
 /** Pages refusées au comptable même si un JWT / une matrice les réintroduit. */
 const COMPTABLE_DENIED_NAV: readonly NavKey[] = ["analyse", "historique"];
 
+/** Pages refusées au gérant même si un JWT / une matrice les réintroduit. */
+const GERANT_DENIED_NAV: readonly NavKey[] = ["analyse", "immobilisations"];
+
 export function stripRoleDeniedNavKeys(
   keys: NavKey[],
   role: UserRole,
 ): NavKey[] {
   if (role === "gerant") {
-    return keys.filter((k) => k !== "immobilisations");
+    return keys.filter((k) => !GERANT_DENIED_NAV.includes(k));
   }
   if (role === "daf") {
     return keys.filter((k) => !DAF_DENIED_NAV.includes(k));

@@ -202,6 +202,20 @@ describe("l'API suit les droits de l'écran", () => {
     expect(navForUser("gerant", "zogbo")).toContain("parametres");
   });
 
+  it("retire Analyse au gérant, même si un JWT l’ajoute", () => {
+    expect(navForUser("gerant", "zogbo")).not.toContain("analyse");
+    expect(canAccessPath("gerant", "/analyse", "zogbo")).toBe(false);
+    expect(
+      canAccessPath("gerant", "/analyse", "zogbo", undefined, [
+        "vente",
+        "analyse",
+      ]),
+    ).toBe(false);
+    expect(
+      filterNavKeysBySite(["vente", "analyse"], "gerant", "zogbo"),
+    ).not.toContain("analyse");
+  });
+
   it("retire Immobilisations au gérant, même si Vente ou un JWT l’ajoute", () => {
     expect(navForUser("gerant", "zogbo")).not.toContain("immobilisations");
     expect(navForUser("gerant", "gbegamey")).not.toContain("immobilisations");
