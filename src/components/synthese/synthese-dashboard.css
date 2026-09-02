@@ -39,6 +39,12 @@
   background: var(--surface);
 }
 
+.dash-site-switch {
+  display: inline-flex;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
 .dash-refresh-btn {
   width: 2.45rem;
   height: 2.45rem;

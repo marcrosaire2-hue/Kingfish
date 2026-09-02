@@ -19,7 +19,6 @@ import {
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { PriceInput } from "@/components/parametres/price-input";
 import { formatFcfa } from "@/lib/format";
-import { APP_SITES_LABEL } from "@/lib/brand";
 import { exportSyntheseExcel } from "@/lib/page-exports";
 import { chargesTotal, emptyCharges } from "@/lib/synthese-calc";
 import type { EpuiseRow } from "@/lib/stock-repo";
@@ -28,12 +27,26 @@ import type {
   DayPoint,
   MonthPoint,
   ProductRanking as ProductRankingData,
+  VenteSite,
   YearPoint,
 } from "@/lib/types";
 import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
 import "@/components/synthese/synthese-dashboard.css";
 
 type ViewKey = "day" | "month" | "year";
+
+const DASH_SITE_KEY = "kf-dash-site";
+
+function readStoredDashSite(): VenteSite {
+  if (typeof window === "undefined") return "zogbo";
+  try {
+    const v = window.sessionStorage.getItem(DASH_SITE_KEY);
+    if (v === "zogbo" || v === "gbegamey") return v;
+  } catch {
+    /* ignore */
+  }
+  return "zogbo";
+}
 
 const MONTH_NAMES = [
   "Janvier",
@@ -297,6 +310,12 @@ export function SynthesePage() {
   const [date, setDate] = useState(() => todayIsoDate());
   const [month, setMonth] = useState(() => currentMonth());
   const [year, setYear] = useState(() => String(new Date().getFullYear()));
+  const [site, setSite] = useState<VenteSite>(() => readStoredDashSite());
+  const [allowedSites, setAllowedSites] = useState<VenteSite[]>([
+    "zogbo",
+    "gbegamey",
+  ]);
+  const [lockedSite, setLockedSite] = useState(false);
 
   /** Produits épuisés du jour (vue journalière uniquement). */
   const [epuises, setEpuises] = useState<EpuiseRow[]>([]);
@@ -346,23 +365,42 @@ export function SynthesePage() {
   const viewMode = isGeneral ? "day" : view;
 
   useEffect(() => {
+    try {
+      window.sessionStorage.setItem(DASH_SITE_KEY, site);
+    } catch {
+      /* ignore */
+    }
+  }, [site]);
+
+  useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
       setError(null);
       try {
+        const siteQs = `&site=${encodeURIComponent(site)}`;
         const qs =
           viewMode === "day"
-            ? `view=day&date=${encodeURIComponent(date)}`
+            ? `view=day&date=${encodeURIComponent(date)}${siteQs}`
             : viewMode === "month"
-              ? `view=month&month=${encodeURIComponent(month)}`
-              : `view=year&year=${encodeURIComponent(year)}`;
+              ? `view=month&month=${encodeURIComponent(month)}${siteQs}`
+              : `view=year&year=${encodeURIComponent(year)}${siteQs}`;
 
         const res = await fetch(`/api/synthese?${qs}`, { cache: "no-store" });
         const body = await res.json();
         if (!res.ok) throw new Error(body.error || "Erreur de chargement");
 
         if (cancelled) return;
+
+        if (Array.isArray(body.allowedSites) && body.allowedSites.length) {
+          setAllowedSites(body.allowedSites as VenteSite[]);
+        }
+        if (typeof body.lockedSite === "boolean") {
+          setLockedSite(body.lockedSite);
+        }
+        if (body.scopeSite === "zogbo" || body.scopeSite === "gbegamey") {
+          if (body.lockedSite) setSite(body.scopeSite);
+        }
 
         const nextRanking = (body.ranking as ProductRankingData | undefined) ?? {
           best: [],
@@ -438,7 +476,7 @@ export function SynthesePage() {
     return () => {
       cancelled = true;
     };
-  }, [viewMode, view, date, month, year, reloadTick]);
+  }, [viewMode, view, date, month, year, site, reloadTick]);
 
   // Rafraîchissement silencieux de la vue jour : le gérant voit en direct
   // les produits épuisés au fur et à mesure des ventes. Suspendu pendant
@@ -450,7 +488,7 @@ export function SynthesePage() {
       void (async () => {
         try {
           const res = await fetch(
-            `/api/synthese?view=day&date=${encodeURIComponent(date)}`,
+            `/api/synthese?view=day&date=${encodeURIComponent(date)}&site=${encodeURIComponent(site)}`,
             { cache: "no-store" },
           );
           const body = await res.json();
@@ -464,7 +502,7 @@ export function SynthesePage() {
     }, 45000);
     return () => window.clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewMode, date, dirtyCharges]);
+  }, [viewMode, date, site, dirtyCharges]);
 
   const dayResultat = useMemo(() => {
     if (!day) return null;
@@ -489,7 +527,7 @@ export function SynthesePage() {
       const res = await fetch("/api/synthese", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...chargesDraft, date }),
+        body: JSON.stringify({ ...chargesDraft, date, site }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Erreur d’enregistrement");
@@ -541,7 +579,7 @@ export function SynthesePage() {
   return (
     <AppShell
       title="Tableau de bord"
-      subtitle={`Vue d’ensemble ${APP_SITES_LABEL}`}
+      subtitle={`Vue d’ensemble · ${site === "zogbo" ? "Zogbo" : "Gbégamey"}`}
       mainClassName="main-dash"
       actions={
         <>
@@ -612,6 +650,36 @@ export function SynthesePage() {
             }}
             filters={
               <>
+                {!lockedSite && allowedSites.length > 1 ? (
+                  <div
+                    className="site-switch dash-site-switch"
+                    role="group"
+                    aria-label="Site"
+                  >
+                    {allowedSites.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        className={`site-btn${site === s ? " is-active" : ""}`}
+                        onClick={() => {
+                          if (
+                            dirtyCharges &&
+                            !window.confirm(
+                              "Charges non enregistrées. Changer de site ?",
+                            )
+                          ) {
+                            return;
+                          }
+                          setSite(s);
+                        }}
+                      >
+                        <span className="site-btn-label">
+                          {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
                 {viewMode === "day" ? (
                   <label className="date-field date-field-pill">
                     <span>Jour</span>

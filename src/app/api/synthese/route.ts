@@ -45,14 +45,15 @@ export async function GET(request: Request) {
 
     if (period.view === "day") {
       const date = period.date!;
-      const match: Record<string, unknown> = { date, site: scopeSite };
+      const match: Record<string, unknown> = { date };
+      if (scopeSite) match.site = scopeSite;
       const [day, ranking, cancelNotice, caCumuls, shiftTotals, epuises] =
         await Promise.all([
           getDayPoint(date, scopeSite),
           getProductRanking(match),
           getVenteCancelNotice(match),
           getCaCumuls(date, scopeSite),
-          sumCaByShift(date, scopeSite),
+          sumCaByShift(date, scopeSite ?? "all"),
           getEpuises({ date, scopeSite }),
         ]);
       return NextResponse.json({
@@ -78,8 +79,8 @@ export async function GET(request: Request) {
       const dates = daysInMonth(year, month);
       const match: Record<string, unknown> = {
         date: { $in: dates },
-        site: scopeSite,
       };
+      if (scopeSite) match.site = scopeSite;
       const [data, ranking, cancelNotice, caCumuls] = await Promise.all([
         getMonthPoint(year, month, scopeSite),
         getProductRanking(match),
@@ -105,8 +106,8 @@ export async function GET(request: Request) {
     const yearNum = period.year!;
     const match: Record<string, unknown> = {
       date: { $gte: `${yearNum}-01-01`, $lte: `${yearNum}-12-31` },
-      site: scopeSite,
     };
+    if (scopeSite) match.site = scopeSite;
     const [data, ranking, cancelNotice, caCumuls] = await Promise.all([
       getYearPoint(yearNum, scopeSite),
       getProductRanking(match),
