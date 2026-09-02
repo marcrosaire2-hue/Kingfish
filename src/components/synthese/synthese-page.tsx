@@ -1528,8 +1528,11 @@ function YearDashboard({
         />
       </section>
 
-      <section className="panel panel-wide dash-months-panel">
-        <h2 className="panel-title">Mois de l’année</h2>
+      <section className="panel dash-card dash-card-wide dash-months-panel">
+        <div className="panel-head dash-months-head">
+          <h2 className="panel-title">Mois de l’année</h2>
+          <p className="muted">CA, charges et résultat — cliquez Voir pour le détail</p>
+        </div>
         <ul className="dash-month-list">
           {data.months.map((m) => (
             <li key={m.month} className="dash-month-card">
@@ -1539,7 +1542,7 @@ function YearDashboard({
                 </strong>
                 <button
                   type="button"
-                  className="btn-link"
+                  className="btn-link dash-month-voir"
                   onClick={() => onOpenMonth(m.month)}
                 >
                   Voir
@@ -1557,7 +1560,7 @@ function YearDashboard({
                 <div>
                   <dt>Résultat</dt>
                   <dd
-                    className={`mono${m.resultat < 0 ? " cell-variance" : ""}`}
+                    className={`mono${m.resultat < 0 ? " is-neg" : m.resultat > 0 ? " is-pos" : ""}`}
                   >
                     {formatFcfa(m.resultat)}
                   </dd>
