@@ -4,11 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
-import {
-  CataloguePaginationBar,
-  CatalogueSkeleton,
-} from "@/components/parametres/catalogue-view";
-import "@/components/parametres/parametres-catalogue.css";
+import { CataloguePaginationBar } from "@/components/parametres/catalogue-view";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
 import type { Fournisseur, MatieresMovement } from "@/lib/types";
@@ -20,6 +16,7 @@ import {
   type DraftLibre,
   type StockPayload,
 } from "@/components/achats/achats-shared";
+import "./achats-page.css";
 
 /** Achats libres : tout ce qui n'est pas une matière du catalogue. */
 function isLibre(m: MatieresMovement): boolean {
@@ -75,10 +72,6 @@ function statutKey(m: MatieresMovement): Exclude<StatutFilter, "all"> {
   return "valide";
 }
 
-/**
- * Achats libres (hors catalogue). UI alignée sur la maquette SaaS ;
- * logique métier inchangée (POST /api/matieres, pas d’édition / annulation).
- */
 export function AchatsPage() {
   const formRef = useRef<HTMLElement | null>(null);
   const productInputRef = useRef<HTMLInputElement | null>(null);
@@ -97,7 +90,6 @@ export function AchatsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [statutFilter, setStatutFilter] = useState<StatutFilter>("all");
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const debouncedSearch = useDebouncedValue(search);
 
@@ -241,16 +233,16 @@ export function AchatsPage() {
   return (
     <AppShell
       title="Achats"
-      subtitle="Hors catalogue uniquement. Les matières du catalogue se saisissent dans Approvisionnement. Les sorties de caisse liées restent dans Caisse."
+      subtitle="Hors catalogue uniquement. Les matières du catalogue se saisissent dans Approvisionnement."
       mainClassName="main-achats"
       actions={
         <>
-          <Link href="/appro" className="btn btn-ghost achats-header-btn">
+          <Link href="/appro" className="btn btn-ghost">
             Approvisionnement
           </Link>
           <ExportExcelButton
             disabled={loading}
-            className="btn btn-ghost achats-header-btn"
+            className="btn btn-ghost"
             onExport={() => {
               downloadExcel(excelFilename("achats-libres", todayIsoDate()), [
                 { name: "Achats", rows: movementRows(sorted) },
@@ -268,267 +260,210 @@ export function AchatsPage() {
         </>
       }
     >
-      <div className="catalogue-view achats-page">
-        <p className="achats-pill" role="status">
-          <span className="achats-pill-icon" aria-hidden>
-            ⌕
-          </span>
-          Achats libres — registre hors catalogue
-        </p>
+      <div className="achats-page">
+        <header className="achats-hero">
+          <div className="achats-hero-main">
+            <p className="achats-hero-note">
+              Achats libres — produits hors catalogue. Les sorties de caisse
+              liées restent visibles dans Caisse.
+            </p>
+            <p className="achats-hero-note is-warn">
+              Pour un équipement durable ou un emballage revendu en caisse,
+              utilisez plutôt{" "}
+              <Link href="/immobilisations">Immobilisations</Link> — ne
+              saisissez pas le même achat aux deux endroits.
+            </p>
+          </div>
+          <div className="achats-kpis" aria-label="Totaux achats">
+            <div className="achats-kpi is-gold">
+              <span>Total actif</span>
+              <strong>{loading ? "…" : formatFcfa(totalMontant)}</strong>
+            </div>
+            <div className="achats-kpi is-blue">
+              <span>Enregistrements</span>
+              <strong>{loading ? "…" : totalCount}</strong>
+            </div>
+          </div>
+        </header>
 
         {error ? (
-          <div className="catalogue-alert catalogue-alert-danger" role="alert">
-            <span className="catalogue-alert-icon" aria-hidden>
-              !
-            </span>
-            <span>
-              {error}
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm catalogue-retry"
-                onClick={() => reload()}
-              >
-                Réessayer
-              </button>
-            </span>
-          </div>
+          <p className="error-banner" role="alert">
+            {error}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => reload()}
+            >
+              Réessayer
+            </button>
+          </p>
         ) : null}
 
         {flash ? (
-          <div className="catalogue-info achats-flash" role="status">
-            <span className="catalogue-info-mark" aria-hidden>
-              ✓
-            </span>
-            <p>{flash}</p>
-          </div>
+          <p className="achats-flash" role="status">
+            {flash}
+          </p>
         ) : null}
 
-        <div className="achats-warn-banner" role="note">
-          <span className="achats-warn-icon" aria-hidden>
-            ⚠
-          </span>
-          <p>
-            Pour un équipement durable (frigo, table…) ou un emballage revendu
-            en caisse, utilisez plutôt{" "}
-            <Link href="/immobilisations">Immobilisations</Link> — chaque écran
-            crée sa propre dépense de caisse, ne saisissez pas le même achat
-            aux deux endroits.
-          </p>
-        </div>
-
-        <div className="achats-kpi-grid" aria-label="Totaux achats">
-          <div className="achats-kpi achats-kpi-gold">
-            <span className="achats-kpi-ico" aria-hidden>
-              ₣
-            </span>
-            <div>
-              <span className="catalogue-kpi-label">Total des achats</span>
-              <strong className="catalogue-kpi-value">
-                {loading ? "…" : formatFcfa(totalMontant)}
-              </strong>
-              <span className="achats-kpi-hint">
-                Cumul des achats libres actifs
-              </span>
-            </div>
-          </div>
-          <div className="achats-kpi achats-kpi-blue">
-            <span className="achats-kpi-ico" aria-hidden>
-              ≡
-            </span>
-            <div>
-              <span className="catalogue-kpi-label">Achats enregistrés</span>
-              <strong className="catalogue-kpi-value">
-                {loading ? "…" : totalCount}
-              </strong>
-              <span className="achats-kpi-hint">
-                Hors lignes annulées
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <section className="catalogue-panel" ref={formRef} id="nouvel-achat">
-          <div className="catalogue-toolbar">
-            <h2 className="panel-title" style={{ margin: 0 }}>
-              Nouvel achat libre
-            </h2>
-          </div>
-          <div
-            className={`achats-form-grid${fournisseurs.length > 0 ? " has-fournisseur" : ""}`}
+        <div className="achats-layout">
+          <section
+            className="achats-declare"
+            ref={formRef}
+            id="nouvel-achat"
+            aria-label="Nouvel achat libre"
           >
-            <label className="achats-field">
-              <span className="achats-field-label">Date</span>
-              <input
-                type="date"
-                className="input-text"
-                value={draftLibre.date}
-                max={todayIsoDate()}
-                onChange={(e) =>
-                  setDraftLibre((d) => ({ ...d, date: e.target.value }))
-                }
-                aria-label="Date de l'achat"
-              />
-            </label>
-            <label className="achats-field">
-              <span className="achats-field-label">Produit</span>
-              <input
-                ref={productInputRef}
-                type="text"
-                className="input-text"
-                placeholder="Nom du produit…"
-                value={draftLibre.name}
-                onChange={(e) =>
-                  setDraftLibre((d) => ({ ...d, name: e.target.value }))
-                }
-                aria-label="Nom du produit acheté"
-              />
-            </label>
-            <label className="achats-field">
-              <span className="achats-field-label">Quantité</span>
-              <input
-                type="number"
-                min={0}
-                step="any"
-                className="input-num"
-                placeholder="Qté"
-                value={draftLibre.qty}
-                onChange={(e) =>
-                  setDraftLibre((d) => ({ ...d, qty: e.target.value }))
-                }
-                aria-label="Quantité achetée"
-              />
-            </label>
-            <label className="achats-field">
-              <span className="achats-field-label">Prix unitaire</span>
-              <div className="achats-price-wrap">
+            <h2>Nouvel achat libre</h2>
+            <div className="achats-form">
+              <label className="achats-field">
+                <span>Date</span>
+                <input
+                  type="date"
+                  value={draftLibre.date}
+                  max={todayIsoDate()}
+                  onChange={(e) =>
+                    setDraftLibre((d) => ({ ...d, date: e.target.value }))
+                  }
+                  aria-label="Date de l'achat"
+                />
+              </label>
+              <label className="achats-field">
+                <span>Produit</span>
+                <input
+                  ref={productInputRef}
+                  type="text"
+                  placeholder="Nom du produit…"
+                  value={draftLibre.name}
+                  onChange={(e) =>
+                    setDraftLibre((d) => ({ ...d, name: e.target.value }))
+                  }
+                  aria-label="Nom du produit acheté"
+                />
+              </label>
+              <label className="achats-field">
+                <span>Quantité</span>
                 <input
                   type="number"
                   min={0}
                   step="any"
-                  className="input-num"
-                  placeholder="Prix / u"
-                  value={draftLibre.price}
+                  placeholder="Qté"
+                  value={draftLibre.qty}
                   onChange={(e) =>
-                    setDraftLibre((d) => ({ ...d, price: e.target.value }))
+                    setDraftLibre((d) => ({ ...d, qty: e.target.value }))
                   }
-                  aria-label="Prix unitaire"
+                  aria-label="Quantité achetée"
                 />
-                <span className="achats-price-suffix">FCFA</span>
-              </div>
-            </label>
-            {fournisseurs.length > 0 ? (
-              <label className="achats-field">
-                <span className="achats-field-label">Fournisseur</span>
-                <select
-                  className="input-select"
-                  value={draftLibre.fournisseurId}
-                  onChange={(e) =>
-                    setDraftLibre((d) => ({
-                      ...d,
-                      fournisseurId: e.target.value,
-                    }))
-                  }
-                  aria-label="Fournisseur"
-                >
-                  <option value="">Fournisseur…</option>
-                  {fournisseurs.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.nom}
-                    </option>
-                  ))}
-                </select>
               </label>
-            ) : null}
-            <button
-              type="button"
-              className="btn btn-primary achats-form-submit"
-              disabled={busyLibre}
-              onClick={() => void submitPurchaseLibre(draftLibre)}
-            >
-              {busyLibre ? "…" : "+ Ajouter"}
-            </button>
-          </div>
-          <div className="achats-form-hint">
-            <span className="catalogue-info-mark" aria-hidden>
-              i
-            </span>
-            <p>
-              Pour un produit qui n&apos;est pas une matière de stock : la date
-              réelle de l&apos;achat, le nom, la quantité et le prix.
-              L&apos;achat n&apos;est ni modifiable ni annulable une fois
-              enregistré.
+              <label className="achats-field">
+                <span>Prix unitaire</span>
+                <div className="achats-price-wrap">
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    placeholder="Prix / u"
+                    value={draftLibre.price}
+                    onChange={(e) =>
+                      setDraftLibre((d) => ({ ...d, price: e.target.value }))
+                    }
+                    aria-label="Prix unitaire"
+                  />
+                  <span className="achats-price-suffix">FCFA</span>
+                </div>
+              </label>
+              {fournisseurs.length > 0 ? (
+                <label className="achats-field">
+                  <span>Fournisseur</span>
+                  <select
+                    value={draftLibre.fournisseurId}
+                    onChange={(e) =>
+                      setDraftLibre((d) => ({
+                        ...d,
+                        fournisseurId: e.target.value,
+                      }))
+                    }
+                    aria-label="Fournisseur"
+                  >
+                    <option value="">Fournisseur…</option>
+                    {fournisseurs.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.nom}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              <button
+                type="button"
+                className="btn btn-primary achats-submit"
+                disabled={busyLibre}
+                onClick={() => void submitPurchaseLibre(draftLibre)}
+              >
+                {busyLibre ? "…" : "+ Enregistrer"}
+              </button>
+            </div>
+            <p className="achats-form-hint">
+              Date réelle, nom, quantité et prix. Une fois enregistré, l&apos;achat
+              n&apos;est ni modifiable ni annulable.
             </p>
-          </div>
-        </section>
+          </section>
 
-        {loading ? (
-          <CatalogueSkeleton />
-        ) : (
-          <section className="catalogue-panel">
-            <div className="catalogue-toolbar achats-list-toolbar">
-              <div className="catalogue-search-wrap">
-                <span className="catalogue-search-icon" aria-hidden>
-                  ⌕
-                </span>
+          <section className="achats-board" aria-label="Registre des achats">
+            <div className="achats-board-head">
+              <h2>Registre</h2>
+              <div className="achats-toolbar">
                 <input
                   type="search"
-                  className="catalogue-search"
+                  className="achats-search"
                   placeholder="Rechercher un achat…"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   aria-label="Rechercher un achat"
                 />
-              </div>
-              <div className="achats-filters">
-                <button
-                  type="button"
-                  className={`catalogue-filter-btn${filtersOpen || statutFilter !== "all" ? " is-active" : ""}`}
-                  aria-expanded={filtersOpen}
-                  onClick={() => setFiltersOpen((v) => !v)}
+                <div
+                  className="achats-status-filters"
+                  role="group"
+                  aria-label="Filtre statut"
                 >
-                  Filtres
-                  {statutFilter !== "all" ? " · 1" : ""}
-                </button>
-                {filtersOpen ? (
-                  <div className="achats-filters-panel" role="group" aria-label="Filtres statut">
-                    {(
-                      [
-                        ["all", "Tous"],
-                        ["valide", "Validé"],
-                        ["corrige", "Corrigé"],
-                        ["annule", "Annulé"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        className={`achats-filter-chip${statutFilter === key ? " is-active" : ""}`}
-                        onClick={() => setStatutFilter(key)}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
+                  {(
+                    [
+                      ["all", "Tous"],
+                      ["valide", "Validé"],
+                      ["corrige", "Corrigé"],
+                      ["annule", "Annulé"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`achats-filter-chip${statutFilter === key ? " is-active" : ""}`}
+                      onClick={() => setStatutFilter(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
 
-            {filtered.length === 0 ? (
-              <div className="catalogue-empty">
-                <p className="catalogue-empty-title">
+            {loading ? (
+              <p className="muted">Chargement…</p>
+            ) : filtered.length === 0 ? (
+              <div className="achats-empty">
+                <strong>
                   {sorted.length === 0
                     ? "Aucun achat enregistré"
                     : "Aucun achat trouvé"}
-                </p>
-                <p className="catalogue-empty-hint">
+                </strong>
+                <span>
                   {sorted.length === 0
-                    ? "Aucun achat libre ne correspond actuellement."
+                    ? "Saisissez un premier achat libre à gauche."
                     : "Modifiez votre recherche ou vos filtres."}
-                </p>
+                </span>
                 {sorted.length === 0 ? (
                   <button
                     type="button"
                     className="btn btn-primary"
+                    style={{ marginTop: "0.85rem" }}
                     onClick={focusNewPurchase}
                   >
                     + Nouvel achat
@@ -537,199 +472,65 @@ export function AchatsPage() {
               </div>
             ) : (
               <>
-                <div className="catalogue-table-wrap stock-zogbo-desktop-table">
-                  <table className="catalogue-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Date</th>
-                        <th scope="col">Désignation</th>
-                        <th scope="col">Fournisseur</th>
-                        <th scope="col">Qté</th>
-                        <th scope="col">Prix unitaire</th>
-                        <th scope="col">Montant</th>
-                        <th scope="col">Statut</th>
-                        <th scope="col" className="col-actions">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paged.items.map(({ date: d, movement: m }) => {
-                        const open = detailId === m.id;
-                        return (
-                          <tr
-                            key={m.id}
-                            className={
-                              m.cancelledAt
-                                ? "row-warn"
-                                : open
-                                  ? "is-expanded"
-                                  : undefined
-                            }
-                          >
-                            <td>{formatDateFr(d)}</td>
-                            <td>
-                              <span className="catalogue-product-name achats-name">
-                                {m.name}
-                              </span>
-                            </td>
-                            <td>{m.fournisseurNom || "—"}</td>
-                            <td>
-                              <span className="catalogue-qty-badge">
-                                {m.qty}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="catalogue-price-badge catalogue-price-badge-sale">
-                                {formatFcfa(m.unitPrice)}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="catalogue-price-badge catalogue-price-badge-cost">
-                                {formatFcfa(m.qty * m.unitPrice)}
-                              </span>
-                            </td>
-                            <td>
-                              <span
-                                className={`achats-status${
-                                  m.cancelledAt
-                                    ? " achats-status-warn"
-                                    : m.editedAt
-                                      ? " achats-status-muted"
-                                      : " achats-status-ok"
-                                }`}
-                              >
-                                {statutLabel(m)}
-                              </span>
-                            </td>
-                            <td className="col-actions">
-                              <button
-                                type="button"
-                                className={`catalogue-action-btn${open ? " is-active" : ""}`}
-                                aria-label={
-                                  open
-                                    ? `Masquer le détail de ${m.name}`
-                                    : `Voir le détail de ${m.name}`
-                                }
-                                aria-expanded={open}
-                                onClick={() =>
-                                  setDetailId(open ? null : m.id)
-                                }
-                              >
-                                {open ? "−" : "i"}
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {detailId ? (
-                  <div className="achats-detail stock-zogbo-desktop-table">
-                    {(() => {
-                      const row = paged.items.find(
-                        (e) => e.movement.id === detailId,
-                      );
-                      if (!row) return null;
-                      const m = row.movement;
-                      return (
-                        <p>
-                          <strong>{m.name}</strong>
-                          {" · "}
-                          {formatDateFr(row.date)}
-                          {" · "}
-                          {m.qty} × {formatFcfa(m.unitPrice)} ={" "}
-                          {formatFcfa(m.qty * m.unitPrice)}
-                          {m.fournisseurNom
-                            ? ` · Fournisseur : ${m.fournisseurNom}`
-                            : ""}
-                          {m.depenseId ? " · Dépense de caisse liée" : ""}
-                          {" · Lecture seule (non modifiable)"}
-                        </p>
-                      );
-                    })()}
-                  </div>
-                ) : null}
-
-                <div className="stock-zogbo-mobile-list">
+                <ul className="achats-list">
                   {paged.items.map(({ date: d, movement: m }) => {
                     const open = detailId === m.id;
                     return (
-                      <article
+                      <li
                         key={m.id}
-                        className={`stock-mobile-card${m.cancelledAt ? " is-warn" : ""}`}
+                        className={`achats-row${m.cancelledAt ? " is-warn" : ""}${open ? " is-open" : ""}`}
                       >
-                        <div className="stock-mobile-card-head">
-                          <span className="catalogue-product-name">
-                            {m.name}
-                          </span>
-                          <span
-                            className={`achats-status${
-                              m.cancelledAt
-                                ? " achats-status-warn"
-                                : " achats-status-ok"
-                            }`}
-                          >
-                            {statutLabel(m)}
-                          </span>
-                        </div>
-                        <div className="catalogue-mobile-card-prices">
-                          <div>
-                            <span className="catalogue-mobile-price-label">
-                              Date
-                            </span>
-                            <strong>{formatDateFr(d)}</strong>
+                        <div className="achats-row-top">
+                          <div className="achats-row-main">
+                            <span className="achats-row-name">{m.name}</span>
+                            <p className="achats-row-meta">
+                              {formatDateFr(d)}
+                              {m.fournisseurNom
+                                ? ` · ${m.fournisseurNom}`
+                                : " · Sans fournisseur"}
+                              {" · "}
+                              {m.qty} × {formatFcfa(m.unitPrice)}
+                            </p>
                           </div>
-                          <div>
-                            <span className="catalogue-mobile-price-label">
-                              Quantité
-                            </span>
-                            <strong>{m.qty}</strong>
-                          </div>
-                          <div>
-                            <span className="catalogue-mobile-price-label">
-                              Prix unitaire
-                            </span>
-                            <strong>{formatFcfa(m.unitPrice)}</strong>
-                          </div>
-                          <div>
-                            <span className="catalogue-mobile-price-label">
-                              Montant
-                            </span>
-                            <strong>
+                          <div className="achats-row-side">
+                            <span className="achats-row-amount">
                               {formatFcfa(m.qty * m.unitPrice)}
-                            </strong>
+                            </span>
+                            <span
+                              className={`achats-status${
+                                m.cancelledAt
+                                  ? " achats-status-warn"
+                                  : m.editedAt
+                                    ? " achats-status-muted"
+                                    : " achats-status-ok"
+                              }`}
+                            >
+                              {statutLabel(m)}
+                            </span>
                           </div>
                         </div>
-                        <p className="catalogue-meta" style={{ margin: 0 }}>
-                          {m.fournisseurNom
-                            ? `Fournisseur : ${m.fournisseurNom}`
-                            : "Sans fournisseur"}
-                          {m.depenseId ? " · dépense liée" : ""}
-                        </p>
-                        <div className="catalogue-mobile-card-actions">
+                        <div className="achats-row-actions">
                           <button
                             type="button"
-                            className={`catalogue-action-btn${open ? " is-active" : ""}`}
-                            onClick={() =>
-                              setDetailId(open ? null : m.id)
-                            }
+                            className="btn btn-ghost btn-sm"
+                            aria-expanded={open}
+                            onClick={() => setDetailId(open ? null : m.id)}
                           >
-                            Voir
+                            {open ? "Masquer" : "Détail"}
                           </button>
                         </div>
                         {open ? (
-                          <p className="achats-detail-inline">
-                            Lecture seule — non modifiable ni annulable
-                            {m.depenseId ? " · dépense de caisse liée" : ""}
+                          <p className="achats-row-detail">
+                            {m.qty} × {formatFcfa(m.unitPrice)} ={" "}
+                            {formatFcfa(m.qty * m.unitPrice)}
+                            {m.depenseId ? " · Dépense de caisse liée" : ""}
+                            {" · Lecture seule (non modifiable)"}
                           </p>
                         ) : null}
-                      </article>
+                      </li>
                     );
                   })}
-                </div>
+                </ul>
 
                 <CataloguePaginationBar
                   from={paged.from}
@@ -743,7 +544,7 @@ export function AchatsPage() {
               </>
             )}
           </section>
-        )}
+        </div>
       </div>
     </AppShell>
   );
