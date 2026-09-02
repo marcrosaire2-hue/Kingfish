@@ -17,12 +17,11 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#005098",
     lang: "fr",
     icons: [
-      { src: "/icon.png", sizes: "512x512", type: "image/png", purpose: "any" },
       {
-        src: "/apple-icon.png",
-        sizes: "180x180",
-        type: "image/png",
-        purpose: "maskable",
+        src: "/logo-king-fish.jpg",
+        sizes: "512x512",
+        type: "image/jpeg",
+        purpose: "any",
       },
     ],
   };

@@ -1,24 +1,36 @@
-/* Service worker de King Fish Manager.
+/* Service worker King Fish Manager.
  *
- * Objectif : que la caisse reste utilisable quand le réseau tombe en plein
- * service. Deux mécanismes, volontairement simples :
+ * Règle stricte : on ne met JAMAIS en cache les pages HTML / réponses RSC
+ * de Next.js (sinon coquille périmée → chargement infini en ligne).
  *
- * 1. La coquille de l'application (pages, styles, scripts) est servie depuis
- *    le cache quand le réseau échoue, pour que l'écran ne devienne pas blanc.
- * 2. Les requêtes de l'API ne sont jamais mises en cache : une donnée de
- *    stock périmée serait pire qu'une absence de donnée. Le POST d'une vente
- *    qui échoue faute de réseau est confié à la file d'attente locale, gérée
- *    côté page (offline-queue.ts), qui la rejouera au retour du réseau.
+ * - Assets statiques (_next/static, images, polices) : réseau puis cache.
+ * - Navigation / API / RSC : réseau uniquement.
+ * - Hors ligne + navigation : repli éventuel sur /vente précaché à l'install.
  */
 
-const CACHE = "kingfish-v1";
-const COQUILLE = ["/vente", "/login", "/icon.png", "/apple-icon.png"];
+const CACHE = "kingfish-v2";
+const COQUILLE = ["/vente", "/login", "/logo-king-fish.jpg", "/sw.js"];
+
+function estAssetStatique(url, requete) {
+  if (requete.mode === "navigate") return false;
+  if (url.pathname.startsWith("/api/")) return false;
+  if (url.searchParams.has("_rsc")) return false;
+  try {
+    if (requete.headers.get("RSC") === "1") return false;
+    if (requete.headers.get("Next-Router-State-Tree")) return false;
+  } catch {
+    /* headers parfois indisponibles */
+  }
+  if (url.pathname.startsWith("/_next/static/")) return true;
+  return /\.(png|jpe?g|gif|webp|svg|ico|woff2?|ttf|css|js|webmanifest)$/i.test(
+    url.pathname,
+  );
+}
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE)
-      // addAll échoue en bloc si une seule URL manque : on tolère les absences.
       .then((cache) =>
         Promise.allSettled(COQUILLE.map((url) => cache.add(url))),
       )
@@ -41,10 +53,33 @@ self.addEventListener("fetch", (event) => {
   const requete = event.request;
   if (requete.method !== "GET") return;
 
-  const url = new URL(requete.url);
+  let url;
+  try {
+    url = new URL(requete.url);
+  } catch {
+    return;
+  }
   if (url.origin !== self.location.origin) return;
-  // Les données métier ne sont jamais servies depuis le cache.
   if (url.pathname.startsWith("/api/")) return;
+
+  // Pages et vols RSC : toujours le réseau (jamais le cache).
+  if (!estAssetStatique(url, requete)) {
+    event.respondWith(
+      fetch(requete).catch(async () => {
+        if (requete.mode === "navigate") {
+          const repli = await caches.match("/vente");
+          if (repli) return repli;
+          const login = await caches.match("/login");
+          if (login) return login;
+        }
+        return new Response("Hors ligne", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        });
+      }),
+    );
+    return;
+  }
 
   event.respondWith(
     fetch(requete)
@@ -58,12 +93,6 @@ self.addEventListener("fetch", (event) => {
       .catch(async () => {
         const cache = await caches.match(requete);
         if (cache) return cache;
-        // Navigation hors ligne vers une page jamais visitée : on retombe sur
-        // l'écran de vente, seul écran réellement utile sans réseau.
-        if (requete.mode === "navigate") {
-          const repli = await caches.match("/vente");
-          if (repli) return repli;
-        }
         return new Response("Hors ligne", {
           status: 503,
           headers: { "Content-Type": "text/plain; charset=utf-8" },

@@ -71,6 +71,7 @@ export function LoginPage() {
 
       router.replace(target);
       router.refresh();
+      setLoading(false);
     } catch (err) {
       setEntering(false);
       setError(err instanceof Error ? err.message : "Connexion impossible");

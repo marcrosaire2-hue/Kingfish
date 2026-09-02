@@ -60,8 +60,13 @@ async function fetchSessionFromNetwork(): Promise<SessionPayload | null> {
   if (inflight) return inflight;
 
   inflight = (async () => {
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), 12_000);
     try {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      const res = await fetch("/api/auth/me", {
+        cache: "no-store",
+        signal: ctrl.signal,
+      });
       if (!res.ok) {
         memoryCache = null;
         writeStorageCache(null);
@@ -78,6 +83,7 @@ async function fetchSessionFromNetwork(): Promise<SessionPayload | null> {
     } catch {
       return memoryCache ?? readStorageCache();
     } finally {
+      window.clearTimeout(timer);
       inflight = null;
     }
   })();

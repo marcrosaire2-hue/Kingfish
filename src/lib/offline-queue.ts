@@ -272,9 +272,15 @@ export function installerSupportHorsLigne(
   if (typeof window === "undefined") return () => {};
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(() => {
-      /* pas de service worker : la file d'attente fonctionne quand même */
-    });
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((reg) => {
+        // Force la prise du SW v2 (ne plus cacher le HTML Next).
+        void reg.update();
+      })
+      .catch(() => {
+        /* pas de service worker : la file d'attente fonctionne quand même */
+      });
   }
 
   const auRetour = () => void synchroniser();
