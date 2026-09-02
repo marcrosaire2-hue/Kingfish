@@ -5202,9 +5202,9 @@ select {
 
 .dash-breakdown {
   margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
   color: var(--ink-soft);
   font-size: 0.95rem;
 }

@@ -888,7 +888,10 @@ function GeneralDayDashboard({
 
       <div className="dash-grid">
         <section className="panel dash-card">
-          <h2 className="panel-title">Mix des ventes (FCFA)</h2>
+          <div className="panel-head">
+            <h2 className="panel-title">Mix des ventes</h2>
+            <p className="muted">Répartition du CA (FCFA)</p>
+          </div>
           {mixTotal > 0 ? (
             <DonutChart
               slices={mixSlices}
@@ -901,7 +904,10 @@ function GeneralDayDashboard({
         </section>
 
         <section className="panel dash-card">
-          <h2 className="panel-title">Points de vente</h2>
+          <div className="panel-head">
+            <h2 className="panel-title">Points de vente</h2>
+            <p className="muted">Zogbo et Gbégamey</p>
+          </div>
           <HorizontalBars rows={sites} />
           <div className="dash-breakdown">
             <div className="dash-breakdown-site">
@@ -942,7 +948,10 @@ function GeneralDayDashboard({
       </div>
 
       <section className="panel dash-card dash-card-wide">
-        <h2 className="panel-title">Ventes du jour</h2>
+        <div className="panel-head">
+          <h2 className="panel-title">Ventes du jour</h2>
+          <p className="muted">Classement des produits</p>
+        </div>
         <ProductRanking
           best={ranking.best}
           worst={ranking.worst}
@@ -1116,7 +1125,10 @@ function DayDashboard({
 
       <div className="dash-grid">
         <section className="panel dash-card">
-          <h2 className="panel-title">Mix du jour (FCFA)</h2>
+          <div className="panel-head">
+            <h2 className="panel-title">Mix du jour</h2>
+            <p className="muted">Répartition du CA (FCFA)</p>
+          </div>
           {mixTotal > 0 ? (
             <DonutChart
               slices={mixSlices}
@@ -1129,7 +1141,10 @@ function DayDashboard({
         </section>
 
         <section className="panel dash-card">
-          <h2 className="panel-title">Points de vente</h2>
+          <div className="panel-head">
+            <h2 className="panel-title">Points de vente</h2>
+            <p className="muted">Zogbo et Gbégamey</p>
+          </div>
           <HorizontalBars rows={sites} />
           <div className="dash-breakdown">
             <div className="dash-breakdown-site">
@@ -1170,7 +1185,10 @@ function DayDashboard({
       </div>
 
       <section className="panel dash-card dash-card-wide">
-        <h2 className="panel-title">Tableaux de ventes</h2>
+        <div className="panel-head">
+          <h2 className="panel-title">Tableaux de ventes</h2>
+          <p className="muted">Meilleurs et plus faibles produits du jour</p>
+        </div>
         <ProductRanking
           best={ranking.best}
           worst={ranking.worst}
@@ -1181,66 +1199,74 @@ function DayDashboard({
         />
       </section>
 
-      <div className="dash-grid">
+      <div className="dash-grid dash-grid-charges">
         <section className="panel dash-card">
-          <h2 className="panel-title">Répartition des charges</h2>
+          <div className="panel-head">
+            <h2 className="panel-title">Répartition des charges</h2>
+            <p className="muted">Postes renseignés</p>
+          </div>
           {chargeBars.length ? (
             <HorizontalBars rows={chargeBars} />
           ) : (
-            <p className="muted">Saisissez les charges ci-dessous.</p>
+            <p className="muted">Saisissez les charges ci-contre.</p>
           )}
         </section>
 
         <section className="panel dash-card">
-          <h2 className="panel-title">Saisie des charges (FCFA)</h2>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th scope="col">Poste</th>
-                <th scope="col" className="col-price">
-                  Montant
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {CHARGE_FIELDS.map((f) => (
-                <tr key={f.key}>
-                  <td>{f.label}</td>
-                  <td className="col-price">
-                    <PriceInput
-                      value={chargesDraft[f.key]}
-                      ariaLabel={f.label}
-                      onChange={(v) => onChargeChange(f.key, v)}
-                    />
+          <div className="panel-head">
+            <h2 className="panel-title">Saisie des charges</h2>
+            <p className="muted">Montants en FCFA</p>
+          </div>
+          <div className="dash-charges-scroll">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Poste</th>
+                  <th scope="col" className="col-price">
+                    Montant
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {CHARGE_FIELDS.map((f) => (
+                  <tr key={f.key}>
+                    <td>{f.label}</td>
+                    <td className="col-price">
+                      <PriceInput
+                        value={chargesDraft[f.key]}
+                        ariaLabel={f.label}
+                        onChange={(v) => onChargeChange(f.key, v)}
+                      />
+                    </td>
+                  </tr>
+                ))}
+                <tr>
+                  <td>Matières consommées (CMV)</td>
+                  <td className="mono cell-readonly">
+                    {formatFcfa(day.charges.matieresConsommees ?? 0)}
                   </td>
                 </tr>
-              ))}
-              <tr>
-                <td>Matières consommées (CMV)</td>
-                <td className="mono cell-readonly">
-                  {formatFcfa(day.charges.matieresConsommees ?? 0)}
-                </td>
-              </tr>
-              <tr>
-                <td>Dotations aux amortissements</td>
-                <td className="mono cell-readonly">
-                  {formatFcfa(day.charges.amortissements ?? 0)}
-                </td>
-              </tr>
-              <tr>
-                <td>Pertes déclarées</td>
-                <td className="mono cell-readonly">
-                  {formatFcfa(day.charges.pertes ?? 0)}
-                </td>
-              </tr>
-            </tbody>
-            <tfoot>
-              <tr>
-                <th scope="row">TOTAL CHARGES</th>
-                <td className="mono">{formatFcfa(charges)}</td>
-              </tr>
-            </tfoot>
-          </table>
+                <tr>
+                  <td>Dotations aux amortissements</td>
+                  <td className="mono cell-readonly">
+                    {formatFcfa(day.charges.amortissements ?? 0)}
+                  </td>
+                </tr>
+                <tr>
+                  <td>Pertes déclarées</td>
+                  <td className="mono cell-readonly">
+                    {formatFcfa(day.charges.pertes ?? 0)}
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th scope="row">TOTAL CHARGES</th>
+                  <td className="mono">{formatFcfa(charges)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </section>
       </div>
 
@@ -1328,40 +1354,63 @@ function MonthDashboard({
       </p>
 
       <DashKpiGrid
+        className="dash-kpi-grid-month"
         items={[
           {
             label: "CA final",
             value: formatFcfa(data.totals.caTotal),
-            tone: "accent",
+            accent: "green",
+            icon: <KpiGlyph name="ca" />,
           },
-          { label: "Zogbo", value: formatFcfa(data.totals.caZogbo) },
-          { label: "Gbégamey", value: formatFcfa(data.totals.caGbegamey) },
-          { label: "Charges", value: formatFcfa(data.totals.chargesTotal) },
+          {
+            label: "Zogbo",
+            value: formatFcfa(data.totals.caZogbo),
+            accent: "sky",
+            icon: <KpiGlyph name="zogbo" />,
+          },
+          {
+            label: "Gbégamey",
+            value: formatFcfa(data.totals.caGbegamey),
+            accent: "orange",
+            icon: <KpiGlyph name="gbegamey" />,
+          },
+          {
+            label: "Charges",
+            value: formatFcfa(data.totals.chargesTotal),
+            accent: "gold",
+            icon: <KpiGlyph name="charges" />,
+          },
           {
             label: "Résultat",
             value: formatFcfa(data.totals.resultat),
+            accent: data.totals.resultat < 0 ? "orange" : "green",
             tone: data.totals.resultat < 0 ? "warn" : "accent",
+            icon: <KpiGlyph name="resultat" />,
           },
         ]}
       />
 
-      <div className="dash-grid dash-grid-wide">
-        <section className="panel dash-card dash-card-wide">
-          <h2 className="panel-title">Évolution du CA journalier</h2>
-          <LineAreaChart labels={labels} series={caSeries} />
-        </section>
-      </div>
+      <section className="panel dash-card dash-card-wide">
+        <div className="panel-head">
+          <h2 className="panel-title">Évolution du mois</h2>
+          <p className="muted">CA et résultat jour par jour</p>
+        </div>
+        <LineAreaChart labels={labels} series={caSeries} />
+      </section>
 
       <div className="dash-grid">
-        <section className="panel dash-card dash-card-wide">
-          <h2 className="panel-title">Zogbo vs Gbégamey par jour</h2>
+        <section className="panel dash-card dash-card-span-2">
+          <div className="panel-head">
+            <h2 className="panel-title">Zogbo vs Gbégamey</h2>
+            <p className="muted">CA par jour et par site</p>
+          </div>
           <GroupedBarChart labels={labels} series={sitesSeries} />
         </section>
-      </div>
-
-      <div className="dash-grid">
         <section className="panel dash-card">
-          <h2 className="panel-title">Part des points</h2>
+          <div className="panel-head">
+            <h2 className="panel-title">Part des points</h2>
+            <p className="muted">Répartition du CA</p>
+          </div>
           {mixSlices.length ? (
             <DonutChart
               slices={mixSlices}
@@ -1377,13 +1426,19 @@ function MonthDashboard({
           )}
         </section>
         <section className="panel dash-card">
-          <h2 className="panel-title">Boissons · Charges</h2>
+          <div className="panel-head">
+            <h2 className="panel-title">Boissons · Charges</h2>
+            <p className="muted">Totaux du mois</p>
+          </div>
           <HorizontalBars rows={categoryBars} />
         </section>
       </div>
 
       <section className="panel dash-card dash-card-wide">
-        <h2 className="panel-title">Tableaux de ventes (mois)</h2>
+        <div className="panel-head">
+          <h2 className="panel-title">Tableaux de ventes</h2>
+          <p className="muted">Classement sur le mois</p>
+        </div>
         <ProductRanking
           best={ranking.best}
           worst={ranking.worst}
@@ -1394,63 +1449,63 @@ function MonthDashboard({
         />
       </section>
 
-      <section className="panel panel-wide">
-        <h2 className="panel-title">Détail des jours</h2>
-        <table className="data-table zogbo-table">
-          <thead>
-            <tr>
-              <th scope="col">Jour</th>
-              <th scope="col" className="col-money">
-                Zogbo
-              </th>
-              <th scope="col" className="col-money">
-                Gbégamey
-              </th>
-              <th scope="col" className="col-money">
-                CA
-              </th>
-              <th scope="col" className="col-money">
-                Résultat
-              </th>
-              <th scope="col" className="col-actions">
-                <span className="sr-only">Ouvrir</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.days.map((d) => {
-              const active =
-                d.hasZogboData ||
-                d.hasGbegameyData ||
-                d.hasBoissonsData ||
-                d.chargesTotal > 0;
-              return (
-                <tr key={d.date} className={active ? undefined : "row-muted"}>
-                  <td className="cell-name">{d.date.slice(8)}</td>
-                  <td className="mono cell-readonly">{formatFcfa(d.caZogbo)}</td>
-                  <td className="mono cell-readonly">
-                    {formatFcfa(d.caGbegamey)}
-                  </td>
-                  <td className="mono cell-readonly">{formatFcfa(d.caTotal)}</td>
-                  <td
-                    className={`mono cell-readonly${d.resultat < 0 ? " cell-variance" : ""}`}
+      <section className="panel dash-card dash-card-wide dash-days-panel">
+        <div className="panel-head dash-months-head">
+          <h2 className="panel-title">Détail des jours</h2>
+          <p className="muted">
+            Cliquez Voir pour ouvrir le point journalier
+          </p>
+        </div>
+        <ul className="dash-day-list">
+          {data.days.map((d) => {
+            const active =
+              d.hasZogboData ||
+              d.hasGbegameyData ||
+              d.hasBoissonsData ||
+              d.chargesTotal > 0;
+            return (
+              <li
+                key={d.date}
+                className={`dash-day-card${active ? "" : " is-empty"}`}
+              >
+                <div className="dash-month-top">
+                  <strong className="dash-month-name">
+                    {formatDisplayDate(d.date)}
+                  </strong>
+                  <button
+                    type="button"
+                    className="btn-link dash-month-voir"
+                    onClick={() => onOpenDay(d.date)}
                   >
-                    {formatFcfa(d.resultat)}
-                  </td>
-                  <td className="col-actions">
-                    <button
-                      type="button"
-                      className="btn-link"
-                      onClick={() => onOpenDay(d.date)}
+                    Voir
+                  </button>
+                </div>
+                <dl className="dash-month-metrics">
+                  <div>
+                    <dt>Zogbo</dt>
+                    <dd className="mono">{formatFcfa(d.caZogbo)}</dd>
+                  </div>
+                  <div>
+                    <dt>Gbégamey</dt>
+                    <dd className="mono">{formatFcfa(d.caGbegamey)}</dd>
+                  </div>
+                  <div>
+                    <dt>CA</dt>
+                    <dd className="mono">{formatFcfa(d.caTotal)}</dd>
+                  </div>
+                  <div>
+                    <dt>Résultat</dt>
+                    <dd
+                      className={`mono${d.resultat < 0 ? " is-neg" : d.resultat > 0 ? " is-pos" : ""}`}
                     >
-                      Voir
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                      {formatFcfa(d.resultat)}
+                    </dd>
+                  </div>
+                </dl>
+              </li>
+            );
+          })}
+        </ul>
       </section>
     </div>
   );
