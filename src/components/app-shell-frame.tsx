@@ -13,7 +13,6 @@ const NAV_ITEMS: {
   href: string;
   label: string;
   key: NavKey;
-  mark: string;
   group: "home" | "ops" | "pilot" | "admin";
   groupLabel?: string;
 }[] = [
@@ -21,7 +20,6 @@ const NAV_ITEMS: {
     href: "/",
     label: "Tableau de bord",
     key: "synthese",
-    mark: "S",
     group: "home",
     groupLabel: "Accueil",
   },
@@ -29,28 +27,24 @@ const NAV_ITEMS: {
     href: "/analyse",
     label: "Analyse",
     key: "analyse",
-    mark: "A",
     group: "home",
   },
   {
     href: "/compte-resultat",
     label: "Compte de résultat",
     key: "compte-resultat",
-    mark: "FCFA",
     group: "home",
   },
   {
     href: "/comptabilite",
     label: "Comptabilité",
     key: "comptabilite",
-    mark: "J",
     group: "home",
   },
   {
     href: "/vente",
     label: "Vente",
     key: "vente",
-    mark: "V",
     group: "ops",
     groupLabel: "Quotidien",
   },
@@ -58,49 +52,42 @@ const NAV_ITEMS: {
     href: "/stock-zogbo",
     label: "Stock Zogbo",
     key: "zogbo",
-    mark: "Z",
     group: "ops",
   },
   {
     href: "/stock-gbegamey",
     label: "Stock Gbégamey",
     key: "gbegamey",
-    mark: "G",
     group: "ops",
   },
   {
     href: "/achats",
     label: "Achats",
     key: "appro",
-    mark: "L",
     group: "ops",
   },
   {
     href: "/pertes",
     label: "Pertes",
     key: "pertes",
-    mark: "P",
     group: "ops",
   },
   {
     href: "/versements",
     label: "Versements",
     key: "versements",
-    mark: "$",
     group: "ops",
   },
   {
     href: "/immobilisations",
     label: "Immobilisations",
     key: "immobilisations",
-    mark: "I",
     group: "ops",
   },
   {
     href: "/journal-ventes",
     label: "Journal ventes",
     key: "journal-ventes",
-    mark: "J",
     group: "pilot",
     groupLabel: "Pilotage",
   },
@@ -108,28 +95,24 @@ const NAV_ITEMS: {
     href: "/regularisation",
     label: "Régularisation",
     key: "regularisation",
-    mark: "±",
     group: "pilot",
   },
   {
     href: "/historique",
     label: "Registre",
     key: "historique",
-    mark: "R",
     group: "pilot",
   },
   {
     href: "/reglages",
     label: "Réglages POS",
     key: "reglages",
-    mark: "T",
     group: "pilot",
   },
   {
     href: "/admin",
     label: "Équipe",
     key: "admin",
-    mark: "E",
     group: "admin",
     groupLabel: "Compte",
   },
@@ -245,10 +228,7 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
                   prefetch
                   className={`side-nav-link${isActive(pathname, item.href) ? " is-active" : ""}`}
                 >
-                  <span className="side-nav-mark" aria-hidden>
-                    {item.mark}
-                  </span>
-                  <span className="side-nav-label">{item.label}</span>
+                  {item.label}
                 </Link>
               </div>
             );

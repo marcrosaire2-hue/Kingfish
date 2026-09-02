@@ -454,27 +454,6 @@ select {
   font-weight: 700;
 }
 
-.side-nav-mark {
-  min-width: 1.75rem;
-  width: auto;
-  height: 1.75rem;
-  padding: 0 0.4rem;
-  border-radius: 999px;
-  display: grid;
-  place-items: center;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  background: rgba(255, 255, 255, 0.08);
-  color: inherit;
-  flex-shrink: 0;
-}
-
-.side-nav-link.is-active .side-nav-mark {
-  background: color-mix(in srgb, var(--accent-ink) 12%, transparent);
-  color: var(--accent-ink);
-}
-
 .sidebar-footer {
   display: flex;
   flex-direction: column;
