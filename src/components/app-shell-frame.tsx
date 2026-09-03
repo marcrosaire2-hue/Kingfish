@@ -127,7 +127,7 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, nav, ready } = useSession();
-  const { meta, setMeta, setActionsSlot } = usePageChrome();
+  const { meta, setActionsSlot } = usePageChrome();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navBusy, setNavBusy] = useState(false);
 
@@ -143,10 +143,9 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     setMenuOpen(false);
     setNavBusy(true);
-    setMeta({ title: "King Fish" });
     const t = window.setTimeout(() => setNavBusy(false), 450);
     return () => window.clearTimeout(t);
-  }, [pathname, setMeta]);
+  }, [pathname]);
 
   useEffect(() => {
     if (!menuOpen) return;

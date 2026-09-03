@@ -1,7 +1,8 @@
 "use client";
 
-import { useLayoutEffect } from "react";
+import { useEffect, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { usePageChrome } from "@/components/page-chrome-context";
 
 type AppShellProps = {
@@ -27,10 +28,15 @@ export function AppShell({
   children,
 }: AppShellProps) {
   const { setMeta, actionsSlot } = usePageChrome();
+  const pathname = usePathname();
 
   useLayoutEffect(() => {
     setMeta({ title, subtitle, mainClassName });
-  }, [title, subtitle, mainClassName, setMeta]);
+  }, [pathname, title, subtitle, mainClassName, setMeta]);
+
+  useEffect(() => {
+    setMeta({ title, subtitle, mainClassName });
+  }, [pathname, title, subtitle, mainClassName, setMeta]);
 
   return (
     <>

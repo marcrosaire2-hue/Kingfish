@@ -1,13 +1,13 @@
 /* Versements — bureau : bandeau totaux, bordereau, registre tableau */
 
-.main-versements .versements-page {
+.versements-page {
   display: flex;
   flex-direction: column;
   gap: 1rem;
   min-width: 0;
 }
 
-.main-versements .versements-strip {
+.versements-page .versements-strip {
   display: grid;
   grid-template-columns: 1fr;
   overflow: hidden;
@@ -17,12 +17,12 @@
 }
 
 @media (min-width: 720px) {
-  .main-versements .versements-strip {
+  .versements-page .versements-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-.main-versements .versements-strip-cell {
+.versements-page .versements-strip-cell {
   display: flex;
   flex-direction: column;
   gap: 0.12rem;
@@ -38,22 +38,22 @@
 }
 
 @media (min-width: 720px) {
-  .main-versements .versements-strip-cell {
+  .versements-page .versements-strip-cell {
     border-bottom: 0;
     border-right: 1px solid color-mix(in srgb, #fff 14%, transparent);
   }
 
-  .main-versements .versements-strip-cell:last-child {
+  .versements-page .versements-strip-cell:last-child {
     border-right: 0;
   }
 }
 
-.main-versements .versements-strip-cell:hover,
-.main-versements .versements-strip-cell.is-on {
+.versements-page .versements-strip-cell:hover,
+.versements-page .versements-strip-cell.is-on {
   background: color-mix(in srgb, #fff 8%, transparent);
 }
 
-.main-versements .versements-strip-cell span {
+.versements-page .versements-strip-cell span {
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -61,7 +61,7 @@
   color: color-mix(in srgb, #fff 68%, transparent);
 }
 
-.main-versements .versements-strip-cell strong {
+.versements-page .versements-strip-cell strong {
   font-size: 1.08rem;
   font-weight: 800;
   letter-spacing: -0.02em;
@@ -69,22 +69,22 @@
   word-break: break-word;
 }
 
-.main-versements .versements-strip-cell em {
+.versements-page .versements-strip-cell em {
   font-style: normal;
   font-size: 0.78rem;
   font-weight: 600;
   color: color-mix(in srgb, #fff 72%, transparent);
 }
 
-.main-versements .versements-strip-cell.is-pending strong {
+.versements-page .versements-strip-cell.is-pending strong {
   color: #fdba74;
 }
 
-.main-versements .versements-strip-cell.is-ok strong {
+.versements-page .versements-strip-cell.is-ok strong {
   color: #86efac;
 }
 
-.main-versements .versements-flash {
+.versements-page .versements-flash {
   margin: 0;
   padding: 0.7rem 0.9rem;
   border-radius: 12px;
@@ -95,7 +95,7 @@
   color: #166534;
 }
 
-.main-versements .versements-desk-nav {
+.versements-page .versements-desk-nav {
   display: flex;
   gap: 0.3rem;
   padding: 0.28rem;
@@ -106,7 +106,7 @@
   background: var(--surface);
 }
 
-.main-versements .versements-desk-tab {
+.versements-page .versements-desk-tab {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -120,7 +120,7 @@
   cursor: pointer;
 }
 
-.main-versements .versements-desk-tab i {
+.versements-page .versements-desk-tab i {
   font-style: normal;
   min-width: 1.2rem;
   padding: 0.05rem 0.4rem;
@@ -132,17 +132,17 @@
   text-align: center;
 }
 
-.main-versements .versements-desk-tab.is-active {
+.versements-page .versements-desk-tab.is-active {
   background: var(--sidebar);
   color: #fff;
 }
 
-.main-versements .versements-desk-tab.is-active i {
+.versements-page .versements-desk-tab.is-active i {
   background: color-mix(in srgb, #fff 18%, transparent);
   color: #fff;
 }
 
-.main-versements .versements-bordereau {
+.versements-page .versements-bordereau {
   padding: 0;
   border-radius: 16px;
   border: 1px solid var(--line);
@@ -150,37 +150,37 @@
   overflow: hidden;
 }
 
-.main-versements .versements-bordereau-form {
+.versements-page .versements-bordereau-form {
   display: grid;
   grid-template-columns: 1fr;
 }
 
 @media (min-width: 980px) {
-  .main-versements .versements-bordereau-form {
+  .versements-page .versements-bordereau-form {
     grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
   }
 }
 
-.main-versements .versements-bordereau-main {
+.versements-page .versements-bordereau-main {
   display: flex;
   flex-direction: column;
   gap: 0.9rem;
   padding: 1.1rem 1.15rem 1.2rem;
 }
 
-.main-versements .versements-bordereau-head h2 {
+.versements-page .versements-bordereau-head h2 {
   margin: 0;
   font-size: 1.05rem;
   font-weight: 800;
 }
 
-.main-versements .versements-bordereau-head p {
+.versements-page .versements-bordereau-head p {
   margin: 0.2rem 0 0;
   font-size: 0.82rem;
   color: var(--ink-soft);
 }
 
-.main-versements .versements-bordereau-side {
+.versements-page .versements-bordereau-side {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
@@ -190,32 +190,32 @@
 }
 
 @media (min-width: 980px) {
-  .main-versements .versements-bordereau-side {
+  .versements-page .versements-bordereau-side {
     border-top: 0;
     border-left: 1px solid var(--line);
   }
 }
 
-.main-versements .versements-form-grid {
+.versements-page .versements-form-grid {
   display: grid;
   grid-template-columns: 1fr;
   gap: 0.55rem 0.65rem;
 }
 
 @media (min-width: 640px) {
-  .main-versements .versements-form-grid {
+  .versements-page .versements-form-grid {
     grid-template-columns: 1fr 1fr;
   }
 }
 
-.main-versements .versements-field {
+.versements-page .versements-field {
   display: flex;
   flex-direction: column;
   gap: 0.28rem;
   min-width: 0;
 }
 
-.main-versements .versements-field span {
+.versements-page .versements-field span {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--ink-soft);
@@ -223,10 +223,10 @@
   letter-spacing: 0.03em;
 }
 
-.main-versements .versements-field input,
-.main-versements .versements-field select,
-.main-versements .versements-membre-row input,
-.main-versements .versements-search {
+.versements-page .versements-field input,
+.versements-page .versements-field select,
+.versements-page .versements-membre-row input,
+.versements-page .versements-search {
   width: 100%;
   min-height: 2.7rem;
   padding: 0.5rem 0.7rem;
@@ -237,16 +237,16 @@
   color: var(--ink);
 }
 
-.main-versements .versements-field input:focus,
-.main-versements .versements-field select:focus,
-.main-versements .versements-membre-row input:focus,
-.main-versements .versements-search:focus {
+.versements-page .versements-field input:focus,
+.versements-page .versements-field select:focus,
+.versements-page .versements-membre-row input:focus,
+.versements-page .versements-search:focus {
   outline: none;
   border-color: var(--sidebar);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar) 14%, transparent);
 }
 
-.main-versements .versements-readonly {
+.versements-page .versements-readonly {
   margin: 0;
   min-height: 2.7rem;
   display: flex;
@@ -258,15 +258,15 @@
   font-weight: 650;
 }
 
-.main-versements .versements-amount-wrap {
+.versements-page .versements-amount-wrap {
   position: relative;
 }
 
-.main-versements .versements-amount-wrap input {
+.versements-page .versements-amount-wrap input {
   padding-right: 3.6rem;
 }
 
-.main-versements .versements-amount-suffix {
+.versements-page .versements-amount-suffix {
   position: absolute;
   right: 0.75rem;
   top: 50%;
@@ -277,7 +277,7 @@
   pointer-events: none;
 }
 
-.main-versements .versements-membres {
+.versements-page .versements-membres {
   margin: 0;
   padding: 0.65rem 0.75rem 0.75rem;
   border: 1px solid var(--line);
@@ -288,7 +288,7 @@
   background: var(--surface);
 }
 
-.main-versements .versements-membres legend {
+.versements-page .versements-membres legend {
   padding: 0 0.25rem;
   font-size: 0.72rem;
   font-weight: 800;
@@ -297,22 +297,22 @@
   color: var(--ink-soft);
 }
 
-.main-versements .versements-membre-row {
+.versements-page .versements-membre-row {
   display: flex;
   gap: 0.4rem;
   align-items: center;
 }
 
-.main-versements .versements-membre-row input {
+.versements-page .versements-membre-row input {
   flex: 1;
   min-width: 0;
 }
 
-.main-versements .versements-add-membre {
+.versements-page .versements-add-membre {
   align-self: flex-start;
 }
 
-.main-versements .versements-dropzone {
+.versements-page .versements-dropzone {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -325,13 +325,13 @@
   cursor: pointer;
 }
 
-.main-versements .versements-dropzone.is-active,
-.main-versements .versements-dropzone:hover {
+.versements-page .versements-dropzone.is-active,
+.versements-page .versements-dropzone:hover {
   border-color: var(--sidebar);
   background: color-mix(in srgb, var(--sidebar) 6%, #fff);
 }
 
-.main-versements .versements-dropzone > span {
+.versements-page .versements-dropzone > span {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--ink-soft);
@@ -339,19 +339,19 @@
   letter-spacing: 0.03em;
 }
 
-.main-versements .versements-dropzone input[type="file"] {
+.versements-page .versements-dropzone input[type="file"] {
   width: 100%;
   font-size: 0.85rem;
 }
 
-.main-versements .versements-dropzone em {
+.versements-page .versements-dropzone em {
   font-style: normal;
   font-size: 0.78rem;
   color: var(--ink-soft);
   line-height: 1.35;
 }
 
-.main-versements .versements-preuve-preview {
+.versements-page .versements-preuve-preview {
   display: block;
   width: 100%;
   max-height: 11rem;
@@ -361,7 +361,7 @@
   background: #fff;
 }
 
-.main-versements .versements-checks {
+.versements-page .versements-checks {
   list-style: none;
   margin: 0;
   padding: 0;
@@ -370,7 +370,7 @@
   gap: 0.35rem;
 }
 
-.main-versements .versements-checks li {
+.versements-page .versements-checks li {
   display: flex;
   align-items: center;
   gap: 0.4rem;
@@ -379,7 +379,7 @@
   color: var(--ink-soft);
 }
 
-.main-versements .versements-checks li::before {
+.versements-page .versements-checks li::before {
   content: "";
   width: 0.65rem;
   height: 0.65rem;
@@ -388,20 +388,20 @@
   flex-shrink: 0;
 }
 
-.main-versements .versements-checks li.is-ok {
+.versements-page .versements-checks li.is-ok {
   color: #166534;
 }
 
-.main-versements .versements-checks li.is-ok::before {
+.versements-page .versements-checks li.is-ok::before {
   background: #16a34a;
 }
 
-.main-versements .versements-submit {
+.versements-page .versements-submit {
   width: 100%;
   min-height: 2.85rem;
 }
 
-.main-versements .versements-ledger {
+.versements-page .versements-ledger {
   min-width: 0;
   padding: 1rem 1.05rem 1.15rem;
   border-radius: 16px;
@@ -409,14 +409,14 @@
   background: var(--paper);
 }
 
-.main-versements .versements-ledger-head {
+.versements-page .versements-ledger-head {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   margin-bottom: 0.85rem;
 }
 
-.main-versements .versements-ledger-title {
+.versements-page .versements-ledger-title {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -424,53 +424,53 @@
   gap: 0.4rem 0.85rem;
 }
 
-.main-versements .versements-ledger-title h2 {
+.versements-page .versements-ledger-title h2 {
   margin: 0;
   font-size: 1rem;
   font-weight: 800;
 }
 
-.main-versements .versements-queue-note {
+.versements-page .versements-queue-note {
   margin: 0;
   font-size: 0.82rem;
   font-weight: 650;
   color: #9a6700;
 }
 
-.main-versements .versements-toolbar {
+.versements-page .versements-toolbar {
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
 }
 
-.main-versements .versements-filters {
+.versements-page .versements-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
   align-items: end;
 }
 
-.main-versements .versements-filters .versements-field {
+.versements-page .versements-filters .versements-field {
   flex: 0 1 8.5rem;
 }
 
-.main-versements .versements-search-field {
+.versements-page .versements-search-field {
   flex: 1 1 12rem;
 }
 
-.main-versements .versements-filters .versements-field input,
-.main-versements .versements-filters .versements-field select,
-.main-versements .versements-search {
+.versements-page .versements-filters .versements-field input,
+.versements-page .versements-filters .versements-field select,
+.versements-page .versements-search {
   min-height: 2.45rem;
 }
 
-.main-versements .versements-status-filters {
+.versements-page .versements-status-filters {
   display: flex;
   flex-wrap: wrap;
   gap: 0.35rem;
 }
 
-.main-versements .versements-filter-chip {
+.versements-page .versements-filter-chip {
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
@@ -484,7 +484,7 @@
   cursor: pointer;
 }
 
-.main-versements .versements-filter-chip i {
+.versements-page .versements-filter-chip i {
   font-style: normal;
   min-width: 1.2rem;
   padding: 0.05rem 0.4rem;
@@ -495,31 +495,31 @@
   text-align: center;
 }
 
-.main-versements .versements-filter-chip.is-active {
+.versements-page .versements-filter-chip.is-active {
   border-color: var(--sidebar-mid, var(--sidebar));
   background: color-mix(in srgb, var(--sidebar) 10%, var(--surface));
   color: var(--ink);
   font-weight: 750;
 }
 
-.main-versements .versements-filter-chip.is-active i {
+.versements-page .versements-filter-chip.is-active i {
   background: var(--sidebar);
   color: #fff;
 }
 
-.main-versements .versements-table {
+.versements-page .versements-table {
   min-width: 44rem;
 }
 
-.main-versements .versements-table tbody tr.is-pending td {
+.versements-page .versements-table tbody tr.is-pending td {
   background: color-mix(in srgb, #d97706 8%, transparent);
 }
 
-.main-versements .versements-td-date {
+.versements-page .versements-td-date {
   white-space: nowrap;
 }
 
-.main-versements .versements-row-open {
+.versements-page .versements-row-open {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -535,41 +535,41 @@
   font-weight: 750;
 }
 
-.main-versements .versements-row-open small {
+.versements-page .versements-row-open small {
   font-size: 0.75rem;
   font-weight: 550;
   color: var(--ink-soft);
 }
 
-.main-versements .versements-row-open:focus-visible {
+.versements-page .versements-row-open:focus-visible {
   outline: 2px solid var(--sidebar);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-.main-versements .versements-td-amount {
+.versements-page .versements-td-amount {
   font-weight: 800;
 }
 
-.main-versements .versements-col-action {
+.versements-page .versements-col-action {
   width: 1%;
   white-space: nowrap;
   text-align: right;
 }
 
-.main-versements .versements-col-action .btn {
+.versements-page .versements-col-action .btn {
   min-height: 2.2rem;
   padding: 0.3rem 0.7rem;
   font-size: 0.82rem;
 }
 
-.main-versements .versements-numero {
+.versements-page .versements-numero {
   font-size: 0.8rem;
   word-break: break-all;
   color: var(--ink);
 }
 
-.main-versements .versements-statut {
+.versements-page .versements-statut {
   display: inline-flex;
   align-items: center;
   min-height: 1.55rem;
@@ -579,17 +579,17 @@
   font-weight: 750;
 }
 
-.main-versements .versements-statut.is-en_attente {
+.versements-page .versements-statut.is-en_attente {
   background: color-mix(in srgb, #d97706 18%, transparent);
   color: #9a6700;
 }
 
-.main-versements .versements-statut.is-confirmee {
+.versements-page .versements-statut.is-confirmee {
   background: color-mix(in srgb, #16a34a 18%, transparent);
   color: #166534;
 }
 
-.main-versements .versements-empty {
+.versements-page .versements-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -603,22 +603,22 @@
   background: color-mix(in srgb, var(--ink) 2%, transparent);
 }
 
-.main-versements .versements-empty strong {
+.versements-page .versements-empty strong {
   color: var(--ink);
   font-size: 0.95rem;
 }
 
-.main-versements .versements-empty span {
+.versements-page .versements-empty span {
   font-size: 0.86rem;
   max-width: 22rem;
   line-height: 1.4;
 }
 
-.main-versements .versements-empty .btn {
+.versements-page .versements-empty .btn {
   margin-top: 0.45rem;
 }
 
-.main-versements .catalogue-footer {
+.versements-page .catalogue-footer {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -631,20 +631,20 @@
 }
 
 @media (min-width: 640px) {
-  .main-versements .catalogue-footer {
+  .versements-page .catalogue-footer {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
   }
 }
 
-.main-versements .catalogue-pagination {
+.versements-page .catalogue-pagination {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
 }
 
-.main-versements .catalogue-page-btn {
+.versements-page .catalogue-page-btn {
   display: inline-grid;
   place-items: center;
   min-width: 2.15rem;
@@ -659,23 +659,23 @@
   cursor: pointer;
 }
 
-.main-versements .catalogue-page-btn:hover:not(:disabled) {
+.versements-page .catalogue-page-btn:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--sidebar) 35%, var(--line));
   color: var(--sidebar);
 }
 
-.main-versements .catalogue-page-btn.is-active {
+.versements-page .catalogue-page-btn.is-active {
   background: var(--sidebar);
   border-color: var(--sidebar);
   color: #fff;
 }
 
-.main-versements .catalogue-page-btn:disabled {
+.versements-page .catalogue-page-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }
 
-.main-versements .versements-modal-backdrop {
+.versements-page .versements-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 80;
@@ -685,7 +685,7 @@
   background: color-mix(in srgb, #0b1a2e 55%, transparent);
 }
 
-.main-versements .versements-modal {
+.versements-page .versements-modal {
   width: min(100%, 52rem);
   max-height: min(92dvh, 48rem);
   overflow: auto;
@@ -699,52 +699,52 @@
   gap: 0.85rem;
 }
 
-.main-versements .versements-modal-head {
+.versements-page .versements-modal-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
 }
 
-.main-versements .versements-modal-head > div {
+.versements-page .versements-modal-head > div {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem 0.75rem;
 }
 
-.main-versements .versements-modal-head h2 {
+.versements-page .versements-modal-head h2 {
   margin: 0;
   font-size: 1.25rem;
   font-weight: 800;
 }
 
-.main-versements .versements-modal-body {
+.versements-page .versements-modal-body {
   display: grid;
   gap: 0.85rem;
 }
 
 @media (min-width: 720px) {
-  .main-versements .versements-modal-body {
+  .versements-page .versements-modal-body {
     grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
     align-items: start;
   }
 }
 
-.main-versements .versements-detail {
+.versements-page .versements-detail {
   display: grid;
   gap: 0.5rem;
   margin: 0;
 }
 
-.main-versements .versements-detail div {
+.versements-page .versements-detail div {
   display: grid;
   grid-template-columns: 5.5rem 1fr;
   gap: 0.45rem;
   align-items: start;
 }
 
-.main-versements .versements-detail dt {
+.versements-page .versements-detail dt {
   margin: 0;
   font-size: 0.72rem;
   font-weight: 700;
@@ -753,13 +753,13 @@
   letter-spacing: 0.02em;
 }
 
-.main-versements .versements-detail dd {
+.versements-page .versements-detail dd {
   margin: 0;
   font-weight: 600;
   font-size: 0.92rem;
 }
 
-.main-versements .versements-preuve-figure {
+.versements-page .versements-preuve-figure {
   margin: 0;
   padding: 0.5rem;
   border-radius: 12px;
@@ -767,14 +767,14 @@
   background: #fff;
 }
 
-.main-versements .versements-preuve-figure img {
+.versements-page .versements-preuve-figure img {
   display: block;
   width: 100%;
   max-height: 22rem;
   object-fit: contain;
 }
 
-.main-versements .versements-locked-note {
+.versements-page .versements-locked-note {
   margin: 0;
   padding: 0.7rem 0.85rem;
   border-radius: 10px;
@@ -784,34 +784,34 @@
   font-weight: 600;
 }
 
-.main-versements .versements-modal .btn-primary {
+.versements-page .versements-modal .btn-primary {
   width: 100%;
   min-height: 2.85rem;
 }
 
 @media (max-width: 720px) {
-  .main-versements .versements-desk-nav {
+  .versements-page .versements-desk-nav {
     width: 100%;
   }
 
-  .main-versements .versements-desk-tab {
+  .versements-page .versements-desk-tab {
     flex: 1;
     justify-content: center;
   }
 
-  .main-versements .versements-form-grid {
+  .versements-page .versements-form-grid {
     grid-template-columns: 1fr;
   }
 
-  .main-versements .versements-checks {
+  .versements-page .versements-checks {
     grid-template-columns: 1fr;
   }
 
-  .main-versements .versements-col-action .btn {
+  .versements-page .versements-col-action .btn {
     min-height: 2.4rem;
   }
 
-  .main-versements .versements-detail div {
+  .versements-page .versements-detail div {
     grid-template-columns: 1fr;
     gap: 0.1rem;
   }
