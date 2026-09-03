@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { BrandLoader } from "@/components/brand-loader";
 import {
   CHART_COLORS,
   HorizontalBars,
@@ -214,31 +213,13 @@ export function AnalysePage() {
       <div className="analyse-page">
         <header className="analyse-hero">
           <div className="analyse-hero-main">
-            <div
-              className="analyse-period-tabs"
-              role="tablist"
-              aria-label="Période"
-            >
-              {PERIODS.map((p) => (
-                <button
-                  key={p.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={period === p.id}
-                  className={`analyse-period-tab${period === p.id ? " is-active" : ""}`}
-                  onClick={() => changePeriod(p.id)}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            {report ? (
-              <p className="analyse-hero-window">{report.window.label}</p>
-            ) : null}
             <p className="analyse-hero-note">
               Comparaison avec la période précédente. CMV, charges et résultat
               restent au périmètre maison / site.
             </p>
+            {report ? (
+              <p className="analyse-hero-window">{report.window.label}</p>
+            ) : null}
             {report ? (
               <p className="analyse-prev-line">
                 Précédent ({report.window.previousLabel}) ·{" "}
@@ -248,12 +229,13 @@ export function AnalysePage() {
               </p>
             ) : null}
           </div>
-
           <div className="analyse-kpis" aria-label="Indicateurs clés">
             <div className="analyse-kpi is-gold">
               <span>CA net</span>
               <strong className="mono">
-                {loading && !report ? "…" : formatFcfa(report?.current.caNet ?? 0)}
+                {loading && !report
+                  ? "…"
+                  : formatFcfa(report?.current.caNet ?? 0)}
               </strong>
               {report ? (
                 <em className={deltaClass(report.caChangePct)}>
@@ -271,7 +253,7 @@ export function AnalysePage() {
                     : formatFcfa(report.current.margeBrute)}
               </strong>
             </div>
-            <div className="analyse-kpi">
+            <div className="analyse-kpi is-ok">
               <span>Résultat</span>
               <strong className="mono">
                 {loading && !report
@@ -279,80 +261,8 @@ export function AnalysePage() {
                   : formatFcfa(report?.current.resultat ?? 0)}
               </strong>
             </div>
-            <div className="analyse-kpi">
-              <span>Charges</span>
-              <strong className="mono">
-                {loading && !report
-                  ? "…"
-                  : formatFcfa(report?.current.chargesExploitation ?? 0)}
-              </strong>
-            </div>
           </div>
         </header>
-
-        <div className="analyse-toolbar" aria-label="Filtres">
-          <label className="analyse-field">
-            <span>{period === "day" ? "Jour" : "Mois"}</span>
-            {period === "month" ? (
-              <input
-                type="month"
-                value={date.slice(0, 7)}
-                max={todayIsoDate().slice(0, 7)}
-                onChange={(e) => {
-                  const ym = e.target.value;
-                  if (!/^\d{4}-\d{2}$/.test(ym)) return;
-                  const today = todayIsoDate();
-                  const end = lastDayOfMonth(ym);
-                  setDate(ym === today.slice(0, 7) ? today : end);
-                }}
-              />
-            ) : (
-              <input
-                type="date"
-                value={date}
-                max={todayIsoDate()}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-                  setDate(v);
-                }}
-              />
-            )}
-          </label>
-
-          {lockedSite ? null : (
-            <label className="analyse-field">
-              <span>Site</span>
-              <select value={site} onChange={(e) => setSite(e.target.value)}>
-                <option value="all">Les deux sites</option>
-                <option value="zogbo">{SITE_LABELS.zogbo}</option>
-                <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
-              </select>
-            </label>
-          )}
-
-          <label className="analyse-field">
-            <span>Équipe</span>
-            <select value={shift} onChange={(e) => setShift(e.target.value)}>
-              <option value="all">Toutes</option>
-              <option value="jour">Jour</option>
-              <option value="soir">Soir</option>
-              <option value="nuit">Nuit</option>
-              <option value="aucune">Hors équipe</option>
-            </select>
-          </label>
-
-          <label className="analyse-field">
-            <span>Nature</span>
-            <select value={kind} onChange={(e) => setKind(e.target.value)}>
-              <option value="all">Toutes</option>
-              <option value="plat">Plats</option>
-              <option value="boisson">Boissons</option>
-              <option value="local">Accompagnements</option>
-              <option value="extra">Extra</option>
-            </select>
-          </label>
-        </div>
 
         {error ? (
           <p className="error-banner" role="alert">
@@ -367,46 +277,125 @@ export function AnalysePage() {
           </p>
         ) : null}
 
-        {loading && !report ? (
-          <BrandLoader variant="ligne" label="Analyse des données…" />
-        ) : null}
-
-        {!loading && !report && !error ? (
-          <p className="analyse-empty">Aucune donnée pour cette période.</p>
-        ) : null}
-
-        {report ? (
-          <>
-            <nav
-              className="analyse-section-nav"
-              role="tablist"
-              aria-label="Sections analyse"
-            >
-              {SECTIONS.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="tab"
-                  aria-selected={section === s.id}
-                  className={`analyse-section-tab${section === s.id ? " is-active" : ""}`}
-                  onClick={() => setSection(s.id)}
+        <section className="analyse-board" aria-label="Registre d’analyse">
+          <div className="analyse-board-head">
+            <h2>{SECTION_TITLES[section]}</h2>
+            <div className="analyse-toolbar" aria-label="Filtres">
+              <div className="analyse-filters">
+                <div
+                  className="analyse-period-filters"
+                  role="group"
+                  aria-label="Période"
                 >
-                  {s.label}
-                  {s.id === "produits" && report.products.length > 0 ? (
-                    <span className="analyse-section-badge">
-                      {report.products.length}
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </nav>
+                  {PERIODS.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      className={`analyse-filter-chip${period === p.id ? " is-active" : ""}`}
+                      onClick={() => changePeriod(p.id)}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+                <label className="analyse-field">
+                  <span>{period === "day" ? "Jour" : "Mois"}</span>
+                  {period === "month" ? (
+                    <input
+                      type="month"
+                      value={date.slice(0, 7)}
+                      max={todayIsoDate().slice(0, 7)}
+                      onChange={(e) => {
+                        const ym = e.target.value;
+                        if (!/^\d{4}-\d{2}$/.test(ym)) return;
+                        const today = todayIsoDate();
+                        const end = lastDayOfMonth(ym);
+                        setDate(ym === today.slice(0, 7) ? today : end);
+                      }}
+                    />
+                  ) : (
+                    <input
+                      type="date"
+                      value={date}
+                      max={todayIsoDate()}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                        setDate(v);
+                      }}
+                    />
+                  )}
+                </label>
+                {lockedSite ? null : (
+                  <label className="analyse-field">
+                    <span>Site</span>
+                    <select
+                      value={site}
+                      onChange={(e) => setSite(e.target.value)}
+                    >
+                      <option value="all">Les deux sites</option>
+                      <option value="zogbo">{SITE_LABELS.zogbo}</option>
+                      <option value="gbegamey">
+                        {SITE_LABELS.gbegamey}
+                      </option>
+                    </select>
+                  </label>
+                )}
+                <label className="analyse-field">
+                  <span>Équipe</span>
+                  <select
+                    value={shift}
+                    onChange={(e) => setShift(e.target.value)}
+                  >
+                    <option value="all">Toutes</option>
+                    <option value="jour">Jour</option>
+                    <option value="soir">Soir</option>
+                    <option value="nuit">Nuit</option>
+                    <option value="aucune">Hors équipe</option>
+                  </select>
+                </label>
+                <label className="analyse-field">
+                  <span>Nature</span>
+                  <select
+                    value={kind}
+                    onChange={(e) => setKind(e.target.value)}
+                  >
+                    <option value="all">Toutes</option>
+                    <option value="plat">Plats</option>
+                    <option value="boisson">Boissons</option>
+                    <option value="local">Accompagnements</option>
+                    <option value="extra">Extra</option>
+                  </select>
+                </label>
+              </div>
+              <div
+                className="analyse-section-filters"
+                role="group"
+                aria-label="Sections"
+              >
+                {SECTIONS.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={`analyse-filter-chip${section === s.id ? " is-active" : ""}`}
+                    onClick={() => setSection(s.id)}
+                  >
+                    {s.label}
+                    {s.id === "produits" && report && report.products.length > 0
+                      ? ` · ${report.products.length}`
+                      : ""}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
 
-            <div
-              className={`analyse-board${loading ? " is-loading" : ""}`}
-              role="tabpanel"
-            >
-              <h2 className="analyse-board-title">{SECTION_TITLES[section]}</h2>
-
+          {loading && !report ? (
+            <p className="analyse-empty">Chargement…</p>
+          ) : !report && !error ? (
+            <p className="analyse-empty">Aucune donnée pour cette période.</p>
+          ) : report ? (
+            <div className={`analyse-board-body${loading ? " is-loading" : ""}`}>
               {report.filteredCa ? (
                 <p className="analyse-filtered-note" role="note">
                   CA filtré (équipe / nature). CMV, charges et résultat restent
@@ -598,8 +587,8 @@ export function AnalysePage() {
                 </>
               ) : null}
             </div>
-          </>
-        ) : null}
+          ) : null}
+        </section>
       </div>
     </AppShell>
   );

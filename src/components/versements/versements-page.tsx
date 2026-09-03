@@ -2,9 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/app-shell";
-import { CatalogueSkeleton } from "@/components/parametres/catalogue-view";
 import { useSession } from "@/components/session-provider";
-import "@/components/parametres/parametres-catalogue.css";
 import {
   effectiveSite,
   SITE_LABELS,
@@ -537,7 +535,7 @@ export function VersementsPage() {
             </div>
 
             {loading || !scope ? (
-              <CatalogueSkeleton />
+              <p className="versements-empty">Chargement…</p>
             ) : filtered.length === 0 ? (
               <p className="versements-empty">
                 Aucun versement sur cette période.

@@ -1,60 +1,38 @@
-/* Analyse — disposition type Achats */
+/* Analyse — même format que Versements (sobre) */
 
 .main-analyse .analyse-page {
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 1rem;
   min-width: 0;
 }
 
 .main-analyse .analyse-hero {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 0.65rem 1rem;
-  padding: 0.7rem 0.9rem;
+  gap: 0.85rem 1.25rem;
+  padding: 0.85rem 1rem;
   border: 1px solid var(--line);
   border-radius: 14px;
-  background: linear-gradient(165deg, #f7fafc 0%, #e8f0f6 55%, #eef4f8 100%);
+  background: linear-gradient(180deg, #f8fbfd 0%, #eef4f8 100%);
 }
 
 .main-analyse .analyse-hero-main {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.55rem 0.85rem;
+  flex-direction: column;
+  gap: 0.4rem;
   min-width: 0;
-  flex: 1 1 12rem;
+  flex: 1;
 }
 
-.main-analyse .analyse-period-tabs {
-  display: inline-flex;
-  gap: 0.25rem;
-  padding: 0.2rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 5%, #fff);
-  border: 1px solid var(--line);
-  width: fit-content;
-  flex: 0 0 auto;
+.main-analyse .analyse-hero-note {
   margin: 0;
-}
-
-.main-analyse .analyse-period-tab {
-  border: none;
-  background: transparent;
+  font-size: 0.88rem;
   color: var(--ink-soft);
-  border-radius: 999px;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.86rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.main-analyse .analyse-period-tab.is-active {
-  background: #fff;
-  color: var(--ink);
-  box-shadow: 0 1px 4px color-mix(in srgb, var(--ink) 10%, transparent);
+  line-height: 1.45;
+  max-width: 36rem;
 }
 
 .main-analyse .analyse-hero-window {
@@ -64,46 +42,41 @@
   color: var(--ink);
 }
 
-.main-analyse .analyse-hero-note,
 .main-analyse .analyse-prev-line {
-  display: none;
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
 }
 
 .main-analyse .analyse-kpis {
   display: grid;
-  grid-template-columns: repeat(2, minmax(6.5rem, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(3, minmax(6.5rem, 1fr));
+  gap: 0.5rem;
   flex-shrink: 0;
-}
-
-@media (min-width: 860px) {
-  .main-analyse .analyse-kpis {
-    grid-template-columns: repeat(4, minmax(6.8rem, 1fr));
-  }
 }
 
 .main-analyse .analyse-kpi {
   display: flex;
   flex-direction: column;
-  gap: 0.1rem;
-  min-width: 0;
-  padding: 0.5rem 0.65rem;
-  border-radius: 10px;
+  gap: 0.12rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
   border: 1px solid var(--line);
-  background: #fff;
-  line-height: 1.15;
+  background: var(--surface);
+  line-height: 1.2;
+  min-width: 0;
 }
 
 .main-analyse .analyse-kpi span {
-  font-size: 0.62rem;
-  font-weight: 750;
-  letter-spacing: 0.04em;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
 
 .main-analyse .analyse-kpi strong {
-  font-size: clamp(0.85rem, 1.8vw, 0.98rem);
+  font-size: 0.98rem;
   font-weight: 800;
   word-break: break-word;
 }
@@ -115,13 +88,18 @@
 }
 
 .main-analyse .analyse-kpi.is-gold {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-  background: color-mix(in srgb, var(--accent) 12%, #fff);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 
 .main-analyse .analyse-kpi.is-blue {
   border-color: color-mix(in srgb, var(--sidebar) 30%, var(--line));
-  background: color-mix(in srgb, var(--sidebar) 8%, #fff);
+  background: color-mix(in srgb, var(--sidebar) 8%, transparent);
+}
+
+.main-analyse .analyse-kpi.is-ok {
+  border-color: color-mix(in srgb, #16a34a 30%, var(--line));
+  background: color-mix(in srgb, #16a34a 8%, transparent);
 }
 
 .main-analyse .analyse-kpi .is-up {
@@ -132,52 +110,84 @@
   color: #b91c1c;
 }
 
+.main-analyse .analyse-board {
+  min-width: 0;
+  padding: 1rem 1.05rem 1.15rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.main-analyse .analyse-board-body.is-loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.main-analyse .analyse-board-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.main-analyse .analyse-board-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
 /* Écrase globals .analyse-toolbar (column + sticky) */
 .main-analyse .analyse-toolbar {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
   align-items: end;
-  gap: 0.45rem 0.55rem;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--surface);
+  justify-content: space-between;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
   position: static;
   top: auto;
   z-index: auto;
   flex-direction: row;
 }
 
-@media (min-width: 720px) {
-  .main-analyse .analyse-toolbar {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+.main-analyse .analyse-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.main-analyse .analyse-filters .analyse-field {
+  flex: 1 1 7.5rem;
 }
 
 .main-analyse .analyse-field {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.28rem;
   min-width: 0;
   flex: none;
   width: auto;
 }
 
 .main-analyse .analyse-field span {
-  font-size: 0.65rem;
-  font-weight: 750;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  font-size: 0.75rem;
+  font-weight: 700;
   color: var(--ink-soft);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .main-analyse .analyse-field input,
 .main-analyse .analyse-field select {
   width: 100%;
-  min-height: 2.35rem;
-  padding: 0.35rem 0.55rem;
+  min-height: 2.55rem;
+  padding: 0.55rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 10px;
   background: #fff;
   font-size: 16px;
   color: var(--ink);
@@ -190,80 +200,43 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar) 14%, transparent);
 }
 
-.main-analyse .analyse-section-nav {
+.main-analyse .analyse-section-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
-  padding: 0.22rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--ink) 3.5%, var(--surface));
+  gap: 0.35rem;
 }
 
-.main-analyse .analyse-section-tab {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.35rem;
-  flex: 1 1 5.5rem;
-  min-height: 2.25rem;
-  padding: 0.35rem 0.65rem;
-  border: none;
-  border-radius: 9px;
-  background: transparent;
+.main-analyse .analyse-filter-chip {
+  border: 1px solid var(--line);
+  background: #f8f9fb;
   color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
   font-weight: 650;
-  font-size: 0.86rem;
   cursor: pointer;
 }
 
-.main-analyse .analyse-section-tab.is-active {
-  background: #fff;
+.main-analyse .analyse-filter-chip.is-active {
+  border-color: var(--sidebar-mid, var(--sidebar));
+  background: color-mix(in srgb, var(--sidebar) 10%, var(--surface));
   color: var(--ink);
   font-weight: 750;
-  box-shadow: 0 1px 5px color-mix(in srgb, var(--ink) 9%, transparent);
 }
 
-.main-analyse .analyse-section-badge {
-  display: inline-flex;
-  min-width: 1.3rem;
-  justify-content: center;
-  padding: 0.08rem 0.35rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 20%, transparent);
-  font-size: 0.7rem;
-  font-weight: 750;
-}
-
-.main-analyse .analyse-board {
+.main-analyse .analyse-period-filters {
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  min-width: 0;
-  padding: 1.05rem 1.1rem 1.2rem;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--paper);
-}
-
-.main-analyse .analyse-board.is-loading {
-  opacity: 0.6;
-  pointer-events: none;
-}
-
-.main-analyse .analyse-board-title {
-  margin: 0;
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -0.015em;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  flex: 1 0 100%;
 }
 
 .main-analyse .analyse-filtered-note {
-  margin: 0;
-  padding: 0.65rem 0.85rem;
-  border-radius: 10px;
+  margin: 0 0 0.85rem;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
   border: 1px solid var(--line);
-  background: color-mix(in srgb, var(--sidebar) 6%, #fff);
+  background: color-mix(in srgb, var(--sidebar) 6%, transparent);
   font-size: 0.85rem;
   color: var(--ink-soft);
 }
@@ -271,7 +244,8 @@
 .main-analyse .analyse-health {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 0.65rem;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
 }
 
 @media (min-width: 720px) {
@@ -296,7 +270,7 @@
   border: 1px solid var(--line);
   border-left-width: 4px;
   border-left-color: #c5ccd6;
-  background: #fff;
+  background: var(--surface);
 }
 
 .main-analyse .analyse-health-card.is-ok {
@@ -349,7 +323,7 @@
   padding: 0.85rem 0.95rem;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
 }
 
 .main-analyse .analyse-brief {
@@ -373,7 +347,7 @@
   padding: 0.85rem 0.9rem;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
 }
 
 .main-analyse .analyse-brief-col .panel-title {
@@ -387,7 +361,7 @@
   gap: 0.35rem;
   padding: 0.7rem 0.8rem;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
+  border: 1px solid var(--line);
   background: color-mix(in srgb, var(--ink) 2%, #fff);
 }
 
@@ -480,11 +454,11 @@
 }
 
 .main-analyse .analyse-notes {
-  margin: 0;
+  margin: 0.85rem 0 0;
   padding: 0.85rem 0.95rem;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface);
 }
 
 .main-analyse .analyse-notes summary {
@@ -518,10 +492,14 @@
 
 .main-analyse .analyse-empty {
   margin: 0;
-  padding: 1.75rem 1rem;
+  padding: 1.75rem 0.75rem;
   text-align: center;
   color: var(--ink-soft);
-  border: 1px dashed var(--line);
-  border-radius: 14px;
-  background: var(--surface);
+}
+
+@media (max-width: 720px) {
+  .main-analyse .analyse-kpis {
+    width: 100%;
+    grid-template-columns: 1fr;
+  }
 }
