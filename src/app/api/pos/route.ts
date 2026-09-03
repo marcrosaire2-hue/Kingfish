@@ -21,6 +21,7 @@ import {
 } from "@/lib/pos-repo";
 import { getSiteRolesConfig } from "@/lib/site-roles-repo";
 import type { SaleType, VenteKind, VenteSite } from "@/lib/types";
+import { notifySaleTicketAsync } from "@/lib/mail/notify-sale";
 import { reportError } from "@/lib/report-error";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
@@ -169,6 +170,7 @@ export async function POST(request: Request) {
         site,
         amount: result.ticket.montant,
       });
+      notifySaleTicketAsync(result.ticket);
       return NextResponse.json(result);
     }
 

@@ -87,10 +87,13 @@ export async function middleware(request: NextRequest) {
 
   if (
     pathname.startsWith("/api/auth/login") ||
+    pathname.startsWith("/api/mail/cron") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     PWA_PUBLIC.includes(pathname)
   ) {
+    // /api/mail/cron : auth par Bearer MAIL_CRON_SECRET (ou session admin),
+    // contrôlée dans la route — pas de cookie requis pour Render Cron.
     return NextResponse.next();
   }
 

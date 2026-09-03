@@ -25,6 +25,7 @@ import { exportAdminUsersExcel } from "@/lib/page-exports";
 import { BrandLoader } from "@/components/brand-loader";
 import { AutorisationsEditor } from "@/components/admin/autorisations-editor";
 import { ConnexionsPanel } from "@/components/admin/connexions-panel";
+import { MailAlertsPanel } from "@/components/admin/mail-alerts-panel";
 import { StockEnforcementPanel } from "@/components/admin/stock-enforcement-panel";
 import { VentesLiveNotifier } from "@/components/admin/ventes-live-notifier";
 import { SiteRolesEditor } from "@/components/reglages/site-roles-editor";
@@ -36,7 +37,12 @@ const ALL_ROLES: UserRole[] = [
   "admin",
 ];
 
-type AdminSection = "comptes" | "connexions" | "ventes" | "autorisations";
+type AdminSection =
+  | "comptes"
+  | "connexions"
+  | "ventes"
+  | "autorisations"
+  | "mails";
 
 type ActorInfo = Pick<SessionUser, "id" | "username" | "role" | "site"> & {
   isGlobal: boolean;
@@ -386,6 +392,17 @@ export function AdminPage() {
               onClick={() => setSection("autorisations")}
             >
               Autorisations
+            </button>
+          ) : null}
+          {showAutorisations ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={section === "mails"}
+              className={`admin-section-tab${section === "mails" ? " is-active" : ""}`}
+              onClick={() => setSection("mails")}
+            >
+              Alertes mail
             </button>
           ) : null}
         </nav>
@@ -794,6 +811,12 @@ export function AdminPage() {
         {section === "autorisations" && showAutorisations ? (
           <div className="admin-section-panel" role="tabpanel">
             <AutorisationsEditor embedded />
+          </div>
+        ) : null}
+
+        {section === "mails" && showAutorisations ? (
+          <div className="admin-section-panel" role="tabpanel">
+            <MailAlertsPanel />
           </div>
         ) : null}
       </div>

@@ -16,7 +16,8 @@
     "excel:import": "node --env-file=.env.local scripts/import-ventes-jour-excel.mjs --dry-run",
     "excel:import:apply": "node --env-file=.env.local scripts/import-ventes-jour-excel.mjs --apply",
     "resync:sold": "node --env-file=.env.local scripts/resync-sold-depuis-ventes-log.mjs",
-    "resync:sold:apply": "node --env-file=.env.local scripts/resync-sold-depuis-ventes-log.mjs --apply"
+    "resync:sold:apply": "node --env-file=.env.local scripts/resync-sold-depuis-ventes-log.mjs --apply",
+    "gmail:oauth": "node --env-file=.env.local scripts/gmail-oauth-setup.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
@@ -24,6 +25,7 @@
     "@zxing/browser": "^0.2.1",
     "bcryptjs": "^3.0.3",
     "cloudinary": "^2.11.0",
+    "googleapis": "^178.0.0",
     "jose": "^6.2.8",
     "mongodb": "^7.5.0",
     "next": "16.3.0",
