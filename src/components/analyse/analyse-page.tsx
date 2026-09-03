@@ -17,14 +17,15 @@ import {
 import { formatFcfa } from "@/lib/format";
 import { SITE_LABELS } from "@/lib/auth-types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
-import type {
-  AnalysePeriod,
-  AnalyseReport,
-  HealthCard,
-  HealthTone,
-  Insight,
-  InsightKind,
-  ProductAdvice,
+import {
+  lastDayOfMonth,
+  type AnalysePeriod,
+  type AnalyseReport,
+  type HealthCard,
+  type HealthTone,
+  type Insight,
+  type InsightKind,
+  type ProductAdvice,
 } from "@/lib/analyse-calc";
 
 type Payload = {
@@ -224,7 +225,15 @@ export function AnalysePage() {
         <DashboardToolbar
           tabs={PERIODS}
           activeTab={period}
-          onTabChange={(id) => setPeriod(id as AnalysePeriod)}
+          onTabChange={(id) => {
+            const next = id as AnalysePeriod;
+            setPeriod(next);
+            if (next === "month") {
+              const today = todayIsoDate();
+              // Mois en cours : jusqu’à aujourd’hui. Sinon on garde la date.
+              if (date.slice(0, 7) === today.slice(0, 7)) setDate(today);
+            }
+          }}
           filters={
             <>
               <label className="date-field date-field-pill">
@@ -235,16 +244,31 @@ export function AnalysePage() {
                       ? "Semaine du"
                       : "Mois"}
                 </span>
-                <input
-                  type="date"
-                  value={date}
-                  max={todayIsoDate()}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-                    setDate(v);
-                  }}
-                />
+                {period === "month" ? (
+                  <input
+                    type="month"
+                    value={date.slice(0, 7)}
+                    max={todayIsoDate().slice(0, 7)}
+                    onChange={(e) => {
+                      const ym = e.target.value;
+                      if (!/^\d{4}-\d{2}$/.test(ym)) return;
+                      const today = todayIsoDate();
+                      const end = lastDayOfMonth(ym);
+                      setDate(ym === today.slice(0, 7) ? today : end);
+                    }}
+                  />
+                ) : (
+                  <input
+                    type="date"
+                    value={date}
+                    max={todayIsoDate()}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                      setDate(v);
+                    }}
+                  />
+                )}
               </label>
               {lockedSite ? null : (
                 <label className="date-field date-field-pill">
@@ -326,6 +350,12 @@ export function AnalysePage() {
                       </span>
                     </div>
                     <div className="dash-ca-final-side">
+                      <div>
+                        <span>CA {report.window.previousLabel}</span>
+                        <strong className="mono">
+                          {formatFcfa(report.previous.caNet)}
+                        </strong>
+                      </div>
                       <div>
                         <span>Marge brute</span>
                         <strong className="mono">

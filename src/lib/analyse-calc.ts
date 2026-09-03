@@ -183,18 +183,27 @@ export function listIsoDates(from: string, to: string): string[] {
   return out;
 }
 
-function capDay(yearMonth: string, day: number): string {
-  const last = lastDayOfMonth(yearMonth);
-  const lastDay = Number(last.slice(8));
-  const d = Math.min(day, lastDay);
-  return `${yearMonth}-${String(d).padStart(2, "0")}`;
-}
-
 function previousYearMonth(yearMonth: string): string {
   const year = Number(yearMonth.slice(0, 4));
   const month = Number(yearMonth.slice(5, 7));
   if (month === 1) return `${year - 1}-12`;
   return `${year}-${String(month - 1).padStart(2, "0")}`;
+}
+
+/** Libellé calendaire fr (ex. « septembre 2026 »). */
+export function monthTitleFr(yearMonth: string): string {
+  const year = Number(yearMonth.slice(0, 4));
+  const month = Number(yearMonth.slice(5, 7));
+  if (!year || !month) return yearMonth;
+  try {
+    return new Intl.DateTimeFormat("fr-FR", {
+      month: "long",
+      year: "numeric",
+      timeZone: "UTC",
+    }).format(new Date(Date.UTC(year, month - 1, 1)));
+  } catch {
+    return yearMonth;
+  }
 }
 
 export function analyseWindow(
@@ -229,19 +238,30 @@ export function analyseWindow(
       previousLabel: "7 jours précédents",
     };
   }
+  // Mois calendaire : période courante = du 1er à la date de référence
+  // (souvent aujourd’hui) ; comparaison = mois précédent **entier**,
+  // pour coller à la réalité financière (pas seulement le même nombre de jours).
   const month = date.slice(0, 7);
   const from = `${month}-01`;
-  const day = Number(date.slice(8));
+  const monthEnd = lastDayOfMonth(month);
+  const to = date < monthEnd ? date : monthEnd;
   const prevMonth = previousYearMonth(month);
+  const previousFrom = `${prevMonth}-01`;
+  const previousTo = lastDayOfMonth(prevMonth);
+  const title = monthTitleFr(month);
+  const prevTitle = monthTitleFr(prevMonth);
+  const currentComplete = to === monthEnd;
   return {
     from,
-    to: date,
-    previousFrom: `${prevMonth}-01`,
-    previousTo: capDay(prevMonth, day),
+    to,
+    previousFrom,
+    previousTo,
     period,
     date,
-    label: `Mois jusqu’au ${date}`,
-    previousLabel: "Même durée le mois précédent",
+    label: currentComplete
+      ? `${title} (mois complet)`
+      : `${title} (du 1 au ${Number(to.slice(8))})`,
+    previousLabel: `${prevTitle} (mois complet)`,
   };
 }
 
@@ -897,6 +917,7 @@ export function buildInsights(input: {
 export function buildLimitations(
   filteredCa: boolean,
   products: RankedProduct[],
+  window?: AnalyseWindow,
 ): string[] {
   const out = [
     "Les recommandations ne déclenchent aucune écriture, commande, prix ou mouvement de stock.",
@@ -909,6 +930,28 @@ export function buildLimitations(
     out.push(
       "Filtre équipe ou nature : le CA affiché est filtré ; CMV, charges et résultat restent au périmètre maison / site.",
     );
+  }
+  if (
+    window?.period === "month" &&
+    (window.to !== window.from || window.previousTo !== window.previousFrom)
+  ) {
+    const curDays =
+      Math.round(
+        (Date.parse(`${window.to}T12:00:00Z`) -
+          Date.parse(`${window.from}T12:00:00Z`)) /
+          86_400_000,
+      ) + 1;
+    const prevDays =
+      Math.round(
+        (Date.parse(`${window.previousTo}T12:00:00Z`) -
+          Date.parse(`${window.previousFrom}T12:00:00Z`)) /
+          86_400_000,
+      ) + 1;
+    if (curDays !== prevDays) {
+      out.push(
+        `Comparaison mois : période courante = ${curDays} jour(s), mois précédent = ${prevDays} jour(s) complets. Les % d’évolution ne sont pas à durée égale.`,
+      );
+    }
   }
   if (products.some((p) => !p.costKnown)) {
     out.push(
@@ -950,7 +993,11 @@ export function buildAnalyseReport(input: {
     byKind: input.byKind,
     bySite: input.bySite,
     byShift: input.byShift,
-    limitations: buildLimitations(input.filteredCa, input.products),
+    limitations: buildLimitations(
+      input.filteredCa,
+      input.products,
+      input.window,
+    ),
   };
 }
 

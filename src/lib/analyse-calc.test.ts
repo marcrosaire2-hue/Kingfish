@@ -59,12 +59,24 @@ describe("fenêtres de comparaison", () => {
     expect(w.previousTo).toBe("2026-08-17");
   });
 
-  it("compare le mois à date au même nombre de jours du mois précédent (y compris février)", () => {
+  it("compare le mois en cours (jusqu’à la date) au mois précédent entier", () => {
+    const w = analyseWindow("month", "2026-03-15");
+    expect(w.from).toBe("2026-03-01");
+    expect(w.to).toBe("2026-03-15");
+    expect(w.previousFrom).toBe("2026-02-01");
+    expect(w.previousTo).toBe("2026-02-28");
+    expect(w.label).toMatch(/mars 2026/i);
+    expect(w.previousLabel).toMatch(/février 2026/i);
+    expect(w.previousLabel).toMatch(/complet/i);
+  });
+
+  it("prend le mois sélectionné en entier quand la date est le dernier jour", () => {
     const w = analyseWindow("month", "2026-03-31");
     expect(w.from).toBe("2026-03-01");
     expect(w.to).toBe("2026-03-31");
     expect(w.previousFrom).toBe("2026-02-01");
     expect(w.previousTo).toBe("2026-02-28");
+    expect(w.label).toMatch(/complet/i);
   });
 });
 
