@@ -21,6 +21,45 @@ export async function isVentesSansStockActive(
   return dayVentesSansStock(day);
 }
 
+export async function getVentesSansStockStatus(date: string): Promise<{
+  date: string;
+  zogbo: boolean;
+  gbegamey: boolean;
+}> {
+  const [zogbo, gbegamey] = await Promise.all([
+    getZogboDayPayload(date),
+    getGbegameyDayPayload(date),
+  ]);
+  return {
+    date,
+    zogbo: dayVentesSansStock(zogbo.day),
+    gbegamey: dayVentesSansStock(gbegamey.day),
+  };
+}
+
+/** Active ou désactive la vente libre (hors stock) pour un site et une date. */
+export async function setVentesSansStock(
+  date: string,
+  site: VenteSite,
+  ventesSansStock: boolean,
+): Promise<void> {
+  const collection = site === "zogbo" ? "zogbo_jours" : "gbegamey_jours";
+  const db = await getDb();
+  const updatedAt = new Date().toISOString();
+  await db.collection(collection).updateOne(
+    { _id: date as never },
+    {
+      $set: {
+        ventesSansStock,
+        updatedAt,
+        source: "admin-stock-policy",
+      },
+      $setOnInsert: { status: "ouverte" },
+    },
+    { upsert: true },
+  );
+}
+
 /** Fin du mode vente libre après une saisie de stock. */
 export async function endVentesSansStock(
   date: string,

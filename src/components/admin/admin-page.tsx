@@ -25,6 +25,7 @@ import { exportAdminUsersExcel } from "@/lib/page-exports";
 import { BrandLoader } from "@/components/brand-loader";
 import { AutorisationsEditor } from "@/components/admin/autorisations-editor";
 import { ConnexionsPanel } from "@/components/admin/connexions-panel";
+import { StockEnforcementPanel } from "@/components/admin/stock-enforcement-panel";
 import { VentesLiveNotifier } from "@/components/admin/ventes-live-notifier";
 import { SiteRolesEditor } from "@/components/reglages/site-roles-editor";
 
@@ -783,7 +784,10 @@ export function AdminPage() {
 
         {section === "ventes" ? (
           <div className="admin-section-panel" role="tabpanel">
-            <SiteRolesEditor />
+            <div className="admin-ventes-stack">
+              <StockEnforcementPanel />
+              <SiteRolesEditor />
+            </div>
           </div>
         ) : null}
 

@@ -2779,6 +2779,62 @@ select {
   align-items: start;
 }
 
+.admin-ventes-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.admin-stock-policy-lead {
+  margin: 0;
+  max-width: 40rem;
+  line-height: 1.45;
+}
+
+.admin-stock-policy-date {
+  margin: 0 0 0.85rem;
+  padding: 0 0.95rem;
+}
+
+.admin-stock-policy-flash {
+  margin: 0 0.85rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, #16a34a 12%, transparent);
+  border: 1px solid color-mix(in srgb, #16a34a 35%, transparent);
+  color: #166534;
+  font-weight: 650;
+}
+
+.admin-stock-policy-list {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.95rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.admin-stock-policy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.admin-stock-policy-row-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
 .admin-authz-stack {
   display: flex;
   flex-direction: column;
