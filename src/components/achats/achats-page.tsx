@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
+import { BrandLoader } from "@/components/brand-loader";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { CataloguePaginationBar } from "@/components/parametres/catalogue-view";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
@@ -24,7 +25,7 @@ function isLibre(m: MatieresMovement): boolean {
 }
 
 const RANGE_FROM = "2020-01-01";
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 12;
 
 type StatutFilter = "all" | "valide" | "corrige" | "annule";
 
@@ -72,8 +73,14 @@ function statutKey(m: MatieresMovement): Exclude<StatutFilter, "all"> {
   return "valide";
 }
 
+function lineTotal(qty: string, price: string): number {
+  const q = Number(String(qty).replace(",", ".")) || 0;
+  const p = Number(String(price).replace(",", ".")) || 0;
+  return q > 0 && p > 0 ? q * p : 0;
+}
+
 export function AchatsPage() {
-  const formRef = useRef<HTMLElement | null>(null);
+  const composerRef = useRef<HTMLElement | null>(null);
   const productInputRef = useRef<HTMLInputElement | null>(null);
 
   const [entries, setEntries] = useState<
@@ -168,12 +175,14 @@ export function AchatsPage() {
     setPage(1);
   }, [debouncedSearch, statutFilter]);
 
-  function focusNewPurchase() {
-    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    window.setTimeout(() => productInputRef.current?.focus(), 280);
+  function focusComposer() {
+    composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => productInputRef.current?.focus(), 220);
   }
 
-  async function submitPurchaseLibre(row: DraftLibre) {
+  async function submitPurchaseLibre(e?: FormEvent) {
+    e?.preventDefault();
+    const row = draftLibre;
     const name = row.name.trim();
     const qty = Number(String(row.qty).replace(",", ".")) || 0;
     const price = Number(String(row.price).replace(",", ".")) || 0;
@@ -216,8 +225,8 @@ export function AchatsPage() {
         setFlash("Achat enregistré — caisse fermée : aucune dépense liée.");
       }
       reload();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
     } finally {
       setBusyLibre(false);
     }
@@ -229,11 +238,25 @@ export function AchatsPage() {
     0,
   );
   const totalCount = actifs.length;
+  const lastDate = sorted[0]?.date ?? null;
+  const draftTotal = lineTotal(draftLibre.qty, draftLibre.price);
+  const counts = useMemo(() => {
+    let valide = 0;
+    let corrige = 0;
+    let annule = 0;
+    for (const { movement: m } of entries) {
+      const k = statutKey(m);
+      if (k === "valide") valide += 1;
+      else if (k === "corrige") corrige += 1;
+      else annule += 1;
+    }
+    return { valide, corrige, annule, all: entries.length };
+  }, [entries]);
 
   return (
     <AppShell
       title="Achats"
-      subtitle="Hors catalogue uniquement. Les matières du catalogue se saisissent dans Approvisionnement."
+      subtitle="Hors catalogue — les matières se saisissent dans Approvisionnement."
       mainClassName="main-achats"
       actions={
         <>
@@ -253,7 +276,7 @@ export function AchatsPage() {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={focusNewPurchase}
+            onClick={focusComposer}
           >
             + Nouvel achat
           </button>
@@ -261,30 +284,20 @@ export function AchatsPage() {
       }
     >
       <div className="achats-page">
-        <header className="achats-hero">
-          <div className="achats-hero-main">
-            <p className="achats-hero-note">
-              Achats libres — produits hors catalogue. Les sorties de caisse
-              liées restent visibles dans Caisse.
-            </p>
-            <p className="achats-hero-note is-warn">
-              Pour un équipement durable ou un emballage revendu en caisse,
-              utilisez plutôt{" "}
-              <Link href="/immobilisations">Immobilisations</Link> — ne
-              saisissez pas le même achat aux deux endroits.
-            </p>
-          </div>
-          <div className="achats-kpis" aria-label="Totaux achats">
-            <div className="achats-kpi is-gold">
-              <span>Total actif</span>
-              <strong>{loading ? "…" : formatFcfa(totalMontant)}</strong>
-            </div>
-            <div className="achats-kpi is-blue">
-              <span>Enregistrements</span>
-              <strong>{loading ? "…" : totalCount}</strong>
-            </div>
-          </div>
-        </header>
+        <div className="achats-stats" aria-label="Totaux achats">
+          <article className="achats-stat is-gold">
+            <span>Total actif</span>
+            <strong>{loading ? "…" : formatFcfa(totalMontant)}</strong>
+          </article>
+          <article className="achats-stat is-blue">
+            <span>Lignes</span>
+            <strong>{loading ? "…" : totalCount}</strong>
+          </article>
+          <article className="achats-stat">
+            <span>Dernier achat</span>
+            <strong>{loading ? "…" : lastDate ? formatDateFr(lastDate) : "—"}</strong>
+          </article>
+        </div>
 
         {error ? (
           <p className="error-banner" role="alert">
@@ -305,197 +318,224 @@ export function AchatsPage() {
           </p>
         ) : null}
 
-        <div className="achats-layout">
-          <section
-            className="achats-declare"
-            ref={formRef}
-            id="nouvel-achat"
-            aria-label="Nouvel achat libre"
-          >
-            <h2>Nouvel achat libre</h2>
-            <div className="achats-form">
-              <label className="achats-field">
-                <span>Date</span>
-                <input
-                  type="date"
-                  value={draftLibre.date}
-                  max={todayIsoDate()}
-                  onChange={(e) =>
-                    setDraftLibre((d) => ({ ...d, date: e.target.value }))
-                  }
-                  aria-label="Date de l'achat"
-                />
-              </label>
-              <label className="achats-field">
-                <span>Produit</span>
-                <input
-                  ref={productInputRef}
-                  type="text"
-                  placeholder="Nom du produit…"
-                  value={draftLibre.name}
-                  onChange={(e) =>
-                    setDraftLibre((d) => ({ ...d, name: e.target.value }))
-                  }
-                  aria-label="Nom du produit acheté"
-                />
-              </label>
-              <label className="achats-field">
-                <span>Quantité</span>
+        <section
+          ref={composerRef}
+          className="achats-composer"
+          id="nouvel-achat"
+          aria-label="Saisie d’un achat libre"
+        >
+          <header className="achats-composer-head">
+            <h2>Saisie rapide</h2>
+            <p>
+              Une fois enregistré, l’achat n’est ni modifiable ni annulable.{" "}
+              <Link href="/immobilisations">Immobilisations</Link> pour un
+              équipement durable.
+            </p>
+          </header>
+          <form className="achats-composer-grid" onSubmit={submitPurchaseLibre}>
+            <label className="achats-field">
+              <span>Date</span>
+              <input
+                type="date"
+                value={draftLibre.date}
+                max={todayIsoDate()}
+                onChange={(e) =>
+                  setDraftLibre((d) => ({ ...d, date: e.target.value }))
+                }
+                required
+              />
+            </label>
+            <label className="achats-field achats-field-grow">
+              <span>Produit</span>
+              <input
+                ref={productInputRef}
+                type="text"
+                placeholder="Nom du produit…"
+                value={draftLibre.name}
+                onChange={(e) =>
+                  setDraftLibre((d) => ({ ...d, name: e.target.value }))
+                }
+                autoComplete="off"
+                required
+              />
+            </label>
+            <label className="achats-field">
+              <span>Qté</span>
+              <input
+                type="number"
+                min={0}
+                step="any"
+                placeholder="0"
+                value={draftLibre.qty}
+                onChange={(e) =>
+                  setDraftLibre((d) => ({ ...d, qty: e.target.value }))
+                }
+                required
+              />
+            </label>
+            <label className="achats-field">
+              <span>Prix / u</span>
+              <div className="achats-price-wrap">
                 <input
                   type="number"
                   min={0}
                   step="any"
-                  placeholder="Qté"
-                  value={draftLibre.qty}
+                  placeholder="0"
+                  value={draftLibre.price}
                   onChange={(e) =>
-                    setDraftLibre((d) => ({ ...d, qty: e.target.value }))
+                    setDraftLibre((d) => ({ ...d, price: e.target.value }))
                   }
-                  aria-label="Quantité achetée"
+                  required
                 />
-              </label>
-              <label className="achats-field">
-                <span>Prix unitaire</span>
-                <div className="achats-price-wrap">
-                  <input
-                    type="number"
-                    min={0}
-                    step="any"
-                    placeholder="Prix / u"
-                    value={draftLibre.price}
-                    onChange={(e) =>
-                      setDraftLibre((d) => ({ ...d, price: e.target.value }))
-                    }
-                    aria-label="Prix unitaire"
-                  />
-                  <span className="achats-price-suffix">FCFA</span>
-                </div>
-              </label>
-              {fournisseurs.length > 0 ? (
-                <label className="achats-field">
-                  <span>Fournisseur</span>
-                  <select
-                    value={draftLibre.fournisseurId}
-                    onChange={(e) =>
-                      setDraftLibre((d) => ({
-                        ...d,
-                        fournisseurId: e.target.value,
-                      }))
-                    }
-                    aria-label="Fournisseur"
-                  >
-                    <option value="">Fournisseur…</option>
-                    {fournisseurs.map((f) => (
-                      <option key={f.id} value={f.id}>
-                        {f.nom}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              ) : null}
-              <button
-                type="button"
-                className="btn btn-primary achats-submit"
-                disabled={busyLibre}
-                onClick={() => void submitPurchaseLibre(draftLibre)}
-              >
-                {busyLibre ? "…" : "+ Enregistrer"}
-              </button>
-            </div>
-            <p className="achats-form-hint">
-              Date réelle, nom, quantité et prix. Une fois enregistré, l&apos;achat
-              n&apos;est ni modifiable ni annulable.
-            </p>
-          </section>
-
-          <section className="achats-board" aria-label="Registre des achats">
-            <div className="achats-board-head">
-              <h2>Registre</h2>
-              <div className="achats-toolbar">
-                <input
-                  type="search"
-                  className="achats-search"
-                  placeholder="Rechercher un achat…"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  aria-label="Rechercher un achat"
-                />
-                <div
-                  className="achats-status-filters"
-                  role="group"
-                  aria-label="Filtre statut"
+                <span className="achats-price-suffix">F</span>
+              </div>
+            </label>
+            {fournisseurs.length > 0 ? (
+              <label className="achats-field achats-field-grow">
+                <span>Fournisseur</span>
+                <select
+                  value={draftLibre.fournisseurId}
+                  onChange={(e) =>
+                    setDraftLibre((d) => ({
+                      ...d,
+                      fournisseurId: e.target.value,
+                    }))
+                  }
                 >
-                  {(
-                    [
-                      ["all", "Tous"],
-                      ["valide", "Validé"],
-                      ["corrige", "Corrigé"],
-                      ["annule", "Annulé"],
-                    ] as const
-                  ).map(([key, label]) => (
-                    <button
-                      key={key}
-                      type="button"
-                      className={`achats-filter-chip${statutFilter === key ? " is-active" : ""}`}
-                      onClick={() => setStatutFilter(key)}
-                    >
-                      {label}
-                    </button>
+                  <option value="">Sans fournisseur</option>
+                  {fournisseurs.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.nom}
+                    </option>
                   ))}
-                </div>
+                </select>
+              </label>
+            ) : null}
+            <div className="achats-composer-total">
+              <span>Montant</span>
+              <strong>{draftTotal > 0 ? formatFcfa(draftTotal) : "—"}</strong>
+            </div>
+            <button
+              type="submit"
+              className="btn btn-primary achats-submit"
+              disabled={busyLibre}
+            >
+              {busyLibre ? "…" : "Enregistrer"}
+            </button>
+          </form>
+        </section>
+
+        <section className="achats-ledger" aria-label="Registre des achats">
+          <div className="achats-ledger-head">
+            <h2>Registre</h2>
+            <div className="achats-toolbar">
+              <input
+                type="search"
+                className="achats-search"
+                placeholder="Rechercher un achat…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="Rechercher un achat"
+              />
+              <div
+                className="achats-status-filters"
+                role="group"
+                aria-label="Filtre statut"
+              >
+                {(
+                  [
+                    ["all", "Tous", counts.all],
+                    ["valide", "Validé", counts.valide],
+                    ["corrige", "Corrigé", counts.corrige],
+                    ["annule", "Annulé", counts.annule],
+                  ] as const
+                ).map(([key, label, count]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`achats-filter-chip${statutFilter === key ? " is-active" : ""}`}
+                    onClick={() => setStatutFilter(key)}
+                  >
+                    {label}
+                    <i>{count}</i>
+                  </button>
+                ))}
               </div>
             </div>
+          </div>
 
-            {loading ? (
-              <p className="muted">Chargement…</p>
-            ) : filtered.length === 0 ? (
-              <div className="achats-empty">
-                <strong>
-                  {sorted.length === 0
-                    ? "Aucun achat enregistré"
-                    : "Aucun achat trouvé"}
-                </strong>
-                <span>
-                  {sorted.length === 0
-                    ? "Saisissez un premier achat libre à gauche."
-                    : "Modifiez votre recherche ou vos filtres."}
-                </span>
-                {sorted.length === 0 ? (
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    style={{ marginTop: "0.85rem" }}
-                    onClick={focusNewPurchase}
-                  >
-                    + Nouvel achat
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <>
-                <ul className="achats-list">
-                  {paged.items.map(({ date: d, movement: m }) => {
-                    const open = detailId === m.id;
-                    return (
-                      <li
-                        key={m.id}
-                        className={`achats-row${m.cancelledAt ? " is-warn" : ""}${open ? " is-open" : ""}`}
-                      >
-                        <div className="achats-row-top">
-                          <div className="achats-row-main">
-                            <span className="achats-row-name">{m.name}</span>
-                            <p className="achats-row-meta">
-                              {formatDateFr(d)}
-                              {m.fournisseurNom
-                                ? ` · ${m.fournisseurNom}`
-                                : " · Sans fournisseur"}
-                              {" · "}
-                              {m.qty} × {formatFcfa(m.unitPrice)}
-                            </p>
-                          </div>
-                          <div className="achats-row-side">
-                            <span className="achats-row-amount">
-                              {formatFcfa(m.qty * m.unitPrice)}
-                            </span>
+          {loading ? (
+            <BrandLoader label="Chargement des achats…" variant="ligne" />
+          ) : filtered.length === 0 ? (
+            <div className="achats-empty">
+              <strong>
+                {sorted.length === 0
+                  ? "Aucun achat enregistré"
+                  : "Aucun achat trouvé"}
+              </strong>
+              <span>
+                {sorted.length === 0
+                  ? "Saisissez la première ligne dans la barre du haut."
+                  : "Modifiez votre recherche ou vos filtres."}
+              </span>
+              {sorted.length === 0 ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={focusComposer}
+                >
+                  + Nouvel achat
+                </button>
+              ) : null}
+            </div>
+          ) : (
+            <>
+              <div className="table-scroll">
+                <table className="data-table achats-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Produit</th>
+                      <th>Fournisseur</th>
+                      <th className="num">Qté</th>
+                      <th className="num">Prix / u</th>
+                      <th className="num">Montant</th>
+                      <th>Statut</th>
+                      <th className="achats-col-action">
+                        <span className="sr-only">Détail</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paged.items.map(({ date: d, movement: m }) => {
+                      const open = detailId === m.id;
+                      const montant = m.qty * m.unitPrice;
+                      return (
+                        <tr
+                          key={m.id}
+                          className={`${m.cancelledAt ? "is-cancelled" : ""}${open ? " is-open" : ""}`}
+                        >
+                          <td className="achats-td-date">{formatDateFr(d)}</td>
+                          <td>
+                            <strong className="achats-td-name">{m.name}</strong>
+                            {open ? (
+                              <p className="achats-td-detail">
+                                {m.qty} × {formatFcfa(m.unitPrice)} ={" "}
+                                {formatFcfa(montant)}
+                                {m.depenseId
+                                  ? " · Dépense de caisse liée"
+                                  : " · Pas de dépense liée"}
+                                {" · Lecture seule"}
+                              </p>
+                            ) : null}
+                          </td>
+                          <td>{m.fournisseurNom || "—"}</td>
+                          <td className="num mono">{m.qty}</td>
+                          <td className="num mono">{formatFcfa(m.unitPrice)}</td>
+                          <td className="num mono achats-td-amount">
+                            {formatFcfa(montant)}
+                          </td>
+                          <td>
                             <span
                               className={`achats-status${
                                 m.cancelledAt
@@ -507,44 +547,36 @@ export function AchatsPage() {
                             >
                               {statutLabel(m)}
                             </span>
-                          </div>
-                        </div>
-                        <div className="achats-row-actions">
-                          <button
-                            type="button"
-                            className="btn btn-ghost btn-sm"
-                            aria-expanded={open}
-                            onClick={() => setDetailId(open ? null : m.id)}
-                          >
-                            {open ? "Masquer" : "Détail"}
-                          </button>
-                        </div>
-                        {open ? (
-                          <p className="achats-row-detail">
-                            {m.qty} × {formatFcfa(m.unitPrice)} ={" "}
-                            {formatFcfa(m.qty * m.unitPrice)}
-                            {m.depenseId ? " · Dépense de caisse liée" : ""}
-                            {" · Lecture seule (non modifiable)"}
-                          </p>
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
+                          </td>
+                          <td className="achats-col-action">
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              aria-expanded={open}
+                              onClick={() => setDetailId(open ? null : m.id)}
+                            >
+                              {open ? "Masquer" : "Détail"}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
 
-                <CataloguePaginationBar
-                  from={paged.from}
-                  to={paged.to}
-                  total={paged.total}
-                  page={paged.page}
-                  totalPages={paged.totalPages}
-                  onPage={setPage}
-                  itemLabel="achat"
-                />
-              </>
-            )}
-          </section>
-        </div>
+              <CataloguePaginationBar
+                from={paged.from}
+                to={paged.to}
+                total={paged.total}
+                page={paged.page}
+                totalPages={paged.totalPages}
+                onPage={setPage}
+                itemLabel="achat"
+              />
+            </>
+          )}
+        </section>
       </div>
     </AppShell>
   );

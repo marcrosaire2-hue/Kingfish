@@ -1,79 +1,58 @@
+/* Achats — saisie rapide + registre tableau */
+
 .main-achats .achats-page {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-}
-
-.main-achats .achats-hero {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.85rem 1.25rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #f8fbfd 0%, #eef4f8 100%);
-}
-
-.main-achats .achats-hero-main {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
   min-width: 0;
-  flex: 1;
 }
 
-.main-achats .achats-hero-note {
-  margin: 0;
-  font-size: 0.88rem;
-  color: var(--ink-soft);
-  line-height: 1.45;
-}
-
-.main-achats .achats-hero-note.is-warn {
-  color: #9a6700;
-}
-
-.main-achats .achats-kpis {
+.main-achats .achats-stats {
   display: grid;
-  grid-template-columns: repeat(2, minmax(7.5rem, 1fr));
-  gap: 0.5rem;
-  flex-shrink: 0;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
 }
 
-.main-achats .achats-kpi {
+@media (min-width: 720px) {
+  .main-achats .achats-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.main-achats .achats-stat {
   display: flex;
   flex-direction: column;
-  gap: 0.12rem;
-  padding: 0.6rem 0.75rem;
-  border-radius: 12px;
+  gap: 0.15rem;
+  padding: 0.75rem 0.95rem;
+  border-radius: 14px;
   border: 1px solid var(--line);
   background: var(--surface);
-  line-height: 1.2;
+  border-left-width: 4px;
+  border-left-color: var(--line);
 }
 
-.main-achats .achats-kpi span {
+.main-achats .achats-stat.is-gold {
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+}
+
+.main-achats .achats-stat.is-blue {
+  border-left-color: var(--sidebar);
+  background: color-mix(in srgb, var(--sidebar) 7%, var(--surface));
+}
+
+.main-achats .achats-stat span {
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
 
-.main-achats .achats-kpi strong {
-  font-size: 1rem;
+.main-achats .achats-stat strong {
+  font-size: 1.05rem;
   font-weight: 800;
-}
-
-.main-achats .achats-kpi.is-gold {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.main-achats .achats-kpi.is-blue {
-  border-color: color-mix(in srgb, var(--sidebar) 28%, var(--line));
-  background: color-mix(in srgb, var(--sidebar) 8%, transparent);
+  letter-spacing: -0.02em;
 }
 
 .main-achats .achats-flash {
@@ -87,45 +66,61 @@
   color: #166534;
 }
 
-.main-achats .achats-layout {
-  display: grid;
-  gap: 1rem;
-  align-items: start;
+.main-achats .achats-composer {
+  padding: 0.95rem 1.05rem 1.05rem;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--sidebar) 22%, var(--line));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--sidebar) 6%, var(--surface)) 0%,
+    var(--surface) 100%
+  );
 }
 
-@media (min-width: 980px) {
-  .main-achats .achats-layout {
-    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
-  }
+.main-achats .achats-composer-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 1rem;
+  margin-bottom: 0.75rem;
 }
 
-.main-achats .achats-declare {
-  padding: 1rem 1.05rem 1.15rem;
-  border-radius: 14px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.main-achats .achats-declare h2 {
-  margin: 0 0 0.85rem;
+.main-achats .achats-composer-head h2 {
+  margin: 0;
   font-size: 1rem;
   font-weight: 800;
 }
 
-.main-achats .achats-form {
+.main-achats .achats-composer-head p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  max-width: 36rem;
+  line-height: 1.4;
+}
+
+.main-achats .achats-composer-grid {
   display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.65rem;
+  align-items: end;
 }
 
 .main-achats .achats-field {
   display: flex;
   flex-direction: column;
   gap: 0.28rem;
+  min-width: 0;
+  flex: 1 1 8rem;
+}
+
+.main-achats .achats-field-grow {
+  flex: 2 1 12rem;
 }
 
 .main-achats .achats-field span {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--ink-soft);
   text-transform: uppercase;
@@ -133,10 +128,11 @@
 }
 
 .main-achats .achats-field input,
-.main-achats .achats-field select {
+.main-achats .achats-field select,
+.main-achats .achats-search {
   width: 100%;
-  min-height: 2.75rem;
-  padding: 0.55rem 0.75rem;
+  min-height: 2.7rem;
+  padding: 0.5rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fff;
@@ -145,7 +141,8 @@
 }
 
 .main-achats .achats-field input:focus,
-.main-achats .achats-field select:focus {
+.main-achats .achats-field select:focus,
+.main-achats .achats-search:focus {
   outline: none;
   border-color: var(--sidebar);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar) 14%, transparent);
@@ -156,78 +153,82 @@
 }
 
 .main-achats .achats-price-wrap input {
-  padding-right: 3.4rem;
+  padding-right: 2rem;
 }
 
 .main-achats .achats-price-suffix {
   position: absolute;
-  right: 0.75rem;
+  right: 0.65rem;
   top: 50%;
   transform: translateY(-50%);
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--ink-soft);
   pointer-events: none;
 }
 
-.main-achats .achats-form-hint {
-  margin: 0.75rem 0 0;
-  font-size: 0.82rem;
+.main-achats .achats-composer-total {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 8.5rem;
+  flex: 0 0 auto;
+}
+
+.main-achats .achats-composer-total span {
+  font-size: 0.72rem;
+  font-weight: 700;
   color: var(--ink-soft);
-  line-height: 1.45;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.main-achats .achats-composer-total strong {
+  min-height: 2.7rem;
+  display: flex;
+  align-items: center;
+  font-size: 0.95rem;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .main-achats .achats-submit {
-  width: 100%;
-  min-height: 2.85rem;
-  margin-top: 0.15rem;
+  min-height: 2.7rem;
+  padding: 0.5rem 1.1rem;
+  flex: 0 0 auto;
 }
 
-.main-achats .achats-board {
+.main-achats .achats-ledger {
   min-width: 0;
   padding: 1rem 1.05rem 1.15rem;
-  border-radius: 14px;
+  border-radius: 16px;
   border: 1px solid var(--line);
   background: var(--paper);
 }
 
-.main-achats .achats-board-head {
+.main-achats .achats-ledger-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.7rem;
   margin-bottom: 0.85rem;
 }
 
-.main-achats .achats-board-head h2 {
+.main-achats .achats-ledger-head h2 {
   margin: 0;
   font-size: 1rem;
   font-weight: 800;
 }
 
-.main-achats .achats-search {
-  width: 100%;
-  min-width: 0;
-  min-height: 2.65rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fff;
-  font-size: 16px;
-}
-
-.main-achats .achats-search:focus {
-  outline: none;
-  border-color: var(--sidebar);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar) 14%, transparent);
-}
-
 .main-achats .achats-toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem;
-  width: 100%;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.main-achats .achats-search {
+  flex: 1 1 14rem;
+  min-width: 0;
 }
 
 .main-achats .achats-status-filters {
@@ -236,104 +237,10 @@
   gap: 0.35rem;
 }
 
-.main-achats .achats-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-.main-achats .achats-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-}
-
-.main-achats .achats-row.is-warn {
-  border-color: color-mix(in srgb, var(--warn) 35%, var(--line));
-  background: color-mix(in srgb, var(--warn-soft) 45%, var(--surface));
-}
-
-.main-achats .achats-row.is-open {
-  border-color: color-mix(in srgb, var(--sidebar) 30%, var(--line));
-}
-
-.main-achats .achats-row-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.5rem 0.75rem;
-}
-
-.main-achats .achats-row-main {
-  min-width: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.main-achats .achats-row-name {
-  font-weight: 800;
-  color: var(--sidebar-mid, var(--sidebar));
-}
-
-.main-achats .achats-row-meta {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-  line-height: 1.35;
-}
-
-.main-achats .achats-row-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 0.35rem;
-  flex-shrink: 0;
-}
-
-.main-achats .achats-row-amount {
-  font-size: 1.02rem;
-  font-weight: 800;
-}
-
-.main-achats .achats-row-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.main-achats .achats-row-detail {
-  margin: 0;
-  padding-top: 0.45rem;
-  border-top: 1px dashed var(--line);
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-  line-height: 1.45;
-}
-
-.main-achats .achats-empty {
-  margin: 0;
-  padding: 1.5rem 0.5rem;
-  text-align: center;
-  color: var(--ink-soft);
-}
-
-.main-achats .achats-empty strong {
-  display: block;
-  margin-bottom: 0.35rem;
-  color: var(--ink);
-  font-size: 1rem;
-}
-
 .main-achats .achats-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   border: 1px solid var(--line);
   background: #f8f9fb;
   color: var(--ink-soft);
@@ -344,18 +251,94 @@
   cursor: pointer;
 }
 
+.main-achats .achats-filter-chip i {
+  font-style: normal;
+  min-width: 1.15rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+}
+
 .main-achats .achats-filter-chip.is-active {
   border-color: var(--sidebar-mid, var(--sidebar));
   background: color-mix(in srgb, var(--sidebar) 10%, var(--surface));
+  color: var(--ink);
+  font-weight: 750;
+}
+
+.main-achats .achats-filter-chip.is-active i {
+  background: var(--sidebar);
+  color: #fff;
+}
+
+.main-achats .achats-table {
+  min-width: 52rem;
+}
+
+.main-achats .achats-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.main-achats .achats-table tbody tr.is-cancelled td {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--warn) 55%, transparent);
+}
+
+.main-achats .achats-table tbody tr.is-cancelled .achats-status,
+.main-achats .achats-table tbody tr.is-cancelled .btn {
+  text-decoration: none;
+}
+
+.main-achats .achats-table tbody tr.is-open td {
+  background: color-mix(in srgb, var(--sidebar) 6%, transparent);
+}
+
+.main-achats .achats-td-name {
+  font-weight: 750;
   color: var(--sidebar-mid, var(--sidebar));
+}
+
+.main-achats .achats-td-date {
+  white-space: nowrap;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+}
+
+.main-achats .achats-td-amount {
+  font-weight: 800;
+}
+
+.main-achats .achats-td-detail {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.main-achats .achats-col-action {
+  width: 1%;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.main-achats .achats-col-action .btn {
+  min-height: 2.2rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
 }
 
 .main-achats .achats-status {
   display: inline-flex;
   align-items: center;
-  padding: 0.22rem 0.55rem;
+  padding: 0.18rem 0.5rem;
   border-radius: 8px;
-  font-size: 0.75rem;
+  font-size: 0.74rem;
   font-weight: 700;
 }
 
@@ -372,6 +355,28 @@
 .main-achats .achats-status-warn {
   background: color-mix(in srgb, var(--warn-soft) 70%, var(--surface));
   color: var(--warn);
+}
+
+.main-achats .achats-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 2rem 1rem;
+  text-align: center;
+  color: var(--ink-soft);
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+}
+
+.main-achats .achats-empty strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.main-achats .achats-empty .btn {
+  margin-top: 0.5rem;
 }
 
 .main-achats .catalogue-footer {
@@ -429,20 +434,4 @@
 .main-achats .catalogue-page-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-@media (max-width: 720px) {
-  .main-achats .achats-kpis {
-    width: 100%;
-    grid-template-columns: 1fr;
-  }
-
-  .main-achats .achats-row-top {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .main-achats .achats-row-side {
-    align-items: flex-start;
-  }
 }
