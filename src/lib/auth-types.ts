@@ -170,8 +170,6 @@ export function canManageUsers(user: {
 const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "synthese",
   "analyse",
-  "compte-resultat",
-  "comptabilite",
   "versements",
   "journal-ventes",
   "quantites-vendues",
@@ -354,8 +352,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
   admin: [
     "synthese",
     "analyse",
-    "compte-resultat",
-    "comptabilite",
     "vente",
     "caisse",
     "parametres",
@@ -417,9 +413,9 @@ export function roleNavUnscoped(
   username?: string,
 ): NavKey[] {
   if (role === "admin" && username && isExecutiveAdminAccount(username)) {
-    return [...EXECUTIVE_ADMIN_NAV];
+    return stripRoleDeniedNavKeys([...EXECUTIVE_ADMIN_NAV], role);
   }
-  return [...ROLE_NAV[role]];
+  return stripRoleDeniedNavKeys([...ROLE_NAV[role]], role);
 }
 
 /** Pages refusées au DAF même si un JWT / une matrice les réintroduit. */
@@ -438,6 +434,12 @@ const COMPTABLE_DENIED_NAV: readonly NavKey[] = ["analyse", "historique"];
 /** Pages refusées au gérant même si un JWT / une matrice les réintroduit. */
 const GERANT_DENIED_NAV: readonly NavKey[] = ["analyse", "immobilisations"];
 
+/** Pages refusées à l’admin (finance réservée DAF / comptable). */
+const ADMIN_DENIED_NAV: readonly NavKey[] = [
+  "compte-resultat",
+  "comptabilite",
+];
+
 export function stripRoleDeniedNavKeys(
   keys: NavKey[],
   role: UserRole,
@@ -450,6 +452,9 @@ export function stripRoleDeniedNavKeys(
   }
   if (role === "comptable") {
     return keys.filter((k) => !COMPTABLE_DENIED_NAV.includes(k));
+  }
+  if (role === "admin") {
+    return keys.filter((k) => !ADMIN_DENIED_NAV.includes(k));
   }
   return keys;
 }
@@ -481,7 +486,7 @@ export function navForUser(
   username?: string,
 ): NavKey[] {
   if (role === "admin" && username && isExecutiveAdminAccount(username)) {
-    return [...EXECUTIVE_ADMIN_NAV];
+    return filterNavKeysBySite([...EXECUTIVE_ADMIN_NAV], role, site);
   }
   return filterNavKeysBySite([...ROLE_NAV[role]], role, site);
 }

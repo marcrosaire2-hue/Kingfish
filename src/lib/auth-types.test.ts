@@ -172,17 +172,18 @@ describe("l'API suit les droits de l'écran", () => {
       .toBe(true);
   });
 
-  it("l'administrateur atteint tout, dans sa zone", () => {
+  it("l'administrateur atteint les écrans opérationnels et l'équipe", () => {
     for (const route of [
       "/api/parametres",
       "/api/pos-config",
       "/api/admin/users",
-      "/api/compte-resultat",
     ]) {
       expect(canAccessPath("admin", ecranPourApi(route), "tous"), route).toBe(
         true,
       );
     }
+    expect(canAccessPath("admin", "/compte-resultat", "tous")).toBe(false);
+    expect(canAccessPath("admin", "/comptabilite", "tous")).toBe(false);
   });
 
   it("réserve la correction des ventes passées au gérant et à l'admin", () => {
@@ -249,8 +250,6 @@ describe("l'API suit les droits de l'écran", () => {
     expect(menu).toEqual([
       "synthese",
       "analyse",
-      "compte-resultat",
-      "comptabilite",
       "versements",
       "journal-ventes",
       "quantites-vendues",
@@ -262,9 +261,9 @@ describe("l'API suit les droits de l'écran", () => {
     expect(canAccessPath("admin", "/analyse", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/compte-resultat", "tous", "marc")).toBe(
-      true,
+      false,
     );
-    expect(canAccessPath("admin", "/comptabilite", "tous", "marc")).toBe(true);
+    expect(canAccessPath("admin", "/comptabilite", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/versements", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/journal-ventes", "tous", "marc")).toBe(
       true,
@@ -275,6 +274,26 @@ describe("l'API suit les droits de l'écran", () => {
     expect(canAccessPath("admin", "/vente", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/parametres", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/zogbo", "tous", "marc")).toBe(false);
+  });
+
+  it("retire à l’admin le compte de résultat et la comptabilité", () => {
+    const menu = navForUser("admin", "tous", "admin");
+    expect(menu).not.toContain("compte-resultat");
+    expect(menu).not.toContain("comptabilite");
+    expect(canAccessPath("admin", "/compte-resultat", "tous", "admin")).toBe(
+      false,
+    );
+    expect(canAccessPath("admin", "/comptabilite", "tous", "admin")).toBe(
+      false,
+    );
+    expect(
+      navForSession({
+        role: "admin",
+        site: "tous",
+        username: "admin",
+        nav: ["synthese", "compte-resultat", "comptabilite", "analyse"],
+      }),
+    ).toEqual(["synthese", "analyse"]);
   });
 
   it("donne à Marc la visibilité et la gestion de tous les comptes", () => {
