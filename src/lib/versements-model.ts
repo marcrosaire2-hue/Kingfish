@@ -8,7 +8,11 @@ import type { VersementTranche } from "@/lib/types";
 
 const TRANCHES: VersementTranche[] = ["nuit", "matin", "soir"];
 
-const MAX_PREUVE_BYTES = 4 * 1024 * 1024;
+export const MAX_PREUVE_BYTES = 4 * 1024 * 1024;
+export const MAX_PREUVES = 6;
+/** Plafond total pour stockage Mongo local (limite BSON ~16 Mo). */
+export const MAX_PREUVES_LOCAL_TOTAL_BYTES = 12 * 1024 * 1024;
+
 const ALLOWED_MIME = new Set([
   "image/jpeg",
   "image/png",
@@ -174,6 +178,15 @@ export function assertPreuveFile(input: {
   }
   if (input.size > MAX_PREUVE_BYTES) {
     throw new Error("Capture d’écran trop lourde (max. 4 Mo).");
+  }
+}
+
+export function assertPreuvesList(count: number): void {
+  if (count <= 0) {
+    throw new Error("Joignez au moins une capture d’écran.");
+  }
+  if (count > MAX_PREUVES) {
+    throw new Error(`Trop de captures (max. ${MAX_PREUVES}).`);
   }
 }
 

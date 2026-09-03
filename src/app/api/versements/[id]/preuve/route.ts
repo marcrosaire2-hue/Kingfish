@@ -10,18 +10,20 @@ export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-/** Sert la capture (Cloudinary via redirect, ou octets Mongo en local). */
-export async function GET(_request: Request, context: RouteContext) {
+/** Sert une capture (Cloudinary via redirect, ou octets Mongo). `?i=` = index. */
+export async function GET(request: Request, context: RouteContext) {
   try {
     await requireUser();
     const { id } = await context.params;
+    const rawIndex = new URL(request.url).searchParams.get("i");
+    const index = Math.max(0, Number.parseInt(rawIndex || "0", 10) || 0);
 
-    const remote = await getVersementPreuveUrl(id);
+    const remote = await getVersementPreuveUrl(id, index);
     if (remote) {
       return NextResponse.redirect(remote, 302);
     }
 
-    const local = await getVersementPreuveBytes(id);
+    const local = await getVersementPreuveBytes(id, index);
     if (!local) {
       return NextResponse.json({ error: "Preuve introuvable." }, { status: 404 });
     }

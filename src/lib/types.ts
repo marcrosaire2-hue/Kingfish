@@ -995,6 +995,13 @@ export const VERSEMENT_TRANCHE_LABELS: Record<VersementTranche, string> = {
   soir: "Soir (16h00–00h00)",
 };
 
+export type VersementPreuve = {
+  mime: string;
+  /** URL Cloudinary ou endpoint local `/api/versements/:id/preuve?i=n`. */
+  url: string;
+  publicId: string;
+};
+
 export type Versement = {
   id: string;
   /** Jour d’enregistrement (calendrier du restaurant). */
@@ -1008,11 +1015,14 @@ export type Versement = {
   membresPresents: string[];
   montant: number;
   numeroTransaction: string;
+  /** Première capture (rétrocompat). */
   preuveMime: string;
-  /** URL Cloudinary de la capture (HTTPS). */
+  /** Première capture (rétrocompat). */
   preuveUrl: string;
-  /** public_id Cloudinary (suppression éventuelle côté ops). */
+  /** Première capture (rétrocompat). */
   preuvePublicId: string;
+  /** Toutes les captures (1…n). Toujours renseigné côté API. */
+  preuves: VersementPreuve[];
   createdAt: string;
   actorId: string;
   actorName: string;

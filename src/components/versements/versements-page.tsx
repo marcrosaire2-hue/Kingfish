@@ -30,7 +30,10 @@ import {
   type VenteSite,
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
-import { defaultTrancheFromShift } from "@/lib/versements-model";
+import {
+  defaultTrancheFromShift,
+  MAX_PREUVES,
+} from "@/lib/versements-model";
 import "./versements-page.css";
 
 type StatutFilter = "all" | VersementStatut;
@@ -142,8 +145,8 @@ export function VersementsPage() {
   const [membres, setMembres] = useState<string[]>([""]);
   const [montant, setMontant] = useState("");
   const [numero, setNumero] = useState("");
-  const [preuve, setPreuve] = useState<File | null>(null);
-  const [preuvePreview, setPreuvePreview] = useState<string | null>(null);
+  const [preuves, setPreuves] = useState<File[]>([]);
+  const [preuvePreviews, setPreuvePreviews] = useState<string[]>([]);
   const [dropActive, setDropActive] = useState(false);
 
   const [versements, setVersements] = useState<Versement[]>([]);
@@ -208,14 +211,12 @@ export function VersementsPage() {
   }, [charger]);
 
   useEffect(() => {
-    if (!preuve) {
-      setPreuvePreview(null);
-      return;
-    }
-    const url = URL.createObjectURL(preuve);
-    setPreuvePreview(url);
-    return () => URL.revokeObjectURL(url);
-  }, [preuve]);
+    const urls = preuves.map((file) => URL.createObjectURL(file));
+    setPreuvePreviews(urls);
+    return () => {
+      for (const url of urls) URL.revokeObjectURL(url);
+    };
+  }, [preuves]);
 
   useEffect(() => {
     if (!selected) return;
@@ -292,17 +293,13 @@ export function VersementsPage() {
   const formReady =
     Boolean(montant) &&
     Boolean(numero.trim()) &&
-    Boolean(preuve) &&
+    preuves.length > 0 &&
     membres.some((m) => m.trim().length >= 2);
 
-  function pickPreuve(file: File | null) {
-    if (!file) {
-      setPreuve(null);
-      return;
-    }
+  function isAllowedImage(file: File): boolean {
     const type = (file.type || "").toLowerCase();
     const name = file.name.toLowerCase();
-    const okType =
+    return (
       type === "image/jpeg" ||
       type === "image/jpg" ||
       type === "image/png" ||
@@ -311,25 +308,41 @@ export function VersementsPage() {
         (name.endsWith(".jpg") ||
           name.endsWith(".jpeg") ||
           name.endsWith(".png") ||
-          name.endsWith(".webp")));
-    if (!okType) {
-      setError("Capture d’écran : JPEG, PNG ou WebP uniquement.");
-      setPreuve(null);
-      return;
+          name.endsWith(".webp")))
+    );
+  }
+
+  function addPreuves(files: FileList | File[] | null) {
+    if (!files || files.length === 0) return;
+    const incoming = Array.from(files);
+    const next = [...preuves];
+    for (const file of incoming) {
+      if (next.length >= MAX_PREUVES) {
+        setError(`Maximum ${MAX_PREUVES} captures.`);
+        break;
+      }
+      if (!isAllowedImage(file)) {
+        setError("Capture d’écran : JPEG, PNG ou WebP uniquement.");
+        continue;
+      }
+      if (file.size > 4 * 1024 * 1024) {
+        setError("Capture d’écran trop lourde (max. 4 Mo par image).");
+        continue;
+      }
+      next.push(file);
     }
-    if (file.size > 4 * 1024 * 1024) {
-      setError("Capture d’écran trop lourde (max. 4 Mo).");
-      setPreuve(null);
-      return;
-    }
-    setError(null);
-    setPreuve(file);
+    if (next.length > preuves.length) setError(null);
+    setPreuves(next);
+  }
+
+  function removePreuve(index: number) {
+    setPreuves((prev) => prev.filter((_, i) => i !== index));
   }
 
   function onDrop(e: DragEvent<HTMLLabelElement>) {
     e.preventDefault();
     setDropActive(false);
-    pickPreuve(e.dataTransfer.files?.[0] ?? null);
+    addPreuves(e.dataTransfer.files);
   }
 
   async function onDeclare(e: FormEvent) {
@@ -349,7 +362,7 @@ export function VersementsPage() {
     setError(null);
     setFlash(null);
     try {
-      if (!preuve) throw new Error("Joignez la capture d’écran.");
+      if (preuves.length === 0) throw new Error("Joignez au moins une capture.");
       const form = new FormData();
       form.set("date", declareDate);
       form.set("site", site);
@@ -360,7 +373,9 @@ export function VersementsPage() {
       }
       form.set("montant", montant);
       form.set("numeroTransaction", numero);
-      form.set("preuve", preuve);
+      for (const file of preuves) {
+        form.append("preuve", file);
+      }
       const res = await fetch("/api/versements", {
         method: "POST",
         body: form,
@@ -379,7 +394,7 @@ export function VersementsPage() {
       setMontant("");
       setNumero("");
       setMembres([""]);
-      setPreuve(null);
+      setPreuves([]);
       setHeure(nowHeureLocale());
       setTranche(defaultTrancheFromShift(user?.shift));
       setDate(declareDate);
@@ -724,7 +739,7 @@ export function VersementsPage() {
 
               <aside className="versements-bordereau-side">
                 <label
-                  className={`versements-dropzone${dropActive ? " is-active" : ""}${preuvePreview ? " has-file" : ""}`}
+                  className={`versements-dropzone${dropActive ? " is-active" : ""}${preuves.length ? " has-file" : ""}`}
                   onDragOver={(e) => {
                     e.preventDefault();
                     setDropActive(true);
@@ -732,28 +747,53 @@ export function VersementsPage() {
                   onDragLeave={() => setDropActive(false)}
                   onDrop={onDrop}
                 >
-                  <span>Capture d’écran</span>
+                  <span>Captures d’écran</span>
                   <input
                     type="file"
                     accept="image/jpeg,image/png,image/webp"
-                    onChange={(e) => pickPreuve(e.target.files?.[0] ?? null)}
+                    multiple
+                    onChange={(e) => {
+                      addPreuves(e.target.files);
+                      e.target.value = "";
+                    }}
                   />
-                  {preuvePreview ? (
-                    <>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={preuvePreview}
-                        alt=""
-                        className="versements-preuve-preview"
-                      />
-                      <em>{preuve?.name}</em>
-                    </>
+                  {preuves.length === 0 ? (
+                    <em>
+                      Une ou plusieurs images — JPEG, PNG, WebP · 4 Mo max ·
+                      jusqu’à {MAX_PREUVES}
+                    </em>
                   ) : (
                     <em>
-                      Glissez une image ou cliquez — JPEG, PNG, WebP · 4 Mo max
+                      {preuves.length} image{preuves.length > 1 ? "s" : ""} —
+                      cliquez pour en ajouter
+                      {preuves.length < MAX_PREUVES
+                        ? ` (${MAX_PREUVES - preuves.length} restantes)`
+                        : ""}
                     </em>
                   )}
                 </label>
+
+                {preuves.length > 0 ? (
+                  <ul className="versements-preuves-grid" aria-label="Aperçus">
+                    {preuves.map((file, index) => (
+                      <li key={`${file.name}-${file.size}-${index}`}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={preuvePreviews[index]}
+                          alt=""
+                          className="versements-preuve-preview"
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          onClick={() => removePreuve(index)}
+                        >
+                          Retirer
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
 
                 <ul className="versements-checks" aria-label="Pièces du bordereau">
                   <li className={montant ? "is-ok" : ""}>Montant</li>
@@ -765,7 +805,9 @@ export function VersementsPage() {
                   >
                     Membres
                   </li>
-                  <li className={preuve ? "is-ok" : ""}>Capture</li>
+                  <li className={preuves.length > 0 ? "is-ok" : ""}>
+                    Capture{preuves.length > 1 ? `s (${preuves.length})` : ""}
+                  </li>
                 </ul>
 
                 <button
@@ -1102,15 +1144,33 @@ export function VersementsPage() {
                 </div>
 
                 <figure className="versements-preuve-figure">
-                  <figcaption>Capture d’écran</figcaption>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={
-                      selected.preuveUrl ||
-                      `/api/versements/${selected.id}/preuve`
-                    }
-                    alt="Capture d’écran du paiement"
-                  />
+                  <figcaption>
+                    Capture
+                    {(selected.preuves?.length ?? 1) > 1
+                      ? `s (${selected.preuves.length})`
+                      : ""}
+                  </figcaption>
+                  <div className="versements-preuve-gallery">
+                    {(selected.preuves?.length
+                      ? selected.preuves
+                      : [
+                          {
+                            url:
+                              selected.preuveUrl ||
+                              `/api/versements/${selected.id}/preuve`,
+                            mime: selected.preuveMime,
+                            publicId: selected.preuvePublicId,
+                          },
+                        ]
+                    ).map((p, index) => (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        key={`${p.url}-${index}`}
+                        src={p.url}
+                        alt={`Capture ${index + 1}`}
+                      />
+                    ))}
+                  </div>
                 </figure>
               </div>
 

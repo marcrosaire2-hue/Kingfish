@@ -92,13 +92,17 @@ export async function uploadVersementPreuve(input: {
   versementId: string;
   date: string;
   site: string;
+  /** Index 0…n-1 pour plusieurs captures du même versement. */
+  index?: number;
 }): Promise<CloudinaryUploadResult> {
   const cloudinary = await getCloudinary();
+  const idx = input.index ?? 0;
+  const suffix = idx > 0 ? `_${idx}` : "";
 
   const dataUri = `data:${input.mime};base64,${input.bytes.toString("base64")}`;
   const result = await cloudinary.uploader.upload(dataUri, {
     folder: "kingfish/versements",
-    public_id: `${input.date}_${input.site}_${input.versementId}`,
+    public_id: `${input.date}_${input.site}_${input.versementId}${suffix}`,
     resource_type: "image",
     overwrite: false,
     unique_filename: false,
