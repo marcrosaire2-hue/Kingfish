@@ -977,122 +977,141 @@ export function VersementsPage() {
             )}
           </section>
         )}
-      </div>
 
-      {selected ? (
-        <div
-          className="versements-modal-backdrop"
-          role="presentation"
-          onClick={() => setSelected(null)}
-        >
+        {selected ? (
           <div
-            className="versements-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="versements-modal-title"
-            onClick={(e) => e.stopPropagation()}
+            className="versements-modal-backdrop"
+            role="presentation"
+            onClick={() => setSelected(null)}
           >
-            <header className="versements-modal-head">
-              <div>
-                <h2 id="versements-modal-title">
-                  {formatFcfa(selected.montant)}
-                </h2>
-                <span className={`versements-statut is-${selected.statut}`}>
-                  {VERSEMENT_STATUT_LABELS[selected.statut]}
-                </span>
+            <div
+              className="versements-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="versements-modal-title"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <header className="versements-modal-head">
+                <div className="versements-modal-head-main">
+                  <p className="versements-modal-kicker">Détail du versement</p>
+                  <h2 id="versements-modal-title">
+                    {formatFcfa(selected.montant)}
+                  </h2>
+                  <div className="versements-modal-head-meta">
+                    <span className={`versements-statut is-${selected.statut}`}>
+                      {VERSEMENT_STATUT_LABELS[selected.statut]}
+                    </span>
+                    <span>
+                      {formatDateFr(selected.date)} · {selected.heureTransaction} ·{" "}
+                      {SITE_LABELS[selected.site]}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() => setSelected(null)}
+                >
+                  Fermer
+                </button>
+              </header>
+
+              <div className="versements-modal-body">
+                <div className="versements-modal-info">
+                  <dl className="versements-detail">
+                    <div>
+                      <dt>Jour</dt>
+                      <dd>{formatDateFr(selected.date)}</dd>
+                    </div>
+                    <div>
+                      <dt>Heure tx</dt>
+                      <dd>{selected.heureTransaction}</dd>
+                    </div>
+                    <div>
+                      <dt>Tranche</dt>
+                      <dd>
+                        {VERSEMENT_TRANCHE_LABELS[selected.trancheHoraire]}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Site</dt>
+                      <dd>{SITE_LABELS[selected.site]}</dd>
+                    </div>
+                    <div className="is-wide">
+                      <dt>Membres</dt>
+                      <dd>
+                        {selected.membresPresents.length
+                          ? selected.membresPresents.join(", ")
+                          : "—"}
+                      </dd>
+                    </div>
+                    <div className="is-wide">
+                      <dt>N° transaction</dt>
+                      <dd>
+                        <code className="versements-numero">
+                          {selected.numeroTransaction}
+                        </code>
+                      </dd>
+                    </div>
+                    <div className="is-wide">
+                      <dt>Déclaré</dt>
+                      <dd>
+                        {formatDateHeure(selected.createdAt)} —{" "}
+                        {selected.actorName} ({SHIFT_LABELS[selected.shift]})
+                      </dd>
+                    </div>
+                    <div className="is-wide">
+                      <dt>Confirmé</dt>
+                      <dd>
+                        {selected.confirmedAt
+                          ? `${formatDateHeure(selected.confirmedAt)} — ${selected.confirmedByName}`
+                          : "En attente"}
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+
+                <figure className="versements-preuve-figure">
+                  <figcaption>Capture d’écran</figcaption>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={
+                      selected.preuveUrl ||
+                      `/api/versements/${selected.id}/preuve`
+                    }
+                    alt="Capture d’écran du paiement"
+                  />
+                </figure>
               </div>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setSelected(null)}
-              >
-                Fermer
-              </button>
-            </header>
 
-            <div className="versements-modal-body">
-              <dl className="versements-detail">
-                <div>
-                  <dt>Jour</dt>
-                  <dd>{formatDateFr(selected.date)}</dd>
-                </div>
-                <div>
-                  <dt>Heure tx</dt>
-                  <dd>{selected.heureTransaction}</dd>
-                </div>
-                <div>
-                  <dt>Tranche</dt>
-                  <dd>{VERSEMENT_TRANCHE_LABELS[selected.trancheHoraire]}</dd>
-                </div>
-                <div>
-                  <dt>Site</dt>
-                  <dd>{SITE_LABELS[selected.site]}</dd>
-                </div>
-                <div>
-                  <dt>Membres</dt>
-                  <dd>
-                    {selected.membresPresents.length
-                      ? selected.membresPresents.join(", ")
-                      : "—"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>N°</dt>
-                  <dd>
-                    <code className="versements-numero">
-                      {selected.numeroTransaction}
-                    </code>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Déclaré</dt>
-                  <dd>
-                    {formatDateHeure(selected.createdAt)} — {selected.actorName}{" "}
-                    ({SHIFT_LABELS[selected.shift]})
-                  </dd>
-                </div>
-                <div>
-                  <dt>Confirmé</dt>
-                  <dd>
-                    {selected.confirmedAt
-                      ? `${formatDateHeure(selected.confirmedAt)} — ${selected.confirmedByName}`
-                      : "En attente"}
-                  </dd>
-                </div>
-              </dl>
-
-              <figure className="versements-preuve-figure">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={
-                    selected.preuveUrl || `/api/versements/${selected.id}/preuve`
-                  }
-                  alt="Capture d’écran du paiement"
-                />
-              </figure>
+              <footer className="versements-modal-foot">
+                {canConfirm && selected.statut === "en_attente" ? (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={busy}
+                    onClick={() => void onConfirm(selected.id)}
+                  >
+                    {busy ? "Confirmation…" : "Confirmer la transaction"}
+                  </button>
+                ) : selected.statut === "confirmee" ? (
+                  <p className="versements-locked-note">
+                    Transaction verrouillée.
+                  </p>
+                ) : isReaderOnly ? (
+                  <p className="versements-locked-note">
+                    Consultation seule — confirmation réservée au comptable.
+                  </p>
+                ) : (
+                  <p className="versements-locked-note">
+                    En attente de confirmation par le comptable.
+                  </p>
+                )}
+              </footer>
             </div>
-
-            {canConfirm && selected.statut === "en_attente" ? (
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={busy}
-                onClick={() => void onConfirm(selected.id)}
-              >
-                {busy ? "Confirmation…" : "Confirmer la transaction"}
-              </button>
-            ) : selected.statut === "confirmee" ? (
-              <p className="versements-locked-note">
-                Transaction verrouillée.
-              </p>
-            ) : isReaderOnly ? (
-              <p className="versements-locked-note">
-                Consultation seule — confirmation réservée au comptable.
-              </p>
-            ) : null}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </AppShell>
   );
 }

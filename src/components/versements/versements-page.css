@@ -686,85 +686,140 @@
 }
 
 .versements-page .versements-modal {
-  width: min(100%, 52rem);
-  max-height: min(92dvh, 48rem);
+  width: min(100%, 54rem);
+  max-height: min(92dvh, 52rem);
   overflow: auto;
-  padding: 1.1rem 1.15rem 1.25rem;
-  border-radius: 14px;
+  padding: 0;
+  border-radius: 16px;
   background: var(--paper);
   border: 1px solid var(--line);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
 }
 
 .versements-page .versements-modal-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: 0.85rem;
+  padding: 1.1rem 1.2rem 1rem;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #f8fbfd 0%, #eef4f8 100%);
 }
 
-.versements-page .versements-modal-head > div {
+.versements-page .versements-modal-head-main {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem 0.75rem;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.versements-page .versements-modal-kicker {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 
 .versements-page .versements-modal-head h2 {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.45rem;
   font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.versements-page .versements-modal-head-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  font-size: 0.84rem;
+  color: var(--ink-soft);
 }
 
 .versements-page .versements-modal-body {
   display: grid;
-  gap: 0.85rem;
+  gap: 1rem;
+  padding: 1.05rem 1.2rem;
 }
 
-@media (min-width: 720px) {
+@media (min-width: 800px) {
   .versements-page .versements-modal-body {
-    grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+    grid-template-columns: minmax(0, 1.15fr) minmax(15rem, 0.9fr);
     align-items: start;
   }
 }
 
+.versements-page .versements-modal-info {
+  min-width: 0;
+}
+
 .versements-page .versements-detail {
   display: grid;
-  gap: 0.5rem;
+  grid-template-columns: 1fr;
+  gap: 0.55rem;
   margin: 0;
 }
 
-.versements-page .versements-detail div {
-  display: grid;
-  grid-template-columns: 5.5rem 1fr;
-  gap: 0.45rem;
-  align-items: start;
+@media (min-width: 560px) {
+  .versements-page .versements-detail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .versements-page .versements-detail .is-wide {
+    grid-column: 1 / -1;
+  }
+}
+
+.versements-page .versements-detail > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
 }
 
 .versements-page .versements-detail dt {
   margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.68rem;
+  font-weight: 750;
   color: var(--ink-soft);
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.04em;
 }
 
 .versements-page .versements-detail dd {
   margin: 0;
-  font-weight: 600;
-  font-size: 0.92rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--ink);
+  line-height: 1.35;
+  word-break: break-word;
 }
 
 .versements-page .versements-preuve-figure {
   margin: 0;
-  padding: 0.5rem;
-  border-radius: 12px;
+  padding: 0.75rem;
+  border-radius: 14px;
   border: 1px solid var(--line);
   background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.versements-page .versements-preuve-figure figcaption {
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 
 .versements-page .versements-preuve-figure img {
@@ -772,11 +827,19 @@
   width: 100%;
   max-height: 22rem;
   object-fit: contain;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--ink) 3%, #fff);
+}
+
+.versements-page .versements-modal-foot {
+  padding: 0.9rem 1.2rem 1.15rem;
+  border-top: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 2%, var(--paper));
 }
 
 .versements-page .versements-locked-note {
   margin: 0;
-  padding: 0.7rem 0.85rem;
+  padding: 0.75rem 0.9rem;
   border-radius: 10px;
   background: color-mix(in srgb, var(--sidebar) 8%, transparent);
   color: var(--ink-soft);
@@ -784,7 +847,7 @@
   font-weight: 600;
 }
 
-.versements-page .versements-modal .btn-primary {
+.versements-page .versements-modal-foot .btn-primary {
   width: 100%;
   min-height: 2.85rem;
 }
@@ -811,8 +874,11 @@
     min-height: 2.4rem;
   }
 
-  .versements-page .versements-detail div {
-    grid-template-columns: 1fr;
-    gap: 0.1rem;
+  .versements-page .versements-modal-head {
+    flex-direction: column;
+  }
+
+  .versements-page .versements-modal-head .btn {
+    align-self: stretch;
   }
 }
