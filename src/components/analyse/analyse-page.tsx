@@ -36,7 +36,6 @@ type Payload = {
 
 const PERIODS: { id: AnalysePeriod; label: string }[] = [
   { id: "day", label: "Jour" },
-  { id: "week", label: "Semaine" },
   { id: "month", label: "Mois" },
 ];
 
@@ -237,13 +236,7 @@ export function AnalysePage() {
           filters={
             <>
               <label className="date-field date-field-pill">
-                <span>
-                  {period === "day"
-                    ? "Jour"
-                    : period === "week"
-                      ? "Semaine du"
-                      : "Mois"}
-                </span>
+                <span>{period === "day" ? "Jour" : "Mois"}</span>
                 {period === "month" ? (
                   <input
                     type="month"

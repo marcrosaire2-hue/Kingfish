@@ -3,7 +3,7 @@ import type { UserShift, UserSite } from "@/lib/auth-types";
 import { SHIFT_LABELS as AUTH_SHIFT_LABELS } from "@/lib/auth-types";
 import type { VenteKind, VenteSite } from "@/lib/types";
 
-export type AnalysePeriod = "day" | "week" | "month";
+export type AnalysePeriod = "day" | "month";
 export type AnalyseKindFilter = VenteKind | "all";
 export type AnalyseShiftFilter = UserShift | "all";
 
@@ -150,7 +150,6 @@ const SHIFT_LABELS: Record<UserShift, string> = AUTH_SHIFT_LABELS;
 
 export const PERIOD_LABELS: Record<AnalysePeriod, string> = {
   day: "jour",
-  week: "semaine",
   month: "mois",
 };
 
@@ -221,21 +220,6 @@ export function analyseWindow(
       date,
       label: `Jour du ${date}`,
       previousLabel: `Jour du ${previous}`,
-    };
-  }
-  if (period === "week") {
-    const from = shiftIsoDate(date, -6) ?? date;
-    const previousTo = shiftIsoDate(from, -1) ?? from;
-    const previousFrom = shiftIsoDate(previousTo, -6) ?? previousTo;
-    return {
-      from,
-      to: date,
-      previousFrom,
-      previousTo,
-      period,
-      date,
-      label: `7 jours jusqu’au ${date}`,
-      previousLabel: "7 jours précédents",
     };
   }
   // Mois calendaire : période courante = du 1er à la date de référence
@@ -1020,13 +1004,13 @@ export function resolveAnalyseSite(
     return { ok: true, site: locked };
   }
 
-  if (wantAll) return { ok: true, site: "zogbo" };
+  if (wantAll) return { ok: true, site: null };
   if (raw === "zogbo" || raw === "gbegamey") return { ok: true, site: raw };
   return { ok: false, error: "Site invalide.", status: 400 };
 }
 
 export function parseAnalysePeriod(raw: string | null): AnalysePeriod {
-  if (raw === "day" || raw === "week" || raw === "month") return raw;
+  if (raw === "day" || raw === "month") return raw;
   return "month";
 }
 

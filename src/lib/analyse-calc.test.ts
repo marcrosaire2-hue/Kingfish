@@ -51,14 +51,6 @@ describe("fenêtres de comparaison", () => {
     expect(w.previousTo).toBe("2026-03-14");
   });
 
-  it("compare 7 jours glissants aux 7 jours précédents", () => {
-    const w = analyseWindow("week", "2026-08-24");
-    expect(w.from).toBe("2026-08-18");
-    expect(w.to).toBe("2026-08-24");
-    expect(w.previousFrom).toBe("2026-08-11");
-    expect(w.previousTo).toBe("2026-08-17");
-  });
-
   it("compare le mois en cours (jusqu’à la date) au mois précédent entier", () => {
     const w = analyseWindow("month", "2026-03-15");
     expect(w.from).toBe("2026-03-01");
@@ -254,12 +246,17 @@ describe("isolation des sites", () => {
     expect(r).toEqual({ ok: true, site: "zogbo" });
   });
 
-  it("place un compte multi-sites sur un seul site (pas de consolidation)", () => {
-    expect(resolveAnalyseSite("tous", null)).toEqual({ ok: true, site: "zogbo" });
-    expect(resolveAnalyseSite("tous", "all")).toEqual({ ok: true, site: "zogbo" });
+  it("consolide les deux sites pour un compte multi-sites", () => {
+    expect(resolveAnalyseSite("tous", null)).toEqual({ ok: true, site: null });
+    expect(resolveAnalyseSite("tous", "all")).toEqual({ ok: true, site: null });
+    expect(resolveAnalyseSite("tous", "tous")).toEqual({ ok: true, site: null });
     expect(resolveAnalyseSite("tous", "gbegamey")).toEqual({
       ok: true,
       site: "gbegamey",
+    });
+    expect(resolveAnalyseSite("tous", "zogbo")).toEqual({
+      ok: true,
+      site: "zogbo",
     });
   });
 
@@ -329,7 +326,7 @@ describe("santé et insights", () => {
 
   it("alerte sur des remises POS élevées en % du brut", () => {
     const report = buildAnalyseReport({
-      window: analyseWindow("week", "2026-08-24"),
+      window: analyseWindow("day", "2026-08-24"),
       current: totals({ caBrut: 1_000_000, remises: 120_000, caNet: 880_000 }),
       previous: totals({ caBrut: 1_000_000, remises: 20_000, caNet: 980_000 }),
       products: [],
