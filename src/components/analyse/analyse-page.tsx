@@ -96,6 +96,13 @@ const SECTIONS: { id: AnalyseSection; label: string }[] = [
   { id: "produits", label: "Produits" },
 ];
 
+const SECTION_TITLES: Record<AnalyseSection, string> = {
+  synthese: "Santé de l’activité",
+  signaux: "Lecture managériale",
+  graphiques: "Graphiques",
+  produits: "Produits",
+};
+
 function InsightCard({ item }: { item: Insight }) {
   return (
     <article className={`analyse-insight ${toneClass(item.tone)}`}>
@@ -198,10 +205,17 @@ export function AnalysePage() {
     }
   }
 
+  const filterHint = [
+    period === "day" ? date : date.slice(0, 7),
+    site === "all"
+      ? "2 sites"
+      : SITE_LABELS[site as keyof typeof SITE_LABELS] ?? site,
+  ].join(" · ");
+
   return (
     <AppShell
       title="Analyse"
-      subtitle="CA, marges, stocks et charges — lecture managériale, sans réécrire la comptabilité."
+      subtitle="CA, marges, stocks et charges — lecture managériale."
       mainClassName="main-analyse"
     >
       <div className="analyse-page">
@@ -225,105 +239,139 @@ export function AnalysePage() {
                 </button>
               ))}
             </div>
+            {report ? (
+              <p className="analyse-hero-window">{report.window.label}</p>
+            ) : null}
+            <p className="analyse-hero-note">
+              Comparaison avec la période précédente. CMV, charges et résultat
+              restent au périmètre maison / site.
+            </p>
+            {report ? (
+              <p className="analyse-prev-line">
+                Précédent ({report.window.previousLabel}) ·{" "}
+                <strong className="mono">
+                  {formatFcfa(report.previous.caNet)}
+                </strong>
+              </p>
+            ) : null}
+          </div>
 
-            <div className="analyse-filters">
-              <label className="analyse-field">
-                <span>{period === "day" ? "Jour" : "Mois"}</span>
-                {period === "month" ? (
-                  <input
-                    type="month"
-                    value={date.slice(0, 7)}
-                    max={todayIsoDate().slice(0, 7)}
-                    onChange={(e) => {
-                      const ym = e.target.value;
-                      if (!/^\d{4}-\d{2}$/.test(ym)) return;
-                      const today = todayIsoDate();
-                      const end = lastDayOfMonth(ym);
-                      setDate(ym === today.slice(0, 7) ? today : end);
-                    }}
-                  />
-                ) : (
-                  <input
-                    type="date"
-                    value={date}
-                    max={todayIsoDate()}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-                      setDate(v);
-                    }}
-                  />
-                )}
-              </label>
-
-              {lockedSite ? null : (
-                <label className="analyse-field">
-                  <span>Site</span>
-                  <select
-                    value={site}
-                    onChange={(e) => setSite(e.target.value)}
-                  >
-                    <option value="all">Les deux sites</option>
-                    <option value="zogbo">{SITE_LABELS.zogbo}</option>
-                    <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
-                  </select>
-                </label>
-              )}
-
-              <label className="analyse-field">
-                <span>Équipe</span>
-                <select
-                  value={shift}
-                  onChange={(e) => setShift(e.target.value)}
-                >
-                  <option value="all">Toutes</option>
-                  <option value="jour">Jour</option>
-                  <option value="soir">Soir</option>
-                  <option value="nuit">Nuit</option>
-                  <option value="aucune">Hors équipe</option>
-                </select>
-              </label>
-
-              <label className="analyse-field">
-                <span>Nature</span>
-                <select value={kind} onChange={(e) => setKind(e.target.value)}>
-                  <option value="all">Toutes</option>
-                  <option value="plat">Plats</option>
-                  <option value="boisson">Boissons</option>
-                  <option value="local">Accompagnements</option>
-                  <option value="extra">Extra</option>
-                </select>
-              </label>
+          <div className="analyse-kpis" aria-label="Indicateurs clés">
+            <div className="analyse-kpi is-gold">
+              <span>CA net</span>
+              <strong className="mono">
+                {loading && !report ? "…" : formatFcfa(report?.current.caNet ?? 0)}
+              </strong>
+              {report ? (
+                <em className={deltaClass(report.caChangePct)}>
+                  {fmtPct(report.caChangePct)}
+                </em>
+              ) : null}
+            </div>
+            <div className="analyse-kpi is-blue">
+              <span>Marge brute</span>
+              <strong className="mono">
+                {!report
+                  ? "…"
+                  : report.current.margeBrute === null
+                    ? "n.d."
+                    : formatFcfa(report.current.margeBrute)}
+              </strong>
+            </div>
+            <div className="analyse-kpi">
+              <span>Résultat</span>
+              <strong className="mono">
+                {loading && !report
+                  ? "…"
+                  : formatFcfa(report?.current.resultat ?? 0)}
+              </strong>
+            </div>
+            <div className="analyse-kpi">
+              <span>Charges</span>
+              <strong className="mono">
+                {loading && !report
+                  ? "…"
+                  : formatFcfa(report?.current.chargesExploitation ?? 0)}
+              </strong>
             </div>
           </div>
-
-          <div className="analyse-ca-card" aria-label="Chiffre d’affaires net">
-            <span className="analyse-ca-label">CA net</span>
-            <strong className="analyse-ca-value mono">
-              {loading && !report ? "…" : formatFcfa(report?.current.caNet ?? 0)}
-            </strong>
-            {report ? (
-              <>
-                <p className="analyse-ca-meta">
-                  {report.window.label}
-                  {" · "}
-                  <span className={`analyse-delta ${deltaClass(report.caChangePct)}`}>
-                    {fmtPct(report.caChangePct)}
-                  </span>
-                </p>
-                <p className="analyse-ca-prev">
-                  {report.window.previousLabel}
-                  {" · "}
-                  <strong className="mono">
-                    {formatFcfa(report.previous.caNet)}
-                  </strong>
-                </p>
-              </>
-            ) : (
-              <p className="analyse-ca-meta">Chargement de la période…</p>
-            )}
-          </div>
         </header>
+
+        <details className="analyse-filters-fold" open>
+          <summary>
+            Filtres
+            <span className="analyse-filters-summary-hint">{filterHint}</span>
+          </summary>
+          <div className="analyse-filters-bar">
+            <label className="analyse-field">
+              <span>{period === "day" ? "Jour" : "Mois"}</span>
+              {period === "month" ? (
+                <input
+                  type="month"
+                  value={date.slice(0, 7)}
+                  max={todayIsoDate().slice(0, 7)}
+                  onChange={(e) => {
+                    const ym = e.target.value;
+                    if (!/^\d{4}-\d{2}$/.test(ym)) return;
+                    const today = todayIsoDate();
+                    const end = lastDayOfMonth(ym);
+                    setDate(ym === today.slice(0, 7) ? today : end);
+                  }}
+                />
+              ) : (
+                <input
+                  type="date"
+                  value={date}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    setDate(v);
+                  }}
+                />
+              )}
+            </label>
+
+            {lockedSite ? null : (
+              <label className="analyse-field">
+                <span>Site</span>
+                <select
+                  value={site}
+                  onChange={(e) => setSite(e.target.value)}
+                >
+                  <option value="all">Les deux sites</option>
+                  <option value="zogbo">{SITE_LABELS.zogbo}</option>
+                  <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
+                </select>
+              </label>
+            )}
+
+            <label className="analyse-field">
+              <span>Équipe</span>
+              <select
+                value={shift}
+                onChange={(e) => setShift(e.target.value)}
+              >
+                <option value="all">Toutes</option>
+                <option value="jour">Jour</option>
+                <option value="soir">Soir</option>
+                <option value="nuit">Nuit</option>
+                <option value="aucune">Hors équipe</option>
+              </select>
+            </label>
+
+            <label className="analyse-field">
+              <span>Nature</span>
+              <select value={kind} onChange={(e) => setKind(e.target.value)}>
+                <option value="all">Toutes</option>
+                <option value="plat">Plats</option>
+                <option value="boisson">Boissons</option>
+                <option value="local">Accompagnements</option>
+                <option value="extra">Extra</option>
+              </select>
+            </label>
+          </div>
+        </details>
 
         {error ? (
           <p className="error-banner" role="alert">
@@ -348,13 +396,6 @@ export function AnalysePage() {
 
         {report ? (
           <>
-            {report.filteredCa ? (
-              <p className="analyse-filtered-note" role="note">
-                CA filtré (équipe / nature). CMV, charges et résultat restent
-                au périmètre maison / site.
-              </p>
-            ) : null}
-
             <nav
               className="analyse-section-nav"
               role="tablist"
@@ -380,40 +421,20 @@ export function AnalysePage() {
             </nav>
 
             <div
-              className={`analyse-body${loading ? " is-loading" : ""}`}
+              className={`analyse-board${loading ? " is-loading" : ""}`}
               role="tabpanel"
             >
+              <h2 className="analyse-board-title">{SECTION_TITLES[section]}</h2>
+
+              {report.filteredCa ? (
+                <p className="analyse-filtered-note" role="note">
+                  CA filtré (équipe / nature). CMV, charges et résultat restent
+                  au périmètre maison / site.
+                </p>
+              ) : null}
+
               {section === "synthese" ? (
                 <>
-                  <section className="analyse-kpi-grid" aria-label="Indicateurs">
-                    <div className="analyse-kpi">
-                      <span>Marge brute</span>
-                      <strong className="mono">
-                        {report.current.margeBrute === null
-                          ? "n.d."
-                          : formatFcfa(report.current.margeBrute)}
-                      </strong>
-                    </div>
-                    <div className="analyse-kpi">
-                      <span>Charges</span>
-                      <strong className="mono">
-                        {formatFcfa(report.current.chargesExploitation)}
-                      </strong>
-                    </div>
-                    <div className="analyse-kpi">
-                      <span>Résultat</span>
-                      <strong className="mono">
-                        {formatFcfa(report.current.resultat)}
-                      </strong>
-                    </div>
-                    <div className="analyse-kpi">
-                      <span>CMV</span>
-                      <strong className="mono">
-                        {formatFcfa(report.current.cmv)}
-                      </strong>
-                    </div>
-                  </section>
-
                   <section
                     className="analyse-health"
                     aria-label="Santé de l’activité"
@@ -442,7 +463,7 @@ export function AnalysePage() {
 
                   <div className="analyse-split-panels">
                     <section className="panel">
-                      <h2 className="panel-title">Sites</h2>
+                      <h3 className="panel-title">Sites</h3>
                       <HorizontalBars
                         rows={report.bySite.map((r, i) => ({
                           key: r.key,
@@ -456,7 +477,7 @@ export function AnalysePage() {
                       />
                     </section>
                     <section className="panel">
-                      <h2 className="panel-title">Équipes</h2>
+                      <h3 className="panel-title">Équipes</h3>
                       <HorizontalBars
                         rows={report.byShift.map((r) => ({
                           key: r.key,
@@ -475,8 +496,8 @@ export function AnalysePage() {
                   className="analyse-brief"
                   aria-label="Lecture managériale"
                 >
-                  <div className="panel analyse-brief-col">
-                    <h2 className="panel-title">Ce qui va bien</h2>
+                  <div className="analyse-brief-col">
+                    <h3 className="panel-title">Ce qui va bien</h3>
                     {report.positives.length ? (
                       report.positives.map((item) => (
                         <InsightCard key={item.id} item={item} />
@@ -485,8 +506,8 @@ export function AnalysePage() {
                       <p className="muted">Pas de signal positif assez net.</p>
                     )}
                   </div>
-                  <div className="panel analyse-brief-col">
-                    <h2 className="panel-title">À surveiller</h2>
+                  <div className="analyse-brief-col">
+                    <h3 className="panel-title">À surveiller</h3>
                     {report.watches.length ? (
                       report.watches.map((item) => (
                         <InsightCard key={item.id} item={item} />
@@ -495,8 +516,8 @@ export function AnalysePage() {
                       <p className="muted">Aucune alerte relative.</p>
                     )}
                   </div>
-                  <div className="panel analyse-brief-col">
-                    <h2 className="panel-title">Conseils</h2>
+                  <div className="analyse-brief-col">
+                    <h3 className="panel-title">Conseils</h3>
                     {report.conseils.length ? (
                       report.conseils.map((item) => (
                         <InsightCard key={item.id} item={item} />
@@ -516,72 +537,69 @@ export function AnalysePage() {
 
               {section === "produits" ? (
                 <>
-                  <section className="panel panel-wide">
-                    <h2 className="panel-title">Produits</h2>
-                    <div className="table-scroll">
-                      <table className="data-table analyse-table">
-                        <thead>
+                  <div className="table-scroll">
+                    <table className="data-table analyse-table">
+                      <thead>
+                        <tr>
+                          <th>Produit</th>
+                          <th>Nature</th>
+                          <th className="num">Qté</th>
+                          <th className="num">CA net</th>
+                          <th className="num">Remise</th>
+                          <th className="num">Coût</th>
+                          <th className="num">Marge</th>
+                          <th className="num">Évolution</th>
+                          <th>Conseil</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {report.products.length === 0 ? (
                           <tr>
-                            <th>Produit</th>
-                            <th>Nature</th>
-                            <th className="num">Qté</th>
-                            <th className="num">CA net</th>
-                            <th className="num">Remise</th>
-                            <th className="num">Coût</th>
-                            <th className="num">Marge</th>
-                            <th className="num">Évolution</th>
-                            <th>Conseil</th>
+                            <td colSpan={9} className="muted">
+                              Aucune vente active sur la période.
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {report.products.length === 0 ? (
-                            <tr>
-                              <td colSpan={9} className="muted">
-                                Aucune vente active sur la période.
+                        ) : (
+                          report.products.map((p) => (
+                            <tr key={`${p.kind}:${p.productId}`}>
+                              <td>{p.name}</td>
+                              <td>{KIND_LABELS[p.kind] ?? p.kind}</td>
+                              <td className="num mono">{p.qty}</td>
+                              <td className="num mono">
+                                {formatFcfa(p.caNet)}
+                              </td>
+                              <td className="num mono">
+                                {formatFcfa(p.remises)}
+                              </td>
+                              <td className="num mono">
+                                {p.costKnown
+                                  ? formatFcfa(p.costAmount)
+                                  : "coût inconnu"}
+                              </td>
+                              <td className="num mono">
+                                {p.marginPct === null
+                                  ? "—"
+                                  : `${p.marginPct.toFixed(0)} %`}
+                              </td>
+                              <td className="num mono">
+                                {fmtPct(p.qtyChangePct)}
+                              </td>
+                              <td>
+                                <span
+                                  className={`analyse-advice ${adviceClass(p.advice)}`}
+                                >
+                                  {p.advice}
+                                </span>
                               </td>
                             </tr>
-                          ) : (
-                            report.products.map((p) => (
-                              <tr key={`${p.kind}:${p.productId}`}>
-                                <td>{p.name}</td>
-                                <td>{KIND_LABELS[p.kind] ?? p.kind}</td>
-                                <td className="num mono">{p.qty}</td>
-                                <td className="num mono">
-                                  {formatFcfa(p.caNet)}
-                                </td>
-                                <td className="num mono">
-                                  {formatFcfa(p.remises)}
-                                </td>
-                                <td className="num mono">
-                                  {p.costKnown
-                                    ? formatFcfa(p.costAmount)
-                                    : "coût inconnu"}
-                                </td>
-                                <td className="num mono">
-                                  {p.marginPct === null
-                                    ? "—"
-                                    : `${p.marginPct.toFixed(0)} %`}
-                                </td>
-                                <td className="num mono">
-                                  {fmtPct(p.qtyChangePct)}
-                                </td>
-                                <td>
-                                  <span
-                                    className={`analyse-advice ${adviceClass(p.advice)}`}
-                                  >
-                                    {p.advice}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </section>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
-                  <details className="panel analyse-notes">
-                    <summary className="panel-title">Limites de lecture</summary>
+                  <details className="analyse-notes">
+                    <summary>Limites de lecture</summary>
                     <ul>
                       {report.limitations.map((line) => (
                         <li key={line}>{line}</li>
