@@ -242,311 +242,338 @@ export function VersementsPage() {
       title="Versements"
       subtitle={
         isReaderOnly
-          ? "Consultation seule — suivi des déclarations et confirmations"
+          ? "Consultation des déclarations et confirmations."
           : canDeclare
-            ? "Déclarez le versement : tranche d’horaire, membres présents, heure, montant, n° et capture"
-            : "Vérifiez la preuve puis confirmez la transaction"
+            ? "Déclarez le versement avec preuve, puis suivez les confirmations."
+            : "Vérifiez la preuve puis confirmez la transaction."
       }
       mainClassName="main-versements"
     >
-      {error ? (
-        <p className="error-banner" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {flash ? (
-        <p className="versements-flash" role="status">
-          {flash}
-        </p>
-      ) : null}
+      <div className="versements-page">
+        <header className="versements-hero">
+          <div className="versements-hero-main">
+            <p className="versements-hero-note">
+              {isReaderOnly
+                ? "Vue direction — lecture seule des mouvements bancaires déclarés."
+                : canDeclare
+                  ? "Tranche, membres présents, heure, montant, n° de transaction et capture."
+                  : "Contrôle comptable : ouvrez une ligne pour vérifier la preuve avant confirmation."}
+            </p>
+          </div>
+          <div className="versements-kpis" aria-label="Totaux versements">
+            <div className="versements-kpi is-gold">
+              <span>Total</span>
+              <strong>
+                {loading ? "…" : formatFcfa(totals.totalAmount)}
+              </strong>
+            </div>
+            <div className="versements-kpi is-pending">
+              <span>En attente</span>
+              <strong>
+                {loading ? "…" : formatFcfa(totals.pendingAmount)}
+              </strong>
+            </div>
+            <div className="versements-kpi is-ok">
+              <span>Confirmés</span>
+              <strong>
+                {loading ? "…" : formatFcfa(totals.confirmedAmount)}
+              </strong>
+            </div>
+          </div>
+        </header>
 
-      <div className="versements-layout">
-        {canDeclare ? (
-          <section className="versements-declare" aria-label="Nouveau versement">
-            <h2>Nouveau versement</h2>
-            <form className="versements-form" onSubmit={onDeclare}>
-              {!siteLocked ? (
-                <label className="versements-field">
-                  <span>Site</span>
-                  <select
-                    value={site}
-                    onChange={(e) => setSite(e.target.value as VenteSite)}
-                  >
-                    <option value="zogbo">{SITE_LABELS.zogbo}</option>
-                    <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
-                  </select>
-                </label>
-              ) : null}
-              <label className="versements-field">
-                <span>Heure</span>
-                <input
-                  type="time"
-                  value={heure}
-                  onChange={(e) => setHeure(e.target.value)}
-                  required
-                />
-              </label>
-              <label className="versements-field">
-                <span>Tranche d’horaire</span>
-                <select
-                  value={tranche}
-                  onChange={(e) =>
-                    setTranche(e.target.value as VersementTranche)
-                  }
-                  required
-                >
-                  {(
-                    Object.keys(VERSEMENT_TRANCHE_LABELS) as VersementTranche[]
-                  ).map((key) => (
-                    <option key={key} value={key}>
-                      {VERSEMENT_TRANCHE_LABELS[key]}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <fieldset className="versements-membres">
-                <legend>Membres présents</legend>
-                <p className="versements-membres-hint">
-                  Indiquez le nom de chaque membre de l’équipe présent.
-                </p>
-                {membres.map((nom, index) => (
-                  <div key={index} className="versements-membre-row">
-                    <input
-                      type="text"
-                      value={nom}
-                      onChange={(e) => {
-                        const next = [...membres];
-                        next[index] = e.target.value;
-                        setMembres(next);
-                      }}
-                      placeholder={`Membre ${index + 1}`}
-                      autoComplete="name"
-                      required={index === 0}
-                    />
-                    {membres.length > 1 ? (
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        aria-label={`Retirer le membre ${index + 1}`}
-                        onClick={() =>
-                          setMembres(membres.filter((_, i) => i !== index))
-                        }
-                      >
-                        Retirer
-                      </button>
-                    ) : null}
-                  </div>
-                ))}
-                {membres.length < 12 ? (
-                  <button
-                    type="button"
-                    className="btn btn-ghost versements-add-membre"
-                    onClick={() => setMembres([...membres, ""])}
-                  >
-                    + Ajouter un membre
-                  </button>
-                ) : null}
-              </fieldset>
-              <label className="versements-field">
-                <span>Montant (FCFA)</span>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  min={1}
-                  step={1}
-                  value={montant}
-                  onChange={(e) => setMontant(e.target.value)}
-                  placeholder="150000"
-                  required
-                />
-              </label>
-              <label className="versements-field">
-                <span>N° de transaction</span>
-                <input
-                  type="text"
-                  value={numero}
-                  onChange={(e) => setNumero(e.target.value)}
-                  maxLength={80}
-                  placeholder="Référence MTN / Moov…"
-                  autoCapitalize="characters"
-                  required
-                />
-              </label>
-              <label className="versements-field versements-field-file">
-                <span>Capture d’écran</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(e) => setPreuve(e.target.files?.[0] ?? null)}
-                  required
-                />
-                {preuvePreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={preuvePreview}
-                    alt=""
-                    className="versements-preuve-preview"
-                  />
-                ) : null}
-              </label>
-              <button
-                type="submit"
-                className="btn btn-primary versements-submit"
-                disabled={
-                  busy ||
-                  loading ||
-                  !montant ||
-                  !numero ||
-                  !preuve ||
-                  !membres.some((m) => m.trim().length >= 2)
-                }
-              >
-                {busy ? "Enregistrement…" : "Enregistrer"}
-              </button>
-            </form>
-          </section>
+        {error ? (
+          <p className="error-banner" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {flash ? (
+          <p className="versements-flash" role="status">
+            {flash}
+          </p>
+        ) : null}
+        {isReaderOnly ? (
+          <p className="versements-reader-note">
+            Mode lecture — consultation sans modification ni confirmation.
+          </p>
         ) : null}
 
-        <section className="versements-board" aria-label="Liste des versements">
-          <div className="versements-board-head">
-            <div className="versements-filters">
-              {followAll ? (
-                <>
-                  <label className="date-field-pill">
-                    <span>Du</span>
-                    <input
-                      type="date"
-                      value={from}
-                      onChange={(e) => setFrom(e.target.value)}
-                    />
-                  </label>
-                  <label className="date-field-pill">
-                    <span>Au</span>
-                    <input
-                      type="date"
-                      value={to}
-                      onChange={(e) => setTo(e.target.value)}
-                    />
-                  </label>
-                  <label className="date-field-pill">
+        <div className="versements-layout">
+          {canDeclare ? (
+            <section
+              className="versements-declare"
+              aria-label="Nouveau versement"
+            >
+              <h2>Nouveau versement</h2>
+              <form className="versements-form" onSubmit={onDeclare}>
+                {!siteLocked ? (
+                  <label className="versements-field">
                     <span>Site</span>
                     <select
-                      value={filterSite}
-                      onChange={(e) =>
-                        setFilterSite(e.target.value as SiteFilter)
-                      }
+                      value={site}
+                      onChange={(e) => setSite(e.target.value as VenteSite)}
                     >
-                      <option value="all">Tous</option>
                       <option value="zogbo">{SITE_LABELS.zogbo}</option>
                       <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
                     </select>
                   </label>
-                </>
-              ) : (
-                <label className="date-field-pill">
-                  <span>Jour</span>
+                ) : null}
+                <label className="versements-field">
+                  <span>Heure</span>
                   <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
+                    type="time"
+                    value={heure}
+                    onChange={(e) => setHeure(e.target.value)}
+                    required
                   />
                 </label>
-              )}
-            </div>
-
-            <div className="achats-filters versements-status-filters">
-              {(
-                [
-                  ["all", "Tous"],
-                  ["en_attente", "En attente"],
-                  ["confirmee", "Confirmées"],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  className={`achats-filter-chip${statutFilter === key ? " is-active" : ""}`}
-                  onClick={() => setStatutFilter(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {followAll ? (
-            <div className="versements-kpis" aria-label="Totaux">
-              <div className="versements-kpi">
-                <span>Total</span>
-                <strong>{formatFcfa(totals.totalAmount)}</strong>
-              </div>
-              <div className="versements-kpi is-pending">
-                <span>En attente</span>
-                <strong>{formatFcfa(totals.pendingAmount)}</strong>
-              </div>
-              <div className="versements-kpi is-ok">
-                <span>Confirmés</span>
-                <strong>{formatFcfa(totals.confirmedAmount)}</strong>
-              </div>
-            </div>
-          ) : null}
-
-          {isReaderOnly ? (
-            <p className="versements-reader-note">
-              Mode lecture — vous consultez les mouvements sans pouvoir les
-              modifier ni les confirmer.
-            </p>
-          ) : null}
-
-          {loading || !scope ? (
-            <CatalogueSkeleton />
-          ) : filtered.length === 0 ? (
-            <p className="catalogue-empty">Aucun versement sur cette période.</p>
-          ) : (
-            <ul className="versements-list">
-              {filtered.map((v) => (
-                <li
-                  key={v.id}
-                  className={`versements-row${v.statut === "en_attente" ? " is-pending" : ""}`}
-                >
-                  <div className="versements-row-main">
-                    <div className="versements-row-top">
-                      <span className={`versements-statut is-${v.statut}`}>
-                        {VERSEMENT_STATUT_LABELS[v.statut]}
-                      </span>
-                      <strong className="versements-row-amount">
-                        {formatFcfa(v.montant)}
-                      </strong>
-                    </div>
-                    <p className="versements-row-meta">
-                      {v.date} · {VERSEMENT_TRANCHE_LABELS[v.trancheHoraire]} ·
-                      tx {v.heureTransaction} · {SITE_LABELS[v.site]}
-                    </p>
-                    <p className="versements-row-meta">
-                      {v.actorName} · {SHIFT_LABELS[v.shift]}
-                      {v.membresPresents.length
-                        ? ` · présents : ${v.membresPresents.join(", ")}`
-                        : ""}
-                      {v.confirmedByName
-                        ? ` → confirmé par ${v.confirmedByName}`
-                        : " · en attente comptable"}
-                    </p>
-                    <code className="versements-numero">
-                      {v.numeroTransaction}
-                    </code>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={() => setSelected(v)}
+                <label className="versements-field">
+                  <span>Tranche d’horaire</span>
+                  <select
+                    value={tranche}
+                    onChange={(e) =>
+                      setTranche(e.target.value as VersementTranche)
+                    }
+                    required
                   >
-                    Voir
+                    {(
+                      Object.keys(VERSEMENT_TRANCHE_LABELS) as VersementTranche[]
+                    ).map((key) => (
+                      <option key={key} value={key}>
+                        {VERSEMENT_TRANCHE_LABELS[key]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <fieldset className="versements-membres">
+                  <legend>Membres présents</legend>
+                  <p className="versements-membres-hint">
+                    Indiquez le nom de chaque membre de l’équipe présent.
+                  </p>
+                  {membres.map((nom, index) => (
+                    <div key={index} className="versements-membre-row">
+                      <input
+                        type="text"
+                        value={nom}
+                        onChange={(e) => {
+                          const next = [...membres];
+                          next[index] = e.target.value;
+                          setMembres(next);
+                        }}
+                        placeholder={`Membre ${index + 1}`}
+                        autoComplete="name"
+                        required={index === 0}
+                      />
+                      {membres.length > 1 ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost"
+                          aria-label={`Retirer le membre ${index + 1}`}
+                          onClick={() =>
+                            setMembres(membres.filter((_, i) => i !== index))
+                          }
+                        >
+                          Retirer
+                        </button>
+                      ) : null}
+                    </div>
+                  ))}
+                  {membres.length < 12 ? (
+                    <button
+                      type="button"
+                      className="btn btn-ghost versements-add-membre"
+                      onClick={() => setMembres([...membres, ""])}
+                    >
+                      + Ajouter un membre
+                    </button>
+                  ) : null}
+                </fieldset>
+                <label className="versements-field">
+                  <span>Montant (FCFA)</span>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    step={1}
+                    value={montant}
+                    onChange={(e) => setMontant(e.target.value)}
+                    placeholder="150000"
+                    required
+                  />
+                </label>
+                <label className="versements-field">
+                  <span>N° de transaction</span>
+                  <input
+                    type="text"
+                    value={numero}
+                    onChange={(e) => setNumero(e.target.value)}
+                    maxLength={80}
+                    placeholder="Référence MTN / Moov…"
+                    autoCapitalize="characters"
+                    required
+                  />
+                </label>
+                <label className="versements-field versements-field-file">
+                  <span>Capture d’écran</span>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(e) => setPreuve(e.target.files?.[0] ?? null)}
+                    required
+                  />
+                  {preuvePreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={preuvePreview}
+                      alt=""
+                      className="versements-preuve-preview"
+                    />
+                  ) : null}
+                </label>
+                <button
+                  type="submit"
+                  className="btn btn-primary versements-submit"
+                  disabled={
+                    busy ||
+                    loading ||
+                    !montant ||
+                    !numero ||
+                    !preuve ||
+                    !membres.some((m) => m.trim().length >= 2)
+                  }
+                >
+                  {busy ? "Enregistrement…" : "Enregistrer"}
+                </button>
+              </form>
+            </section>
+          ) : null}
+
+          <section
+            className="versements-board"
+            aria-label="Liste des versements"
+          >
+            <div className="versements-board-head">
+              <h2>Registre</h2>
+              <div className="versements-filters">
+                {followAll ? (
+                  <>
+                    <label className="versements-filter-field">
+                      <span>Du</span>
+                      <input
+                        type="date"
+                        value={from}
+                        onChange={(e) => setFrom(e.target.value)}
+                      />
+                    </label>
+                    <label className="versements-filter-field">
+                      <span>Au</span>
+                      <input
+                        type="date"
+                        value={to}
+                        onChange={(e) => setTo(e.target.value)}
+                      />
+                    </label>
+                    <label className="versements-filter-field">
+                      <span>Site</span>
+                      <select
+                        value={filterSite}
+                        onChange={(e) =>
+                          setFilterSite(e.target.value as SiteFilter)
+                        }
+                      >
+                        <option value="all">Tous</option>
+                        <option value="zogbo">{SITE_LABELS.zogbo}</option>
+                        <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
+                      </select>
+                    </label>
+                  </>
+                ) : (
+                  <label className="versements-filter-field">
+                    <span>Jour</span>
+                    <input
+                      type="date"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                    />
+                  </label>
+                )}
+              </div>
+              <div
+                className="versements-status-filters"
+                role="group"
+                aria-label="Filtre statut"
+              >
+                {(
+                  [
+                    ["all", "Tous"],
+                    ["en_attente", "En attente"],
+                    ["confirmee", "Confirmées"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`versements-filter-chip${statutFilter === key ? " is-active" : ""}`}
+                    onClick={() => setStatutFilter(key)}
+                  >
+                    {label}
                   </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                ))}
+              </div>
+            </div>
+
+            {loading || !scope ? (
+              <CatalogueSkeleton />
+            ) : filtered.length === 0 ? (
+              <p className="versements-empty">
+                Aucun versement sur cette période.
+              </p>
+            ) : (
+              <ul className="versements-list">
+                {filtered.map((v) => (
+                  <li
+                    key={v.id}
+                    className={`versements-row${v.statut === "en_attente" ? " is-pending" : ""}`}
+                  >
+                    <div className="versements-row-main">
+                      <div className="versements-row-top">
+                        <span className={`versements-statut is-${v.statut}`}>
+                          {VERSEMENT_STATUT_LABELS[v.statut]}
+                        </span>
+                        <strong className="versements-row-amount">
+                          {formatFcfa(v.montant)}
+                        </strong>
+                      </div>
+                      <p className="versements-row-meta">
+                        {v.date} · {VERSEMENT_TRANCHE_LABELS[v.trancheHoraire]} ·
+                        tx {v.heureTransaction} · {SITE_LABELS[v.site]}
+                      </p>
+                      <p className="versements-row-meta">
+                        {v.actorName} · {SHIFT_LABELS[v.shift]}
+                        {v.membresPresents.length
+                          ? ` · présents : ${v.membresPresents.join(", ")}`
+                          : ""}
+                        {v.confirmedByName
+                          ? ` → confirmé par ${v.confirmedByName}`
+                          : " · en attente comptable"}
+                      </p>
+                      <code className="versements-numero">
+                        {v.numeroTransaction}
+                      </code>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => setSelected(v)}
+                    >
+                      Voir
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        </div>
       </div>
 
       {selected ? (

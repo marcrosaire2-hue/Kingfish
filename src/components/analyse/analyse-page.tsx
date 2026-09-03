@@ -205,13 +205,6 @@ export function AnalysePage() {
     }
   }
 
-  const filterHint = [
-    period === "day" ? date : date.slice(0, 7),
-    site === "all"
-      ? "2 sites"
-      : SITE_LABELS[site as keyof typeof SITE_LABELS] ?? site,
-  ].join(" · ");
-
   return (
     <AppShell
       title="Analyse"
@@ -297,81 +290,69 @@ export function AnalysePage() {
           </div>
         </header>
 
-        <details className="analyse-filters-fold" open>
-          <summary>
-            Filtres
-            <span className="analyse-filters-summary-hint">{filterHint}</span>
-          </summary>
-          <div className="analyse-filters-bar">
-            <label className="analyse-field">
-              <span>{period === "day" ? "Jour" : "Mois"}</span>
-              {period === "month" ? (
-                <input
-                  type="month"
-                  value={date.slice(0, 7)}
-                  max={todayIsoDate().slice(0, 7)}
-                  onChange={(e) => {
-                    const ym = e.target.value;
-                    if (!/^\d{4}-\d{2}$/.test(ym)) return;
-                    const today = todayIsoDate();
-                    const end = lastDayOfMonth(ym);
-                    setDate(ym === today.slice(0, 7) ? today : end);
-                  }}
-                />
-              ) : (
-                <input
-                  type="date"
-                  value={date}
-                  max={todayIsoDate()}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-                    setDate(v);
-                  }}
-                />
-              )}
-            </label>
-
-            {lockedSite ? null : (
-              <label className="analyse-field">
-                <span>Site</span>
-                <select
-                  value={site}
-                  onChange={(e) => setSite(e.target.value)}
-                >
-                  <option value="all">Les deux sites</option>
-                  <option value="zogbo">{SITE_LABELS.zogbo}</option>
-                  <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
-                </select>
-              </label>
+        <div className="analyse-toolbar" aria-label="Filtres">
+          <label className="analyse-field">
+            <span>{period === "day" ? "Jour" : "Mois"}</span>
+            {period === "month" ? (
+              <input
+                type="month"
+                value={date.slice(0, 7)}
+                max={todayIsoDate().slice(0, 7)}
+                onChange={(e) => {
+                  const ym = e.target.value;
+                  if (!/^\d{4}-\d{2}$/.test(ym)) return;
+                  const today = todayIsoDate();
+                  const end = lastDayOfMonth(ym);
+                  setDate(ym === today.slice(0, 7) ? today : end);
+                }}
+              />
+            ) : (
+              <input
+                type="date"
+                value={date}
+                max={todayIsoDate()}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                  setDate(v);
+                }}
+              />
             )}
+          </label>
 
+          {lockedSite ? null : (
             <label className="analyse-field">
-              <span>Équipe</span>
-              <select
-                value={shift}
-                onChange={(e) => setShift(e.target.value)}
-              >
-                <option value="all">Toutes</option>
-                <option value="jour">Jour</option>
-                <option value="soir">Soir</option>
-                <option value="nuit">Nuit</option>
-                <option value="aucune">Hors équipe</option>
+              <span>Site</span>
+              <select value={site} onChange={(e) => setSite(e.target.value)}>
+                <option value="all">Les deux sites</option>
+                <option value="zogbo">{SITE_LABELS.zogbo}</option>
+                <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
               </select>
             </label>
+          )}
 
-            <label className="analyse-field">
-              <span>Nature</span>
-              <select value={kind} onChange={(e) => setKind(e.target.value)}>
-                <option value="all">Toutes</option>
-                <option value="plat">Plats</option>
-                <option value="boisson">Boissons</option>
-                <option value="local">Accompagnements</option>
-                <option value="extra">Extra</option>
-              </select>
-            </label>
-          </div>
-        </details>
+          <label className="analyse-field">
+            <span>Équipe</span>
+            <select value={shift} onChange={(e) => setShift(e.target.value)}>
+              <option value="all">Toutes</option>
+              <option value="jour">Jour</option>
+              <option value="soir">Soir</option>
+              <option value="nuit">Nuit</option>
+              <option value="aucune">Hors équipe</option>
+            </select>
+          </label>
+
+          <label className="analyse-field">
+            <span>Nature</span>
+            <select value={kind} onChange={(e) => setKind(e.target.value)}>
+              <option value="all">Toutes</option>
+              <option value="plat">Plats</option>
+              <option value="boisson">Boissons</option>
+              <option value="local">Accompagnements</option>
+              <option value="extra">Extra</option>
+            </select>
+          </label>
+        </div>
 
         {error ? (
           <p className="error-banner" role="alert">

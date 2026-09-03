@@ -1,3 +1,110 @@
+/* Versements — même langage que Achats / Analyse */
+
+.main-versements .versements-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.main-versements .versements-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem 1.25rem;
+  padding: 0.9rem 1.05rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(165deg, #f7fafc 0%, #e8f0f6 55%, #eef4f8 100%);
+}
+
+.main-versements .versements-hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+
+.main-versements .versements-hero-note {
+  margin: 0;
+  max-width: 32rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+.main-versements .versements-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(6.5rem, 1fr));
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.main-versements .versements-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: #fff;
+  line-height: 1.2;
+}
+
+.main-versements .versements-kpi span {
+  font-size: 0.66rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.main-versements .versements-kpi strong {
+  font-size: clamp(0.88rem, 2vw, 1.02rem);
+  font-weight: 800;
+  word-break: break-word;
+}
+
+.main-versements .versements-kpi.is-gold {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, #fff);
+}
+
+.main-versements .versements-kpi.is-pending {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+  background: color-mix(in srgb, var(--accent) 10%, #fff);
+}
+
+.main-versements .versements-kpi.is-ok {
+  border-color: color-mix(in srgb, #16a34a 30%, var(--line));
+  background: color-mix(in srgb, #16a34a 8%, #fff);
+}
+
+.main-versements .versements-flash {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  font-weight: 650;
+  font-size: 0.9rem;
+  background: color-mix(in srgb, #16a34a 12%, transparent);
+  border: 1px solid color-mix(in srgb, #16a34a 35%, transparent);
+  color: #166534;
+}
+
+.main-versements .versements-reader-note {
+  margin: 0;
+  padding: 0.7rem 0.9rem;
+  border-radius: 12px;
+  font-weight: 650;
+  font-size: 0.88rem;
+  background: color-mix(in srgb, var(--sidebar) 8%, transparent);
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+
 .main-versements .versements-layout {
   display: grid;
   gap: 1rem;
@@ -36,8 +143,8 @@
 }
 
 .main-versements .versements-field span {
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 750;
   color: var(--ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.03em;
@@ -45,9 +152,10 @@
 
 .main-versements .versements-membres {
   margin: 0;
-  padding: 0.65rem 0.75rem 0.75rem;
+  padding: 0.7rem 0.8rem 0.8rem;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ink) 2%, #fff);
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
@@ -55,14 +163,17 @@
 
 .main-versements .versements-membres legend {
   padding: 0 0.25rem;
-  font-size: 0.75rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 750;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--ink-soft);
 }
 
 .main-versements .versements-membres-hint {
   margin: 0;
   font-size: 0.78rem;
-  color: var(--muted);
+  color: var(--muted, var(--ink-soft));
 }
 
 .main-versements .versements-membre-row {
@@ -74,6 +185,12 @@
 .main-versements .versements-membre-row input {
   flex: 1;
   min-width: 0;
+  min-height: 2.55rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 16px;
 }
 
 .main-versements .versements-add-membre {
@@ -94,7 +211,8 @@
 }
 
 .main-versements .versements-field input:focus,
-.main-versements .versements-field select:focus {
+.main-versements .versements-field select:focus,
+.main-versements .versements-membre-row input:focus {
   outline: none;
   border-color: var(--sidebar);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar) 14%, transparent);
@@ -119,7 +237,7 @@
 .main-versements .versements-submit {
   width: 100%;
   min-height: 2.85rem;
-  margin-top: 0.25rem;
+  margin-top: 0.2rem;
 }
 
 .main-versements .versements-board {
@@ -133,81 +251,73 @@
 .main-versements .versements-board-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.85rem;
+  margin-bottom: 0.9rem;
+}
+
+.main-versements .versements-board-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .main-versements .versements-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.55rem;
-}
-
-.main-versements .versements-status-filters {
-  margin: 0;
-}
-
-.main-versements .versements-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.5rem;
-  margin-bottom: 0.85rem;
+  align-items: end;
 }
 
-.main-versements .versements-kpi {
+.main-versements .versements-filter-field {
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.65rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+  gap: 0.25rem;
+  min-width: 0;
 }
 
-.main-versements .versements-kpi span {
+.main-versements .versements-filter-field span {
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 750;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
 
-.main-versements .versements-kpi strong {
-  font-size: 0.98rem;
-  font-weight: 800;
-}
-
-.main-versements .versements-kpi.is-pending {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
-
-.main-versements .versements-kpi.is-ok {
-  border-color: color-mix(in srgb, #16a34a 30%, var(--line));
-  background: color-mix(in srgb, #16a34a 8%, transparent);
-}
-
-.main-versements .versements-reader-note,
-.main-versements .versements-flash {
-  margin: 0 0 0.85rem;
-  padding: 0.7rem 0.9rem;
-  border-radius: 12px;
-  font-weight: 650;
-  font-size: 0.9rem;
-}
-
-.main-versements .versements-reader-note {
-  background: color-mix(in srgb, var(--sidebar) 8%, transparent);
+.main-versements .versements-filter-field input,
+.main-versements .versements-filter-field select {
+  min-height: 2.55rem;
+  padding: 0.4rem 0.65rem;
   border: 1px solid var(--line);
-  color: var(--ink-soft);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 16px;
+  color: var(--ink);
 }
 
-.main-versements .versements-flash {
-  background: color-mix(in srgb, #16a34a 12%, transparent);
-  border: 1px solid color-mix(in srgb, #16a34a 35%, transparent);
-  color: #166534;
+.main-versements .versements-status-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.main-versements .versements-filter-chip {
+  border: 1px solid var(--line);
+  background: #f8f9fb;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.main-versements .versements-filter-chip.is-active {
+  border-color: var(--sidebar-mid, var(--sidebar));
+  background: color-mix(in srgb, var(--sidebar) 10%, #fff);
+  color: var(--ink);
+  font-weight: 750;
 }
 
 .main-versements .versements-list {
@@ -227,12 +337,12 @@
   padding: 0.85rem 0.95rem;
   border-radius: 12px;
   border: 1px solid var(--line);
-  background: var(--surface);
+  background: #fff;
 }
 
 .main-versements .versements-row.is-pending {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
+  background: color-mix(in srgb, var(--accent) 7%, #fff);
 }
 
 .main-versements .versements-row-main {
@@ -240,7 +350,7 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.22rem;
 }
 
 .main-versements .versements-row-top {
@@ -288,6 +398,13 @@
   color: #166534;
 }
 
+.main-versements .versements-empty {
+  margin: 0;
+  padding: 1.75rem 0.75rem;
+  text-align: center;
+  color: var(--ink-soft);
+}
+
 .main-versements .versements-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -303,8 +420,9 @@
   max-height: min(92dvh, 46rem);
   overflow: auto;
   padding: 1.1rem 1.15rem 1.25rem;
-  border-radius: 1rem;
+  border-radius: 14px;
   background: var(--paper);
+  border: 1px solid var(--line);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
   display: flex;
   flex-direction: column;
@@ -321,33 +439,34 @@
 .main-versements .versements-modal-head h2 {
   margin: 0;
   font-size: 1.25rem;
+  font-weight: 800;
 }
 
 .main-versements .versements-detail {
   display: grid;
-  gap: 0.5rem;
+  gap: 0.55rem;
   margin: 0;
 }
 
 .main-versements .versements-detail div {
   display: grid;
-  grid-template-columns: 5.5rem 1fr;
+  grid-template-columns: 6rem 1fr;
   gap: 0.45rem;
   align-items: start;
 }
 
 .main-versements .versements-detail dt {
   margin: 0;
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.7rem;
+  font-weight: 750;
   color: var(--ink-soft);
   text-transform: uppercase;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
 }
 
 .main-versements .versements-detail dd {
   margin: 0;
-  font-weight: 600;
+  font-weight: 650;
   font-size: 0.92rem;
 }
 
@@ -383,6 +502,7 @@
 
 @media (max-width: 720px) {
   .main-versements .versements-kpis {
+    width: 100%;
     grid-template-columns: 1fr;
   }
 
