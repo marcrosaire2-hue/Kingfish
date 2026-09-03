@@ -28,7 +28,10 @@ import {
 import { sumChargesBreakdown } from "@/lib/synthese-calc";
 import { getPointsInRange } from "@/lib/synthese-repo";
 import { sumCaByShiftRange } from "@/lib/vente-repo";
-import { sumCaisseDepensesRecettes } from "@/lib/caisse-repo";
+import {
+  sumCaisseDepensesRecettes,
+  sumCaisseDepensesRecettesParCaisse,
+} from "@/lib/caisse-repo";
 import { getEpuises } from "@/lib/stock-repo";
 import { listImmobilisations } from "@/lib/immobilisations-repo";
 import { isValidCalendarDate } from "@/lib/zogbo-calc";
@@ -206,6 +209,33 @@ async function acquisitionsInRange(
   return total;
 }
 
+/**
+ * Totaux caisse pour l’analyse. Un site unique reste séparé ; « les deux
+ * sites » additionne Zogbo + Gbégamey côté à côté (jamais un mélange opaque
+ * dans sumCaisseDepensesRecettes, qui refuse le scope vide).
+ */
+export async function caisseTotalsForAnalyse(input: {
+  dateFrom: string;
+  dateTo: string;
+  scopeSite: VenteSite | null;
+}): Promise<{ totalDepense: number; totalRecette: number }> {
+  if (input.scopeSite) {
+    return sumCaisseDepensesRecettes({
+      dateFrom: input.dateFrom,
+      dateTo: input.dateTo,
+      scopeSite: input.scopeSite,
+    });
+  }
+  const rows = await sumCaisseDepensesRecettesParCaisse({
+    dateFrom: input.dateFrom,
+    dateTo: input.dateTo,
+  });
+  return {
+    totalDepense: rows.reduce((s, r) => s + r.totalDepense, 0),
+    totalRecette: rows.reduce((s, r) => s + r.totalRecette, 0),
+  };
+}
+
 async function loadSiteCa(input: {
   from: string;
   to: string;
@@ -279,12 +309,12 @@ export async function loadAnalyseReport(input: {
       kind: input.kind,
     }),
     sumCaByShiftRange(window.from, window.to, siteArg),
-    sumCaisseDepensesRecettes({
+    caisseTotalsForAnalyse({
       dateFrom: window.from,
       dateTo: window.to,
       scopeSite: scope.site,
     }),
-    sumCaisseDepensesRecettes({
+    caisseTotalsForAnalyse({
       dateFrom: window.previousFrom,
       dateTo: window.previousTo,
       scopeSite: scope.site,

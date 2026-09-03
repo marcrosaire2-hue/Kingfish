@@ -48,6 +48,9 @@ export async function GET(request: Request) {
     if (error instanceof AnalyseError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
     return authErrorResponse(error);
   }
 }
