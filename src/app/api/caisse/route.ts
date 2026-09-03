@@ -20,6 +20,7 @@ import {
   getCaissesOverview,
   listCaisses,
   openCaisse,
+  rolloverCaisseToToday,
   startComptageCaisse,
 } from "@/lib/caisse-repo";
 import type { CaisseKey, CaisseMouvementKind } from "@/lib/types";
@@ -110,6 +111,7 @@ export async function POST(request: Request) {
       action?:
         | "open"
         | "close"
+        | "rollover-jour"
         | "start-comptage"
         | "cancel-comptage"
         | "mouvement"
@@ -166,6 +168,32 @@ export async function POST(request: Request) {
         date,
         site: session.site ?? caisse,
         amount: Number(body.soldeInitial) || 0,
+      });
+      return NextResponse.json({ session });
+    }
+
+    if (body.action === "rollover-jour") {
+      let caisse = body.caisse;
+      if (!isZoneCaisse(caisse)) {
+        caisse = resolveCaisse(null, user);
+      } else if (user.site === "zogbo" || user.site === "gbegamey") {
+        caisse = user.site;
+      } else if (!canUseCaisse(user, caisse)) {
+        return NextResponse.json(
+          { error: `Accès refusé à la ${CAISSE_LABELS[caisse].toLowerCase()}.` },
+          { status: 403 },
+        );
+      }
+      const session = await rolloverCaisseToToday({ caisse, user });
+      const theo = soldeTheorique(session);
+      await logActivity({
+        user,
+        kind: "caisse",
+        title: `Bascule jour · ${CAISSE_LABELS[caisse]}`,
+        detail: `Nouvelle session ${session.date} — fond reporté ${theo} FCFA`,
+        date: session.date,
+        site: session.site ?? caisse,
+        amount: theo,
       });
       return NextResponse.json({ session });
     }

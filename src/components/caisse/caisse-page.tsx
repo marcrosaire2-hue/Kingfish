@@ -23,7 +23,7 @@ import type {
   CaisseOverviewItem,
   CaisseSession,
 } from "@/lib/types";
-import { todayIsoDate } from "@/lib/zogbo-calc";
+import { todayIsoDate, isCaisseStale, CAISSE_AUTO_CLOSE_HOUR } from "@/lib/zogbo-calc";
 
 type Board = {
   date: string;
@@ -230,6 +230,35 @@ export function CaissePage() {
     }
   }
 
+  async function rolloverJour() {
+    if (!board?.active) return;
+    const session = board.active;
+    const lag = joursOuverte(session.date);
+    const solde = theo(session);
+    const caisseLabel = CAISSE_LABELS[board.caisse];
+    const today = todayIsoDate();
+    const recap = [
+      `Basculer la ${caisseLabel} au jour courant ?`,
+      "",
+      `La session du ${session.date.slice(8)}/${session.date.slice(5, 7)} sera clôturée sans comptage physique.`,
+      `Une nouvelle session s'ouvrira pour aujourd'hui avec le solde théorique (${formatFcfa(solde)}) comme fond de caisse.`,
+      lag >= 1
+        ? `Les ventes POS repasseront sur le ${today.slice(8)}/${today.slice(5, 7)}.`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    if (!window.confirm(recap)) return;
+    const ok = await post(
+      { action: "rollover-jour", caisse: board.caisse },
+      "Échec bascule jour",
+    );
+    if (ok) {
+      setDate(today);
+      setFlash("Caisse basculée au jour courant — fond reporté.");
+    }
+  }
+
   async function cancelComptage() {
     if (!board?.active) return;
     if (
@@ -418,13 +447,27 @@ export function CaissePage() {
                     {active.userName}
                   </span>
                   {joursOuverte(active.date) >= 1 ? (
-                    <span className="caisse-hero-warn">
-                      ⚠ Caisse du {active.date.slice(8)}/
-                      {active.date.slice(5, 7)} encore ouverte —{" "}
-                      {joursOuverte(active.date)} jour
-                      {joursOuverte(active.date) > 1 ? "s" : ""} de retard.
-                      Fermez-la pour repasser au jour courant.
-                    </span>
+                    <div
+                      className={`caisse-hero-warn${isCaisseStale(active.date) ? "" : " is-pending"}`}
+                    >
+                      <p className="caisse-hero-warn-text">
+                        Caisse du {active.date.slice(8)}/{active.date.slice(5, 7)}{" "}
+                        — les ventes restent sur ce jour.
+                        {isCaisseStale(active.date)
+                          ? ` ${joursOuverte(active.date)} jour${joursOuverte(active.date) > 1 ? "s" : ""} de retard.`
+                          : ` Bascule auto à ${CAISSE_AUTO_CLOSE_HOUR} h.`}
+                      </p>
+                      {active.statut === "ouverte" ? (
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm caisse-hero-warn-btn"
+                          disabled={busy}
+                          onClick={() => void rolloverJour()}
+                        >
+                          Passer au jour courant
+                        </button>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
                 <div className="caisse-hero-metrics">

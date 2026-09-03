@@ -199,20 +199,53 @@ async function rolloverStaleCaisse(
  * Session ouverte d'une caisse. Une caisse est un tiroir partagé : qui l'ouvre
  * l'ouvre pour toute la zone, et le POS y encaisse quel que soit le vendeur.
  */
-export async function getActiveCaisse(
-  caisse: CaisseKey,
-): Promise<CaisseSession | null> {
+async function findOpenCaisse(caisse: CaisseKey): Promise<CaisseSession | null> {
   const db = await getDb();
   const doc = await db.collection<CaisseDoc>("caisses_sessions").findOne({
     ...filtreCaisse(caisse),
     statut: { $in: ["ouverte", "en_comptage"] satisfies CaisseStatut[] },
   });
-  if (!doc) return null;
-  const session = toSession(doc);
+  return doc ? toSession(doc) : null;
+}
+
+export async function getActiveCaisse(
+  caisse: CaisseKey,
+): Promise<CaisseSession | null> {
+  const session = await findOpenCaisse(caisse);
+  if (!session) return null;
   if (isCaisseStale(session.date)) {
     return rolloverStaleCaisse(caisse, session);
   }
   return session;
+}
+
+/**
+ * Bascule manuelle : clôture la session datée d'hier (sans comptage physique)
+ * et rouvre une caisse pour aujourd'hui avec le solde théorique reporté.
+ */
+export async function rolloverCaisseToToday(input: {
+  caisse: CaisseKey;
+  user: SessionUser;
+}): Promise<CaisseSession> {
+  assertAcces(input.user, input.caisse);
+  const session = await findOpenCaisse(input.caisse);
+  if (!session) {
+    throw new Error("Aucune caisse ouverte à basculer.");
+  }
+  if (session.statut === "en_comptage") {
+    throw new Error(
+      "Comptage en cours : annulez-le ou finalisez la clôture avant de basculer.",
+    );
+  }
+  const today = todayIsoDate();
+  if (session.date >= today) {
+    throw new Error("La caisse est déjà au jour courant.");
+  }
+  const rolled = await rolloverStaleCaisse(input.caisse, session);
+  if (!rolled) {
+    throw new Error("Impossible de basculer la caisse au jour courant.");
+  }
+  return rolled;
 }
 
 /** Caisse d'encaissement d'une zone — point d'entrée du POS. */

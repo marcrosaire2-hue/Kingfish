@@ -2005,9 +2005,10 @@ export function VentePage({
         caisse?.date === caisseActive.date ? (
           <p className="ui-info" role="status">
             Caisse du {caisseActive.date.slice(8)}/{caisseActive.date.slice(5, 7)}{" "}
-            encore ouverte (ouverte par {caisseActive.userName}). Pour démarrer
-            aujourd&apos;hui, fermez-la sur{" "}
-            <Link href={`/caisse?caisse=${site}`}>Caisse</Link>.
+            encore ouverte (ouverte par {caisseActive.userName}). Sur{" "}
+            <Link href={`/caisse?caisse=${site}`}>Caisse</Link>, cliquez{" "}
+            <strong>Passer au jour courant</strong> pour basculer sans comptage
+            physique.
           </p>
         ) : null}
 

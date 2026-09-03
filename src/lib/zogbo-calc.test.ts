@@ -3,6 +3,7 @@ import {
   applyZogboMovementToState,
   cancelZogboMovementInState,
   emptyZogboLine,
+  isCaisseStale,
   leftoverFromZogboLines,
   leftoverMapHasStock,
   normalizeZogboLine,
@@ -198,6 +199,23 @@ describe("dates", () => {
     expect(
       operatingDateFromCaisse("2026-08-18", "2026-08-19", "2026-08-19"),
     ).toBe("2026-08-18");
+  });
+
+  it("isCaisseStale attend l'heure de coupure Porto-Novo", () => {
+    // 03/09 à 4 h locale : service de la veille encore valide.
+    expect(
+      isCaisseStale(
+        "2026-09-02",
+        new Date("2026-09-03T03:00:00+01:00"),
+      ),
+    ).toBe(false);
+    // 03/09 à 5 h locale : bascule auto.
+    expect(
+      isCaisseStale(
+        "2026-09-02",
+        new Date("2026-09-03T05:00:00+01:00"),
+      ),
+    ).toBe(true);
   });
 
   it("sans caisse, la date demandée l'emporte sur le calendrier", () => {

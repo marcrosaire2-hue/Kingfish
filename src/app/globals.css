@@ -6207,15 +6207,38 @@ body {
 }
 
 .caisse-hero-warn {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.55rem;
   margin-top: 0.4rem;
-  padding: 0.45rem 0.7rem;
+  padding: 0.55rem 0.75rem;
   border-radius: 0.5rem;
   font-size: 0.85rem;
   font-weight: 600;
   color: #fff;
   background: color-mix(in srgb, var(--danger, #b91c1c) 55%, transparent);
-  max-width: 32ch;
+  max-width: 36ch;
+}
+
+.caisse-hero-warn.is-pending {
+  background: color-mix(in srgb, var(--accent, #f0b018) 45%, transparent);
+  color: var(--ink, #0b1a2e);
+}
+
+.caisse-hero-warn-text {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.caisse-hero-warn-btn {
+  border-color: color-mix(in srgb, #fff 35%, transparent);
+  color: inherit;
+  background: color-mix(in srgb, #fff 12%, transparent);
+}
+
+.caisse-hero-warn.is-pending .caisse-hero-warn-btn {
+  border-color: color-mix(in srgb, var(--ink) 18%, transparent);
 }
 
 .caisse-hero-metrics {
