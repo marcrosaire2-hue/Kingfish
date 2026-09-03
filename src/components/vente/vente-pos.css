@@ -53,51 +53,97 @@
   font-weight: 700;
 }
 
-/* --- Alerte ruptures ---------------------------------------------------- */
+/* --- Alertes stock : pastille Épuisé, sans bandeau d’alarme -------------- */
+.vente-stock-tag {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
+  color: #6b4e00;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 .vente-rupture-bar {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
+  gap: 0.65rem;
   width: 100%;
-  padding: 0.65rem 0.85rem;
+  padding: 0.55rem 0.8rem;
   margin: 0;
-  border-radius: 12px;
-  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--line));
-  background: color-mix(in srgb, var(--danger-soft, #fee2e2) 65%, var(--surface));
-  color: var(--danger);
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  color: var(--ink);
   font-size: 0.88rem;
   text-align: left;
   cursor: pointer;
   touch-action: manipulation;
-  transition: background 0.15s ease;
 }
 
 .vente-rupture-bar:hover {
-  background: color-mix(in srgb, var(--danger-soft, #fee2e2) 85%, var(--surface));
-}
-
-.vente-rupture-bar-icon {
-  display: grid;
-  place-items: center;
-  flex-shrink: 0;
-  width: 1.35rem;
-  height: 1.35rem;
-  border-radius: 50%;
-  background: var(--danger);
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 800;
+  background: color-mix(in srgb, var(--accent) 16%, var(--surface));
 }
 
 .vente-rupture-bar strong {
   flex: 1 1 auto;
-  font-weight: 700;
+  font-weight: 650;
+  color: var(--ink);
 }
 
-.vente-rupture-bar-chevron {
+.vente-rupture-bar-hint {
   flex-shrink: 0;
-  opacity: 0.7;
-  font-size: 1.1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.vente-rupture-alert {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.8rem;
+  margin: 0;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.vente-rupture-alert-msg {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.vente-rupture-alert-close {
+  margin-left: auto;
+  background: transparent;
+  border: 0;
+  color: var(--ink-soft);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.15rem 0.4rem;
+  border-radius: 8px;
+}
+
+.vente-rupture-alert-close:hover {
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
+}
+
+.vente-out-badge.is-epuise {
+  background: color-mix(in srgb, var(--accent) 88%, #3a2c00);
+  color: #3a2c00;
+  text-transform: none;
+  letter-spacing: 0.02em;
 }
 
 /* --- Carte caisse premium ----------------------------------------------- */

@@ -262,7 +262,7 @@ const ProductGrid = memo(function ProductGrid({
             : outOfStock && p.blockReason?.toLowerCase().includes("pas encore préparé")
               ? "À PRÉPARER"
               : outOfStock
-                ? "ÉPUISÉ"
+                ? "Épuisé"
                 : null;
         return (
           <article
@@ -281,7 +281,7 @@ const ProductGrid = memo(function ProductGrid({
                   className={`vente-out-badge${
                     badgeLabel === "PAS REÇU" || badgeLabel === "À PRÉPARER"
                       ? " is-wait"
-                      : ""
+                      : " is-epuise"
                   }`}
                 >
                   {badgeLabel}
@@ -295,9 +295,9 @@ const ProductGrid = memo(function ProductGrid({
               <span className="vente-price mono">
                 {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
               </span>
-              {showStockUi && reason ? (
+              {showStockUi && reason && badgeLabel !== "Épuisé" ? (
                 <p className="vente-unavailable-reason">{reason}</p>
-              ) : showStockUi && p.hint ? (
+              ) : showStockUi && p.hint && badgeLabel !== "Épuisé" ? (
                 <p className="vente-hint">{p.hint}</p>
               ) : null}
             </div>
@@ -389,7 +389,7 @@ const MealComposer = memo(function MealComposer({
                     p.stockLeft !== undefined &&
                     p.stockLeft <= 0;
                   const suffix = platEpuise
-                    ? ` · ${p.blockReason || "ÉPUISÉ"}`
+                    ? ` · ${p.blockReason || "épuisé"}`
                     : !ignoreStock
                       ? ""
                       : p.stockLeft != null && p.stockLeft <= 0
@@ -929,9 +929,7 @@ export function VentePage({
     );
     prevRuptures.current = ruptures;
     if (nouvelles.length === 0) return;
-    setRuptureAlert(
-      `${nouvelles.length === 1 ? "ÉPUISÉ :" : "ÉPUISÉS :"} ${nouvelles.join(", ")}`,
-    );
+    setRuptureAlert(nouvelles.join(", "));
     if (ruptureAlertTimer.current !== null) {
       window.clearTimeout(ruptureAlertTimer.current);
     }
@@ -1865,10 +1863,8 @@ export function VentePage({
 
         {ruptureAlert ? (
           <div className="vente-rupture-alert" role="alert">
-            <strong>{ruptureAlert}</strong>
-            <span className="vente-rupture-alert-sub">
-              — réapprovisionnez ou mettez à jour le comptage pour revendre.
-            </span>
+            <span className="vente-stock-tag">Épuisé</span>
+            <span className="vente-rupture-alert-msg">{ruptureAlert}</span>
             <button
               type="button"
               className="vente-rupture-alert-close"
@@ -1886,16 +1882,12 @@ export function VentePage({
             className="vente-rupture-bar"
             onClick={scrollToCatalog}
           >
-            <span className="vente-rupture-bar-icon" aria-hidden>
-              !
-            </span>
+            <span className="vente-stock-tag">Épuisé</span>
             <strong>
-              {ruptureCount} produit{ruptureCount > 1 ? "s" : ""} non vendable
+              {ruptureCount} plat{ruptureCount > 1 ? "s" : ""} / boisson
               {ruptureCount > 1 ? "s" : ""}
             </strong>
-            <span className="vente-rupture-bar-chevron" aria-hidden>
-              ›
-            </span>
+            <span className="vente-rupture-bar-hint">Voir</span>
           </button>
         ) : null}
 

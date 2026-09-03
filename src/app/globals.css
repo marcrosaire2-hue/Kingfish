@@ -1821,6 +1821,13 @@ select {
 }
 .vente-out-badge.is-wait {
   background: color-mix(in srgb, var(--accent, #005098) 85%, #000);
+  color: #fff;
+  text-transform: uppercase;
+}
+
+.vente-out-badge.is-epuise {
+  background: color-mix(in srgb, var(--accent) 88%, #3a2c00);
+  color: #3a2c00;
 }
 
 .vente-card-media {
@@ -7941,10 +7948,6 @@ html.nav-open body {
     background: var(--paper-raised);
   }
 
-  .vente-rupture-bar span:not(strong) {
-    display: none;
-  }
-
   .vente-catalog .vente-qr-scan {
     padding: 0.65rem 0.75rem;
     margin-bottom: 0.35rem;
@@ -7990,14 +7993,13 @@ html.nav-open body {
   position: absolute;
   top: 0.35rem;
   left: 0.35rem;
-  padding: 0.15rem 0.45rem;
+  padding: 0.18rem 0.5rem;
   border-radius: 999px;
-  background: var(--danger);
-  color: var(--on-danger, #fff);
+  background: color-mix(in srgb, var(--accent) 88%, #3a2c00);
+  color: #3a2c00;
   font-size: 0.62rem;
   font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
+  letter-spacing: 0.02em;
   line-height: 1.4;
   white-space: nowrap;
 }
@@ -8016,53 +8018,54 @@ html.nav-open body {
 .vente-rupture-bar {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 0.9rem;
+  gap: 0.65rem;
+  padding: 0.55rem 0.8rem;
   margin: 0.4rem 0 0;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--danger-soft) 55%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--line));
-  color: var(--ink-soft);
-  font-size: 0.85rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  color: var(--ink);
+  font-size: 0.88rem;
 }
 
 .vente-rupture-bar strong {
-  color: var(--danger);
+  color: var(--ink);
+  font-weight: 650;
 }
 
 /* Alerte transitoire : produit qui vient de s'épuiser à la vente. */
 .vente-rupture-alert {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.6rem 0.9rem;
+  gap: 0.65rem;
+  padding: 0.55rem 0.8rem;
   margin: 0.4rem 0 0;
-  border-radius: var(--radius);
-  background: color-mix(in srgb, var(--danger) 92%, black 4%);
-  border: 1px solid var(--danger);
-  color: #fff;
-  font-size: 0.92rem;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  color: var(--ink);
+  font-size: 0.9rem;
 }
 
 .vente-rupture-alert-sub {
-  opacity: 0.85;
+  color: var(--ink-soft);
 }
 
 .vente-rupture-alert-close {
   margin-left: auto;
   background: transparent;
   border: 0;
-  color: inherit;
-  font-size: 1.15rem;
+  color: var(--ink-soft);
+  font-size: 1.2rem;
   line-height: 1;
   cursor: pointer;
   padding: 0.15rem 0.4rem;
-  border-radius: var(--radius);
+  border-radius: 8px;
 }
 
 .vente-rupture-alert-close:hover {
-  background: color-mix(in srgb, white 15%, transparent);
+  background: color-mix(in srgb, var(--ink) 8%, transparent);
+  color: var(--ink);
 }
 
 /* Ventes encaissées hors ligne, pas encore transmises au serveur. */
