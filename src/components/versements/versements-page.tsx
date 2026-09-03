@@ -58,6 +58,34 @@ function nowHeureLocale(): string {
   }
 }
 
+function VersementsHeroArt() {
+  return (
+    <svg
+      className="versements-hero-art"
+      viewBox="0 0 220 140"
+      aria-hidden
+      focusable="false"
+    >
+      <rect x="18" y="28" width="90" height="96" rx="12" fill="#fff" stroke="#c5d4e8" />
+      <rect x="32" y="44" width="62" height="8" rx="4" fill="#d7e3f2" />
+      <rect x="32" y="60" width="48" height="8" rx="4" fill="#e8eef6" />
+      <rect x="32" y="76" width="54" height="8" rx="4" fill="#e8eef6" />
+      <circle cx="44" cy="102" r="8" fill="#16a34a" />
+      <path d="M40 102l2.5 2.5 5.5-5.5" stroke="#fff" strokeWidth="2" fill="none" />
+      <rect x="110" y="40" width="86" height="72" rx="14" fill="#0b3d5c" />
+      <circle cx="153" cy="70" r="18" fill="#f3a01d" />
+      <path
+        d="M153 58v10l7 4"
+        stroke="#0b3d5c"
+        strokeWidth="3"
+        strokeLinecap="round"
+        fill="none"
+      />
+      <rect x="128" y="98" width="50" height="6" rx="3" fill="#2a5f82" />
+    </svg>
+  );
+}
+
 export function VersementsPage() {
   const { user } = useSession();
   const scope = user ? effectiveSite(user.role, user.site) : null;
@@ -169,6 +197,7 @@ export function VersementsPage() {
       pendingAmount,
       confirmedAmount,
       totalAmount: pendingAmount + confirmedAmount,
+      totalCount: pending + confirmed,
     };
   }, [versements]);
 
@@ -240,51 +269,126 @@ export function VersementsPage() {
   return (
     <AppShell
       title="Versements"
-      subtitle={
-        isReaderOnly
-          ? "Consultation des déclarations et confirmations."
-          : canDeclare
-            ? "Déclarez le versement avec preuve, puis suivez les confirmations."
-            : "Vérifiez la preuve puis confirmez la transaction."
-      }
+      subtitle="Suivez en temps réel tous vos mouvements bancaires déclarés."
       mainClassName="main-versements"
     >
       <div className="versements-page">
         <header className="versements-hero">
           <div className="versements-hero-main">
-            <p className="versements-hero-note">
-              {isReaderOnly
-                ? "Vue direction — lecture seule des mouvements bancaires déclarés."
-                : canDeclare
-                  ? "Tranche, membres présents, heure, montant, n° de transaction et capture."
-                  : "Contrôle comptable : ouvrez une ligne pour vérifier la preuve avant confirmation."}
-            </p>
+            <div className="versements-hero-icon" aria-hidden>
+              <svg viewBox="0 0 24 24" width="28" height="28" fill="none">
+                <rect
+                  x="3"
+                  y="5"
+                  width="18"
+                  height="14"
+                  rx="2.5"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="M3 10h18"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="M8 14h4"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </div>
+            <div>
+              <p className="versements-hero-kicker">Banque &amp; caisse</p>
+              <p className="versements-hero-note">
+                {isReaderOnly
+                  ? "Consultation des déclarations — aucune modification ni confirmation."
+                  : canDeclare
+                    ? "Déclarez le versement avec preuve, puis suivez les confirmations."
+                    : "Vérifiez la preuve puis confirmez la transaction."}
+              </p>
+            </div>
           </div>
-          <div className="versements-kpis" aria-label="Totaux versements">
-            <div className="versements-kpi is-gold">
-              <span>Total</span>
-              <strong>
+          <VersementsHeroArt />
+        </header>
+
+        <section className="versements-stats" aria-label="Indicateurs">
+          <article className="versements-stat is-total">
+            <span className="versements-stat-icon" aria-hidden>
+              ⌘
+            </span>
+            <div>
+              <span className="versements-stat-label">Total déclaré</span>
+              <strong className="versements-stat-value">
                 {loading ? "…" : formatFcfa(totals.totalAmount)}
               </strong>
+              <span className="versements-stat-hint">Tous les mouvements</span>
             </div>
-            <div className="versements-kpi is-pending">
-              <span>En attente</span>
-              <strong>
+          </article>
+          <article className="versements-stat is-pending">
+            <span className="versements-stat-icon" aria-hidden>
+              ◌
+            </span>
+            <div>
+              <span className="versements-stat-label">En attente</span>
+              <strong className="versements-stat-value">
                 {loading ? "…" : formatFcfa(totals.pendingAmount)}
               </strong>
+              <span className="versements-stat-hint">
+                En attente de confirmation
+              </span>
             </div>
-            <div className="versements-kpi is-ok">
-              <span>Confirmés</span>
-              <strong>
+          </article>
+          <article className="versements-stat is-ok">
+            <span className="versements-stat-icon" aria-hidden>
+              ✓
+            </span>
+            <div>
+              <span className="versements-stat-label">Confirmés</span>
+              <strong className="versements-stat-value">
                 {loading ? "…" : formatFcfa(totals.confirmedAmount)}
               </strong>
+              <span className="versements-stat-hint">Versements validés</span>
             </div>
-          </div>
-        </header>
+          </article>
+          {isReaderOnly ? (
+            <article className="versements-stat is-read">
+              <span className="versements-stat-icon" aria-hidden>
+                ◎
+              </span>
+              <div>
+                <span className="versements-stat-label">Mode lecture</span>
+                <strong className="versements-stat-value">Consultation</strong>
+                <span className="versements-stat-hint">Sans modification</span>
+              </div>
+            </article>
+          ) : (
+            <article className="versements-stat is-count">
+              <span className="versements-stat-icon" aria-hidden>
+                #
+              </span>
+              <div>
+                <span className="versements-stat-label">Mouvements</span>
+                <strong className="versements-stat-value">
+                  {loading ? "…" : totals.totalCount}
+                </strong>
+                <span className="versements-stat-hint">Sur la période</span>
+              </div>
+            </article>
+          )}
+        </section>
 
         {error ? (
           <p className="error-banner" role="alert">
             {error}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => void charger()}
+            >
+              Réessayer
+            </button>
           </p>
         ) : null}
         {flash ? (
@@ -292,11 +396,82 @@ export function VersementsPage() {
             {flash}
           </p>
         ) : null}
-        {isReaderOnly ? (
-          <p className="versements-reader-note">
-            Mode lecture — consultation sans modification ni confirmation.
-          </p>
-        ) : null}
+
+        <div className="versements-consult-row">
+          <section
+            className="versements-period-card"
+            aria-label="Période de consultation"
+          >
+            <h2>Période de consultation</h2>
+            <div className="versements-period-fields">
+              {followAll ? (
+                <>
+                  <label className="versements-field">
+                    <span>Du</span>
+                    <input
+                      type="date"
+                      value={from}
+                      onChange={(e) => setFrom(e.target.value)}
+                    />
+                  </label>
+                  <label className="versements-field">
+                    <span>Au</span>
+                    <input
+                      type="date"
+                      value={to}
+                      onChange={(e) => setTo(e.target.value)}
+                    />
+                  </label>
+                  <label className="versements-field">
+                    <span>Site</span>
+                    <select
+                      value={filterSite}
+                      onChange={(e) =>
+                        setFilterSite(e.target.value as SiteFilter)
+                      }
+                    >
+                      <option value="all">Tous les sites</option>
+                      <option value="zogbo">{SITE_LABELS.zogbo}</option>
+                      <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
+                    </select>
+                  </label>
+                </>
+              ) : (
+                <label className="versements-field">
+                  <span>Jour</span>
+                  <input
+                    type="date"
+                    value={date}
+                    onChange={(e) => setDate(e.target.value)}
+                  />
+                </label>
+              )}
+              <button
+                type="button"
+                className="btn btn-primary versements-refresh"
+                onClick={() => void charger()}
+                disabled={loading}
+              >
+                Actualiser
+              </button>
+            </div>
+          </section>
+
+          {isReaderOnly ? (
+            <aside className="versements-mode-card" aria-label="Mode consultation">
+              <span className="versements-mode-badge" aria-hidden>
+                i
+              </span>
+              <div>
+                <h2>Mode consultation</h2>
+                <p>
+                  Vous êtes en mode lecture seule. Aucune modification ou
+                  confirmation ne peut être effectuée.
+                </p>
+              </div>
+            </aside>
+          ) : null}
+        </div>
 
         <div className="versements-layout">
           {canDeclare ? (
@@ -453,81 +628,55 @@ export function VersementsPage() {
             aria-label="Liste des versements"
           >
             <div className="versements-board-head">
-              <h2>Registre</h2>
-              <div className="versements-filters">
-                {followAll ? (
-                  <>
-                    <label className="versements-filter-field">
-                      <span>Du</span>
-                      <input
-                        type="date"
-                        value={from}
-                        onChange={(e) => setFrom(e.target.value)}
-                      />
-                    </label>
-                    <label className="versements-filter-field">
-                      <span>Au</span>
-                      <input
-                        type="date"
-                        value={to}
-                        onChange={(e) => setTo(e.target.value)}
-                      />
-                    </label>
-                    <label className="versements-filter-field">
-                      <span>Site</span>
-                      <select
-                        value={filterSite}
-                        onChange={(e) =>
-                          setFilterSite(e.target.value as SiteFilter)
-                        }
-                      >
-                        <option value="all">Tous</option>
-                        <option value="zogbo">{SITE_LABELS.zogbo}</option>
-                        <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
-                      </select>
-                    </label>
-                  </>
-                ) : (
-                  <label className="versements-filter-field">
-                    <span>Jour</span>
-                    <input
-                      type="date"
-                      value={date}
-                      onChange={(e) => setDate(e.target.value)}
-                    />
-                  </label>
-                )}
-              </div>
+              <h2>Statut de la période sélectionnée</h2>
               <div
                 className="versements-status-filters"
                 role="group"
                 aria-label="Filtre statut"
               >
-                {(
-                  [
-                    ["all", "Tous"],
-                    ["en_attente", "En attente"],
-                    ["confirmee", "Confirmées"],
-                  ] as const
-                ).map(([key, label]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`versements-filter-chip${statutFilter === key ? " is-active" : ""}`}
-                    onClick={() => setStatutFilter(key)}
-                  >
-                    {label}
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  className={`versements-filter-chip${statutFilter === "all" ? " is-active" : ""}`}
+                  onClick={() => setStatutFilter("all")}
+                >
+                  <i className="is-all" aria-hidden />
+                  Tous
+                  <span>{totals.totalCount}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`versements-filter-chip${statutFilter === "en_attente" ? " is-active" : ""}`}
+                  onClick={() => setStatutFilter("en_attente")}
+                >
+                  <i className="is-pending" aria-hidden />
+                  En attente
+                  <span>{totals.pending}</span>
+                </button>
+                <button
+                  type="button"
+                  className={`versements-filter-chip${statutFilter === "confirmee" ? " is-active" : ""}`}
+                  onClick={() => setStatutFilter("confirmee")}
+                >
+                  <i className="is-ok" aria-hidden />
+                  Confirmés
+                  <span>{totals.confirmed}</span>
+                </button>
               </div>
             </div>
 
             {loading || !scope ? (
               <CatalogueSkeleton />
             ) : filtered.length === 0 ? (
-              <p className="versements-empty">
-                Aucun versement sur cette période.
-              </p>
+              <div className="versements-empty">
+                <span className="versements-empty-icon" aria-hidden>
+                  ▤
+                </span>
+                <strong>Aucun versement trouvé</strong>
+                <p>
+                  Aucun mouvement bancaire ne correspond aux critères
+                  sélectionnés.
+                </p>
+              </div>
             ) : (
               <ul className="versements-list">
                 {filtered.map((v) => (

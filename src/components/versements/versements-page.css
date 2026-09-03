@@ -1,4 +1,4 @@
-/* Versements — même langage que Achats / Analyse */
+/* Versements — UI premium (données / logique inchangées) */
 
 .main-versements .versements-page {
   display: flex;
@@ -7,85 +7,151 @@
   min-width: 0;
 }
 
+/* —— Hero —— */
 .main-versements .versements-hero {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 0.85rem 1.25rem;
-  padding: 0.9rem 1.05rem;
+  gap: 1rem 1.5rem;
+  padding: 1.1rem 1.2rem;
   border: 1px solid var(--line);
-  border-radius: 14px;
-  background: linear-gradient(165deg, #f7fafc 0%, #e8f0f6 55%, #eef4f8 100%);
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 80% at 100% 0%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 55%),
+    linear-gradient(165deg, #f7fafc 0%, #e8f0f6 55%, #eef4f8 100%);
 }
 
 .main-versements .versements-hero-main {
   display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
+  align-items: center;
+  gap: 0.85rem;
   min-width: 0;
-  flex: 1 1 14rem;
+  flex: 1 1 16rem;
+}
+
+.main-versements .versements-hero-icon {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 14px;
+  background: #fff;
+  border: 1px solid var(--line);
+  color: var(--sidebar);
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--ink) 6%, transparent);
+}
+
+.main-versements .versements-hero-kicker {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 
 .main-versements .versements-hero-note {
   margin: 0;
-  max-width: 32rem;
-  font-size: 0.88rem;
+  max-width: 34rem;
+  font-size: 0.95rem;
   line-height: 1.45;
-  color: var(--ink-soft);
+  color: var(--ink);
+  font-weight: 650;
 }
 
-.main-versements .versements-kpis {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(6.5rem, 1fr));
-  gap: 0.5rem;
+.main-versements .versements-hero-art {
+  width: min(100%, 13rem);
+  height: auto;
   flex-shrink: 0;
 }
 
-.main-versements .versements-kpi {
-  display: flex;
-  flex-direction: column;
-  gap: 0.12rem;
-  min-width: 0;
-  padding: 0.6rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: #fff;
-  line-height: 1.2;
+/* —— Stats —— */
+.main-versements .versements-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
 }
 
-.main-versements .versements-kpi span {
-  font-size: 0.66rem;
+@media (min-width: 900px) {
+  .main-versements .versements-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.main-versements .versements-stat {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  min-width: 0;
+  padding: 0.95rem 1rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: #fff;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--ink) 4%, transparent);
+}
+
+.main-versements .versements-stat-icon {
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 800;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--sidebar) 10%, #fff);
+  color: var(--sidebar);
+}
+
+.main-versements .versements-stat.is-pending .versements-stat-icon {
+  background: color-mix(in srgb, var(--accent) 18%, #fff);
+  color: #9a6700;
+}
+
+.main-versements .versements-stat.is-ok .versements-stat-icon {
+  background: color-mix(in srgb, #16a34a 14%, #fff);
+  color: #15803d;
+}
+
+.main-versements .versements-stat.is-read .versements-stat-icon {
+  background: color-mix(in srgb, #6d28d9 12%, #fff);
+  color: #5b21b6;
+}
+
+.main-versements .versements-stat.is-count .versements-stat-icon {
+  background: color-mix(in srgb, var(--sidebar) 12%, #fff);
+}
+
+.main-versements .versements-stat-label {
+  display: block;
+  font-size: 0.7rem;
   font-weight: 750;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
 
-.main-versements .versements-kpi strong {
-  font-size: clamp(0.88rem, 2vw, 1.02rem);
+.main-versements .versements-stat-value {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: clamp(1rem, 2.2vw, 1.2rem);
   font-weight: 800;
+  letter-spacing: -0.02em;
   word-break: break-word;
 }
 
-.main-versements .versements-kpi.is-gold {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-  background: color-mix(in srgb, var(--accent) 12%, #fff);
-}
-
-.main-versements .versements-kpi.is-pending {
-  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
-  background: color-mix(in srgb, var(--accent) 10%, #fff);
-}
-
-.main-versements .versements-kpi.is-ok {
-  border-color: color-mix(in srgb, #16a34a 30%, var(--line));
-  background: color-mix(in srgb, #16a34a 8%, #fff);
+.main-versements .versements-stat-hint {
+  display: block;
+  margin-top: 0.2rem;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
 }
 
 .main-versements .versements-flash {
   margin: 0;
-  padding: 0.7rem 0.9rem;
+  padding: 0.75rem 0.95rem;
   border-radius: 12px;
   font-weight: 650;
   font-size: 0.9rem;
@@ -94,46 +160,88 @@
   color: #166534;
 }
 
-.main-versements .versements-reader-note {
-  margin: 0;
-  padding: 0.7rem 0.9rem;
-  border-radius: 12px;
-  font-weight: 650;
-  font-size: 0.88rem;
-  background: color-mix(in srgb, var(--sidebar) 8%, transparent);
-  border: 1px solid var(--line);
-  color: var(--ink-soft);
-}
-
-.main-versements .versements-layout {
+/* —— Filtres + mode —— */
+.main-versements .versements-consult-row {
   display: grid;
-  gap: 1rem;
-  align-items: start;
+  gap: 0.85rem;
+  align-items: stretch;
 }
 
-@media (min-width: 980px) {
-  .main-versements .versements-layout:has(.versements-declare) {
-    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+@media (min-width: 960px) {
+  .main-versements .versements-consult-row:has(.versements-mode-card) {
+    grid-template-columns: minmax(0, 1.4fr) minmax(14rem, 0.85fr);
   }
 }
 
-.main-versements .versements-declare {
-  padding: 1rem 1.05rem 1.15rem;
-  border-radius: 14px;
+.main-versements .versements-period-card,
+.main-versements .versements-mode-card,
+.main-versements .versements-declare,
+.main-versements .versements-board {
   border: 1px solid var(--line);
-  background: var(--surface);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--ink) 4%, transparent);
 }
 
-.main-versements .versements-declare h2 {
+.main-versements .versements-period-card {
+  padding: 1rem 1.1rem 1.15rem;
+}
+
+.main-versements .versements-period-card h2,
+.main-versements .versements-mode-card h2,
+.main-versements .versements-declare h2,
+.main-versements .versements-board-head h2 {
   margin: 0 0 0.85rem;
   font-size: 1rem;
   font-weight: 800;
+  letter-spacing: -0.01em;
 }
 
-.main-versements .versements-form {
+.main-versements .versements-period-fields {
   display: flex;
-  flex-direction: column;
-  gap: 0.7rem;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.main-versements .versements-period-fields .versements-field {
+  flex: 1 1 8rem;
+  min-width: 0;
+}
+
+.main-versements .versements-refresh {
+  min-height: 2.75rem;
+  padding-inline: 1.1rem;
+  flex: 0 0 auto;
+}
+
+.main-versements .versements-mode-card {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  padding: 1rem 1.1rem;
+  background: color-mix(in srgb, var(--sidebar) 7%, #fff);
+  border-color: color-mix(in srgb, var(--sidebar) 22%, var(--line));
+}
+
+.main-versements .versements-mode-badge {
+  display: grid;
+  place-items: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 999px;
+  background: var(--sidebar);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+}
+
+.main-versements .versements-mode-card p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
 }
 
 .main-versements .versements-field {
@@ -148,6 +256,50 @@
   color: var(--ink-soft);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.main-versements .versements-field input,
+.main-versements .versements-field select,
+.main-versements .versements-membre-row input {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.main-versements .versements-field input:focus,
+.main-versements .versements-field select:focus,
+.main-versements .versements-membre-row input:focus {
+  outline: none;
+  border-color: var(--sidebar);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar) 14%, transparent);
+}
+
+/* —— Layout saisie + registre —— */
+.main-versements .versements-layout {
+  display: grid;
+  gap: 1rem;
+  align-items: start;
+}
+
+@media (min-width: 980px) {
+  .main-versements .versements-layout:has(.versements-declare) {
+    grid-template-columns: minmax(16rem, 22rem) minmax(0, 1fr);
+  }
+}
+
+.main-versements .versements-declare {
+  padding: 1rem 1.05rem 1.15rem;
+}
+
+.main-versements .versements-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
 }
 
 .main-versements .versements-membres {
@@ -173,7 +325,7 @@
 .main-versements .versements-membres-hint {
   margin: 0;
   font-size: 0.78rem;
-  color: var(--muted, var(--ink-soft));
+  color: var(--ink-soft);
 }
 
 .main-versements .versements-membre-row {
@@ -185,37 +337,10 @@
 .main-versements .versements-membre-row input {
   flex: 1;
   min-width: 0;
-  min-height: 2.55rem;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fff;
-  font-size: 16px;
 }
 
 .main-versements .versements-add-membre {
   align-self: flex-start;
-  padding-inline: 0.4rem;
-}
-
-.main-versements .versements-field input,
-.main-versements .versements-field select {
-  width: 100%;
-  min-height: 2.75rem;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fff;
-  font-size: 16px;
-  color: var(--ink);
-}
-
-.main-versements .versements-field input:focus,
-.main-versements .versements-field select:focus,
-.main-versements .versements-membre-row input:focus {
-  outline: none;
-  border-color: var(--sidebar);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar) 14%, transparent);
 }
 
 .main-versements .versements-field-file input[type="file"] {
@@ -237,85 +362,78 @@
 .main-versements .versements-submit {
   width: 100%;
   min-height: 2.85rem;
-  margin-top: 0.2rem;
+  margin-top: 0.15rem;
 }
 
+/* —— Board —— */
 .main-versements .versements-board {
   min-width: 0;
-  padding: 1rem 1.05rem 1.15rem;
-  border-radius: 14px;
-  border: 1px solid var(--line);
+  padding: 1rem 1.1rem 1.2rem;
   background: var(--paper);
 }
 
 .main-versements .versements-board-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 0.75rem;
-  margin-bottom: 0.9rem;
-}
-
-.main-versements .versements-board-head h2 {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 800;
-}
-
-.main-versements .versements-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: end;
-}
-
-.main-versements .versements-filter-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  min-width: 0;
-}
-
-.main-versements .versements-filter-field span {
-  font-size: 0.68rem;
-  font-weight: 750;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.main-versements .versements-filter-field input,
-.main-versements .versements-filter-field select {
-  min-height: 2.55rem;
-  padding: 0.4rem 0.65rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: #fff;
-  font-size: 16px;
-  color: var(--ink);
+  margin-bottom: 0.95rem;
 }
 
 .main-versements .versements-status-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.4rem;
 }
 
 .main-versements .versements-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   border: 1px solid var(--line);
-  background: #f8f9fb;
+  background: #fff;
   color: var(--ink-soft);
   border-radius: 999px;
-  padding: 0.35rem 0.7rem;
-  font-size: 0.8rem;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.82rem;
   font-weight: 650;
   cursor: pointer;
 }
 
+.main-versements .versements-filter-chip i {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.main-versements .versements-filter-chip i.is-all {
+  background: var(--sidebar);
+}
+
+.main-versements .versements-filter-chip i.is-pending {
+  background: #f3a01d;
+}
+
+.main-versements .versements-filter-chip i.is-ok {
+  background: #16a34a;
+}
+
+.main-versements .versements-filter-chip span {
+  display: inline-flex;
+  min-width: 1.25rem;
+  justify-content: center;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 6%, transparent);
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
 .main-versements .versements-filter-chip.is-active {
-  border-color: var(--sidebar-mid, var(--sidebar));
-  background: color-mix(in srgb, var(--sidebar) 10%, #fff);
+  border-color: color-mix(in srgb, var(--sidebar) 35%, var(--line));
+  background: color-mix(in srgb, var(--sidebar) 8%, #fff);
   color: var(--ink);
   font-weight: 750;
 }
@@ -334,10 +452,11 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.85rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
   border: 1px solid var(--line);
   background: #fff;
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--ink) 3%, transparent);
 }
 
 .main-versements .versements-row.is-pending {
@@ -399,12 +518,46 @@
 }
 
 .main-versements .versements-empty {
-  margin: 0;
-  padding: 1.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 14rem;
+  padding: 2rem 1rem;
   text-align: center;
-  color: var(--ink-soft);
+  border-radius: 14px;
+  border: 1px dashed color-mix(in srgb, var(--line) 90%, transparent);
+  background: color-mix(in srgb, var(--ink) 2%, #fff);
 }
 
+.main-versements .versements-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 3.2rem;
+  height: 3.2rem;
+  margin-bottom: 0.35rem;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--sidebar) 8%, #fff);
+  color: var(--ink-soft);
+  font-size: 1.35rem;
+}
+
+.main-versements .versements-empty strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.main-versements .versements-empty p {
+  margin: 0;
+  max-width: 26rem;
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+  line-height: 1.45;
+}
+
+/* —— Modal —— */
 .main-versements .versements-modal-backdrop {
   position: fixed;
   inset: 0;
@@ -420,7 +573,7 @@
   max-height: min(92dvh, 46rem);
   overflow: auto;
   padding: 1.1rem 1.15rem 1.25rem;
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--paper);
   border: 1px solid var(--line);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
@@ -501,9 +654,8 @@
 }
 
 @media (max-width: 720px) {
-  .main-versements .versements-kpis {
-    width: 100%;
-    grid-template-columns: 1fr;
+  .main-versements .versements-hero-art {
+    display: none;
   }
 
   .main-versements .versements-row {
@@ -518,5 +670,9 @@
   .main-versements .versements-detail div {
     grid-template-columns: 1fr;
     gap: 0.1rem;
+  }
+
+  .main-versements .versements-refresh {
+    width: 100%;
   }
 }
