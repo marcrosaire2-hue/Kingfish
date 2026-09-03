@@ -11,6 +11,7 @@ import {
 } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
+import { ExportExcelButton } from "@/components/export-excel-button";
 import { CataloguePaginationBar } from "@/components/parametres/catalogue-view";
 import { useSession } from "@/components/session-provider";
 import {
@@ -19,6 +20,7 @@ import {
   SHIFT_LABELS,
 } from "@/lib/auth-types";
 import { formatFcfa } from "@/lib/format";
+import { exportVersementsExcel } from "@/lib/page-exports";
 import {
   VERSEMENT_STATUT_LABELS,
   VERSEMENT_TRANCHE_LABELS,
@@ -429,22 +431,50 @@ export function VersementsPage() {
       }
       mainClassName="main-versements"
       actions={
-        canDeclare ? (
-          <button type="button" className="btn btn-primary" onClick={focusForm}>
-            + Nouveau versement
-          </button>
-        ) : canConfirm && totals.pending > 0 ? (
-          <button
-            type="button"
-            className="btn btn-primary"
-            onClick={() => {
-              setStatutFilter("en_attente");
-              setDesk("registre");
+        <>
+          <ExportExcelButton
+            disabled={loading || filtered.length === 0}
+            className="btn btn-ghost"
+            onExport={() => {
+              exportVersementsExcel({
+                versements: filtered,
+                from: followAll ? from : undefined,
+                to: followAll ? to : undefined,
+                date: followAll ? undefined : date,
+                site: followAll
+                  ? filterSite === "all"
+                    ? "tous"
+                    : filterSite
+                  : site,
+                statutLabel:
+                  statutFilter === "all"
+                    ? undefined
+                    : VERSEMENT_STATUT_LABELS[statutFilter],
+              });
+              return Promise.resolve();
             }}
-          >
-            {totals.pending} à confirmer
-          </button>
-        ) : null
+          />
+          {canDeclare ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={focusForm}
+            >
+              + Nouveau versement
+            </button>
+          ) : canConfirm && totals.pending > 0 ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => {
+                setStatutFilter("en_attente");
+                setDesk("registre");
+              }}
+            >
+              {totals.pending} à confirmer
+            </button>
+          ) : null}
+        </>
       }
     >
       <div className="versements-page">

@@ -38,10 +38,16 @@ import type {
   VenteLogEntry,
   VenteProduct,
   VenteSite,
+  Versement,
   ZogboDay,
 } from "@/lib/types";
+import {
+  PERTE_MOTIF_LABELS,
+  VERSEMENT_STATUT_LABELS,
+  VERSEMENT_TRANCHE_LABELS,
+} from "@/lib/types";
+import { SHIFT_LABELS } from "@/lib/auth-types";
 import { CAISSE_LABELS, soldeTheorique } from "@/lib/caisse-model";
-import { PERTE_MOTIF_LABELS } from "@/lib/types";
 import { computeZogboDay } from "@/lib/zogbo-calc";
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -1358,6 +1364,64 @@ export function exportBilanExcel(bilan: Omit<Bilan, "balance">): void {
     },
   ];
   downloadExcel(excelFilename("bilan", bilan.asOf), sheets);
+}
+
+/** Registre des versements — feuille Excel pour la période affichée. */
+export function exportVersementsExcel(input: {
+  versements: Versement[];
+  from?: string;
+  to?: string;
+  date?: string;
+  site?: string;
+  statutLabel?: string;
+}): void {
+  const ordered = sortChronologicallyBy(
+    input.versements,
+    (v) => v.date,
+    (v) => v.heureTransaction,
+    (v) => v.createdAt,
+  );
+
+  const periode = input.from && input.to
+    ? `du ${input.from} au ${input.to}`
+    : input.date
+      ? `jour ${input.date}`
+      : "période courante";
+  const sitePart = siteLabel(input.site ?? "tous");
+  const statutPart = input.statutLabel ? ` · ${input.statutLabel}` : "";
+
+  const rows = ordered.map((v) => ({
+    Date: v.date,
+    "Heure tx": v.heureTransaction,
+    Tranche: VERSEMENT_TRANCHE_LABELS[v.trancheHoraire] ?? v.trancheHoraire,
+    Site: siteLabel(v.site),
+    "N° transaction": v.numeroTransaction,
+    "Montant (FCFA)": v.montant,
+    Statut: VERSEMENT_STATUT_LABELS[v.statut] ?? v.statut,
+    "Membres présents": v.membresPresents.join(", "),
+    Déclarant: v.actorName,
+    Équipe: SHIFT_LABELS[v.shift] ?? v.shift,
+    "Déclaré le": v.createdAt,
+    "Confirmé le": v.confirmedAt ?? "",
+    "Confirmé par": v.confirmedByName ?? "",
+  }));
+
+  downloadExcel(
+    excelFilename(
+      "versements",
+      input.from || input.date || "periode",
+      input.to || undefined,
+      input.site && input.site !== "all" ? input.site : "tous",
+    ),
+    [
+      {
+        name: "Versements",
+        subtitle: `${sitePart} · ${periode}${statutPart} · ${rows.length} ligne(s)`,
+        totals: ["Montant (FCFA)"],
+        rows,
+      },
+    ],
+  );
 }
 
 export type JournalStockTotals = JournalTotals;
