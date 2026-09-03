@@ -8,6 +8,7 @@ import {
 } from "@/lib/mail/mail-config";
 import { sendWeeklyDigest, sendMonthlyDigest } from "@/lib/mail/digests";
 import { sendMail } from "@/lib/mail/gmail-send";
+import { testMail } from "@/lib/mail/mail-templates";
 import { reportError } from "@/lib/report-error";
 
 export const runtime = "nodejs";
@@ -54,12 +55,8 @@ export async function POST(request: Request) {
     }
 
     if (kind === "test") {
-      const ok = await sendMail({
-        to: recipients,
-        subject: "King Fish — test e-mail",
-        text: "Ceci est un message de test depuis King Fish Manager.",
-        html: "<p>Ceci est un message de test depuis <strong>King Fish Manager</strong>.</p>",
-      });
+      const mail = testMail();
+      const ok = await sendMail({ to: recipients, ...mail });
       return NextResponse.json({ ok, kind: "test", to: recipients });
     }
 

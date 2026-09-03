@@ -7,6 +7,7 @@
  * - MAIL_SALE_NOTIFY=1 — mail à chaque ticket POS
  * - MAIL_DIGEST_NOTIFY=1 — digests hebdo / mensuel
  * - MAIL_CRON_SECRET — Bearer pour /api/mail/cron
+ * - APP_PUBLIC_URL (ou NEXT_PUBLIC_APP_URL / RENDER_EXTERNAL_URL) — lien « Ouvrir » dans les mails
  */
 
 import { getMailAlertEmails } from "@/lib/mail/mail-recipients-repo";

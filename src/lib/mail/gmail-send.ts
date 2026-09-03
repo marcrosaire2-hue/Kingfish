@@ -1,5 +1,7 @@
 import { google } from "googleapis";
+import { APP_NAME, APP_SHORT } from "@/lib/brand";
 import { gmailConfigured } from "@/lib/mail/mail-config";
+import { loadBrandLogoBytes } from "@/lib/mail/mail-templates";
 import { reportError } from "@/lib/report-error";
 
 function oauthClient() {
@@ -21,6 +23,26 @@ function encodeRawMessage(raw: string): string {
     .replace(/=+$/, "");
 }
 
+/** Base64 avec retours à la ligne RFC 2045 (76 colonnes). */
+function encodeBase64Wrapped(data: Buffer | string): string {
+  const b64 =
+    typeof data === "string"
+      ? Buffer.from(data, "utf8").toString("base64")
+      : data.toString("base64");
+  return b64.replace(/(.{76})/g, "$1\r\n").replace(/\r\n$/, "");
+}
+
+/** Sujet UTF-8 encodé (RFC 2047). */
+function encodeSubject(subject: string): string {
+  if (/^[\x20-\x7E]*$/.test(subject)) return subject;
+  return `=?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`;
+}
+
+function encodeFromDisplay(name: string, email: string): string {
+  if (/^[\x20-\x7E]*$/.test(name)) return `${name} <${email}>`;
+  return `=?UTF-8?B?${Buffer.from(name, "utf8").toString("base64")}?= <${email}>`;
+}
+
 function buildMime(input: {
   from: string;
   to: string[];
@@ -28,37 +50,62 @@ function buildMime(input: {
   text: string;
   html: string;
 }): string {
-  const boundary = `kf_${Date.now().toString(36)}`;
   const toHeader = input.to.join(", ");
   const subject = encodeSubject(input.subject);
+  const from = encodeFromDisplay(APP_NAME, input.from);
+  const logo = loadBrandLogoBytes();
+
+  const altBoundary = `kf_alt_${Date.now().toString(36)}`;
+  const relBoundary = `kf_rel_${Date.now().toString(36)}`;
+
+  const alternative = [
+    `--${altBoundary}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    encodeBase64Wrapped(input.text),
+    "",
+    `--${altBoundary}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
+    "",
+    encodeBase64Wrapped(input.html),
+    "",
+    `--${altBoundary}--`,
+  ].join("\r\n");
+
+  const relatedParts = [
+    `--${relBoundary}`,
+    `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+    "",
+    alternative,
+  ];
+
+  if (logo) {
+    relatedParts.push(
+      "",
+      `--${relBoundary}`,
+      `Content-Type: ${logo.contentType}; name="${logo.filename}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-ID: <${logo.cid}>`,
+      `Content-Disposition: inline; filename="${logo.filename}"`,
+      "",
+      encodeBase64Wrapped(logo.data),
+    );
+  }
+
+  relatedParts.push("", `--${relBoundary}--`, "");
+
   return [
-    `From: King Fish Manager <${input.from}>`,
+    `From: ${from}`,
     `To: ${toHeader}`,
     `Subject: ${subject}`,
+    `X-Mailer: ${APP_SHORT}`,
     "MIME-Version: 1.0",
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
+    `Content-Type: multipart/related; type="multipart/alternative"; boundary="${relBoundary}"`,
     "",
-    `--${boundary}`,
-    'Content-Type: text/plain; charset="UTF-8"',
-    "Content-Transfer-Encoding: quoted-printable",
-    "",
-    input.text,
-    "",
-    `--${boundary}`,
-    'Content-Type: text/html; charset="UTF-8"',
-    "Content-Transfer-Encoding: quoted-printable",
-    "",
-    input.html,
-    "",
-    `--${boundary}--`,
-    "",
+    relatedParts.join("\r\n"),
   ].join("\r\n");
-}
-
-/** Sujet UTF-8 encodé (RFC 2047). */
-function encodeSubject(subject: string): string {
-  if (/^[\x20-\x7E]*$/.test(subject)) return subject;
-  return `=?UTF-8?B?${Buffer.from(subject, "utf8").toString("base64")}?=`;
 }
 
 export type SendMailInput = {
@@ -70,6 +117,7 @@ export type SendMailInput = {
 
 /**
  * Envoie un e-mail via Gmail API (compte GMAIL_USER + refresh token OAuth).
+ * Embarque le logo King Fish en pièce jointe inline (CID).
  * Retourne false si non configuré ou sans destinataire — ne jette pas.
  */
 export async function sendMail(input: SendMailInput): Promise<boolean> {
