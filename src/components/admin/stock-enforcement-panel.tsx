@@ -83,7 +83,7 @@ export function StockEnforcementPanel({ className }: Props) {
       setFlash(
         enforceStock
           ? `${row.label} : vente plafonnée au stock.`
-          : `${row.label} : vente libre (hors stock).`,
+          : `${row.label} : articles dégrisés (vente libre).`,
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Enregistrement impossible.");
@@ -97,8 +97,9 @@ export function StockEnforcementPanel({ className }: Props) {
       <div className="panel-head">
         <h2 className="panel-title">Vente selon le stock</h2>
         <p className="muted admin-stock-policy-lead">
-          Oblige les gérants à respecter le stock disponible pour la journée.
-          Désactivé = vente libre (articles dégrisés).
+          Par défaut les articles sans stock sont grisés. Utilisez{" "}
+          <strong>Dégriser les articles</strong> pour autoriser la vente libre
+          (gérants) sur la journée.
         </p>
       </div>
 
@@ -135,14 +136,14 @@ export function StockEnforcementPanel({ className }: Props) {
                   type="button"
                   className={`btn${row.enforceStock ? " btn-primary" : " btn-ghost"}`}
                   disabled={busySite !== null}
-                  aria-pressed={row.enforceStock}
+                  aria-pressed={!row.enforceStock}
                   onClick={() => void toggle(row.site, !row.enforceStock)}
                 >
                   {busySite === row.site
                     ? "…"
                     : row.enforceStock
-                      ? "Désactiver"
-                      : "Activer"}
+                      ? "Dégriser les articles"
+                      : "Forcer vente selon stock"}
                 </button>
               </li>
             ))}

@@ -888,6 +888,8 @@ export function VentePage({
   const [ruptureAlert, setRuptureAlert] = useState<string | null>(null);
   const [canManagePast, setCanManagePast] = useState(false);
   const [canPurge, setCanPurge] = useState(false);
+  const [canManageStock, setCanManageStock] = useState(false);
+  const [degriserBusy, setDegriserBusy] = useState(false);
   /** Ruptures connues au dernier chargement (pour ne signaler que les nouvelles). */
   const prevRuptures = useRef<Set<string> | null>(null);
   const ruptureAlertTimer = useRef<number | null>(null);
@@ -1079,6 +1081,27 @@ export function VentePage({
     setDate(caisseActive.date);
   }
 
+  async function degriserArticles() {
+    if (degriserBusy || !canManageStock) return;
+    setDegriserBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/ventes-stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ site, enforceStock: false, date }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(body.error || "Impossible de dégriser.");
+      setFlash("Articles dégrisés — vente libre activée pour ce jour.");
+      await load(date, site);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Impossible de dégriser.");
+    } finally {
+      setDegriserBusy(false);
+    }
+  }
+
   useEffect(() => {
     void load(date, site);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1153,6 +1176,7 @@ export function VentePage({
         const body = await res.json();
         if (!annule) {
           setOperateur(body.user?.name ?? null);
+          setCanManageStock(body.user?.role === "admin");
           if (typeof body.user?.id === "string") {
             setOfflineQueueUser(body.user.id);
           }
@@ -2042,6 +2066,26 @@ export function VentePage({
           <p className="ui-info" role="status">
             Vente libre — stock non saisi pour ce jour. Les ventes ne sont pas
             plafonnées tant que le stock n&apos;a pas été enregistré.
+          </p>
+        ) : null}
+
+        {!loading &&
+        board &&
+        !board.ventesSansStock &&
+        !backdateMode &&
+        canManageStock ? (
+          <p className="warn-inline" role="status">
+            Articles sans stock grisés pour ce jour.{" "}
+            <button
+              type="button"
+              className="btn-link"
+              disabled={degriserBusy}
+              onClick={() => void degriserArticles()}
+            >
+              {degriserBusy ? "…" : "Dégriser les articles"}
+            </button>
+            {" · "}
+            <Link href="/admin">Réglage admin</Link>
           </p>
         ) : null}
 
