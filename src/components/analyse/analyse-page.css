@@ -1,0 +1,481 @@
+.main-analyse .analyse-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.main-analyse .analyse-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 1rem 1.25rem;
+  padding: 0.95rem 1.05rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f8fbfd 0%, #eef4f8 100%);
+}
+
+.main-analyse .analyse-hero-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  flex: 1 1 18rem;
+}
+
+.main-analyse .analyse-period-tabs {
+  display: inline-flex;
+  gap: 0.3rem;
+  padding: 0.25rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 5%, var(--surface));
+  border: 1px solid var(--line);
+  width: fit-content;
+}
+
+.main-analyse .analyse-period-tab {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.4rem 0.95rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.main-analyse .analyse-period-tab.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 8%, transparent);
+}
+
+.main-analyse .analyse-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem 0.65rem;
+}
+
+@media (min-width: 720px) {
+  .main-analyse .analyse-filters {
+    grid-template-columns: repeat(4, minmax(7rem, 1fr));
+  }
+}
+
+.main-analyse .analyse-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  min-width: 0;
+}
+
+.main-analyse .analyse-field span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.main-analyse .analyse-field input,
+.main-analyse .analyse-field select {
+  width: 100%;
+  min-height: 2.65rem;
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fff;
+  font-size: 16px;
+  color: var(--ink);
+}
+
+.main-analyse .analyse-field input:focus,
+.main-analyse .analyse-field select:focus {
+  outline: none;
+  border-color: var(--sidebar);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sidebar) 14%, transparent);
+}
+
+.main-analyse .analyse-ca-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.2rem;
+  min-width: min(100%, 15rem);
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  flex-shrink: 0;
+}
+
+.main-analyse .analyse-ca-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.main-analyse .analyse-ca-value {
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.main-analyse .analyse-ca-meta {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+.main-analyse .analyse-ca-prev {
+  margin: 0.35rem 0 0;
+  padding-top: 0.45rem;
+  border-top: 1px dashed color-mix(in srgb, var(--ink) 12%, transparent);
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.main-analyse .analyse-ca-prev strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+.main-analyse .analyse-delta {
+  font-weight: 800;
+}
+
+.main-analyse .analyse-delta.is-up {
+  color: #15803d;
+}
+
+.main-analyse .analyse-delta.is-down {
+  color: #b91c1c;
+}
+
+.main-analyse .analyse-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+@media (min-width: 720px) {
+  .main-analyse .analyse-kpi-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.main-analyse .analyse-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.main-analyse .analyse-kpi span {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.main-analyse .analyse-kpi strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.main-analyse .analyse-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.3rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+}
+
+.main-analyse .analyse-section-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  flex: 1 1 7rem;
+  min-height: 2.55rem;
+  padding: 0.45rem 0.8rem;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 650;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.main-analyse .analyse-section-tab.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 8%, transparent);
+  font-weight: 750;
+}
+
+.main-analyse .analyse-section-badge {
+  display: inline-flex;
+  min-width: 1.35rem;
+  justify-content: center;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.main-analyse .analyse-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.main-analyse .analyse-body.is-loading {
+  opacity: 0.62;
+  pointer-events: none;
+}
+
+.main-analyse .analyse-health {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.65rem;
+}
+
+@media (min-width: 720px) {
+  .main-analyse .analyse-health {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1100px) {
+  .main-analyse .analyse-health {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.main-analyse .analyse-health-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  min-width: 0;
+}
+
+.main-analyse .analyse-health-card.is-ok {
+  border-color: color-mix(in srgb, #16a34a 30%, var(--line));
+  background: color-mix(in srgb, #16a34a 7%, var(--surface));
+}
+
+.main-analyse .analyse-health-card.is-watch {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: color-mix(in srgb, var(--accent) 9%, var(--surface));
+}
+
+.main-analyse .analyse-health-card.is-risk {
+  border-color: color-mix(in srgb, #b91c1c 28%, var(--line));
+  background: color-mix(in srgb, #b91c1c 7%, var(--surface));
+}
+
+.main-analyse .analyse-health-tone {
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.main-analyse .analyse-health-card h2 {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.main-analyse .analyse-health-card p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.main-analyse .analyse-split-panels {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 900px) {
+  .main-analyse .analyse-split-panels {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.main-analyse .analyse-brief {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+@media (min-width: 960px) {
+  .main-analyse .analyse-brief {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.main-analyse .analyse-brief-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.main-analyse .analyse-insight {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--ink) 2.5%, var(--surface));
+}
+
+.main-analyse .analyse-insight header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.65rem;
+}
+
+.main-analyse .analyse-insight h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 750;
+}
+
+.main-analyse .analyse-insight p {
+  margin: 0;
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.main-analyse .analyse-insight-action span {
+  font-weight: 750;
+  color: var(--ink);
+}
+
+.main-analyse .analyse-insight footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  color: var(--ink-soft);
+}
+
+.main-analyse .analyse-badge {
+  display: inline-flex;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 750;
+  background: #eef1f6;
+  color: var(--ink-soft);
+}
+
+.main-analyse .analyse-insight.is-ok .analyse-badge {
+  background: color-mix(in srgb, #16a34a 16%, transparent);
+  color: #15803d;
+}
+
+.main-analyse .analyse-insight.is-watch .analyse-badge {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: var(--ink);
+}
+
+.main-analyse .analyse-insight.is-risk .analyse-badge {
+  background: color-mix(in srgb, #b91c1c 14%, transparent);
+  color: #b91c1c;
+}
+
+.main-analyse .analyse-advice {
+  display: inline-flex;
+  padding: 0.2rem 0.55rem;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: #eef1f6;
+  color: var(--ink-soft);
+}
+
+.main-analyse .analyse-advice.is-ok {
+  background: color-mix(in srgb, #16a34a 14%, transparent);
+  color: #15803d;
+}
+
+.main-analyse .analyse-advice.is-watch {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--ink);
+}
+
+.main-analyse .analyse-advice.is-risk {
+  background: color-mix(in srgb, #b91c1c 12%, transparent);
+  color: #b91c1c;
+}
+
+.main-analyse .analyse-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.main-analyse .analyse-notes summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.main-analyse .analyse-notes summary::-webkit-details-marker {
+  display: none;
+}
+
+.main-analyse .analyse-notes ul {
+  margin: 0.65rem 0;
+  padding-left: 1.1rem;
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.main-analyse .analyse-empty {
+  margin: 0;
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: var(--ink-soft);
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.main-analyse .analyse-filtered-note {
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--sidebar) 6%, var(--surface));
+  font-size: 0.86rem;
+  color: var(--ink-soft);
+}

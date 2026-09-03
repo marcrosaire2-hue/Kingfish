@@ -8,12 +8,6 @@ import {
   HorizontalBars,
 } from "@/components/charts/charts";
 import { AnalyseChartsPanel } from "@/components/analyse/analyse-charts-panel";
-import {
-  DashboardBody,
-  DashboardSectionNav,
-  DashboardShell,
-  DashboardToolbar,
-} from "@/components/dashboard/dashboard-layout";
 import { formatFcfa } from "@/lib/format";
 import { SITE_LABELS } from "@/lib/auth-types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -27,6 +21,7 @@ import {
   type InsightKind,
   type ProductAdvice,
 } from "@/lib/analyse-calc";
+import "./analyse-page.css";
 
 type Payload = {
   report: AnalyseReport;
@@ -195,47 +190,44 @@ export function AnalysePage() {
     }));
   }, [report]);
 
-  if (loading && !report) {
-    return (
-      <AppShell
-        title="Analyse"
-        subtitle="Lecture managériale du CA, des marges et des charges."
-        mainClassName="main-analyse"
-      >
-        <BrandLoader variant="ligne" label="Analyse des données…" />
-      </AppShell>
-    );
+  function changePeriod(next: AnalysePeriod) {
+    setPeriod(next);
+    if (next === "month") {
+      const today = todayIsoDate();
+      if (date.slice(0, 7) === today.slice(0, 7)) setDate(today);
+    }
   }
 
   return (
     <AppShell
       title="Analyse"
-      subtitle="Lecture managériale du CA, des marges, des stocks et des charges — sans réécrire la comptabilité."
+      subtitle="CA, marges, stocks et charges — lecture managériale, sans réécrire la comptabilité."
       mainClassName="main-analyse"
     >
-      <DashboardShell>
-        <details className="journal-filters-fold" open>
-          <summary className="journal-filters-summary">
-            Filtres
-            <span className="journal-filters-summary-hint">
-              Période, site, équipe…
-            </span>
-          </summary>
-        <DashboardToolbar
-          tabs={PERIODS}
-          activeTab={period}
-          onTabChange={(id) => {
-            const next = id as AnalysePeriod;
-            setPeriod(next);
-            if (next === "month") {
-              const today = todayIsoDate();
-              // Mois en cours : jusqu’à aujourd’hui. Sinon on garde la date.
-              if (date.slice(0, 7) === today.slice(0, 7)) setDate(today);
-            }
-          }}
-          filters={
-            <>
-              <label className="date-field date-field-pill">
+      <div className="analyse-page">
+        <header className="analyse-hero">
+          <div className="analyse-hero-main">
+            <div
+              className="analyse-period-tabs"
+              role="tablist"
+              aria-label="Période"
+            >
+              {PERIODS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={period === p.id}
+                  className={`analyse-period-tab${period === p.id ? " is-active" : ""}`}
+                  onClick={() => changePeriod(p.id)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="analyse-filters">
+              <label className="analyse-field">
                 <span>{period === "day" ? "Jour" : "Mois"}</span>
                 {period === "month" ? (
                   <input
@@ -263,19 +255,27 @@ export function AnalysePage() {
                   />
                 )}
               </label>
+
               {lockedSite ? null : (
-                <label className="date-field date-field-pill">
+                <label className="analyse-field">
                   <span>Site</span>
-                  <select value={site} onChange={(e) => setSite(e.target.value)}>
+                  <select
+                    value={site}
+                    onChange={(e) => setSite(e.target.value)}
+                  >
                     <option value="all">Les deux sites</option>
                     <option value="zogbo">{SITE_LABELS.zogbo}</option>
                     <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
                   </select>
                 </label>
               )}
-              <label className="date-field date-field-pill">
+
+              <label className="analyse-field">
                 <span>Équipe</span>
-                <select value={shift} onChange={(e) => setShift(e.target.value)}>
+                <select
+                  value={shift}
+                  onChange={(e) => setShift(e.target.value)}
+                >
                   <option value="all">Toutes</option>
                   <option value="jour">Jour</option>
                   <option value="soir">Soir</option>
@@ -283,7 +283,8 @@ export function AnalysePage() {
                   <option value="aucune">Hors équipe</option>
                 </select>
               </label>
-              <label className="date-field date-field-pill">
+
+              <label className="analyse-field">
                 <span>Nature</span>
                 <select value={kind} onChange={(e) => setKind(e.target.value)}>
                   <option value="all">Toutes</option>
@@ -293,86 +294,130 @@ export function AnalysePage() {
                   <option value="extra">Extra</option>
                 </select>
               </label>
-            </>
-          }
-        />
-        </details>
+            </div>
+          </div>
+
+          <div className="analyse-ca-card" aria-label="Chiffre d’affaires net">
+            <span className="analyse-ca-label">CA net</span>
+            <strong className="analyse-ca-value mono">
+              {loading && !report ? "…" : formatFcfa(report?.current.caNet ?? 0)}
+            </strong>
+            {report ? (
+              <>
+                <p className="analyse-ca-meta">
+                  {report.window.label}
+                  {" · "}
+                  <span className={`analyse-delta ${deltaClass(report.caChangePct)}`}>
+                    {fmtPct(report.caChangePct)}
+                  </span>
+                </p>
+                <p className="analyse-ca-prev">
+                  {report.window.previousLabel}
+                  {" · "}
+                  <strong className="mono">
+                    {formatFcfa(report.previous.caNet)}
+                  </strong>
+                </p>
+              </>
+            ) : (
+              <p className="analyse-ca-meta">Chargement de la période…</p>
+            )}
+          </div>
+        </header>
 
         {error ? (
           <p className="error-banner" role="alert">
             {error}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => void load()}
+            >
+              Réessayer
+            </button>
           </p>
+        ) : null}
+
+        {loading && !report ? (
+          <BrandLoader variant="ligne" label="Analyse des données…" />
+        ) : null}
+
+        {!loading && !report && !error ? (
+          <p className="analyse-empty">Aucune donnée pour cette période.</p>
         ) : null}
 
         {report ? (
           <>
-            <DashboardSectionNav
-              label="Sections analyse"
-              sections={SECTIONS.map((s) => ({
-                id: s.id,
-                label: s.label,
-                badge:
-                  s.id === "produits" && report.products.length > 0
-                    ? report.products.length
-                    : undefined,
-              }))}
-              active={section}
-              onChange={setSection}
-            />
+            {report.filteredCa ? (
+              <p className="analyse-filtered-note" role="note">
+                CA filtré (équipe / nature). CMV, charges et résultat restent
+                au périmètre maison / site.
+              </p>
+            ) : null}
 
-            <DashboardBody className={loading ? "is-loading" : undefined}>
+            <nav
+              className="analyse-section-nav"
+              role="tablist"
+              aria-label="Sections analyse"
+            >
+              {SECTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={section === s.id}
+                  className={`analyse-section-tab${section === s.id ? " is-active" : ""}`}
+                  onClick={() => setSection(s.id)}
+                >
+                  {s.label}
+                  {s.id === "produits" && report.products.length > 0 ? (
+                    <span className="analyse-section-badge">
+                      {report.products.length}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </nav>
+
+            <div
+              className={`analyse-body${loading ? " is-loading" : ""}`}
+              role="tabpanel"
+            >
               {section === "synthese" ? (
-                <div className="analyse-section-panel" role="tabpanel">
-                  <section className="dash-ca-final" aria-label="Résultat de la période">
-                    <div className="dash-ca-final-main">
-                      <span className="dash-ca-final-label">CA net</span>
-                      <strong className="dash-ca-final-value mono">
-                        {formatFcfa(report.current.caNet)}
+                <>
+                  <section className="analyse-kpi-grid" aria-label="Indicateurs">
+                    <div className="analyse-kpi">
+                      <span>Marge brute</span>
+                      <strong className="mono">
+                        {report.current.margeBrute === null
+                          ? "n.d."
+                          : formatFcfa(report.current.margeBrute)}
                       </strong>
-                      <span className="dash-ca-final-hint">
-                        {report.window.label}
-                        {" · "}
-                        <span className={`analyse-delta ${deltaClass(report.caChangePct)}`}>
-                          {fmtPct(report.caChangePct)}
-                        </span>
-                        {" vs "}
-                        {report.window.previousLabel}
-                        {report.filteredCa
-                          ? " · CA filtré (CMV et charges restent au périmètre maison / site)"
-                          : ""}
-                      </span>
                     </div>
-                    <div className="dash-ca-final-side">
-                      <div>
-                        <span>CA {report.window.previousLabel}</span>
-                        <strong className="mono">
-                          {formatFcfa(report.previous.caNet)}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>Marge brute</span>
-                        <strong className="mono">
-                          {report.current.margeBrute === null
-                            ? "n.d."
-                            : formatFcfa(report.current.margeBrute)}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>Charges</span>
-                        <strong className="mono">
-                          {formatFcfa(report.current.chargesExploitation)}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>Résultat</span>
-                        <strong className="mono">
-                          {formatFcfa(report.current.resultat)}
-                        </strong>
-                      </div>
+                    <div className="analyse-kpi">
+                      <span>Charges</span>
+                      <strong className="mono">
+                        {formatFcfa(report.current.chargesExploitation)}
+                      </strong>
+                    </div>
+                    <div className="analyse-kpi">
+                      <span>Résultat</span>
+                      <strong className="mono">
+                        {formatFcfa(report.current.resultat)}
+                      </strong>
+                    </div>
+                    <div className="analyse-kpi">
+                      <span>CMV</span>
+                      <strong className="mono">
+                        {formatFcfa(report.current.cmv)}
+                      </strong>
                     </div>
                   </section>
 
-                  <section className="analyse-health" aria-label="Santé de l’activité">
+                  <section
+                    className="analyse-health"
+                    aria-label="Santé de l’activité"
+                  >
                     <HealthChip
                       tone={commercial?.tone ?? "indetermine"}
                       label={commercial?.label ?? "Santé commerciale"}
@@ -403,7 +448,10 @@ export function AnalysePage() {
                           key: r.key,
                           label: r.label,
                           value: r.caNet,
-                          color: i === 0 ? CHART_COLORS.zogbo : CHART_COLORS.gbegamey,
+                          color:
+                            i === 0
+                              ? CHART_COLORS.zogbo
+                              : CHART_COLORS.gbegamey,
                         }))}
                       />
                     </section>
@@ -419,54 +467,55 @@ export function AnalysePage() {
                       />
                     </section>
                   </div>
-                </div>
+                </>
               ) : null}
 
               {section === "signaux" ? (
-                <div className="analyse-section-panel" role="tabpanel">
-                  <section className="analyse-brief" aria-label="Lecture managériale">
-                    <div className="panel analyse-brief-col">
-                      <h2 className="panel-title">Ce qui va bien</h2>
-                      {report.positives.length ? (
-                        report.positives.map((item) => (
-                          <InsightCard key={item.id} item={item} />
-                        ))
-                      ) : (
-                        <p className="muted">Pas de signal positif assez net.</p>
-                      )}
-                    </div>
-                    <div className="panel analyse-brief-col">
-                      <h2 className="panel-title">À surveiller</h2>
-                      {report.watches.length ? (
-                        report.watches.map((item) => (
-                          <InsightCard key={item.id} item={item} />
-                        ))
-                      ) : (
-                        <p className="muted">Aucune alerte relative.</p>
-                      )}
-                    </div>
-                    <div className="panel analyse-brief-col">
-                      <h2 className="panel-title">Conseils</h2>
-                      {report.conseils.length ? (
-                        report.conseils.map((item) => (
-                          <InsightCard key={item.id} item={item} />
-                        ))
-                      ) : (
-                        <p className="muted">Rien à recommander sans signal mesurable.</p>
-                      )}
-                    </div>
-                  </section>
-                </div>
+                <section
+                  className="analyse-brief"
+                  aria-label="Lecture managériale"
+                >
+                  <div className="panel analyse-brief-col">
+                    <h2 className="panel-title">Ce qui va bien</h2>
+                    {report.positives.length ? (
+                      report.positives.map((item) => (
+                        <InsightCard key={item.id} item={item} />
+                      ))
+                    ) : (
+                      <p className="muted">Pas de signal positif assez net.</p>
+                    )}
+                  </div>
+                  <div className="panel analyse-brief-col">
+                    <h2 className="panel-title">À surveiller</h2>
+                    {report.watches.length ? (
+                      report.watches.map((item) => (
+                        <InsightCard key={item.id} item={item} />
+                      ))
+                    ) : (
+                      <p className="muted">Aucune alerte relative.</p>
+                    )}
+                  </div>
+                  <div className="panel analyse-brief-col">
+                    <h2 className="panel-title">Conseils</h2>
+                    {report.conseils.length ? (
+                      report.conseils.map((item) => (
+                        <InsightCard key={item.id} item={item} />
+                      ))
+                    ) : (
+                      <p className="muted">
+                        Rien à recommander sans signal mesurable.
+                      </p>
+                    )}
+                  </div>
+                </section>
               ) : null}
 
               {section === "graphiques" ? (
-                <div className="analyse-section-panel" role="tabpanel">
-                  <AnalyseChartsPanel report={report} kindSlices={kindSlices} />
-                </div>
+                <AnalyseChartsPanel report={report} kindSlices={kindSlices} />
               ) : null}
 
               {section === "produits" ? (
-                <div className="analyse-section-panel" role="tabpanel">
+                <>
                   <section className="panel panel-wide">
                     <h2 className="panel-title">Produits</h2>
                     <div className="table-scroll">
@@ -497,17 +546,29 @@ export function AnalysePage() {
                                 <td>{p.name}</td>
                                 <td>{KIND_LABELS[p.kind] ?? p.kind}</td>
                                 <td className="num mono">{p.qty}</td>
-                                <td className="num mono">{formatFcfa(p.caNet)}</td>
-                                <td className="num mono">{formatFcfa(p.remises)}</td>
                                 <td className="num mono">
-                                  {p.costKnown ? formatFcfa(p.costAmount) : "coût inconnu"}
+                                  {formatFcfa(p.caNet)}
                                 </td>
                                 <td className="num mono">
-                                  {p.marginPct === null ? "—" : `${p.marginPct.toFixed(0)} %`}
+                                  {formatFcfa(p.remises)}
                                 </td>
-                                <td className="num mono">{fmtPct(p.qtyChangePct)}</td>
+                                <td className="num mono">
+                                  {p.costKnown
+                                    ? formatFcfa(p.costAmount)
+                                    : "coût inconnu"}
+                                </td>
+                                <td className="num mono">
+                                  {p.marginPct === null
+                                    ? "—"
+                                    : `${p.marginPct.toFixed(0)} %`}
+                                </td>
+                                <td className="num mono">
+                                  {fmtPct(p.qtyChangePct)}
+                                </td>
                                 <td>
-                                  <span className={`analyse-advice ${adviceClass(p.advice)}`}>
+                                  <span
+                                    className={`analyse-advice ${adviceClass(p.advice)}`}
+                                  >
                                     {p.advice}
                                   </span>
                                 </td>
@@ -527,18 +588,20 @@ export function AnalysePage() {
                       ))}
                     </ul>
                     <p className="muted">
-                      Achats stock {formatFcfa(report.current.achatsStock)} · acquisitions{" "}
-                      {formatFcfa(report.current.acquisitionsImmobilisations)} · sorties de
-                      caisse {formatFcfa(report.current.caisseDepenses)} (hors résultat, M1 /
-                      G8 / G9).
+                      Achats stock {formatFcfa(report.current.achatsStock)} ·
+                      acquisitions{" "}
+                      {formatFcfa(report.current.acquisitionsImmobilisations)} ·
+                      sorties de caisse{" "}
+                      {formatFcfa(report.current.caisseDepenses)} (hors
+                      résultat, M1 / G8 / G9).
                     </p>
                   </details>
-                </div>
+                </>
               ) : null}
-            </DashboardBody>
+            </div>
           </>
         ) : null}
-      </DashboardShell>
+      </div>
     </AppShell>
   );
 }
