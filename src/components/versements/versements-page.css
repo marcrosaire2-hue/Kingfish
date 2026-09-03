@@ -1,4 +1,4 @@
-/* Versements — bandeau, formulaire groupé, registre autonome */
+/* Versements — bureau : bandeau totaux, bordereau, registre tableau */
 
 .main-versements .versements-page {
   display: flex;
@@ -7,111 +7,81 @@
   min-width: 0;
 }
 
-.main-versements .versements-hero {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 0.85rem 1.25rem;
-  padding: 0.85rem 1rem;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: linear-gradient(180deg, #f8fbfd 0%, #eef4f8 100%);
-}
-
-.main-versements .versements-steps {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.4rem;
-  min-width: 0;
-  flex: 1 1 14rem;
-}
-
-.main-versements .versements-steps li {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  font-size: 0.88rem;
-  font-weight: 650;
-  color: var(--ink);
-  line-height: 1.3;
-}
-
-.main-versements .versements-steps li.is-mute {
-  color: var(--ink-soft);
-  font-weight: 550;
-}
-
-.main-versements .versements-steps span {
-  display: inline-grid;
-  place-items: center;
-  width: 1.45rem;
-  height: 1.45rem;
-  border-radius: 999px;
-  background: var(--sidebar);
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 800;
-  flex-shrink: 0;
-}
-
-.main-versements .versements-kpis {
+.main-versements .versements-strip {
   display: grid;
-  grid-template-columns: repeat(3, minmax(6.5rem, 1fr));
-  gap: 0.5rem;
-  flex-shrink: 0;
+  grid-template-columns: 1fr;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid color-mix(in srgb, var(--sidebar) 55%, var(--line));
+  background: var(--sidebar);
 }
 
-.main-versements .versements-kpi {
+@media (min-width: 720px) {
+  .main-versements .versements-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.main-versements .versements-strip-cell {
   display: flex;
   flex-direction: column;
   gap: 0.12rem;
-  padding: 0.6rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  line-height: 1.2;
-  min-width: 0;
+  align-items: flex-start;
+  padding: 0.9rem 1.05rem;
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, #fff 14%, transparent);
+  background: transparent;
+  color: #fff;
+  text-align: left;
+  cursor: pointer;
 }
 
-.main-versements .versements-kpi span {
+@media (min-width: 720px) {
+  .main-versements .versements-strip-cell {
+    border-bottom: 0;
+    border-right: 1px solid color-mix(in srgb, #fff 14%, transparent);
+  }
+
+  .main-versements .versements-strip-cell:last-child {
+    border-right: 0;
+  }
+}
+
+.main-versements .versements-strip-cell:hover,
+.main-versements .versements-strip-cell.is-on {
+  background: color-mix(in srgb, #fff 8%, transparent);
+}
+
+.main-versements .versements-strip-cell span {
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--ink-soft);
+  color: color-mix(in srgb, #fff 68%, transparent);
 }
 
-.main-versements .versements-kpi strong {
-  font-size: 1rem;
+.main-versements .versements-strip-cell strong {
+  font-size: 1.08rem;
   font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--accent);
   word-break: break-word;
 }
 
-.main-versements .versements-kpi em {
+.main-versements .versements-strip-cell em {
   font-style: normal;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: var(--ink-soft);
+  color: color-mix(in srgb, #fff 72%, transparent);
 }
 
-.main-versements .versements-kpi.is-gold {
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
+.main-versements .versements-strip-cell.is-pending strong {
+  color: #fdba74;
 }
 
-.main-versements .versements-kpi.is-pending {
-  border-color: color-mix(in srgb, #d97706 32%, var(--line));
-  background: color-mix(in srgb, #d97706 10%, transparent);
-}
-
-.main-versements .versements-kpi.is-ok {
-  border-color: color-mix(in srgb, #16a34a 30%, var(--line));
-  background: color-mix(in srgb, #16a34a 8%, transparent);
+.main-versements .versements-strip-cell.is-ok strong {
+  color: #86efac;
 }
 
 .main-versements .versements-flash {
@@ -125,72 +95,117 @@
   color: #166534;
 }
 
-.main-versements .versements-layout {
-  display: grid;
-  gap: 1rem;
-  align-items: start;
-}
-
-@media (min-width: 980px) {
-  .main-versements .versements-layout:has(.versements-declare) {
-    grid-template-columns: minmax(18rem, 24rem) minmax(0, 1fr);
-  }
-}
-
-.main-versements .versements-declare {
-  padding: 1rem 1.05rem 1.15rem;
-  border-radius: 14px;
+.main-versements .versements-desk-nav {
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.28rem;
+  width: fit-content;
+  max-width: 100%;
+  border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--surface);
 }
 
-.main-versements .versements-declare-head {
-  margin: 0 0 0.85rem;
+.main-versements .versements-desk-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 0.45rem 0.95rem;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
 }
 
-.main-versements .versements-declare-head h2,
-.main-versements .versements-board-title h2 {
+.main-versements .versements-desk-tab i {
+  font-style: normal;
+  min-width: 1.2rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, #d97706 22%, transparent);
+  color: #9a6700;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-align: center;
+}
+
+.main-versements .versements-desk-tab.is-active {
+  background: var(--sidebar);
+  color: #fff;
+}
+
+.main-versements .versements-desk-tab.is-active i {
+  background: color-mix(in srgb, #fff 18%, transparent);
+  color: #fff;
+}
+
+.main-versements .versements-bordereau {
+  padding: 0;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  overflow: hidden;
+}
+
+.main-versements .versements-bordereau-form {
+  display: grid;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 980px) {
+  .main-versements .versements-bordereau-form {
+    grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
+  }
+}
+
+.main-versements .versements-bordereau-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  padding: 1.1rem 1.15rem 1.2rem;
+}
+
+.main-versements .versements-bordereau-head h2 {
   margin: 0;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 800;
 }
 
-.main-versements .versements-declare-head p {
+.main-versements .versements-bordereau-head p {
   margin: 0.2rem 0 0;
-  font-size: 0.8rem;
+  font-size: 0.82rem;
   color: var(--ink-soft);
 }
 
-.main-versements .versements-form {
+.main-versements .versements-bordereau-side {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  padding: 1.1rem 1.05rem 1.2rem;
+  background: color-mix(in srgb, var(--sidebar) 7%, var(--surface));
+  border-top: 1px solid var(--line);
 }
 
-.main-versements .versements-fieldset {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
-}
-
-.main-versements .versements-fieldset legend,
-.main-versements .versements-membres legend {
-  padding: 0;
-  margin: 0 0 0.15rem;
-  font-size: 0.75rem;
-  font-weight: 800;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
+@media (min-width: 980px) {
+  .main-versements .versements-bordereau-side {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+  }
 }
 
 .main-versements .versements-form-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 0.55rem 0.65rem;
+}
+
+@media (min-width: 640px) {
+  .main-versements .versements-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
 }
 
 .main-versements .versements-field {
@@ -201,7 +216,7 @@
 }
 
 .main-versements .versements-field span {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--ink-soft);
   text-transform: uppercase;
@@ -213,8 +228,8 @@
 .main-versements .versements-membre-row input,
 .main-versements .versements-search {
   width: 100%;
-  min-height: 2.75rem;
-  padding: 0.55rem 0.75rem;
+  min-height: 2.7rem;
+  padding: 0.5rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fff;
@@ -233,10 +248,10 @@
 
 .main-versements .versements-readonly {
   margin: 0;
-  min-height: 2.75rem;
+  min-height: 2.7rem;
   display: flex;
   align-items: center;
-  padding: 0.55rem 0.75rem;
+  padding: 0.5rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: color-mix(in srgb, var(--ink) 3%, #fff);
@@ -266,10 +281,20 @@
   margin: 0;
   padding: 0.65rem 0.75rem 0.75rem;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  background: var(--surface);
+}
+
+.main-versements .versements-membres legend {
+  padding: 0 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
 }
 
 .main-versements .versements-membre-row {
@@ -292,10 +317,11 @@
   flex-direction: column;
   gap: 0.4rem;
   margin: 0;
-  padding: 0.75rem;
-  border: 1px dashed var(--line);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--ink) 2%, #fff);
+  padding: 0.85rem;
+  min-height: 12rem;
+  border: 1px dashed color-mix(in srgb, var(--sidebar) 35%, var(--line));
+  border-radius: 14px;
+  background: #fff;
   cursor: pointer;
 }
 
@@ -306,7 +332,7 @@
 }
 
 .main-versements .versements-dropzone > span {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   color: var(--ink-soft);
   text-transform: uppercase;
@@ -328,40 +354,80 @@
 .main-versements .versements-preuve-preview {
   display: block;
   width: 100%;
-  max-height: 9rem;
+  max-height: 11rem;
   object-fit: contain;
   border-radius: 10px;
   border: 1px solid var(--line);
   background: #fff;
 }
 
+.main-versements .versements-checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem;
+}
+
+.main-versements .versements-checks li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+
+.main-versements .versements-checks li::before {
+  content: "";
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 18%, transparent);
+  flex-shrink: 0;
+}
+
+.main-versements .versements-checks li.is-ok {
+  color: #166534;
+}
+
+.main-versements .versements-checks li.is-ok::before {
+  background: #16a34a;
+}
+
 .main-versements .versements-submit {
   width: 100%;
   min-height: 2.85rem;
-  margin-top: 0.1rem;
 }
 
-.main-versements .versements-board {
+.main-versements .versements-ledger {
   min-width: 0;
   padding: 1rem 1.05rem 1.15rem;
-  border-radius: 14px;
+  border-radius: 16px;
   border: 1px solid var(--line);
   background: var(--paper);
 }
 
-.main-versements .versements-board-head {
+.main-versements .versements-ledger-head {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   margin-bottom: 0.85rem;
 }
 
-.main-versements .versements-board-title {
+.main-versements .versements-ledger-title {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
   gap: 0.4rem 0.85rem;
+}
+
+.main-versements .versements-ledger-title h2 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .main-versements .versements-queue-note {
@@ -441,92 +507,60 @@
   color: #fff;
 }
 
-.main-versements .versements-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.55rem;
+.main-versements .versements-table {
+  min-width: 44rem;
 }
 
-.main-versements .versements-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 0.55rem 0.75rem;
-  padding: 0.85rem 0.95rem;
-  border-radius: 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
+.main-versements .versements-table tbody tr.is-pending td {
+  background: color-mix(in srgb, #d97706 8%, transparent);
 }
 
-.main-versements .versements-row.is-pending {
-  border-color: color-mix(in srgb, var(--accent) 42%, var(--line));
-  background: color-mix(in srgb, var(--accent) 7%, transparent);
+.main-versements .versements-td-date {
+  white-space: nowrap;
 }
 
 .main-versements .versements-row-open {
-  min-width: 0;
-  flex: 1 1 14rem;
   display: flex;
-  cursor: pointer;
-  text-align: left;
-  background: transparent;
-  border: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.1rem;
+  margin: 0;
   padding: 0;
+  border: 0;
+  background: transparent;
   color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.main-versements .versements-row-open small {
+  font-size: 0.75rem;
+  font-weight: 550;
+  color: var(--ink-soft);
 }
 
 .main-versements .versements-row-open:focus-visible {
   outline: 2px solid var(--sidebar);
   outline-offset: 2px;
-  border-radius: 8px;
+  border-radius: 6px;
 }
 
-.main-versements .versements-row-main {
-  min-width: 0;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-
-.main-versements .versements-row-top {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.45rem 1rem;
-}
-
-.main-versements .versements-row-meta {
-  margin: 0;
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-  line-height: 1.4;
-}
-
-.main-versements .versements-row-amount {
-  font-size: 1.05rem;
+.main-versements .versements-td-amount {
   font-weight: 800;
+}
+
+.main-versements .versements-col-action {
+  width: 1%;
   white-space: nowrap;
+  text-align: right;
 }
 
-.main-versements .versements-row-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 0.35rem;
-  flex: 0 0 auto;
-  align-self: center;
-}
-
-.main-versements .versements-row-actions .btn {
-  min-height: 2.35rem;
-  padding: 0.35rem 0.75rem;
-  font-size: 0.85rem;
+.main-versements .versements-col-action .btn {
+  min-height: 2.2rem;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
 }
 
 .main-versements .versements-numero {
@@ -546,8 +580,8 @@
 }
 
 .main-versements .versements-statut.is-en_attente {
-  background: color-mix(in srgb, var(--accent) 22%, transparent);
-  color: var(--ink);
+  background: color-mix(in srgb, #d97706 18%, transparent);
+  color: #9a6700;
 }
 
 .main-versements .versements-statut.is-confirmee {
@@ -756,26 +790,25 @@
 }
 
 @media (max-width: 720px) {
-  .main-versements .versements-kpis {
+  .main-versements .versements-desk-nav {
     width: 100%;
-    grid-template-columns: 1fr;
+  }
+
+  .main-versements .versements-desk-tab {
+    flex: 1;
+    justify-content: center;
   }
 
   .main-versements .versements-form-grid {
     grid-template-columns: 1fr;
   }
 
-  .main-versements .versements-row {
-    flex-direction: column;
+  .main-versements .versements-checks {
+    grid-template-columns: 1fr;
   }
 
-  .main-versements .versements-row-actions {
-    justify-content: stretch;
-    width: 100%;
-  }
-
-  .main-versements .versements-row-actions .btn {
-    flex: 1;
+  .main-versements .versements-col-action .btn {
+    min-height: 2.4rem;
   }
 
   .main-versements .versements-detail div {

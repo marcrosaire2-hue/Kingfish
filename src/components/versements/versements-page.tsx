@@ -8,7 +8,6 @@ import {
   useState,
   type DragEvent,
   type FormEvent,
-  type KeyboardEvent,
 } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
@@ -36,6 +35,8 @@ type StatutFilter = "all" | VersementStatut;
 type SiteFilter = "all" | VenteSite;
 
 const PAGE_SIZE = 10;
+
+type DeskView = "declare" | "registre";
 
 const TRANCHE_SHORT: Record<VersementTranche, string> = {
   nuit: "Nuit",
@@ -148,6 +149,7 @@ export function VersementsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Versement | null>(null);
+  const [desk, setDesk] = useState<DeskView>("registre");
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -276,7 +278,10 @@ export function VersementsPage() {
   }, [versements]);
 
   function focusForm() {
-    formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    setDesk("declare");
+    window.setTimeout(() => {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 40);
   }
 
   function pickPreuve(file: File | null) {
@@ -322,6 +327,7 @@ export function VersementsPage() {
       setTranche(defaultTrancheFromShift(user?.shift));
       setDate(declareDate);
       setFlash("Versement enregistré — en attente de confirmation.");
+      setDesk("registre");
       await charger();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Enregistrement impossible.");
@@ -353,13 +359,6 @@ export function VersementsPage() {
     }
   }
 
-  function onRowKey(e: KeyboardEvent<HTMLElement>, v: Versement) {
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      setSelected(v);
-    }
-  }
-
   const siteLocked = scope === "zogbo" || scope === "gbegamey";
   const formReady =
     Boolean(montant) &&
@@ -387,7 +386,10 @@ export function VersementsPage() {
           <button
             type="button"
             className="btn btn-primary"
-            onClick={() => setStatutFilter("en_attente")}
+            onClick={() => {
+              setStatutFilter("en_attente");
+              setDesk("registre");
+            }}
           >
             {totals.pending} à confirmer
           </button>
@@ -395,80 +397,58 @@ export function VersementsPage() {
       }
     >
       <div className="versements-page">
-        <header className="versements-hero">
-          <ol className="versements-steps" aria-label="Parcours">
-            {canDeclare ? (
-              <>
-                <li>
-                  <span>1</span> Saisir le versement
-                </li>
-                <li>
-                  <span>2</span> Joindre la capture
-                </li>
-                <li>
-                  <span>3</span> Le comptable confirme
-                </li>
-              </>
-            ) : canConfirm ? (
-              <>
-                <li>
-                  <span>1</span> Ouvrir la ligne
-                </li>
-                <li>
-                  <span>2</span> Vérifier la preuve
-                </li>
-                <li>
-                  <span>3</span> Confirmer — verrouillé
-                </li>
-              </>
-            ) : (
-              <>
-                <li>
-                  <span>1</span> Consulter le registre
-                </li>
-                <li>
-                  <span>2</span> Ouvrir une preuve
-                </li>
-                <li className="is-mute">
-                  <span>3</span> Confirmation réservée au comptable
-                </li>
-              </>
-            )}
-          </ol>
-          <div className="versements-kpis" aria-label="Totaux">
-            <div className="versements-kpi is-gold">
-              <span>Total période</span>
-              <strong>{loading ? "…" : formatFcfa(totals.totalAmount)}</strong>
-              <em>
-                {loading
-                  ? "…"
-                  : `${totals.totalCount} versement${totals.totalCount > 1 ? "s" : ""}`}
-              </em>
-            </div>
-            <div className="versements-kpi is-pending">
-              <span>En attente</span>
-              <strong>
-                {loading ? "…" : formatFcfa(totals.pendingAmount)}
-              </strong>
-              <em>
-                {loading
-                  ? "…"
-                  : `${totals.pending} à confirmer`}
-              </em>
-            </div>
-            <div className="versements-kpi is-ok">
-              <span>Confirmés</span>
-              <strong>
-                {loading ? "…" : formatFcfa(totals.confirmedAmount)}
-              </strong>
-              <em>
-                {loading
-                  ? "…"
-                  : `${totals.confirmed} verrouillé${totals.confirmed > 1 ? "s" : ""}`}
-              </em>
-            </div>
-          </div>
-        </header>
+        <div className="versements-strip" role="group" aria-label="Totaux">
+          <button
+            type="button"
+            className="versements-strip-cell"
+            onClick={() => {
+              setStatutFilter("all");
+              setDesk("registre");
+            }}
+          >
+            <span>Période</span>
+            <strong>{loading ? "…" : formatFcfa(totals.totalAmount)}</strong>
+            <em>
+              {loading
+                ? "…"
+                : `${totals.totalCount} versement${totals.totalCount > 1 ? "s" : ""}`}
+            </em>
+          </button>
+          <button
+            type="button"
+            className={`versements-strip-cell is-pending${statutFilter === "en_attente" ? " is-on" : ""}`}
+            onClick={() => {
+              setStatutFilter("en_attente");
+              setDesk("registre");
+            }}
+          >
+            <span>À confirmer</span>
+            <strong>
+              {loading ? "…" : formatFcfa(totals.pendingAmount)}
+            </strong>
+            <em>
+              {loading ? "…" : `${totals.pending} en attente`}
+            </em>
+          </button>
+          <button
+            type="button"
+            className={`versements-strip-cell is-ok${statutFilter === "confirmee" ? " is-on" : ""}`}
+            onClick={() => {
+              setStatutFilter("confirmee");
+              setDesk("registre");
+            }}
+          >
+            <span>Confirmés</span>
+            <strong>
+              {loading ? "…" : formatFcfa(totals.confirmedAmount)}
+            </strong>
+            <em>
+              {loading
+                ? "…"
+                : `${totals.confirmed} verrouillé${totals.confirmed > 1 ? "s" : ""}`}
+            </em>
+          </button>
+        </div>
 
         {error ? (
           <p className="error-banner" role="alert">
@@ -488,84 +468,136 @@ export function VersementsPage() {
           </p>
         ) : null}
 
-        <div className="versements-layout">
-          {canDeclare ? (
-            <section
-              ref={formRef}
-              className="versements-declare"
-              id="nouveau-versement"
-              aria-label="Nouveau versement"
+        {canDeclare ? (
+          <nav className="versements-desk-nav" role="tablist" aria-label="Bureau">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={desk === "declare"}
+              className={`versements-desk-tab${desk === "declare" ? " is-active" : ""}`}
+              onClick={() => setDesk("declare")}
             >
-              <div className="versements-declare-head">
-                <h2>Nouveau versement</h2>
-                <p>Une fois envoyé, plus aucune modification.</p>
-              </div>
-              <form className="versements-form" onSubmit={onDeclare}>
-                <fieldset className="versements-fieldset">
-                  <legend>Contexte</legend>
-                  <div className="versements-form-grid">
+              Déclarer
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={desk === "registre"}
+              className={`versements-desk-tab${desk === "registre" ? " is-active" : ""}`}
+              onClick={() => setDesk("registre")}
+            >
+              Registre
+              {totals.pending > 0 ? (
+                <i>{totals.pending}</i>
+              ) : null}
+            </button>
+          </nav>
+        ) : null}
+
+        {canDeclare && desk === "declare" ? (
+          <section
+            ref={formRef}
+            className="versements-bordereau"
+            id="nouveau-versement"
+            aria-label="Nouveau versement"
+          >
+            <form className="versements-bordereau-form" onSubmit={onDeclare}>
+              <div className="versements-bordereau-main">
+                <header className="versements-bordereau-head">
+                  <h2>Bordereau de versement</h2>
+                  <p>Une fois envoyé, plus aucune modification.</p>
+                </header>
+
+                <div className="versements-form-grid">
+                  <label className="versements-field">
+                    <span>Jour</span>
+                    <input
+                      type="date"
+                      value={declareDate}
+                      max={todayIsoDate()}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                        setDeclareDate(v);
+                      }}
+                      required
+                    />
+                  </label>
+                  {siteLocked ? (
+                    <div className="versements-field">
+                      <span>Site</span>
+                      <p className="versements-readonly">{SITE_LABELS[site]}</p>
+                    </div>
+                  ) : (
                     <label className="versements-field">
-                      <span>Jour</span>
-                      <input
-                        type="date"
-                        value={declareDate}
-                        max={todayIsoDate()}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-                          setDeclareDate(v);
-                        }}
-                        required
-                      />
-                    </label>
-                    {siteLocked ? (
-                      <div className="versements-field">
-                        <span>Site</span>
-                        <p className="versements-readonly">{SITE_LABELS[site]}</p>
-                      </div>
-                    ) : (
-                      <label className="versements-field">
-                        <span>Site</span>
-                        <select
-                          value={site}
-                          onChange={(e) => setSite(e.target.value as VenteSite)}
-                        >
-                          <option value="zogbo">{SITE_LABELS.zogbo}</option>
-                          <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
-                        </select>
-                      </label>
-                    )}
-                    <label className="versements-field">
-                      <span>Heure</span>
-                      <input
-                        type="time"
-                        value={heure}
-                        onChange={(e) => setHeure(e.target.value)}
-                        required
-                      />
-                    </label>
-                    <label className="versements-field">
-                      <span>Tranche</span>
+                      <span>Site</span>
                       <select
-                        value={tranche}
-                        onChange={(e) =>
-                          setTranche(e.target.value as VersementTranche)
-                        }
-                        required
+                        value={site}
+                        onChange={(e) => setSite(e.target.value as VenteSite)}
                       >
-                        {(
-                          Object.keys(
-                            VERSEMENT_TRANCHE_LABELS,
-                          ) as VersementTranche[]
-                        ).map((key) => (
-                          <option key={key} value={key}>
-                            {VERSEMENT_TRANCHE_LABELS[key]}
-                          </option>
-                        ))}
+                        <option value="zogbo">{SITE_LABELS.zogbo}</option>
+                        <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
                       </select>
                     </label>
-                  </div>
-                </fieldset>
+                  )}
+                  <label className="versements-field">
+                    <span>Heure</span>
+                    <input
+                      type="time"
+                      value={heure}
+                      onChange={(e) => setHeure(e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label className="versements-field">
+                    <span>Tranche</span>
+                    <select
+                      value={tranche}
+                      onChange={(e) =>
+                        setTranche(e.target.value as VersementTranche)
+                      }
+                      required
+                    >
+                      {(
+                        Object.keys(
+                          VERSEMENT_TRANCHE_LABELS,
+                        ) as VersementTranche[]
+                      ).map((key) => (
+                        <option key={key} value={key}>
+                          {VERSEMENT_TRANCHE_LABELS[key]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="versements-field">
+                    <span>Montant</span>
+                    <div className="versements-amount-wrap">
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        step={1}
+                        value={montant}
+                        onChange={(e) => setMontant(e.target.value)}
+                        placeholder="150000"
+                        required
+                      />
+                      <span className="versements-amount-suffix">FCFA</span>
+                    </div>
+                  </label>
+                  <label className="versements-field">
+                    <span>N° de transaction</span>
+                    <input
+                      type="text"
+                      value={numero}
+                      onChange={(e) => setNumero(e.target.value)}
+                      maxLength={80}
+                      placeholder="Référence MTN / Moov…"
+                      autoCapitalize="characters"
+                      required
+                    />
+                  </label>
+                </div>
 
                 <fieldset className="versements-membres">
                   <legend>Membres présents</legend>
@@ -607,41 +639,9 @@ export function VersementsPage() {
                     </button>
                   ) : null}
                 </fieldset>
+              </div>
 
-                <fieldset className="versements-fieldset">
-                  <legend>Paiement</legend>
-                  <div className="versements-form-grid">
-                    <label className="versements-field">
-                      <span>Montant</span>
-                      <div className="versements-amount-wrap">
-                        <input
-                          type="number"
-                          inputMode="numeric"
-                          min={1}
-                          step={1}
-                          value={montant}
-                          onChange={(e) => setMontant(e.target.value)}
-                          placeholder="150000"
-                          required
-                        />
-                        <span className="versements-amount-suffix">FCFA</span>
-                      </div>
-                    </label>
-                    <label className="versements-field">
-                      <span>N° de transaction</span>
-                      <input
-                        type="text"
-                        value={numero}
-                        onChange={(e) => setNumero(e.target.value)}
-                        maxLength={80}
-                        placeholder="Référence MTN / Moov…"
-                        autoCapitalize="characters"
-                        required
-                      />
-                    </label>
-                  </div>
-                </fieldset>
-
+              <aside className="versements-bordereau-side">
                 <label
                   className={`versements-dropzone${dropActive ? " is-active" : ""}${preuvePreview ? " has-file" : ""}`}
                   onDragOver={(e) => {
@@ -668,27 +668,39 @@ export function VersementsPage() {
                       <em>{preuve?.name}</em>
                     </>
                   ) : (
-                    <em>Glissez une image ou cliquez — JPEG, PNG, WebP · 4 Mo max</em>
+                    <em>
+                      Glissez une image ou cliquez — JPEG, PNG, WebP · 4 Mo max
+                    </em>
                   )}
                 </label>
+
+                <ul className="versements-checks" aria-label="Pièces du bordereau">
+                  <li className={montant ? "is-ok" : ""}>Montant</li>
+                  <li className={numero.trim() ? "is-ok" : ""}>N° de transaction</li>
+                  <li
+                    className={
+                      membres.some((m) => m.trim().length >= 2) ? "is-ok" : ""
+                    }
+                  >
+                    Membres
+                  </li>
+                  <li className={preuve ? "is-ok" : ""}>Capture</li>
+                </ul>
 
                 <button
                   type="submit"
                   className="btn btn-primary versements-submit"
                   disabled={busy || loading || !formReady}
                 >
-                  {busy ? "Enregistrement…" : "Enregistrer le versement"}
+                  {busy ? "Enregistrement…" : "Envoyer le bordereau"}
                 </button>
-              </form>
-            </section>
-          ) : null}
-
-          <section
-            className="versements-board"
-            aria-label="Liste des versements"
-          >
-            <div className="versements-board-head">
-              <div className="versements-board-title">
+              </aside>
+            </form>
+          </section>
+        ) : (
+          <section className="versements-ledger" aria-label="Liste des versements">
+            <div className="versements-ledger-head">
+              <div className="versements-ledger-title">
                 <h2>Registre</h2>
                 {canConfirm && totals.pending > 0 ? (
                   <p className="versements-queue-note">
@@ -806,7 +818,7 @@ export function VersementsPage() {
                 <span>
                   {versements.length === 0
                     ? canDeclare
-                      ? "Saisissez le premier versement à gauche."
+                      ? "Passez sur l’onglet Déclarer pour la première ligne."
                       : "Changez les dates ou le site pour élargir la période."
                     : "Modifiez la recherche ou le filtre de statut."}
                 </span>
@@ -822,72 +834,80 @@ export function VersementsPage() {
               </div>
             ) : (
               <>
-                <ul className="versements-list">
-                  {paged.items.map((v) => (
-                    <li
-                      key={v.id}
-                      className={`versements-row${v.statut === "en_attente" ? " is-pending" : ""}`}
-                    >
-                      <div
-                        className="versements-row-open"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => setSelected(v)}
-                        onKeyDown={(e) => onRowKey(e, v)}
-                      >
-                        <div className="versements-row-main">
-                          <div className="versements-row-top">
+                <div className="table-scroll">
+                  <table className="data-table versements-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Tranche</th>
+                        {followAll ? <th>Site</th> : null}
+                        <th>N°</th>
+                        <th className="num">Montant</th>
+                        <th>Statut</th>
+                        <th className="versements-col-action">
+                          <span className="sr-only">Actions</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paged.items.map((v) => (
+                        <tr
+                          key={v.id}
+                          className={
+                            v.statut === "en_attente" ? "is-pending" : ""
+                          }
+                        >
+                          <td className="versements-td-date">
+                            <button
+                              type="button"
+                              className="versements-row-open"
+                              onClick={() => setSelected(v)}
+                            >
+                              {formatDateFr(v.date)}
+                              <small>
+                                {v.heureTransaction} · {v.actorName}
+                              </small>
+                            </button>
+                          </td>
+                          <td>{TRANCHE_SHORT[v.trancheHoraire]}</td>
+                          {followAll ? <td>{SITE_LABELS[v.site]}</td> : null}
+                          <td>
+                            <code className="versements-numero">
+                              {v.numeroTransaction}
+                            </code>
+                          </td>
+                          <td className="num mono versements-td-amount">
+                            {formatFcfa(v.montant)}
+                          </td>
+                          <td>
                             <span className={`versements-statut is-${v.statut}`}>
                               {VERSEMENT_STATUT_LABELS[v.statut]}
                             </span>
-                            <strong className="versements-row-amount">
-                              {formatFcfa(v.montant)}
-                            </strong>
-                          </div>
-                          <p className="versements-row-meta">
-                            {formatDateFr(v.date)} ·{" "}
-                            {TRANCHE_SHORT[v.trancheHoraire]} · {v.heureTransaction}{" "}
-                            · {SITE_LABELS[v.site]}
-                          </p>
-                          <p className="versements-row-meta">
-                            {v.actorName}
-                            {v.membresPresents.length
-                              ? ` · ${v.membresPresents.join(", ")}`
-                              : ""}
-                            {v.confirmedByName
-                              ? ` → ${v.confirmedByName}`
-                              : " · en attente comptable"}
-                          </p>
-                          <code className="versements-numero">
-                            {v.numeroTransaction}
-                          </code>
-                        </div>
-                      </div>
-                      <div className="versements-row-actions">
-                        {canConfirm && v.statut === "en_attente" ? (
-                          <button
-                            type="button"
-                            className="btn btn-primary btn-sm"
-                            disabled={busy}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              void onConfirm(v.id);
-                            }}
-                          >
-                            Confirmer
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => setSelected(v)}
-                        >
-                          Voir
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                          </td>
+                          <td className="versements-col-action">
+                            {canConfirm && v.statut === "en_attente" ? (
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm"
+                                disabled={busy}
+                                onClick={() => void onConfirm(v.id)}
+                              >
+                                Confirmer
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setSelected(v)}
+                            >
+                              Voir
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
                 <CataloguePaginationBar
                   from={paged.from}
                   to={paged.to}
@@ -900,7 +920,7 @@ export function VersementsPage() {
               </>
             )}
           </section>
-        </div>
+        )}
       </div>
 
       {selected ? (
