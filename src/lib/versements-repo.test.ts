@@ -28,8 +28,11 @@ describe("droits versements", () => {
 describe("validation versement", () => {
   it("accepte une heure HH:MM valide", () => {
     expect(parseVersementHeure("20:45")).toBe("20:45");
+    expect(parseVersementHeure("20:45:00")).toBe("20:45");
+    expect(parseVersementHeure("9:05")).toBe("09:05");
     expect(() => parseVersementHeure("25:00")).toThrow(/Heure/);
-    expect(() => parseVersementHeure("8h45")).toThrow(/Heure/);
+    expect(() => parseVersementHeure("8h45")).not.toThrow();
+    expect(parseVersementHeure("8h45")).toBe("08:45");
   });
 
   it("exige un montant positif arrondi", () => {
@@ -83,6 +86,13 @@ describe("validation versement", () => {
     ).toThrow(/4 Mo/);
     expect(() =>
       assertPreuveFile({ mime: "image/jpeg", size: 1200 }),
+    ).not.toThrow();
+    expect(() =>
+      assertPreuveFile({
+        mime: "",
+        size: 1200,
+        filename: "capture.PNG",
+      }),
     ).not.toThrow();
   });
 });

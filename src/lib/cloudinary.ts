@@ -41,6 +41,18 @@ function parseCloudinaryUrl(url: string): {
   return { cloud_name, api_key, api_secret };
 }
 
+/** True si CLOUDINARY_URL est renseigné (hors placeholder). */
+export function cloudinaryConfigured(): boolean {
+  const url = process.env.CLOUDINARY_URL?.trim();
+  if (!url) return false;
+  try {
+    parseCloudinaryUrl(url);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function getCloudinary(): Promise<CloudinaryApi> {
   if (cloudinaryApi && configured) return cloudinaryApi;
 

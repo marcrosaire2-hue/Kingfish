@@ -1,7 +1,10 @@
-import { ObjectId } from "mongodb";
+import { Binary, ObjectId } from "mongodb";
 import type { UserRole, UserShift } from "@/lib/auth-types";
 import { effectiveShift } from "@/lib/auth-types";
-import { uploadVersementPreuve } from "@/lib/cloudinary";
+import {
+  cloudinaryConfigured,
+  uploadVersementPreuve,
+} from "@/lib/cloudinary";
 import { assertValidDate } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import type {
@@ -15,6 +18,7 @@ import {
   canConfirmVersement,
   canDeclareVersement,
   defaultTrancheFromShift,
+  inferPreuveMime,
   isVersementTranche,
   parseVersementHeure,
   parseVersementMembres,
@@ -37,12 +41,15 @@ export {
 } from "@/lib/versements-model";
 
 const COLLECTION = "versements";
+const LOCAL_PREUVE_PUBLIC_ID = "local";
 
 type VersementDoc = Omit<Versement, "id"> & {
   _id: ObjectId;
   /** Anciens documents sans ces champs. */
   trancheHoraire?: VersementTranche;
   membresPresents?: string[];
+  /** Binaire local si Cloudinary indisponible. */
+  preuveData?: Binary;
 };
 
 export type VersementActor = {
@@ -55,6 +62,11 @@ export type VersementActor = {
 
 function trancheFromLegacyShift(shift: UserShift | undefined): VersementTranche {
   return defaultTrancheFromShift(shift);
+}
+
+function preuvePublicUrl(doc: VersementDoc): string {
+  if (doc.preuveUrl) return doc.preuveUrl;
+  return `/api/versements/${doc._id.toHexString()}/preuve`;
 }
 
 function toPublic(doc: VersementDoc): Versement {
@@ -72,7 +84,7 @@ function toPublic(doc: VersementDoc): Versement {
     montant: doc.montant,
     numeroTransaction: doc.numeroTransaction,
     preuveMime: doc.preuveMime,
-    preuveUrl: doc.preuveUrl,
+    preuveUrl: preuvePublicUrl(doc),
     preuvePublicId: doc.preuvePublicId,
     createdAt: doc.createdAt,
     actorId: doc.actorId,
@@ -132,7 +144,7 @@ export async function declareVersement(input: {
   membresPresents: unknown;
   montant: unknown;
   numeroTransaction: string;
-  preuve: { mime: string; bytes: Buffer };
+  preuve: { mime: string; bytes: Buffer; filename?: string };
   actor: VersementActor;
 }): Promise<Versement> {
   if (!canDeclareVersement(input.actor.role)) {
@@ -146,20 +158,47 @@ export async function declareVersement(input: {
   const membresPresents = parseVersementMembres(input.membresPresents);
   const montant = parseVersementMontant(input.montant);
   const numeroTransaction = parseVersementNumero(input.numeroTransaction);
-  const mime =
-    input.preuve.mime === "image/jpg" ? "image/jpeg" : input.preuve.mime;
-  assertPreuveFile({ mime, size: input.preuve.bytes.length });
+  const mime = inferPreuveMime({
+    mime: input.preuve.mime,
+    filename: input.preuve.filename,
+    bytes: input.preuve.bytes,
+  });
+  assertPreuveFile({
+    mime,
+    size: input.preuve.bytes.length,
+    filename: input.preuve.filename,
+    bytes: input.preuve.bytes,
+  });
 
   const _id = new ObjectId();
   const createdAt = new Date().toISOString();
+  const idHex = _id.toHexString();
 
-  const uploaded = await uploadVersementPreuve({
-    bytes: input.preuve.bytes,
-    mime,
-    versementId: _id.toHexString(),
-    date,
-    site: input.site,
-  });
+  let preuveUrl = "";
+  let preuvePublicId = LOCAL_PREUVE_PUBLIC_ID;
+  let preuveData: Binary | undefined;
+
+  if (cloudinaryConfigured()) {
+    try {
+      const uploaded = await uploadVersementPreuve({
+        bytes: input.preuve.bytes,
+        mime,
+        versementId: idHex,
+        date,
+        site: input.site,
+      });
+      preuveUrl = uploaded.url;
+      preuvePublicId = uploaded.publicId;
+    } catch {
+      // Secours Mongo si Cloudinary est indisponible.
+      preuveData = new Binary(input.preuve.bytes);
+      preuveUrl = `/api/versements/${idHex}/preuve`;
+      preuvePublicId = LOCAL_PREUVE_PUBLIC_ID;
+    }
+  } else {
+    preuveData = new Binary(input.preuve.bytes);
+    preuveUrl = `/api/versements/${idHex}/preuve`;
+  }
 
   const doc: VersementDoc = {
     _id,
@@ -171,8 +210,9 @@ export async function declareVersement(input: {
     montant,
     numeroTransaction,
     preuveMime: mime,
-    preuveUrl: uploaded.url,
-    preuvePublicId: uploaded.publicId,
+    preuveUrl,
+    preuvePublicId,
+    ...(preuveData ? { preuveData } : {}),
     createdAt,
     actorId: input.actor.id,
     actorName: input.actor.name,
@@ -241,7 +281,37 @@ export async function getVersementPreuveUrl(id: string): Promise<string | null> 
     .collection<VersementDoc>(COLLECTION)
     .findOne(
       { _id: new ObjectId(id) },
-      { projection: { preuveUrl: 1 } },
+      { projection: { preuveUrl: 1, preuvePublicId: 1 } },
     );
-  return doc?.preuveUrl ?? null;
+  if (!doc) return null;
+  if (doc.preuveUrl && doc.preuvePublicId !== LOCAL_PREUVE_PUBLIC_ID) {
+    return doc.preuveUrl;
+  }
+  if (doc.preuveUrl?.startsWith("http")) return doc.preuveUrl;
+  return null;
+}
+
+/** Octets de la preuve stockée en local (Mongo), ou null. */
+export async function getVersementPreuveBytes(
+  id: string,
+): Promise<{ mime: string; bytes: Buffer } | null> {
+  if (!ObjectId.isValid(id)) return null;
+  const db = await getDb();
+  const doc = await db
+    .collection<VersementDoc>(COLLECTION)
+    .findOne(
+      { _id: new ObjectId(id) },
+      { projection: { preuveMime: 1, preuveData: 1, preuvePublicId: 1 } },
+    );
+  if (!doc?.preuveData) return null;
+  const raw = doc.preuveData.buffer;
+  const bytes = Buffer.from(
+    raw.buffer,
+    raw.byteOffset,
+    raw.byteLength,
+  );
+  return {
+    mime: doc.preuveMime || "image/jpeg",
+    bytes,
+  };
 }

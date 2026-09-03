@@ -114,14 +114,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
     }
 
-    const preuve = form.get("preuve");
-    if (!(preuve instanceof File)) {
+    const preuveRaw = form.get("preuve");
+    if (
+      !preuveRaw ||
+      typeof preuveRaw === "string" ||
+      typeof (preuveRaw as Blob).arrayBuffer !== "function"
+    ) {
       return NextResponse.json(
         { error: "Capture d’écran obligatoire." },
         { status: 400 },
       );
     }
+    const preuve = preuveRaw as File;
     const bytes = Buffer.from(await preuve.arrayBuffer());
+    if (bytes.length <= 0) {
+      return NextResponse.json(
+        { error: "Capture d’écran obligatoire." },
+        { status: 400 },
+      );
+    }
 
     const membresRaw = form.getAll("membresPresents");
     const membresPresents =
@@ -140,7 +151,11 @@ export async function POST(request: Request) {
       membresPresents,
       montant: form.get("montant"),
       numeroTransaction: String(form.get("numeroTransaction") ?? ""),
-      preuve: { mime: preuve.type || "image/jpeg", bytes },
+      preuve: {
+        mime: preuve.type || "application/octet-stream",
+        bytes,
+        filename: typeof preuve.name === "string" ? preuve.name : undefined,
+      },
       actor: {
         id: user.id,
         name: user.name,

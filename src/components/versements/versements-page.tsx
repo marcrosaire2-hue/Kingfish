@@ -166,7 +166,10 @@ export function VersementsPage() {
   }, [user?.shift]);
 
   const charger = useCallback(async () => {
-    if (!scope) return;
+    if (!scope) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -284,7 +287,40 @@ export function VersementsPage() {
     }, 40);
   }
 
+  const formReady =
+    Boolean(montant) &&
+    Boolean(numero.trim()) &&
+    Boolean(preuve) &&
+    membres.some((m) => m.trim().length >= 2);
+
   function pickPreuve(file: File | null) {
+    if (!file) {
+      setPreuve(null);
+      return;
+    }
+    const type = (file.type || "").toLowerCase();
+    const name = file.name.toLowerCase();
+    const okType =
+      type === "image/jpeg" ||
+      type === "image/jpg" ||
+      type === "image/png" ||
+      type === "image/webp" ||
+      (!type &&
+        (name.endsWith(".jpg") ||
+          name.endsWith(".jpeg") ||
+          name.endsWith(".png") ||
+          name.endsWith(".webp")));
+    if (!okType) {
+      setError("Capture d’écran : JPEG, PNG ou WebP uniquement.");
+      setPreuve(null);
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setError("Capture d’écran trop lourde (max. 4 Mo).");
+      setPreuve(null);
+      return;
+    }
+    setError(null);
     setPreuve(file);
   }
 
@@ -296,7 +332,17 @@ export function VersementsPage() {
 
   async function onDeclare(e: FormEvent) {
     e.preventDefault();
-    if (busy || !canDeclare) return;
+    if (busy) return;
+    if (!canDeclare) {
+      setError("Votre compte ne peut pas déclarer de versement.");
+      return;
+    }
+    if (!formReady) {
+      setError(
+        "Complétez montant, n° de transaction, membres présents et capture.",
+      );
+      return;
+    }
     setBusy(true);
     setError(null);
     setFlash(null);
@@ -305,7 +351,7 @@ export function VersementsPage() {
       const form = new FormData();
       form.set("date", declareDate);
       form.set("site", site);
-      form.set("heureTransaction", heure);
+      form.set("heureTransaction", heure.slice(0, 5));
       form.set("trancheHoraire", tranche);
       for (const nom of membres) {
         if (nom.trim()) form.append("membresPresents", nom.trim());
@@ -317,7 +363,16 @@ export function VersementsPage() {
         method: "POST",
         body: form,
       });
-      const body = (await res.json()) as { error?: string };
+      let body: { error?: string } = {};
+      try {
+        body = (await res.json()) as { error?: string };
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Réponse serveur invalide."
+            : `Enregistrement impossible (${res.status}).`,
+        );
+      }
       if (!res.ok) throw new Error(body.error || "Enregistrement impossible.");
       setMontant("");
       setNumero("");
@@ -331,6 +386,7 @@ export function VersementsPage() {
       await charger();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Enregistrement impossible.");
+      setDesk("declare");
     } finally {
       setBusy(false);
     }
@@ -360,11 +416,6 @@ export function VersementsPage() {
   }
 
   const siteLocked = scope === "zogbo" || scope === "gbegamey";
-  const formReady =
-    Boolean(montant) &&
-    Boolean(numero) &&
-    Boolean(preuve) &&
-    membres.some((m) => m.trim().length >= 2);
 
   return (
     <AppShell
@@ -690,10 +741,15 @@ export function VersementsPage() {
                 <button
                   type="submit"
                   className="btn btn-primary versements-submit"
-                  disabled={busy || loading || !formReady}
+                  disabled={busy || !formReady}
                 >
                   {busy ? "Enregistrement…" : "Envoyer le bordereau"}
                 </button>
+                {error ? (
+                  <p className="error-banner" role="alert">
+                    {error}
+                  </p>
+                ) : null}
               </aside>
             </form>
           </section>

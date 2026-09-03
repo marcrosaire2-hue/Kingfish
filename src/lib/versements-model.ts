@@ -27,15 +27,21 @@ export function canConfirmVersement(role: UserRole): boolean {
 }
 
 export function parseVersementHeure(raw: string): string {
-  const value = raw.trim();
-  if (!/^\d{2}:\d{2}$/.test(value)) {
+  const value = raw
+    .trim()
+    .replace(/\./g, ":")
+    .replace(/\s*[hH]\s*/g, ":")
+    .replace(/\s+/g, "");
+  const match = /^(\d{1,2}):(\d{2})(?::\d{2})?$/.exec(value);
+  if (!match) {
     throw new Error("Heure invalide (attendu HH:MM).");
   }
-  const [h, m] = value.split(":").map(Number) as [number, number];
-  if (h > 23 || m > 59) {
+  const h = Number(match[1]);
+  const m = Number(match[2]);
+  if (!Number.isFinite(h) || !Number.isFinite(m) || h > 23 || m > 59) {
     throw new Error("Heure invalide (attendu HH:MM).");
   }
-  return value;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 export function parseVersementMontant(raw: unknown): number {
@@ -117,11 +123,49 @@ export function defaultTrancheFromShift(
   return "matin";
 }
 
+/** Déduit le MIME (type navigateur vide, extension, ou en-têtes magiques). */
+export function inferPreuveMime(input: {
+  mime?: string;
+  filename?: string;
+  bytes?: Buffer | Uint8Array;
+}): string {
+  let mime = (input.mime || "").trim().toLowerCase();
+  if (mime === "image/jpg") mime = "image/jpeg";
+  if (ALLOWED_MIME.has(mime)) return mime === "image/jpg" ? "image/jpeg" : mime;
+
+  const name = (input.filename || "").trim().toLowerCase();
+  if (name.endsWith(".png")) return "image/png";
+  if (name.endsWith(".webp")) return "image/webp";
+  if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+
+  const bytes = input.bytes;
+  if (bytes && bytes.length >= 12) {
+    if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
+      return "image/jpeg";
+    }
+    if (
+      bytes[0] === 0x89 &&
+      bytes[1] === 0x50 &&
+      bytes[2] === 0x4e &&
+      bytes[3] === 0x47
+    ) {
+      return "image/png";
+    }
+    const head = Buffer.from(bytes.subarray(0, 12)).toString("ascii");
+    if (head.startsWith("RIFF") && head.slice(8, 12) === "WEBP") {
+      return "image/webp";
+    }
+  }
+  return mime;
+}
+
 export function assertPreuveFile(input: {
   mime: string;
   size: number;
+  filename?: string;
+  bytes?: Buffer | Uint8Array;
 }): void {
-  const mime = input.mime === "image/jpg" ? "image/jpeg" : input.mime;
+  const mime = inferPreuveMime(input);
   if (!ALLOWED_MIME.has(mime)) {
     throw new Error("Capture d’écran : JPEG, PNG ou WebP uniquement.");
   }
