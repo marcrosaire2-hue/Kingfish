@@ -6,7 +6,11 @@ import {
   gmailConfigured,
   resolveMailAlertRecipients,
 } from "@/lib/mail/mail-config";
-import { sendWeeklyDigest, sendMonthlyDigest } from "@/lib/mail/digests";
+import {
+  sendDailyDigest,
+  sendWeeklyDigest,
+  sendMonthlyDigest,
+} from "@/lib/mail/digests";
 import { sendMail } from "@/lib/mail/gmail-send";
 import { testMail } from "@/lib/mail/mail-templates";
 import { reportError } from "@/lib/report-error";
@@ -18,12 +22,22 @@ export const runtime = "nodejs";
  * - Cron : Authorization: Bearer $MAIL_CRON_SECRET
  * - Admin connecté : peut forcer un envoi de test
  *
- * Query : ?kind=week|month|test
+ * Query :
+ *   ?kind=day|week|month|test
+ *   &date=YYYY-MM-DD   (optionnel, kind=day — journée à résumer)
+ *   &ym=YYYY-MM        (optionnel, kind=month — mois à résumer)
+ *
+ * Planification conseillée (Render Cron / cron externe, fuseau Afrique/Porto-Novo) :
+ *   - Quotidien ~00:15 → GET/POST .../api/mail/cron?kind=day   (résume la veille)
+ *   - 1er du mois ~00:30 → .../api/mail/cron?kind=month        (résume le mois précédent)
+ *   - (optionnel) lundi → ?kind=week
  */
 export async function POST(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const kind = (searchParams.get("kind") || "week").toLowerCase();
+    const kind = (searchParams.get("kind") || "day").toLowerCase();
+    const date = searchParams.get("date")?.trim() || undefined;
+    const ym = searchParams.get("ym")?.trim() || undefined;
 
     const cronOk = assertCronAuthorized(request);
     if (!cronOk) {
@@ -60,13 +74,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok, kind: "test", to: recipients });
     }
 
-    if (kind === "month") {
-      const result = await sendMonthlyDigest();
-      return NextResponse.json({ kind: "month", ...result });
+    if (kind === "day") {
+      const result = await sendDailyDigest(undefined, { date });
+      return NextResponse.json({
+        kind: "day",
+        recipients,
+        ...result,
+      });
     }
 
-    const result = await sendWeeklyDigest();
-    return NextResponse.json({ kind: "week", ...result });
+    if (kind === "month") {
+      const result = await sendMonthlyDigest(undefined, { ym });
+      return NextResponse.json({
+        kind: "month",
+        recipients,
+        ...result,
+      });
+    }
+
+    if (kind === "week") {
+      const result = await sendWeeklyDigest();
+      return NextResponse.json({
+        kind: "week",
+        recipients,
+        ...result,
+      });
+    }
+
+    return NextResponse.json(
+      { error: "kind invalide (day|week|month|test)." },
+      { status: 400 },
+    );
   } catch (error) {
     reportError("POST /api/mail/cron", error);
     return authErrorResponse(error);

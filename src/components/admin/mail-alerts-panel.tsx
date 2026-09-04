@@ -108,6 +108,53 @@ export function MailAlertsPanel() {
     }
   }
 
+  async function sendDigestTest(kind: "day" | "month" | "test") {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch(`/api/mail/cron?kind=${kind}`, {
+        method: "POST",
+        cache: "no-store",
+      });
+      const body = (await res.json()) as {
+        ok?: boolean;
+        error?: string;
+        from?: string;
+        to?: string;
+        total?: number;
+        articles?: number;
+      };
+      if (!res.ok) throw new Error(body.error || "Envoi impossible.");
+      if (kind === "test") {
+        setFlash("Mail de test envoyé aux destinataires effectifs.");
+      } else if (body.ok === false) {
+        setFlash(
+          "Envoi non effectué (MAIL_DIGEST_NOTIFY=0 ou aucun destinataire).",
+        );
+      } else {
+        const period =
+          body.from && body.to
+            ? body.from === body.to
+              ? body.from
+              : `${body.from} → ${body.to}`
+            : "période";
+        setFlash(
+          `Point ${kind === "day" ? "journalier" : "mensuel"} envoyé (${period}${
+            typeof body.articles === "number"
+              ? ` · ${body.articles} art.`
+              : ""
+          }).`,
+        );
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Envoi impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (loading && !data) {
     return <BrandLoader variant="ligne" label="Chargement des alertes mail…" />;
   }
@@ -116,9 +163,10 @@ export function MailAlertsPanel() {
     <section className="panel" aria-label="Destinataires alertes mail">
       <h2 className="panel-title">Alertes mail — ventes</h2>
       <p className="muted" style={{ marginTop: 0 }}>
-        Ajoute les adresses des admins qui doivent recevoir le détail de chaque
-        vente et les points hebdo / mensuels. Réservé au compte direction
-        (Marc).
+        Adresses qui reçoivent le détail de chaque vente POS, le{" "}
+        <strong>point de fin de journée</strong> (articles, quantités, totaux
+        par site) et le <strong>bilan mensuel détaillé</strong>. Réservé au
+        compte direction (Marc).
       </p>
 
       {data && !data.gmailConfigured ? (
@@ -151,7 +199,14 @@ export function MailAlertsPanel() {
           marginBottom: "1rem",
         }}
       >
-        <label style={{ flex: "1 1 14rem", display: "flex", flexDirection: "column", gap: "0.28rem" }}>
+        <label
+          style={{
+            flex: "1 1 14rem",
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.28rem",
+          }}
+        >
           <span
             style={{
               fontSize: "0.72rem",
@@ -189,7 +244,17 @@ export function MailAlertsPanel() {
       </form>
 
       {data?.emails.length ? (
-        <ul className="admin-mail-list" style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+        <ul
+          className="admin-mail-list"
+          style={{
+            listStyle: "none",
+            margin: 0,
+            padding: 0,
+            display: "flex",
+            flexDirection: "column",
+            gap: "0.45rem",
+          }}
+        >
           {data.emails.map((addr) => (
             <li
               key={addr}
@@ -225,6 +290,49 @@ export function MailAlertsPanel() {
           Aussi via serveur (MAIL_ALERT_TO) : {data.envEmails.join(", ")}
         </p>
       ) : null}
+
+      <div
+        style={{
+          marginTop: "1.25rem",
+          paddingTop: "1rem",
+          borderTop: "1px solid var(--line)",
+          display: "flex",
+          flexWrap: "wrap",
+          gap: "0.5rem",
+        }}
+      >
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={busy || !data?.gmailConfigured}
+          onClick={() => void sendDigestTest("test")}
+        >
+          Tester l’envoi
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={busy || !data?.gmailConfigured}
+          onClick={() => void sendDigestTest("day")}
+          title="Envoie le point de la veille (comme le cron de nuit)"
+        >
+          Envoyer point du jour
+        </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={busy || !data?.gmailConfigured}
+          onClick={() => void sendDigestTest("month")}
+          title="Envoie le bilan du mois précédent"
+        >
+          Envoyer point du mois
+        </button>
+      </div>
+      <p className="muted" style={{ marginTop: "0.65rem", fontSize: "0.82rem" }}>
+        Automatique : cron quotidien <code>?kind=day</code> (veille) et le 1er
+        du mois <code>?kind=month</code> (mois précédent), avec Bearer{" "}
+        <code>MAIL_CRON_SECRET</code>.
+      </p>
     </section>
   );
 }

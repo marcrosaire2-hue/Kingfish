@@ -5,8 +5,9 @@
  * - GMAIL_CLIENT_ID / GMAIL_CLIENT_SECRET / GMAIL_REFRESH_TOKEN / GMAIL_USER
  * - MAIL_ALERT_TO — destinataires de secours (virgules), fusionnés avec la liste admin
  * - MAIL_SALE_NOTIFY=1 — mail à chaque ticket POS
- * - MAIL_DIGEST_NOTIFY=1 — digests hebdo / mensuel
- * - MAIL_CRON_SECRET — Bearer pour /api/mail/cron
+ * - MAIL_DIGEST_NOTIFY=1 (défaut si Gmail OK) — points jour / mois / hebdo
+ * - MAIL_CRON_SECRET — Bearer pour /api/mail/cron (?kind=day|month|week|test)
+
  * - APP_PUBLIC_URL (ou NEXT_PUBLIC_APP_URL / RENDER_EXTERNAL_URL) — lien « Ouvrir » dans les mails
  */
 

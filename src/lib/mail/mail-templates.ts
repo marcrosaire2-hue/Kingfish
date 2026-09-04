@@ -9,6 +9,7 @@ import {
 } from "@/lib/brand";
 import { SITE_LABELS } from "@/lib/auth-types";
 import { formatFcfa } from "@/lib/format";
+import type { SalesDigestReport } from "@/lib/mail/sales-digest-data";
 import type { PosTicket } from "@/lib/types";
 
 /** CID de l’image logo embarquée dans le MIME (voir gmail-send). */
@@ -323,6 +324,161 @@ export function digestMail(input: {
   `,
     {
       preheader: `CA net ${formatFcfa(input.total)} · Zogbo & Gbégamey`,
+      ctaHref: appUrl ? `${appUrl}/analyse` : null,
+      ctaLabel: "Voir l’analyse",
+    },
+  );
+
+  return { subject, text, html };
+}
+
+/** Point journalier / mensuel détaillé (tous les articles, quantités, montants). */
+export function detailedSalesDigestMail(
+  report: SalesDigestReport,
+): { subject: string; text: string; html: string } {
+  const title =
+    report.kind === "day"
+      ? `Point du jour · ${report.label}`
+      : `Point mensuel détaillé · ${report.label}`;
+  const subject = `[${APP_SHORT}] ${title} · ${formatFcfa(report.total)}`;
+
+  const periodLine =
+    report.from === report.to
+      ? `Journée : ${report.from}`
+      : `Période : ${report.from} → ${report.to}`;
+
+  const kindLines = report.byKind.map(
+    (k) =>
+      `  · ${k.label} : ${k.qty} art. · ${formatFcfa(k.amount)}`,
+  );
+
+  const productTextLines = report.products.map((p) => {
+    const site = SITE_LABELS[p.site] ?? p.site;
+    return `  · [${site}] ${p.name} (${p.kindLabel}) — qté ${p.qty} × ${formatFcfa(p.unitPrice)} = ${formatFcfa(p.amount)}`;
+  });
+
+  const text = [
+    APP_NAME,
+    title,
+    periodLine,
+    "",
+    `CA net Zogbo : ${formatFcfa(report.zogbo)}`,
+    `CA net Gbégamey : ${formatFcfa(report.gbegamey)}`,
+    `CA net total : ${formatFcfa(report.total)}`,
+    report.remises > 0
+      ? `Remises POS : −${formatFcfa(report.remises)} (brut articles ${formatFcfa(report.brut)})`
+      : null,
+    `Articles vendus : ${report.articles} · Lignes de vente : ${report.lignes}`,
+    "",
+    "Par type :",
+    ...kindLines,
+    "",
+    "Détail articles :",
+    ...(productTextLines.length ? productTextLines : ["  (aucune vente)"]),
+  ]
+    .filter((line): line is string => line != null)
+    .join("\n");
+
+  const kindRows = report.byKind
+    .map(
+      (k) => `
+      <tr>
+        <td style="padding:8px 10px;border-bottom:1px solid ${LINE};font-size:13px;font-weight:600;color:${INK};">${esc(k.label)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid ${LINE};font-size:13px;text-align:right;color:${INK};">${k.qty}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid ${LINE};font-size:13px;text-align:right;font-weight:700;color:${NAVY};">${esc(formatFcfa(k.amount))}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const productRows = report.products
+    .map((p) => {
+      const site = SITE_LABELS[p.site] ?? p.site;
+      return `
+      <tr>
+        <td style="padding:8px 10px;border-bottom:1px solid ${LINE};font-size:13px;font-weight:600;color:${INK};">${esc(site)}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid ${LINE};font-size:14px;font-weight:700;color:${INK};">${esc(p.name)}<div style="font-size:12px;font-weight:500;color:${NAVY};margin-top:2px;">${esc(p.kindLabel)}</div></td>
+        <td style="padding:8px 10px;border-bottom:1px solid ${LINE};font-size:13px;text-align:right;font-weight:700;color:${INK};">${p.qty}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid ${LINE};font-size:13px;text-align:right;color:${INK};">${esc(formatFcfa(p.unitPrice))}</td>
+        <td style="padding:8px 10px;border-bottom:1px solid ${LINE};font-size:13px;text-align:right;font-weight:800;color:${NAVY};">${esc(formatFcfa(p.amount))}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const remisesBlock =
+    report.remises > 0
+      ? `<p style="margin:12px 0 0;font-size:13px;color:${INK};">
+          Remises POS : <strong>−${esc(formatFcfa(report.remises))}</strong>
+          · Brut articles : ${esc(formatFcfa(report.brut))}
+        </p>`
+      : "";
+
+  const appUrl = appPublicUrl();
+  const html = mailShell(
+    title,
+    `
+    <p style="margin:0 0 16px;font-size:14px;color:${INK};">
+      ${esc(periodLine)}
+      · <strong>${report.articles}</strong> article${report.articles > 1 ? "s" : ""}
+      · <strong>${report.lignes}</strong> ligne${report.lignes > 1 ? "s" : ""}
+      · <strong>${report.products.length}</strong> produit${report.products.length > 1 ? "s" : ""} distinct${report.products.length > 1 ? "s" : ""}
+    </p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td style="padding:14px 16px;border-radius:12px;background:${PAPER};border:1px solid ${LINE};width:50%;vertical-align:top;">
+          <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:${MUTED};font-weight:700;">Zogbo</div>
+          <div style="font-size:20px;font-weight:800;margin-top:6px;color:${NAVY};">${esc(formatFcfa(report.zogbo))}</div>
+        </td>
+        <td style="width:12px;"></td>
+        <td style="padding:14px 16px;border-radius:12px;background:${PAPER};border:1px solid ${LINE};width:50%;vertical-align:top;">
+          <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:${MUTED};font-weight:700;">Gbégamey</div>
+          <div style="font-size:20px;font-weight:800;margin-top:6px;color:${NAVY};">${esc(formatFcfa(report.gbegamey))}</div>
+        </td>
+      </tr>
+    </table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:14px;">
+      <tr>
+        <td style="padding:16px 18px;border-radius:12px;background:#fff8e8;border:1px solid #efd7a0;">
+          <div style="font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:${MUTED};font-weight:700;">CA net total</div>
+          <div style="font-size:28px;font-weight:800;margin-top:6px;color:${NAVY};">${esc(formatFcfa(report.total))}</div>
+          ${remisesBlock}
+        </td>
+      </tr>
+    </table>
+
+    ${
+      report.byKind.length
+        ? `
+    <h3 style="margin:22px 0 10px;font-size:15px;font-weight:800;color:${INK};font-family:Arial,Helvetica,sans-serif;">Par type de produit</h3>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${LINE};border-radius:10px;overflow:hidden;">
+      <tr style="background:${PAPER};">
+        <th align="left" style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:${INK};">Type</th>
+        <th align="right" style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:${INK};">Qté</th>
+        <th align="right" style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:${INK};">Montant</th>
+      </tr>
+      ${kindRows}
+    </table>`
+        : ""
+    }
+
+    <h3 style="margin:22px 0 10px;font-size:15px;font-weight:800;color:${INK};font-family:Arial,Helvetica,sans-serif;">Détail de tous les articles</h3>
+    ${
+      report.products.length
+        ? `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${LINE};border-radius:10px;overflow:hidden;">
+      <tr style="background:${PAPER};">
+        <th align="left" style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:${INK};">Site</th>
+        <th align="left" style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:${INK};">Article</th>
+        <th align="right" style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:${INK};">Qté</th>
+        <th align="right" style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:${INK};">P.U.</th>
+        <th align="right" style="padding:8px 10px;font-size:11px;text-transform:uppercase;letter-spacing:0.04em;color:${INK};">Total</th>
+      </tr>
+      ${productRows}
+    </table>`
+        : `<p style="margin:0;font-size:14px;color:${INK};">Aucune vente sur cette période.</p>`
+    }
+  `,
+    {
+      preheader: `CA net ${formatFcfa(report.total)} · ${report.articles} articles`,
       ctaHref: appUrl ? `${appUrl}/analyse` : null,
       ctaLabel: "Voir l’analyse",
     },
