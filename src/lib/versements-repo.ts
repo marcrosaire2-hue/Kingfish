@@ -19,6 +19,8 @@ import {
   assertPreuvesList,
   canConfirmVersement,
   canDeclareVersement,
+  canDeleteVersement,
+  canEditVersement,
   defaultTrancheFromShift,
   inferPreuveMime,
   isVersementTranche,
@@ -35,6 +37,8 @@ export {
   assertPreuveFile,
   canConfirmVersement,
   canDeclareVersement,
+  canDeleteVersement,
+  canEditVersement,
   defaultTrancheFromShift,
   parseVersementHeure,
   parseVersementMembres,
@@ -391,6 +395,147 @@ export async function confirmVersement(input: {
   }
 
   return toPublic(doc);
+}
+
+export async function updateVersement(input: {
+  id: string;
+  date?: string;
+  site: VenteSite;
+  heureTransaction: string;
+  trancheHoraire: unknown;
+  membresPresents: unknown;
+  montant: unknown;
+  numeroTransaction: string;
+  /** Si fourni et non vide, remplace toutes les captures. */
+  preuves?: PreuveUpload[];
+  actor: VersementActor;
+  allowedSites: VenteSite[] | "all";
+}): Promise<Versement> {
+  if (!canEditVersement(input.actor.role)) {
+    throw new Error("Seul le gérant peut modifier un versement.");
+  }
+  if (!ObjectId.isValid(input.id)) {
+    throw new Error("Versement introuvable.");
+  }
+
+  const db = await getDb();
+  const existing = await db
+    .collection<VersementDoc>(COLLECTION)
+    .findOne({ _id: new ObjectId(input.id) });
+  if (!existing) throw new Error("Versement introuvable.");
+  if (existing.statut === "confirmee") {
+    throw new Error(
+      "Ce versement est déjà confirmé et verrouillé : aucune modification possible.",
+    );
+  }
+  if (
+    input.allowedSites !== "all" &&
+    !input.allowedSites.includes(existing.site)
+  ) {
+    throw new Error("Ce versement n’est pas dans votre périmètre.");
+  }
+  if (
+    input.allowedSites !== "all" &&
+    !input.allowedSites.includes(input.site)
+  ) {
+    throw new Error("Site non autorisé.");
+  }
+
+  const date = input.date || existing.date;
+  assertValidDate(date);
+  const heureTransaction = parseVersementHeure(input.heureTransaction);
+  const trancheHoraire = parseVersementTranche(input.trancheHoraire);
+  const membresPresents = parseVersementMembres(input.membresPresents);
+  const montant = parseVersementMontant(input.montant);
+  const numeroTransaction = parseVersementNumero(input.numeroTransaction);
+
+  const $set: Record<string, unknown> = {
+    date,
+    site: input.site,
+    heureTransaction,
+    trancheHoraire,
+    membresPresents,
+    montant,
+    numeroTransaction,
+  };
+  const $unset: Record<string, ""> = {};
+
+  if (input.preuves && input.preuves.length > 0) {
+    const stored = await storePreuves({
+      files: input.preuves,
+      versementId: input.id,
+      date,
+      site: input.site,
+    });
+    const first = stored[0]!;
+    $set.preuveMime = first.mime;
+    $set.preuveUrl = first.url;
+    $set.preuvePublicId = first.publicId;
+    $set.preuves = stored.map(({ mime, url, publicId, data }) => ({
+      mime,
+      url,
+      publicId,
+      ...(data ? { data } : {}),
+    }));
+    if (first.data) $set.preuveData = first.data;
+    else $unset.preuveData = "";
+  }
+
+  const updateDoc: {
+    $set: Record<string, unknown>;
+    $unset?: Record<string, "">;
+  } = { $set };
+  if (Object.keys($unset).length > 0) updateDoc.$unset = $unset;
+
+  const result = await db.collection<VersementDoc>(COLLECTION).findOneAndUpdate(
+    { _id: new ObjectId(input.id), statut: "en_attente" },
+    updateDoc,
+    { returnDocument: "after" },
+  );
+  if (!result) {
+    throw new Error("Modification impossible (versement confirmé entre-temps).");
+  }
+  return toPublic(result);
+}
+
+export async function deleteVersement(input: {
+  id: string;
+  actor: VersementActor;
+  /** Sites autorisés pour l’acteur (contrôle périmètre). */
+  allowedSites: VenteSite[] | "all";
+}): Promise<Versement> {
+  if (!canDeleteVersement(input.actor.role)) {
+    throw new Error("Seul le gérant peut supprimer un versement.");
+  }
+  if (!ObjectId.isValid(input.id)) {
+    throw new Error("Versement introuvable.");
+  }
+
+  const db = await getDb();
+  const existing = await db
+    .collection<VersementDoc>(COLLECTION)
+    .findOne({ _id: new ObjectId(input.id) });
+  if (!existing) throw new Error("Versement introuvable.");
+  if (existing.statut === "confirmee") {
+    throw new Error(
+      "Ce versement est déjà confirmé et verrouillé : suppression impossible.",
+    );
+  }
+  if (
+    input.allowedSites !== "all" &&
+    !input.allowedSites.includes(existing.site)
+  ) {
+    throw new Error("Ce versement n’est pas dans votre périmètre.");
+  }
+
+  const deleted = await db.collection<VersementDoc>(COLLECTION).findOneAndDelete({
+    _id: new ObjectId(input.id),
+    statut: "en_attente",
+  });
+  if (!deleted) {
+    throw new Error("Suppression impossible (versement confirmé entre-temps).");
+  }
+  return toPublic(deleted);
 }
 
 /** URL distante d’une preuve (Cloudinary), ou null si locale / absente. */

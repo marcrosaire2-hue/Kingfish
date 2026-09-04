@@ -13,7 +13,9 @@ import {
 } from "@/lib/mail/digests";
 import { sendMail } from "@/lib/mail/gmail-send";
 import { testMail } from "@/lib/mail/mail-templates";
+import { resendSaleMailsForDate } from "@/lib/mail/notify-sale";
 import { reportError } from "@/lib/report-error";
+import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
@@ -23,14 +25,15 @@ export const runtime = "nodejs";
  * - Admin connecté : peut forcer un envoi de test
  *
  * Query :
- *   ?kind=day|week|month|test
- *   &date=YYYY-MM-DD   (optionnel, kind=day — journée à résumer)
- *   &ym=YYYY-MM        (optionnel, kind=month — mois à résumer)
+ *   ?kind=day|week|month|test|sales
+ *   &date=YYYY-MM-DD   (optionnel, kind=day|sales)
+ *   &ym=YYYY-MM        (optionnel, kind=month)
  *
  * Planification conseillée (Render Cron / cron externe, fuseau Afrique/Porto-Novo) :
  *   - Quotidien ~00:15 → GET/POST .../api/mail/cron?kind=day   (résume la veille)
  *   - 1er du mois ~00:30 → .../api/mail/cron?kind=month        (résume le mois précédent)
  *   - (optionnel) lundi → ?kind=week
+ *   - Rattrapage tickets POS du jour → ?kind=sales&date=YYYY-MM-DD
  */
 export async function POST(request: Request) {
   try {
@@ -74,6 +77,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok, kind: "test", to: recipients });
     }
 
+    if (kind === "sales") {
+      const target =
+        date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : todayIsoDate();
+      const result = await resendSaleMailsForDate(target);
+      return NextResponse.json({ kind: "sales", recipients, ...result });
+    }
+
     if (kind === "day") {
       const result = await sendDailyDigest(undefined, { date });
       return NextResponse.json({
@@ -102,7 +112,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      { error: "kind invalide (day|week|month|test)." },
+      { error: "kind invalide (day|week|month|test|sales)." },
       { status: 400 },
     );
   } catch (error) {

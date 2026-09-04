@@ -108,7 +108,7 @@ export function MailAlertsPanel() {
     }
   }
 
-  async function sendDigestTest(kind: "day" | "month" | "test") {
+  async function sendDigestTest(kind: "day" | "month" | "test" | "sales") {
     if (busy) return;
     setBusy(true);
     setError(null);
@@ -125,10 +125,20 @@ export function MailAlertsPanel() {
         to?: string;
         total?: number;
         articles?: number;
+        sent?: number;
+        failed?: number;
+        skipped?: number;
       };
       if (!res.ok) throw new Error(body.error || "Envoi impossible.");
       if (kind === "test") {
         setFlash("Mail de test envoyé aux destinataires effectifs.");
+      } else if (kind === "sales") {
+        setFlash(
+          `Rattrapage ventes : ${body.sent ?? 0} envoyé(s) / ${body.total ?? 0} ticket(s)` +
+            (body.failed ? ` · ${body.failed} échec(s)` : "") +
+            (body.skipped ? ` · ${body.skipped} ignoré(s)` : "") +
+            ".",
+        );
       } else if (body.ok === false) {
         setFlash(
           "Envoi non effectué (MAIL_DIGEST_NOTIFY=0 ou aucun destinataire).",
@@ -327,11 +337,21 @@ export function MailAlertsPanel() {
         >
           Envoyer point du mois
         </button>
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          disabled={busy || !data?.gmailConfigured}
+          onClick={() => void sendDigestTest("sales")}
+          title="Renvoie un mail pour chaque ticket POS valide d’aujourd’hui"
+        >
+          Renvoyer mails des ventes du jour
+        </button>
       </div>
       <p className="muted" style={{ marginTop: "0.65rem", fontSize: "0.82rem" }}>
-        Automatique : cron quotidien <code>?kind=day</code> (veille) et le 1er
-        du mois <code>?kind=month</code> (mois précédent), avec Bearer{" "}
-        <code>MAIL_CRON_SECRET</code>.
+        Automatique : chaque ticket POS envoie un mail (si Gmail est configuré ;
+        couper avec <code>MAIL_SALE_NOTIFY=0</code>). Cron quotidien{" "}
+        <code>?kind=day</code> (veille) et le 1er du mois <code>?kind=month</code>{" "}
+        (mois précédent), avec Bearer <code>MAIL_CRON_SECRET</code>.
       </p>
     </section>
   );

@@ -160,6 +160,21 @@ export async function listTickets(input: {
   return docs.map(toTicket);
 }
 
+/** Tickets valides d’un jour (les deux sites) — rattrapage mails. */
+export async function listValidTicketsForDate(
+  date: string,
+  limit = 200,
+): Promise<PosTicket[]> {
+  const db = await getDb();
+  const docs = await db
+    .collection<TicketDoc>("pos_tickets")
+    .find({ date, statut: "valide" })
+    .sort({ at: 1 })
+    .limit(Math.min(500, Math.max(1, limit)))
+    .toArray();
+  return docs.map(toTicket);
+}
+
 export async function validatePosTicket(input: {
   date: string;
   site: VenteSite;

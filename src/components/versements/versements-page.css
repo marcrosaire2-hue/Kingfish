@@ -868,6 +868,10 @@
   padding: 0.9rem 1.2rem 1.15rem;
   border-top: 1px solid var(--line);
   background: color-mix(in srgb, var(--ink) 2%, var(--paper));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
 }
 
 .versements-page .versements-locked-note {
@@ -878,11 +882,29 @@
   color: var(--ink-soft);
   font-size: 0.88rem;
   font-weight: 600;
+  flex: 1 1 100%;
+}
+
+.versements-page .versements-modal-foot .btn {
+  min-height: 2.65rem;
 }
 
 .versements-page .versements-modal-foot .btn-primary {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 10rem;
   min-height: 2.85rem;
+}
+
+.versements-page .versements-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  margin-top: 0.35rem;
+}
+
+.versements-page .versements-form-actions .versements-submit {
+  margin-top: 0;
 }
 
 @media (max-width: 720px) {

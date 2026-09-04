@@ -115,10 +115,29 @@ export type SendMailInput = {
   html: string;
 };
 
+export class MailRateLimitError extends Error {
+  retryAt: Date;
+  constructor(retryAt: Date, message: string) {
+    super(message);
+    this.name = "MailRateLimitError";
+    this.retryAt = retryAt;
+  }
+}
+
+function parseGmailRetryAt(error: unknown): Date | null {
+  const msg = error instanceof Error ? error.message : String(error ?? "");
+  const match = /Retry after ([0-9T:\-\.Z]+)/i.exec(msg);
+  if (!match?.[1]) return null;
+  const ms = Date.parse(match[1]);
+  if (!Number.isFinite(ms)) return null;
+  return new Date(ms);
+}
+
 /**
  * Envoie un e-mail via Gmail API (compte GMAIL_USER + refresh token OAuth).
  * Embarque le logo King Fish en pièce jointe inline (CID).
  * Retourne false si non configuré ou sans destinataire — ne jette pas.
+ * En cas de rate-limit Gmail, jette {@link MailRateLimitError}.
  */
 export async function sendMail(input: SendMailInput): Promise<boolean> {
   if (!gmailConfigured()) {
@@ -150,6 +169,13 @@ export async function sendMail(input: SendMailInput): Promise<boolean> {
     return true;
   } catch (error) {
     reportError("mail/sendMail", error);
+    const retryAt = parseGmailRetryAt(error);
+    if (retryAt) {
+      throw new MailRateLimitError(
+        retryAt,
+        error instanceof Error ? error.message : "Rate limit Gmail",
+      );
+    }
     return false;
   }
 }
