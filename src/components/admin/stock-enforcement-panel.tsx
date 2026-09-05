@@ -97,9 +97,10 @@ export function StockEnforcementPanel({ className }: Props) {
       <div className="panel-head">
         <h2 className="panel-title">Vente selon le stock</h2>
         <p className="muted admin-stock-policy-lead">
-          Par défaut les articles sans stock sont grisés. Utilisez{" "}
-          <strong>Dégriser les articles</strong> pour autoriser la vente libre
-          (gérants) sur la journée.
+          Par défaut les articles sont <strong>dégrisés</strong> (vente libre).
+          Utilisez <strong>Forcer vente selon stock</strong> pour griser les
+          articles sans stock restant. <strong>Dégriser</strong> revient au mode
+          libre. Une saisie de stock du jour coupe aussi la vente libre.
         </p>
       </div>
 

@@ -25,16 +25,6 @@ export function canDeclareVersement(role: UserRole): boolean {
   return role === "gerant";
 }
 
-/** Gérant : corriger ou retirer un versement encore en attente. */
-export function canEditVersement(role: UserRole): boolean {
-  return role === "gerant";
-}
-
-/** Alias explicite — mêmes droits que la modification. */
-export function canDeleteVersement(role: UserRole): boolean {
-  return canEditVersement(role);
-}
-
 /** Seul le comptable confirme. Admin et DAF sont lecteurs. */
 export function canConfirmVersement(role: UserRole): boolean {
   return role === "comptable";

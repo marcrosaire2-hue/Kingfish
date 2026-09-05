@@ -139,8 +139,6 @@ export function VersementsPage() {
   const [filterSite, setFilterSite] = useState<SiteFilter>("all");
   const [canDeclare, setCanDeclare] = useState(false);
   const [canConfirm, setCanConfirm] = useState(false);
-  const [canEdit, setCanEdit] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
 
   const [heure, setHeure] = useState(() => nowHeureLocale());
   const [tranche, setTranche] = useState<VersementTranche>("matin");
@@ -195,14 +193,12 @@ export function VersementsPage() {
         versements?: Versement[];
         canDeclare?: boolean;
         canConfirm?: boolean;
-        canEdit?: boolean;
         error?: string;
       };
       if (!res.ok) throw new Error(body.error || "Chargement impossible.");
       setVersements(body.versements ?? []);
       setCanDeclare(body.canDeclare === true);
       setCanConfirm(body.canConfirm === true);
-      setCanEdit(body.canEdit === true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chargement impossible.");
     } finally {
@@ -297,41 +293,8 @@ export function VersementsPage() {
   const formReady =
     Boolean(montant) &&
     Boolean(numero.trim()) &&
-    (editingId ? true : preuves.length > 0) &&
+    preuves.length > 0 &&
     membres.some((m) => m.trim().length >= 2);
-
-  function resetDeclareForm() {
-    setEditingId(null);
-    setMontant("");
-    setNumero("");
-    setMembres([""]);
-    setPreuves([]);
-    setHeure(nowHeureLocale());
-    setTranche(defaultTrancheFromShift(user?.shift));
-    setDeclareDate(todayIsoDate());
-  }
-
-  function startEdit(v: Versement) {
-    if (!canEdit || v.statut !== "en_attente") return;
-    setEditingId(v.id);
-    setDeclareDate(v.date);
-    setSite(v.site);
-    setHeure(v.heureTransaction.slice(0, 5));
-    setTranche(v.trancheHoraire);
-    setMembres(
-      v.membresPresents.length > 0 ? [...v.membresPresents] : [""],
-    );
-    setMontant(String(v.montant));
-    setNumero(v.numeroTransaction);
-    setPreuves([]);
-    setSelected(null);
-    setError(null);
-    setFlash(null);
-    setDesk("declare");
-    window.setTimeout(() => {
-      formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 40);
-  }
 
   function isAllowedImage(file: File): boolean {
     const type = (file.type || "").toLowerCase();
@@ -389,15 +352,9 @@ export function VersementsPage() {
       setError("Votre compte ne peut pas déclarer de versement.");
       return;
     }
-    if (editingId && !canEdit) {
-      setError("Votre compte ne peut pas modifier un versement.");
-      return;
-    }
     if (!formReady) {
       setError(
-        editingId
-          ? "Complétez montant, n° de transaction et membres présents."
-          : "Complétez montant, n° de transaction, membres présents et capture.",
+        "Complétez montant, n° de transaction, membres présents et capture.",
       );
       return;
     }
@@ -405,14 +362,8 @@ export function VersementsPage() {
     setError(null);
     setFlash(null);
     try {
-      if (!editingId && preuves.length === 0) {
-        throw new Error("Joignez au moins une capture.");
-      }
+      if (preuves.length === 0) throw new Error("Joignez au moins une capture.");
       const form = new FormData();
-      if (editingId) {
-        form.set("action", "update");
-        form.set("id", editingId);
-      }
       form.set("date", declareDate);
       form.set("site", site);
       form.set("heureTransaction", heure.slice(0, 5));
@@ -440,48 +391,19 @@ export function VersementsPage() {
         );
       }
       if (!res.ok) throw new Error(body.error || "Enregistrement impossible.");
-      const wasEdit = Boolean(editingId);
-      const savedDate = declareDate;
-      resetDeclareForm();
-      setDate(savedDate);
-      setFlash(
-        wasEdit
-          ? "Versement mis à jour — toujours en attente de confirmation."
-          : "Versement enregistré — en attente de confirmation.",
-      );
+      setMontant("");
+      setNumero("");
+      setMembres([""]);
+      setPreuves([]);
+      setHeure(nowHeureLocale());
+      setTranche(defaultTrancheFromShift(user?.shift));
+      setDate(declareDate);
+      setFlash("Versement enregistré — en attente de confirmation.");
       setDesk("registre");
       await charger();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Enregistrement impossible.");
       setDesk("declare");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function onDelete(id: string) {
-    if (busy || !canEdit) return;
-    const ok = window.confirm(
-      "Supprimer ce versement ? Cette action est définitive (uniquement si encore en attente).",
-    );
-    if (!ok) return;
-    setBusy(true);
-    setError(null);
-    setFlash(null);
-    try {
-      const res = await fetch("/api/versements", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete", id }),
-      });
-      const body = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(body.error || "Suppression impossible.");
-      if (editingId === id) resetDeclareForm();
-      setSelected(null);
-      setFlash("Versement supprimé.");
-      await charger();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Suppression impossible.");
     } finally {
       setBusy(false);
     }
@@ -652,7 +574,6 @@ export function VersementsPage() {
               onClick={() => setDesk("declare")}
             >
               Déclarer
-              {editingId ? " · édition" : ""}
             </button>
             <button
               type="button"
@@ -679,16 +600,8 @@ export function VersementsPage() {
             <form className="versements-bordereau-form" onSubmit={onDeclare}>
               <div className="versements-bordereau-main">
                 <header className="versements-bordereau-head">
-                  <h2>
-                    {editingId
-                      ? "Modifier le versement"
-                      : "Bordereau de versement"}
-                  </h2>
-                  <p>
-                    {editingId
-                      ? "Correction possible tant que le comptable n’a pas confirmé."
-                      : "Après confirmation comptable, plus aucune modification."}
-                  </p>
+                  <h2>Bordereau de versement</h2>
+                  <p>Après confirmation comptable, plus aucune modification.</p>
                 </header>
 
                 <div className="versements-form-grid">
@@ -846,9 +759,8 @@ export function VersementsPage() {
                   />
                   {preuves.length === 0 ? (
                     <em>
-                      {editingId
-                        ? "Optionnel — laisser vide pour garder les captures actuelles"
-                        : `Une ou plusieurs images — JPEG, PNG, WebP · 4 Mo max · jusqu’à ${MAX_PREUVES}`}
+                      Une ou plusieurs images — JPEG, PNG, WebP · 4 Mo max ·
+                      jusqu’à {MAX_PREUVES}
                     </em>
                   ) : (
                     <em>
@@ -893,43 +805,18 @@ export function VersementsPage() {
                   >
                     Membres
                   </li>
-                  <li
-                    className={
-                      editingId || preuves.length > 0 ? "is-ok" : ""
-                    }
-                  >
-                    {editingId && preuves.length === 0
-                      ? "Captures (inchangées)"
-                      : `Capture${preuves.length > 1 ? `s (${preuves.length})` : ""}`}
+                  <li className={preuves.length > 0 ? "is-ok" : ""}>
+                    Capture{preuves.length > 1 ? `s (${preuves.length})` : ""}
                   </li>
                 </ul>
 
-                <div className="versements-form-actions">
-                  <button
-                    type="submit"
-                    className="btn btn-primary versements-submit"
-                    disabled={busy || !formReady}
-                  >
-                    {busy
-                      ? "Enregistrement…"
-                      : editingId
-                        ? "Enregistrer les modifications"
-                        : "Envoyer le bordereau"}
-                  </button>
-                  {editingId ? (
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      disabled={busy}
-                      onClick={() => {
-                        resetDeclareForm();
-                        setDesk("registre");
-                      }}
-                    >
-                      Annuler
-                    </button>
-                  ) : null}
-                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary versements-submit"
+                  disabled={busy || !formReady}
+                >
+                  {busy ? "Enregistrement…" : "Envoyer le bordereau"}
+                </button>
                 {error ? (
                   <p className="error-banner" role="alert">
                     {error}
@@ -1136,26 +1023,6 @@ export function VersementsPage() {
                                 Confirmer
                               </button>
                             ) : null}
-                            {canEdit && v.statut === "en_attente" ? (
-                              <>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost btn-sm"
-                                  disabled={busy}
-                                  onClick={() => startEdit(v)}
-                                >
-                                  Modifier
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-ghost btn-sm"
-                                  disabled={busy}
-                                  onClick={() => void onDelete(v.id)}
-                                >
-                                  Supprimer
-                                </button>
-                              </>
-                            ) : null}
                             <button
                               type="button"
                               className="btn btn-ghost btn-sm"
@@ -1317,32 +1184,11 @@ export function VersementsPage() {
                   >
                     {busy ? "Confirmation…" : "Confirmer la transaction"}
                   </button>
-                ) : null}
-                {canEdit && selected.statut === "en_attente" ? (
-                  <>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      disabled={busy}
-                      onClick={() => startEdit(selected)}
-                    >
-                      Modifier
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      disabled={busy}
-                      onClick={() => void onDelete(selected.id)}
-                    >
-                      Supprimer
-                    </button>
-                  </>
-                ) : null}
-                {selected.statut === "confirmee" ? (
+                ) : selected.statut === "confirmee" ? (
                   <p className="versements-locked-note">
                     Transaction verrouillée.
                   </p>
-                ) : canConfirm || canEdit ? null : isReaderOnly ? (
+                ) : isReaderOnly ? (
                   <p className="versements-locked-note">
                     Consultation seule — confirmation réservée au comptable.
                   </p>

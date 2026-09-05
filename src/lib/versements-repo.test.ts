@@ -3,8 +3,6 @@ import {
   assertPreuveFile,
   canConfirmVersement,
   canDeclareVersement,
-  canDeleteVersement,
-  canEditVersement,
   defaultTrancheFromShift,
   parseVersementHeure,
   parseVersementMembres,
@@ -14,16 +12,11 @@ import {
 } from "@/lib/versements-model";
 
 describe("droits versements", () => {
-  it("seul le gérant déclare / modifie / supprime ; seul le comptable confirme ; admin/DAF lecteurs", () => {
+  it("seul le gérant déclare ; seul le comptable confirme ; admin/DAF lecteurs", () => {
     expect(canDeclareVersement("gerant")).toBe(true);
     expect(canDeclareVersement("admin")).toBe(false);
     expect(canDeclareVersement("comptable")).toBe(false);
     expect(canDeclareVersement("daf")).toBe(false);
-
-    expect(canEditVersement("gerant")).toBe(true);
-    expect(canEditVersement("comptable")).toBe(false);
-    expect(canDeleteVersement("gerant")).toBe(true);
-    expect(canDeleteVersement("admin")).toBe(false);
 
     expect(canConfirmVersement("comptable")).toBe(true);
     expect(canConfirmVersement("daf")).toBe(false);

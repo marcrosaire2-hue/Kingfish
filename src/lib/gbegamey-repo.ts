@@ -1,6 +1,6 @@
 import { ObjectId } from "mongodb";
 import { assertDayOpen, isValidDate, updateDayDocument } from "@/lib/day-doc";
-import { mergeVentesSansStockOnSave } from "@/lib/ventes-sans-stock";
+import { mergeVentesSansStockOnSave, dayVentesSansStock } from "@/lib/ventes-sans-stock";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import type {
@@ -48,7 +48,7 @@ function toDay(doc: GbegameyDoc): GbegameyDay {
     localLines: (doc.localLines ?? []).map((l) => normalizeLocalLine(l)),
     receipts: Array.isArray(doc.receipts) ? doc.receipts : [],
     updatedAt: doc.updatedAt ?? null,
-    ventesSansStock: doc.ventesSansStock === true,
+    ventesSansStock: dayVentesSansStock(doc),
   };
 }
 

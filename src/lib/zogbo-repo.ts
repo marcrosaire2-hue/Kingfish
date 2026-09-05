@@ -31,7 +31,7 @@ import {
   loadAquaAlimentStocks,
   openingByProductName,
 } from "@/lib/aquapro-opening-stock";
-import { mergeVentesSansStockOnSave } from "@/lib/ventes-sans-stock";
+import { mergeVentesSansStockOnSave, dayVentesSansStock } from "@/lib/ventes-sans-stock";
 
 type ZogboDoc = Omit<ZogboDay, "date"> & {
   _id: string;
@@ -88,7 +88,7 @@ function toDay(doc: ZogboDoc, accompanimentLines?: GbegameyLocalLine[]): ZogboDa
     accompanimentLines,
     movements,
     updatedAt: doc.updatedAt ?? null,
-    ventesSansStock: doc.ventesSansStock === true,
+    ventesSansStock: dayVentesSansStock(doc),
   };
 }
 
@@ -465,7 +465,7 @@ async function mutateZogboDay(
     const status = payload.day.status;
     const lines = applied.lines.map((l) => normalizeZogboLine(l));
     const movements = applied.movements;
-    const ventesSansStock = existing?.ventesSansStock === true;
+    const ventesSansStock = dayVentesSansStock(existing);
 
     return {
       set: {

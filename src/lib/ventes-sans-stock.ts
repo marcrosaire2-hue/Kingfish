@@ -3,10 +3,14 @@ import type { VenteSite } from "@/lib/types";
 import { getGbegameyDayPayload } from "@/lib/gbegamey-repo";
 import { getZogboDayPayload } from "@/lib/zogbo-repo";
 
+/**
+ * Vente libre (articles dégrisés) ?
+ * Par défaut oui — seul un `ventesSansStock: false` explicite plaque les ventes au stock.
+ */
 export function dayVentesSansStock(
   day: { ventesSansStock?: boolean } | null | undefined,
 ): boolean {
-  return day?.ventesSansStock === true;
+  return day?.ventesSansStock !== false;
 }
 
 export async function isVentesSansStockActive(
@@ -68,20 +72,25 @@ export async function endVentesSansStock(
   const collection = site === "zogbo" ? "zogbo_jours" : "gbegamey_jours";
   const db = await getDb();
   await db.collection(collection).updateOne(
-    { _id: date as never, ventesSansStock: true },
+    { _id: date as never },
     {
       $set: {
         ventesSansStock: false,
         updatedAt: new Date().toISOString(),
       },
     },
+    { upsert: true },
   );
 }
 
+/**
+ * Après saisie de stock → vente plafonnée.
+ * Sinon : conserve un forçage stock explicite, sinon vente libre (défaut).
+ */
 export function mergeVentesSansStockOnSave(input: {
   stockSaisie?: boolean;
   existing?: { ventesSansStock?: boolean } | null;
 }): boolean {
   if (input.stockSaisie) return false;
-  return input.existing?.ventesSansStock === true;
+  return dayVentesSansStock(input.existing);
 }

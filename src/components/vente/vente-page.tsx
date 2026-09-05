@@ -1079,7 +1079,7 @@ export function VentePage({
     setDate(caisseActive.date);
   }
 
-  async function degriserArticles() {
+  async function setStockPolicy(enforceStock: boolean) {
     if (degriserBusy || !canManageStock) return;
     setDegriserBusy(true);
     setError(null);
@@ -1087,17 +1087,42 @@ export function VentePage({
       const res = await fetch("/api/admin/ventes-stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ site, enforceStock: false, date }),
+        body: JSON.stringify({ site, enforceStock, date }),
       });
       const body = (await res.json()) as { error?: string };
-      if (!res.ok) throw new Error(body.error || "Impossible de dégriser.");
-      setFlash("Articles dégrisés — vente libre activée pour ce jour.");
+      if (!res.ok) {
+        throw new Error(
+          body.error ||
+            (enforceStock
+              ? "Impossible de forcer le stock."
+              : "Impossible de dégriser."),
+        );
+      }
+      setFlash(
+        enforceStock
+          ? "Vente selon le stock — les articles sans stock sont grisés."
+          : "Articles dégrisés — vente libre pour ce jour.",
+      );
       await load(date, site);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Impossible de dégriser.");
+      setError(
+        e instanceof Error
+          ? e.message
+          : enforceStock
+            ? "Impossible de forcer le stock."
+            : "Impossible de dégriser.",
+      );
     } finally {
       setDegriserBusy(false);
     }
+  }
+
+  async function degriserArticles() {
+    await setStockPolicy(false);
+  }
+
+  async function forcerVenteSelonStock() {
+    await setStockPolicy(true);
   }
 
   useEffect(() => {
@@ -2056,8 +2081,22 @@ export function VentePage({
 
         {!loading && board?.ventesSansStock && !backdateMode ? (
           <p className="ui-info" role="status">
-            Vente libre — stock non saisi pour ce jour. Les ventes ne sont pas
-            plafonnées tant que le stock n&apos;a pas été enregistré.
+            Vente libre (défaut) — les articles ne sont pas grisés par le stock.
+            {canManageStock ? (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="btn-link"
+                  disabled={degriserBusy}
+                  onClick={() => void forcerVenteSelonStock()}
+                >
+                  {degriserBusy ? "…" : "Forcer vente selon stock"}
+                </button>
+                {" · "}
+                <Link href="/admin">Réglage admin</Link>
+              </>
+            ) : null}
           </p>
         ) : null}
 
@@ -2067,7 +2106,7 @@ export function VentePage({
         !backdateMode &&
         canManageStock ? (
           <p className="warn-inline" role="status">
-            Articles sans stock grisés pour ce jour.{" "}
+            Articles sans stock grisés (vente plafonnée au stock).{" "}
             <button
               type="button"
               className="btn-link"
@@ -2078,6 +2117,17 @@ export function VentePage({
             </button>
             {" · "}
             <Link href="/admin">Réglage admin</Link>
+          </p>
+        ) : null}
+
+        {!loading &&
+        board &&
+        !board.ventesSansStock &&
+        !backdateMode &&
+        !canManageStock ? (
+          <p className="warn-inline" role="status">
+            Articles sans stock grisés — un admin peut dégriser (vente libre)
+            depuis cette page ou Admin.
           </p>
         ) : null}
 
