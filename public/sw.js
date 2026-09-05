@@ -1,15 +1,15 @@
 /* Service worker King Fish Manager.
  *
  * Règle stricte : on ne met JAMAIS en cache les pages HTML / réponses RSC
- * de Next.js (sinon coquille périmée → chargement infini en ligne).
+ * de Next.js (sinon coquille périmée → écran blanc / chargement infini).
  *
  * - Assets statiques (_next/static, images, polices) : réseau puis cache.
  * - Navigation / API / RSC : réseau uniquement.
- * - Hors ligne + navigation : repli éventuel sur /vente précaché à l'install.
+ * - Hors ligne : message simple (pas de HTML Next périmé).
  */
 
-const CACHE = "kingfish-v2";
-const COQUILLE = ["/vente", "/login", "/logo-king-fish.jpg", "/sw.js"];
+const CACHE = "kingfish-v3";
+const PRECACHE = ["/logo-king-fish.jpg", "/sw.js"];
 
 function estAssetStatique(url, requete) {
   if (requete.mode === "navigate") return false;
@@ -32,7 +32,7 @@ self.addEventListener("install", (event) => {
     caches
       .open(CACHE)
       .then((cache) =>
-        Promise.allSettled(COQUILLE.map((url) => cache.add(url))),
+        Promise.allSettled(PRECACHE.map((url) => cache.add(url))),
       )
       .then(() => self.skipWaiting()),
   );
@@ -62,21 +62,19 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith("/api/")) return;
 
-  // Pages et vols RSC : toujours le réseau (jamais le cache).
+  // Pages et vols RSC : toujours le réseau (jamais le cache HTML).
   if (!estAssetStatique(url, requete)) {
     event.respondWith(
-      fetch(requete).catch(async () => {
-        if (requete.mode === "navigate") {
-          const repli = await caches.match("/vente");
-          if (repli) return repli;
-          const login = await caches.match("/login");
-          if (login) return login;
-        }
-        return new Response("Hors ligne", {
-          status: 503,
-          headers: { "Content-Type": "text/plain; charset=utf-8" },
-        });
-      }),
+      fetch(requete).catch(
+        () =>
+          new Response(
+            "King Fish Manager est hors ligne. Vérifiez la connexion puis réessayez.",
+            {
+              status: 503,
+              headers: { "Content-Type": "text/plain; charset=utf-8" },
+            },
+          ),
+      ),
     );
     return;
   }
