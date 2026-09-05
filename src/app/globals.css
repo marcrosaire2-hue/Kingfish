@@ -4517,6 +4517,8 @@ select {
   gap: 0.45rem;
   margin-top: 0.35rem;
 }
+
+.stock-zogbo-page {
   display: flex;
   flex-direction: column;
   gap: 1rem;
