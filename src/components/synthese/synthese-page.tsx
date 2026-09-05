@@ -6,7 +6,6 @@ import { BrandLoader } from "@/components/brand-loader";
 import {
   DashKpiGrid,
   DashboardShell,
-  DashboardToolbar,
 } from "@/components/dashboard/dashboard-layout";
 import {
   CHART_COLORS,
@@ -106,7 +105,14 @@ type CancelNotice = {
   nAnnule: number;
 };
 
-function mixFromDay(day: DayPoint) {
+type MixSlice = {
+  key: string;
+  label: string;
+  value: number;
+  color: string;
+};
+
+function mixFromDay(day: DayPoint): MixSlice[] {
   return [
     {
       key: "plats",
@@ -130,6 +136,43 @@ function mixFromDay(day: DayPoint) {
       key: "extra",
       label: "Extras",
       value: day.caExtra,
+      color: MIX_COLORS.extra,
+    },
+  ];
+}
+
+function mixFromPeriodTotals(t: {
+  caPlatsZogbo: number;
+  caPlatsGbegamey: number;
+  caAccompagnementsZogbo: number;
+  caAccompagnementsGbegamey: number;
+  caBoissons: number;
+  caExtraZogbo: number;
+  caExtraGbegamey: number;
+}): MixSlice[] {
+  return [
+    {
+      key: "plats",
+      label: "Plats",
+      value: t.caPlatsZogbo + t.caPlatsGbegamey,
+      color: MIX_COLORS.plats,
+    },
+    {
+      key: "accompagnements",
+      label: "Accompagnements",
+      value: t.caAccompagnementsZogbo + t.caAccompagnementsGbegamey,
+      color: MIX_COLORS.accompagnements,
+    },
+    {
+      key: "boissons",
+      label: "Boissons",
+      value: t.caBoissons,
+      color: MIX_COLORS.boissons,
+    },
+    {
+      key: "extra",
+      label: "Extras",
+      value: t.caExtraZogbo + t.caExtraGbegamey,
       color: MIX_COLORS.extra,
     },
   ];
@@ -294,6 +337,53 @@ function BreakdownLine({
       <em className="mono">{formatFcfa(amount)}</em>
     </li>
   );
+}
+
+function MixStrip({
+  slices,
+  onDark,
+}: {
+  slices: MixSlice[];
+  onDark?: boolean;
+}) {
+  const total = slices.reduce((s, x) => s + x.value, 0);
+  if (total <= 0) return null;
+  return (
+    <div
+      className={`dash-mix-strip${onDark ? " is-on-dark" : ""}`}
+      aria-label="Mix des ventes"
+    >
+      <div className="dash-mix-bar" aria-hidden>
+        {slices
+          .filter((s) => s.value > 0)
+          .map((s) => (
+            <span
+              key={s.key}
+              style={{
+                width: `${(s.value / total) * 100}%`,
+                background: s.color,
+              }}
+              title={`${s.label} · ${formatFcfa(s.value)}`}
+            />
+          ))}
+      </div>
+      <ul className="dash-mix-legend">
+        {slices.map((s) => (
+          <li key={s.key}>
+            <i style={{ background: s.color }} aria-hidden />
+            {s.label}
+            <em className="mono">{Math.round((s.value / total) * 100)}%</em>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function weekdayShort(iso: string): string {
+  return new Date(`${iso}T12:00:00`).toLocaleDateString("fr-FR", {
+    weekday: "short",
+  });
 }
 
 function currentMonth(): string {
@@ -574,12 +664,35 @@ export function SynthesePage() {
       : viewMode === "month"
         ? month
         : year;
+  const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
   const status = caFinalStatus({ viewMode, cancelNotice });
+  const heroMix =
+    viewMode === "day" && day
+      ? mixFromDay(day)
+      : viewMode === "month" && monthData
+        ? mixFromPeriodTotals(monthData.totals)
+        : viewMode === "year" && yearData
+          ? mixFromPeriodTotals(yearData.totals)
+          : [];
+  const heroSide =
+    isGeneral && shiftTotals
+      ? [
+          { label: "Matin", value: formatFcfa(shiftTotals.jour) },
+          { label: "Soir", value: formatFcfa(shiftTotals.soir) },
+          { label: "Nuit", value: formatFcfa(shiftTotals.nuit) },
+        ]
+      : caCumuls
+        ? [
+            { label: "Jour", value: formatFcfa(caCumuls.jour) },
+            { label: "Mois", value: formatFcfa(caCumuls.mois) },
+            { label: "Total", value: formatFcfa(caCumuls.total) },
+          ]
+        : [];
 
   return (
     <AppShell
       title="Tableau de bord"
-      subtitle={`Vue d’ensemble · ${site === "zogbo" ? "Zogbo" : "Gbégamey"}`}
+      subtitle={`Vue d’ensemble · ${siteLabel}`}
       mainClassName="main-dash"
       actions={
         <>
@@ -633,173 +746,155 @@ export function SynthesePage() {
       }
     >
       <DashboardShell>
-        <div className="dash-hero">
-          <DashboardToolbar
-            tabs={
-              !isGeneral
+        <div className="dash-command panel">
+          <div className="dash-command-row">
+            <div className="dash-periods" role="tablist" aria-label="Période">
+              {(!isGeneral
                 ? [
-                    { id: "day", label: "Journalier" },
-                    { id: "month", label: "Mensuel" },
-                    { id: "year", label: "Annuel" },
+                    { id: "day" as const, label: "Journalier" },
+                    { id: "month" as const, label: "Mensuel" },
+                    { id: "year" as const, label: "Annuel" },
                   ]
-                : [{ id: "day", label: "Jour" }]
-            }
-            activeTab={viewMode}
-            onTabChange={(id) => {
-              if (!isGeneral) setView(id as ViewKey);
-            }}
-            filters={
-              <>
-                {!lockedSite && allowedSites.length > 1 ? (
-                  <div
-                    className="site-switch dash-site-switch"
-                    role="group"
-                    aria-label="Site"
-                  >
-                    {allowedSites.map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        className={`site-btn${site === s ? " is-active" : ""}`}
-                        onClick={() => {
-                          if (
-                            dirtyCharges &&
-                            !window.confirm(
-                              "Charges non enregistrées. Changer de site ?",
-                            )
-                          ) {
-                            return;
-                          }
-                          setSite(s);
-                        }}
-                      >
-                        <span className="site-btn-label">
-                          {s === "zogbo" ? "Zogbo" : "Gbégamey"}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {viewMode === "day" ? (
-                  <label className="date-field date-field-pill">
-                    <span>Jour</span>
-                    <input
-                      type="date"
-                      value={date}
-                      max={todayIsoDate()}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-                        handlePeriodChange(v);
-                      }}
-                    />
-                  </label>
-                ) : null}
-                {viewMode === "month" ? (
-                  <label className="date-field date-field-pill">
-                    <span>Mois</span>
-                    <input
-                      type="month"
-                      value={month}
-                      onChange={(e) => setMonth(e.target.value)}
-                    />
-                  </label>
-                ) : null}
-                {viewMode === "year" ? (
-                  <label className="date-field date-field-pill">
-                    <span>Année</span>
-                    <input
-                      type="number"
-                      min={2020}
-                      max={2100}
-                      value={year}
-                      onChange={(e) => setYear(e.target.value)}
-                    />
-                  </label>
-                ) : null}
-                <ExportExcelButton
-                  onExport={exportBoard}
-                  disabled={loading}
-                />
-                {viewMode === "day" && !isGeneral ? (
+                : [{ id: "day" as const, label: "Jour" }]
+              ).map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={viewMode === t.id}
+                  className={`dash-chip${viewMode === t.id ? " is-active" : ""}${isGeneral ? " is-static" : ""}`}
+                  onClick={() => {
+                    if (!isGeneral) setView(t.id);
+                  }}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <span className="dash-command-spacer" aria-hidden />
+            {viewMode === "day" && !isGeneral ? (
+              <button
+                type="button"
+                className={`btn btn-primary${savedFlash && !dirtyCharges ? " btn-saved" : ""}`}
+                onClick={saveCharges}
+                disabled={!dirtyCharges || saving || loading}
+              >
+                {saving
+                  ? "Enregistrement…"
+                  : savedFlash
+                    ? "Enregistré"
+                    : dirtyCharges
+                      ? "Enregistrer charges"
+                      : "À jour"}
+              </button>
+            ) : null}
+          </div>
+          <div className="dash-command-row">
+            {!lockedSite && allowedSites.length > 1 ? (
+              <div className="dash-sites" role="group" aria-label="Site">
+                {allowedSites.map((s) => (
                   <button
+                    key={s}
                     type="button"
-                    className={`btn btn-primary${savedFlash && !dirtyCharges ? " btn-saved" : ""}`}
-                    onClick={saveCharges}
-                    disabled={!dirtyCharges || saving || loading}
+                    className={`dash-chip${site === s ? " is-active" : ""}`}
+                    onClick={() => {
+                      if (
+                        dirtyCharges &&
+                        !window.confirm(
+                          "Charges non enregistrées. Changer de site ?",
+                        )
+                      ) {
+                        return;
+                      }
+                      setSite(s);
+                    }}
                   >
-                    {saving
-                      ? "Enregistrement…"
-                      : savedFlash
-                        ? "Enregistré"
-                        : dirtyCharges
-                          ? "Enregistrer charges"
-                          : "À jour"}
+                    {s === "zogbo" ? "Zogbo" : "Gbégamey"}
                   </button>
-                ) : null}
-              </>
-            }
-          />
+                ))}
+              </div>
+            ) : null}
+            {viewMode === "day" ? (
+              <label className="date-field date-field-pill">
+                <span>Jour</span>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    handlePeriodChange(v);
+                  }}
+                />
+              </label>
+            ) : null}
+            {viewMode === "month" ? (
+              <label className="date-field date-field-pill">
+                <span>Mois</span>
+                <input
+                  type="month"
+                  value={month}
+                  onChange={(e) => setMonth(e.target.value)}
+                />
+              </label>
+            ) : null}
+            {viewMode === "year" ? (
+              <label className="date-field date-field-pill">
+                <span>Année</span>
+                <input
+                  type="number"
+                  min={2020}
+                  max={2100}
+                  value={year}
+                  onChange={(e) => setYear(e.target.value)}
+                />
+              </label>
+            ) : null}
+          </div>
+        </div>
 
-          {!loading && caCumuls ? (
-            <section
-              className="dash-ca-final"
-              aria-label="Chiffre d’affaires final"
-            >
-              <div className="dash-ca-final-main">
-                <span className="dash-ca-final-label">CA final</span>
-                <strong className="dash-ca-final-value mono">
-                  {formatFcfa(
+        <section
+          className={`dash-spotlight${loading || !caCumuls ? " is-placeholder" : ""}`}
+          aria-label="Chiffre d’affaires"
+        >
+          <div className="dash-spotlight-main">
+            <span className="dash-spotlight-kicker">
+              Chiffre d’affaires
+              <span className="dash-spotlight-site">{siteLabel}</span>
+            </span>
+            <strong className="dash-spotlight-value mono">
+              {loading || !caCumuls
+                ? "…"
+                : formatFcfa(
                     caFinalAmount({ viewMode, cancelNotice, caCumuls }),
                   )}
-                </strong>
-                <span
-                  className={`dash-ca-final-hint is-${status.tone}`}
-                >
-                  {status.tone === "ok" ? (
-                    <span className="dash-status-check" aria-hidden>
-                      ✓
-                    </span>
-                  ) : null}
-                  {status.label}
+            </strong>
+            <span className={`dash-spotlight-hint is-${status.tone}`}>
+              {status.tone === "ok" ? (
+                <span className="dash-status-check" aria-hidden>
+                  ✓
                 </span>
-              </div>
-              {isGeneral ? null : (
-                <div className="dash-ca-final-side">
-                  <div>
-                    <span>Jour</span>
-                    <strong className="mono">
-                      {formatFcfa(caCumuls.jour)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Mois</span>
-                    <strong className="mono">
-                      {formatFcfa(caCumuls.mois)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Total</span>
-                    <strong className="mono">
-                      {formatFcfa(caCumuls.total)}
-                    </strong>
-                  </div>
+              ) : null}
+              {loading ? "Chargement…" : status.label}
+            </span>
+          </div>
+          {heroSide.length ? (
+            <div className="dash-spotlight-side">
+              {heroSide.map((item) => (
+                <div key={item.label}>
+                  <span>{item.label}</span>
+                  <strong className="mono">{item.value}</strong>
                 </div>
-              )}
-            </section>
-          ) : (
-            <section
-              className="dash-ca-final dash-ca-final-placeholder"
-              aria-hidden
-            >
-              <div className="dash-ca-final-main">
-                <span className="dash-ca-final-label">CA final</span>
-                <strong className="dash-ca-final-value mono">…</strong>
-                <span className="dash-ca-final-hint">Chargement…</span>
-              </div>
-            </section>
-          )}
-        </div>
+              ))}
+            </div>
+          ) : null}
+          {heroMix.some((s) => s.value > 0) ? (
+            <div className="dash-spotlight-mix">
+              <MixStrip slices={heroMix} onDark />
+            </div>
+          ) : null}
+        </section>
 
       {error ? (
         <p className="error-banner" role="alert">
@@ -896,21 +991,9 @@ function GeneralDayDashboard({
 
   return (
     <div className="dash">
-      <p className="section-hint">
-        <strong>{formatDisplayDate(day.date)}</strong>
-        {" · "}
-        Résumé des ventes de la journée, matin comme soir · FCFA
-      </p>
-
       <DashKpiGrid
-        className="dash-kpi-grid-day"
+        className={`dash-kpi-grid-day${shiftTotals && shiftTotals.aucune > 0 ? " is-wide" : ""}`}
         items={[
-          {
-            label: "CA de la journée",
-            value: formatFcfa(day.caTotal),
-            accent: "green",
-            icon: <KpiGlyph name="ca" />,
-          },
           {
             label: "Matin (équipe jour)",
             value: formatFcfa(shiftTotals?.jour ?? 0),
@@ -954,11 +1037,13 @@ function GeneralDayDashboard({
         ]}
       />
 
-      <div className="dash-grid">
+      <EpuisesPanel epuises={epuises} />
+
+      <div className="dash-bento">
         <section className="panel dash-card">
           <div className="panel-head">
             <h2 className="panel-title">Mix des ventes</h2>
-            <p className="muted">Répartition du CA (FCFA)</p>
+            <p className="muted">Répartition du CA</p>
           </div>
           {mixTotal > 0 ? (
             <DonutChart
@@ -1015,10 +1100,10 @@ function GeneralDayDashboard({
         </section>
       </div>
 
-      <section className="panel dash-card dash-card-wide">
+      <section className="panel dash-card dash-card-wide dash-rank-panel">
         <div className="panel-head">
-          <h2 className="panel-title">Ventes du jour</h2>
-          <p className="muted">Classement des produits</p>
+          <h2 className="panel-title">Classements</h2>
+          <p className="muted">Zones et produits du jour</p>
         </div>
         <ProductRanking
           best={ranking.best}
@@ -1029,8 +1114,6 @@ function GeneralDayDashboard({
           boissons={ranking.boissons}
         />
       </section>
-
-      <EpuisesPanel epuises={epuises} />
     </div>
   );
 }
@@ -1133,21 +1216,11 @@ function DayDashboard({
 
   return (
     <div className="dash">
-      <p className="section-hint">
-        <strong>{formatDisplayDate(day.date)}</strong>
-        {" · "}
-        Montants en FCFA
-      </p>
+      <EpuisesPanel epuises={epuises} />
 
       <DashKpiGrid
-        className="dash-kpi-grid-day"
+        className="dash-kpi-grid-day is-wide"
         items={[
-          {
-            label: "CA final",
-            value: formatFcfa(day.caTotal),
-            accent: "green",
-            icon: <KpiGlyph name="ca" />,
-          },
           {
             label: "Point Zogbo",
             value: formatFcfa(day.caZogbo),
@@ -1191,11 +1264,11 @@ function DayDashboard({
         </p>
       )}
 
-      <div className="dash-grid">
+      <div className="dash-bento">
         <section className="panel dash-card">
           <div className="panel-head">
             <h2 className="panel-title">Mix du jour</h2>
-            <p className="muted">Répartition du CA (FCFA)</p>
+            <p className="muted">Répartition du CA</p>
           </div>
           {mixTotal > 0 ? (
             <DonutChart
@@ -1211,7 +1284,7 @@ function DayDashboard({
         <section className="panel dash-card">
           <div className="panel-head">
             <h2 className="panel-title">Points de vente</h2>
-            <p className="muted">Zogbo et Gbégamey</p>
+            <p className="muted">Détail par catégorie</p>
           </div>
           <HorizontalBars rows={sites} />
           <div className="dash-breakdown">
@@ -1252,9 +1325,9 @@ function DayDashboard({
         </section>
       </div>
 
-      <section className="panel dash-card dash-card-wide">
+      <section className="panel dash-card dash-card-wide dash-rank-panel">
         <div className="panel-head">
-          <h2 className="panel-title">Tableaux de ventes</h2>
+          <h2 className="panel-title">Classements</h2>
           <p className="muted">Meilleurs et plus faibles produits du jour</p>
         </div>
         <ProductRanking
@@ -1286,59 +1359,43 @@ function DayDashboard({
             <p className="muted">Montants en FCFA</p>
           </div>
           <div className="dash-charges-scroll">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th scope="col">Poste</th>
-                  <th scope="col" className="col-price">
-                    Montant
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {CHARGE_FIELDS.map((f) => (
-                  <tr key={f.key}>
-                    <td>{f.label}</td>
-                    <td className="col-price">
-                      <PriceInput
-                        value={chargesDraft[f.key]}
-                        ariaLabel={f.label}
-                        onChange={(v) => onChargeChange(f.key, v)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-                <tr>
-                  <td>Matières consommées (CMV)</td>
-                  <td className="mono cell-readonly">
-                    {formatFcfa(day.charges.matieresConsommees ?? 0)}
-                  </td>
-                </tr>
-                <tr>
-                  <td>Dotations aux amortissements</td>
-                  <td className="mono cell-readonly">
-                    {formatFcfa(day.charges.amortissements ?? 0)}
-                  </td>
-                </tr>
-                <tr>
-                  <td>Pertes déclarées</td>
-                  <td className="mono cell-readonly">
-                    {formatFcfa(day.charges.pertes ?? 0)}
-                  </td>
-                </tr>
-              </tbody>
-              <tfoot>
-                <tr>
-                  <th scope="row">TOTAL CHARGES</th>
-                  <td className="mono">{formatFcfa(charges)}</td>
-                </tr>
-              </tfoot>
-            </table>
+            <div className="dash-charge-list">
+              {CHARGE_FIELDS.map((f) => (
+                <label key={f.key} className="dash-charge-row">
+                  <span>{f.label}</span>
+                  <PriceInput
+                    value={chargesDraft[f.key]}
+                    ariaLabel={f.label}
+                    onChange={(v) => onChargeChange(f.key, v)}
+                  />
+                </label>
+              ))}
+              <div className="dash-charge-row is-readonly">
+                <span>Matières consommées (CMV)</span>
+                <em className="mono">
+                  {formatFcfa(day.charges.matieresConsommees ?? 0)}
+                </em>
+              </div>
+              <div className="dash-charge-row is-readonly">
+                <span>Dotations aux amortissements</span>
+                <em className="mono">
+                  {formatFcfa(day.charges.amortissements ?? 0)}
+                </em>
+              </div>
+              <div className="dash-charge-row is-readonly">
+                <span>Pertes déclarées</span>
+                <em className="mono">
+                  {formatFcfa(day.charges.pertes ?? 0)}
+                </em>
+              </div>
+              <div className="dash-charge-total">
+                <span>Total charges</span>
+                <strong className="mono">{formatFcfa(charges)}</strong>
+              </div>
+            </div>
           </div>
         </section>
       </div>
-
-      <EpuisesPanel epuises={epuises} />
     </div>
   );
 }
@@ -1381,20 +1438,22 @@ function MonthDashboard({
       values: data.days.map((d) => d.caGbegamey),
     },
   ];
-  const mixSlices = [
+  const mixSlices = mixFromPeriodTotals(data.totals);
+  const mixTotal = mixSlices.reduce((s, x) => s + x.value, 0);
+  const sites = [
     {
       key: "zogbo",
       label: "Zogbo",
       value: data.totals.caZogbo,
-      color: CHART_COLORS.zogbo,
+      color: SITE_COLORS.zogbo,
     },
     {
       key: "gbegamey",
       label: "Gbégamey",
       value: data.totals.caGbegamey,
-      color: CHART_COLORS.gbegamey,
+      color: SITE_COLORS.gbegamey,
     },
-  ].filter((s) => s.value > 0);
+  ];
 
   const categoryBars = [
     {
@@ -1411,25 +1470,13 @@ function MonthDashboard({
     },
   ];
 
+  const siteSlices = sites.filter((s) => s.value > 0);
+
   return (
     <div className="dash">
-      <p className="section-hint">
-        <strong>
-          {MONTH_NAMES[data.month - 1]} {data.year}
-        </strong>
-        {" · "}
-        FCFA
-      </p>
-
       <DashKpiGrid
         className="dash-kpi-grid-month"
         items={[
-          {
-            label: "CA final",
-            value: formatFcfa(data.totals.caTotal),
-            accent: "green",
-            icon: <KpiGlyph name="ca" />,
-          },
           {
             label: "Zogbo",
             value: formatFcfa(data.totals.caZogbo),
@@ -1466,46 +1513,49 @@ function MonthDashboard({
         <LineAreaChart labels={labels} series={caSeries} />
       </section>
 
-      <div className="dash-grid">
-        <section className="panel dash-card dash-card-span-2">
+      <div className="dash-bento-month">
+        <section className="panel dash-card">
           <div className="panel-head">
             <h2 className="panel-title">Zogbo vs Gbégamey</h2>
             <p className="muted">CA par jour et par site</p>
           </div>
           <GroupedBarChart labels={labels} series={sitesSeries} />
         </section>
-        <section className="panel dash-card">
-          <div className="panel-head">
-            <h2 className="panel-title">Part des points</h2>
-            <p className="muted">Répartition du CA</p>
-          </div>
-          {mixSlices.length ? (
-            <DonutChart
-              slices={mixSlices}
-              centerLabel="CA"
-              centerValue={
-                data.totals.caTotal >= 1000
-                  ? `${Math.round(data.totals.caTotal / 1000)}k`
-                  : String(data.totals.caTotal)
-              }
-            />
-          ) : (
-            <p className="muted">Pas encore de CA ce mois.</p>
-          )}
-        </section>
-        <section className="panel dash-card">
-          <div className="panel-head">
-            <h2 className="panel-title">Boissons · Charges</h2>
-            <p className="muted">Totaux du mois</p>
-          </div>
-          <HorizontalBars rows={categoryBars} />
-        </section>
+        <div className="dash-bento-stack">
+          <section className="panel dash-card">
+            <div className="panel-head">
+              <h2 className="panel-title">Part des points</h2>
+              <p className="muted">Répartition du CA</p>
+            </div>
+            {siteSlices.length ? (
+              <DonutChart
+                slices={siteSlices}
+                centerLabel="CA"
+                centerValue={
+                  data.totals.caTotal >= 1000
+                    ? `${Math.round(data.totals.caTotal / 1000)}k`
+                    : String(data.totals.caTotal)
+                }
+              />
+            ) : (
+              <p className="muted">Pas encore de CA ce mois.</p>
+            )}
+          </section>
+          <section className="panel dash-card">
+            <div className="panel-head">
+              <h2 className="panel-title">Mix · Boissons · Charges</h2>
+              <p className="muted">Totaux du mois</p>
+            </div>
+            {mixTotal > 0 ? <MixStrip slices={mixSlices} /> : null}
+            <HorizontalBars rows={categoryBars} />
+          </section>
+        </div>
       </div>
 
-      <section className="panel dash-card dash-card-wide">
+      <section className="panel dash-card dash-card-wide dash-rank-panel">
         <div className="panel-head">
-          <h2 className="panel-title">Tableaux de ventes</h2>
-          <p className="muted">Classement sur le mois</p>
+          <h2 className="panel-title">Classements</h2>
+          <p className="muted">Zones et produits sur le mois</p>
         </div>
         <ProductRanking
           best={ranking.best}
@@ -1518,62 +1568,77 @@ function MonthDashboard({
       </section>
 
       <section className="panel dash-card dash-card-wide dash-days-panel">
-        <div className="panel-head dash-months-head">
+        <div className="panel-head">
           <h2 className="panel-title">Détail des jours</h2>
-          <p className="muted">
-            Cliquez Voir pour ouvrir le point journalier
-          </p>
+          <p className="muted">Ouvrir le point journalier</p>
         </div>
-        <ul className="dash-day-list">
-          {data.days.map((d) => {
-            const active =
-              d.hasZogboData ||
-              d.hasGbegameyData ||
-              d.hasBoissonsData ||
-              d.chargesTotal > 0;
-            return (
-              <li
-                key={d.date}
-                className={`dash-day-card${active ? "" : " is-empty"}`}
-              >
-                <div className="dash-month-top">
-                  <strong className="dash-month-name">
-                    {formatDisplayDate(d.date)}
-                  </strong>
-                  <button
-                    type="button"
-                    className="btn-link dash-month-voir"
-                    onClick={() => onOpenDay(d.date)}
+        <div className="dash-period-scroll">
+          <table className="dash-period-table">
+            <thead>
+              <tr>
+                <th scope="col">Jour</th>
+                <th scope="col" className="col-num">
+                  Zogbo
+                </th>
+                <th scope="col" className="col-num">
+                  Gbégamey
+                </th>
+                <th scope="col" className="col-num">
+                  CA
+                </th>
+                <th scope="col" className="col-num">
+                  Résultat
+                </th>
+                <th scope="col" className="col-act">
+                  <span className="sr-only">Ouvrir</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.days.map((d) => {
+                const active =
+                  d.hasZogboData ||
+                  d.hasGbegameyData ||
+                  d.hasBoissonsData ||
+                  d.chargesTotal > 0;
+                return (
+                  <tr
+                    key={d.date}
+                    className={active ? undefined : "is-empty"}
                   >
-                    Voir
-                  </button>
-                </div>
-                <dl className="dash-month-metrics">
-                  <div>
-                    <dt>Zogbo</dt>
-                    <dd className="mono">{formatFcfa(d.caZogbo)}</dd>
-                  </div>
-                  <div>
-                    <dt>Gbégamey</dt>
-                    <dd className="mono">{formatFcfa(d.caGbegamey)}</dd>
-                  </div>
-                  <div>
-                    <dt>CA</dt>
-                    <dd className="mono">{formatFcfa(d.caTotal)}</dd>
-                  </div>
-                  <div>
-                    <dt>Résultat</dt>
-                    <dd
-                      className={`mono${d.resultat < 0 ? " is-neg" : d.resultat > 0 ? " is-pos" : ""}`}
+                    <th scope="row">
+                      <span className="dash-period-day">
+                        {shortDay(d.date)}
+                      </span>
+                      <span className="muted dash-period-week">
+                        {weekdayShort(d.date)}
+                      </span>
+                    </th>
+                    <td className="mono col-num">{formatFcfa(d.caZogbo)}</td>
+                    <td className="mono col-num">
+                      {formatFcfa(d.caGbegamey)}
+                    </td>
+                    <td className="mono col-num">{formatFcfa(d.caTotal)}</td>
+                    <td
+                      className={`mono col-num${d.resultat < 0 ? " is-neg" : d.resultat > 0 ? " is-pos" : ""}`}
                     >
                       {formatFcfa(d.resultat)}
-                    </dd>
-                  </div>
-                </dl>
-              </li>
-            );
-          })}
-        </ul>
+                    </td>
+                    <td className="col-act">
+                      <button
+                        type="button"
+                        className="btn-link"
+                        onClick={() => onOpenDay(d.date)}
+                      >
+                        Voir
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
@@ -1610,37 +1675,98 @@ function YearDashboard({
     },
   ];
 
+  const mixSlices = mixFromPeriodTotals(data.totals);
+  const mixTotal = mixSlices.reduce((s, x) => s + x.value, 0);
+  const sites = [
+    {
+      key: "zogbo",
+      label: "Zogbo",
+      value: data.totals.caZogbo,
+      color: SITE_COLORS.zogbo,
+    },
+    {
+      key: "gbegamey",
+      label: "Gbégamey",
+      value: data.totals.caGbegamey,
+      color: SITE_COLORS.gbegamey,
+    },
+  ];
+
   return (
     <div className="dash">
-      <p className="section-hint">
-        <strong>Année {data.year}</strong>
-        {" · "}
-        FCFA
-      </p>
-
       <DashKpiGrid
+        className="dash-kpi-grid-year"
         items={[
           {
-            label: "CA final",
-            value: formatFcfa(data.totals.caTotal),
-            tone: "accent",
+            label: "Zogbo",
+            value: formatFcfa(data.totals.caZogbo),
+            accent: "sky",
+            icon: <KpiGlyph name="zogbo" />,
           },
-          { label: "Charges", value: formatFcfa(data.totals.chargesTotal) },
+          {
+            label: "Gbégamey",
+            value: formatFcfa(data.totals.caGbegamey),
+            accent: "orange",
+            icon: <KpiGlyph name="gbegamey" />,
+          },
+          {
+            label: "Charges",
+            value: formatFcfa(data.totals.chargesTotal),
+            accent: "gold",
+            icon: <KpiGlyph name="charges" />,
+          },
           {
             label: "Résultat",
             value: formatFcfa(data.totals.resultat),
+            accent: data.totals.resultat < 0 ? "orange" : "green",
             tone: data.totals.resultat < 0 ? "warn" : "accent",
+            icon: <KpiGlyph name="resultat" />,
           },
         ]}
       />
 
       <section className="panel dash-card dash-card-wide">
-        <h2 className="panel-title">CA · Charges · Résultat par mois</h2>
+        <div className="panel-head">
+          <h2 className="panel-title">CA · Charges · Résultat</h2>
+          <p className="muted">Par mois sur l’année {data.year}</p>
+        </div>
         <GroupedBarChart labels={labels} series={series} height={280} />
       </section>
 
-      <section className="panel dash-card dash-card-wide">
-        <h2 className="panel-title">Tableaux de ventes (année)</h2>
+      <div className="dash-bento">
+        <section className="panel dash-card">
+          <div className="panel-head">
+            <h2 className="panel-title">Mix de l’année</h2>
+            <p className="muted">Répartition du CA</p>
+          </div>
+          {mixTotal > 0 ? (
+            <DonutChart
+              slices={mixSlices.filter((s) => s.value > 0)}
+              centerLabel="CA"
+              centerValue={formatFcfa(data.totals.caTotal)}
+            />
+          ) : (
+            <p className="muted">Pas encore de CA cette année.</p>
+          )}
+        </section>
+        <section className="panel dash-card">
+          <div className="panel-head">
+            <h2 className="panel-title">Points de vente</h2>
+            <p className="muted">Zogbo et Gbégamey</p>
+          </div>
+          {sites.some((s) => s.value > 0) ? (
+            <HorizontalBars rows={sites} />
+          ) : (
+            <p className="muted">Pas encore de CA cette année.</p>
+          )}
+        </section>
+      </div>
+
+      <section className="panel dash-card dash-card-wide dash-rank-panel">
+        <div className="panel-head">
+          <h2 className="panel-title">Classements</h2>
+          <p className="muted">Zones et produits sur l’année</p>
+        </div>
         <ProductRanking
           best={ranking.best}
           worst={ranking.worst}
@@ -1652,50 +1778,63 @@ function YearDashboard({
       </section>
 
       <section className="panel dash-card dash-card-wide dash-months-panel">
-        <div className="panel-head dash-months-head">
+        <div className="panel-head">
           <h2 className="panel-title">Mois de l’année</h2>
-          <p className="muted">CA, charges et résultat — cliquez Voir pour le détail</p>
+          <p className="muted">CA, charges et résultat</p>
         </div>
-        <ul className="dash-month-list">
-          {data.months.map((m) => (
-            <li key={m.month} className="dash-month-card">
-              <div className="dash-month-top">
-                <strong className="dash-month-name">
-                  {MONTH_NAMES[m.month - 1]}
-                </strong>
-                <button
-                  type="button"
-                  className="btn-link dash-month-voir"
-                  onClick={() => onOpenMonth(m.month)}
+        <div className="dash-period-scroll">
+          <table className="dash-period-table">
+            <thead>
+              <tr>
+                <th scope="col">Mois</th>
+                <th scope="col" className="col-num">
+                  CA
+                </th>
+                <th scope="col" className="col-num">
+                  Charges
+                </th>
+                <th scope="col" className="col-num">
+                  Résultat
+                </th>
+                <th scope="col" className="col-num">
+                  Jours
+                </th>
+                <th scope="col" className="col-act">
+                  <span className="sr-only">Ouvrir</span>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.months.map((m) => (
+                <tr
+                  key={m.month}
+                  className={m.daysWithData ? undefined : "is-empty"}
                 >
-                  Voir
-                </button>
-              </div>
-              <dl className="dash-month-metrics">
-                <div>
-                  <dt>CA</dt>
-                  <dd className="mono">{formatFcfa(m.caTotal)}</dd>
-                </div>
-                <div>
-                  <dt>Charges</dt>
-                  <dd className="mono">{formatFcfa(m.chargesTotal)}</dd>
-                </div>
-                <div>
-                  <dt>Résultat</dt>
-                  <dd
-                    className={`mono${m.resultat < 0 ? " is-neg" : m.resultat > 0 ? " is-pos" : ""}`}
+                  <th scope="row">{MONTH_NAMES[m.month - 1]}</th>
+                  <td className="mono col-num">{formatFcfa(m.caTotal)}</td>
+                  <td className="mono col-num">
+                    {formatFcfa(m.chargesTotal)}
+                  </td>
+                  <td
+                    className={`mono col-num${m.resultat < 0 ? " is-neg" : m.resultat > 0 ? " is-pos" : ""}`}
                   >
                     {formatFcfa(m.resultat)}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Jours actifs</dt>
-                  <dd className="mono">{m.daysWithData}</dd>
-                </div>
-              </dl>
-            </li>
-          ))}
-        </ul>
+                  </td>
+                  <td className="mono col-num">{m.daysWithData}</td>
+                  <td className="col-act">
+                    <button
+                      type="button"
+                      className="btn-link"
+                      onClick={() => onOpenMonth(m.month)}
+                    >
+                      Voir
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );
