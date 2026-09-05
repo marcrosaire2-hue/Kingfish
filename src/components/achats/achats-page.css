@@ -399,6 +399,22 @@
   }
 }
 
+@media (max-width: 719px) {
+  .main-achats .achats-field,
+  .main-achats .achats-field-grow {
+    flex: 1 1 100%;
+  }
+
+  .main-achats .achats-composer .btn-primary {
+    width: 100%;
+    min-height: var(--touch-min, 2.75rem);
+  }
+
+  .main-achats .table-scroll {
+    margin-inline: -0.1rem;
+  }
+}
+
 .main-achats .catalogue-pagination {
   display: inline-flex;
   align-items: center;

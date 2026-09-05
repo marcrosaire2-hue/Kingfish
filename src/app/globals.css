@@ -38,6 +38,7 @@
   --shell-sidebar-w: 268px;
   --shell-max: 1440px;
   --shell-pad-x: clamp(0.85rem, 2.8vw, 2.15rem);
+  --shell-pad-y: clamp(0.45rem, 1.4vw, 0.85rem);
   --shell-pad-top: clamp(1rem, 2.4vw, 1.75rem);
   --shell-pad-bottom: clamp(1.35rem, 3.5vw, 2.75rem);
   --shell-gap: clamp(0.85rem, 2vw, 1.35rem);
@@ -2600,6 +2601,17 @@ select {
   }
 }
 
+/* Tablette : carte un peu plus large, fond plein */
+@media (min-width: 561px) and (max-width: 860px) {
+  .login-card {
+    width: min(100%, 26rem);
+  }
+
+  .login-panel-form {
+    padding: 2rem 1.75rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 @media (max-width: 420px) {
   .login-card {
     width: 100%;
@@ -4610,12 +4622,26 @@ select {
 }
 
 @media (max-width: 980px) {
+  :root {
+    --shell-sidebar-w: min(18.75rem, calc(100% - 3rem));
+    --shell-pad-x: clamp(0.75rem, 3.2vw, 1.1rem);
+    --shell-pad-y: 0.4rem;
+    --shell-pad-top: 0.95rem;
+    --shell-pad-bottom: calc(1.35rem + env(safe-area-inset-bottom, 0px));
+    --shell-gap: 0.95rem;
+    --mobile-bar-h: 3.35rem;
+    --sticky-offset: calc(
+      var(--mobile-bar-h) + env(safe-area-inset-top, 0px) + 0.35rem
+    );
+    --grid-min-kpi: min(100%, 9.75rem);
+  }
+
   .sidebar {
     position: fixed;
     left: 0;
     top: 0;
     /* Éviter 100vw (cause du décalage horizontal sur mobile) */
-    width: min(18.75rem, calc(100% - 3rem));
+    width: var(--shell-sidebar-w);
     max-width: 18.75rem;
     height: 100vh;
     height: 100dvh;
@@ -4623,11 +4649,14 @@ select {
     padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     padding-left: calc(1.05rem + env(safe-area-inset-left, 0px));
     /* Menu hors écran sans élargir le document */
-    transform: translate3d(-100%, 0, 0);
+    transform: translate3d(-105%, 0, 0);
     visibility: hidden;
     pointer-events: none;
-    transition: transform 0.16s cubic-bezier(0.22, 1, 0.36, 1);
+    transition:
+      transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0.2s;
     box-shadow: 12px 0 40px color-mix(in srgb, var(--ink) 28%, transparent);
+    z-index: 60;
   }
 
   .app-shell.is-nav-open .sidebar {
@@ -4640,12 +4669,13 @@ select {
     display: block;
     position: fixed;
     inset: 0;
-    z-index: 45;
+    z-index: 55;
     border: none;
-    background: color-mix(in srgb, var(--ink) 45%, transparent);
+    background: color-mix(in srgb, var(--ink) 48%, transparent);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.16s ease;
+    transition: opacity 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
   }
 
   .app-shell.is-nav-open .sidebar-backdrop {
@@ -4654,7 +4684,7 @@ select {
   }
 
   .side-nav-link {
-    min-height: 2.85rem;
+    min-height: var(--touch-min);
     padding: 0.7rem 0.75rem;
     font-size: 1rem;
   }
@@ -4666,10 +4696,16 @@ select {
     gap: 0.75rem;
     position: sticky;
     top: 0;
-    z-index: 30;
-    padding: 0.7rem 1rem;
-    background: color-mix(in srgb, var(--sidebar) 96%, transparent);
-    backdrop-filter: blur(10px);
+    z-index: 40;
+    min-height: var(--mobile-bar-h);
+    padding:
+      calc(0.55rem + env(safe-area-inset-top, 0px))
+      calc(0.85rem + env(safe-area-inset-right, 0px))
+      0.55rem
+      calc(0.85rem + env(safe-area-inset-left, 0px));
+    background: color-mix(in srgb, var(--sidebar) 94%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--sidebar-text);
   }
@@ -4704,18 +4740,14 @@ select {
 
   .nav-toggle {
     background: rgba(255, 255, 255, 0.06);
-    min-width: 2.75rem;
-    min-height: 2.75rem;
+    min-width: var(--touch-min);
+    min-height: var(--touch-min);
     touch-action: manipulation;
   }
 
   .page-header {
     flex-direction: column;
-    padding: 1.1rem 1rem 0.5rem;
-  }
-
-  .page-body {
-    padding: 0.35rem 1rem 1.5rem;
+    align-items: stretch;
   }
 
   .page-actions {
@@ -4728,7 +4760,7 @@ select {
   .page-actions .export-excel-wrap,
   .page-actions .export-excel-wrap .btn {
     flex: 1 1 auto;
-    min-height: 2.75rem;
+    min-height: var(--touch-min);
     justify-content: center;
   }
 }
@@ -6218,7 +6250,7 @@ select {
 .dash-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.35rem;
+  gap: clamp(0.85rem, 2vw, 1.35rem);
 }
 
 .dash-grid-wide {
@@ -6998,11 +7030,11 @@ body {
 
 @media (max-width: 980px) {
   .page-header h1 {
-    font-size: 1.4rem;
+    font-size: clamp(1.25rem, 1.05rem + 1.2vw, 1.45rem);
   }
 
   .page-subtitle {
-    font-size: 0.92rem;
+    font-size: 0.9rem;
   }
 
   .section-tabs {
@@ -7091,18 +7123,22 @@ body {
 }
 
 @media (max-width: 720px) {
-  .page-body {
-    padding: 0.35rem 0.75rem calc(1.25rem + env(safe-area-inset-bottom, 0px));
+  :root {
+    --shell-pad-x: 0.75rem;
+    --shell-pad-y: 0.3rem;
+    --shell-pad-top: 0.75rem;
+    --shell-gap: 0.8rem;
+    --grid-min-kpi: min(100%, 100%);
   }
 
-  .page-header {
-    padding: 0.85rem 0.75rem 0.35rem;
+  .page-body {
+    padding-bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
   }
 
   .mobile-bar {
-    padding-top: calc(0.65rem + env(safe-area-inset-top, 0px));
-    padding-left: calc(0.85rem + env(safe-area-inset-left, 0px));
-    padding-right: calc(0.85rem + env(safe-area-inset-right, 0px));
+    padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+    padding-left: calc(0.75rem + env(safe-area-inset-left, 0px));
+    padding-right: calc(0.75rem + env(safe-area-inset-right, 0px));
   }
 
   /* Vente — caisse mobile */
@@ -7302,10 +7338,6 @@ body {
   .vente-page .vente-minus {
     height: 52px;
     font-size: 1.55rem;
-  }
-
-  .page-subtitle {
-    display: none;
   }
 }
 
@@ -8259,11 +8291,6 @@ html.nav-open body {
 }
 
 @media (max-width: 980px) {
-  html {
-    font-size: 16.5px;
-    /* Ne pas mettre overflow-x:hidden ici : ça bloque le scroll vertical mobile */
-  }
-
   body {
     overscroll-behavior-x: none;
   }
@@ -8367,10 +8394,6 @@ html.nav-open body {
 }
 
 @media (max-width: 720px) {
-  html {
-    font-size: 16px;
-  }
-
   .hist-filters,
   .hist-ventes-filters {
     grid-template-columns: 1fr;
@@ -8708,7 +8731,10 @@ html.nav-open body {
 
 @media (max-width: 720px) {
   .page-subtitle {
-    display: none;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
   }
 
   .context-bar {
@@ -10807,5 +10833,194 @@ html.nav-open body {
 
   .dash-month-metrics {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ==========================================================================
+   Responsive A→Z — fondation unifiée (mobile · tablette · desktop)
+   Breakpoints canoniques :
+     ≤640  téléphone étroit
+     ≤720  téléphone / petite tablette portrait
+     ≤980  tablette + chrome compact (drawer)
+     ≤1200 desktop moyen
+     >1200 grand écran
+   ========================================================================== */
+
+/* Desktop moyen : sidebar un peu plus étroite pour laisser de l'air au contenu */
+@media (min-width: 981px) and (max-width: 1200px) {
+  :root {
+    --shell-sidebar-w: 232px;
+    --shell-pad-x: clamp(1rem, 2vw, 1.5rem);
+  }
+
+  .sidebar {
+    padding-inline: 0.85rem;
+  }
+
+  .sidebar-brand .brand-logo {
+    width: 3.85rem;
+    height: 3.85rem;
+  }
+
+  .side-nav-link {
+    font-size: 0.98rem;
+    padding: 0.7rem 0.75rem;
+  }
+}
+
+/* Très grands écrans : respirer sans étirer les tableaux à l'infini */
+@media (min-width: 1600px) {
+  :root {
+    --shell-max: 1520px;
+  }
+}
+
+/* Tablette landscape / compact chrome déjà géré ≤980 — polish commun */
+@media (max-width: 980px) {
+  .dash-toolbar,
+  .dash-section-nav,
+  .admin-section-nav,
+  .dash-command {
+    top: var(--sticky-offset);
+  }
+
+  .panel,
+  .panel-wide,
+  .dash-kpi,
+  .context-bar {
+    border-radius: 14px;
+  }
+
+  .panel-head {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  .stat-row,
+  .zogbo-stats {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  }
+
+  .btn:not(.btn-icon):not(.btn-link),
+  .btn-ghost:not(.btn-icon),
+  .btn-primary {
+    min-height: var(--touch-min);
+  }
+
+  input,
+  select,
+  textarea {
+    max-width: 100%;
+  }
+
+  /* Formulaires 2 colonnes → 1 sur tablette étroite */
+  .immo-layout,
+  .admin-grid,
+  .reg-workspace,
+  .caisse-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .page-subtitle {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .dash-kpi {
+    padding: 0.95rem 1rem;
+  }
+
+  .dash-kpi-value {
+    font-size: clamp(1.15rem, 5vw, 1.4rem);
+  }
+
+  .dash-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stack-form .btn,
+  .stack-form .btn-primary,
+  .immo-form-actions .btn,
+  .reg-form-actions .btn,
+  .admin-form-actions .btn {
+    width: 100%;
+    min-height: var(--touch-min);
+  }
+
+  .table-scroll,
+  .panel-wide,
+  .zogbo-panel,
+  .immo-table-wrap {
+    margin-inline: -0.15rem;
+    padding-inline: 0.15rem;
+  }
+
+  /* Cartes KPI / stats en une colonne si trop serré */
+  .stat-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  :root {
+    --shell-pad-x: 0.7rem;
+    --touch-min: 2.85rem;
+  }
+
+  .page-header h1 {
+    font-size: clamp(1.2rem, 5.5vw, 1.4rem);
+  }
+
+  .mobile-bar-title {
+    font-size: 0.82rem;
+  }
+
+  .stat-row {
+    grid-template-columns: 1fr;
+  }
+
+  .page-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .page-actions .export-excel-wrap {
+    display: flex;
+    width: 100%;
+  }
+
+  .page-actions .export-excel-wrap .btn {
+    width: 100%;
+  }
+}
+
+/* Téléphones en paysage : menu drawer + barre basse, pas de sidebar sticky */
+@media (max-width: 980px) and (max-height: 480px) and (orientation: landscape) {
+  .mobile-bar {
+    min-height: 2.75rem;
+    padding-block: 0.35rem;
+  }
+
+  .sidebar {
+    width: min(16rem, 70vw);
+  }
+
+  .side-nav-link {
+    min-height: 2.4rem;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.92rem;
+  }
+}
+
+/* Préférence réduction de mouvement — transitions drawer plus sobres */
+@media (prefers-reduced-motion: reduce) {
+  .sidebar,
+  .sidebar-backdrop {
+    transition: none;
   }
 }

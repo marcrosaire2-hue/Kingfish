@@ -700,6 +700,10 @@
   .main-historique .rg-event-body {
     padding-left: 1.05rem;
   }
+
+  .main-historique .rg-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 560px) {
@@ -711,5 +715,18 @@
   .main-historique .rg-seg-btn {
     font-size: 0.78rem;
     padding: 0.4rem 0.6rem;
+  }
+
+  .main-historique .rg-mix-chip {
+    flex: 1 1 100%;
+  }
+
+  .main-historique .rg-hero-ca .mono {
+    font-size: clamp(1.25rem, 6vw, 1.6rem);
+  }
+
+  .main-historique .page-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 }

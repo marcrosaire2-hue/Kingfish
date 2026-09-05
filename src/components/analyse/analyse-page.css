@@ -440,6 +440,16 @@
   cursor: not-allowed;
 }
 
+@media (max-width: 980px) {
+  .main-analyse .analyse-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .main-analyse .analyse-brief {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 720px) {
   .main-analyse .analyse-search-pill {
     margin-left: 0;
@@ -449,5 +459,17 @@
 
   .main-analyse .panel-head {
     flex-wrap: wrap;
+  }
+
+  .main-analyse .analyse-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .main-analyse .analyse-health {
+    grid-template-columns: 1fr;
+  }
+
+  .main-analyse .dash-kpi-value {
+    font-size: clamp(1.1rem, 5vw, 1.35rem);
   }
 }

@@ -657,3 +657,40 @@
     align-items: start;
   }
 }
+
+/* Tablette portrait : panier sous catalogue, tuiles denses */
+@media (max-width: 900px) and (min-width: 721px) {
+  .vente-workspace-top {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .vente-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  }
+
+  .pos-cart.vente-panel {
+    position: sticky;
+    top: var(--sticky-offset, 0.55rem);
+    max-height: min(70vh, 32rem);
+    overflow: auto;
+  }
+}
+
+@media (max-width: 640px) {
+  .vente-sale-card.vente-panel,
+  .vente-meal-composer.vente-panel {
+    padding: 0.85rem 0.9rem 0.95rem;
+    border-radius: 14px;
+  }
+
+  .vente-sticker-actions {
+    flex-direction: column-reverse;
+  }
+
+  .vente-sticker-actions .btn {
+    width: 100%;
+    min-height: var(--touch-min, 2.75rem);
+  }
+}

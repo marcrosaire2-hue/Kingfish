@@ -701,6 +701,10 @@
     grid-template-columns: 1fr;
   }
 
+  .main-journal-ventes .jv-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .main-journal-ventes .jv-hero-ca {
     padding: 0.95rem 1rem;
   }
@@ -768,5 +772,14 @@
   .main-journal-ventes .jv-seg-btn {
     font-size: 0.78rem;
     padding: 0.4rem 0.6rem;
+  }
+
+  .main-journal-ventes .jv-toolbar {
+    padding: 0.65rem 0.7rem;
+  }
+
+  .main-journal-ventes .page-actions {
+    display: grid;
+    grid-template-columns: 1fr;
   }
 }

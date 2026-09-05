@@ -1024,6 +1024,17 @@
     gap: 0.65rem;
     padding: 0.75rem;
   }
+
+  .catalogue-kpi-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 0.55rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .catalogue-kpi-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (min-width: 768px) {
