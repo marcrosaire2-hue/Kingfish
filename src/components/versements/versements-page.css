@@ -1362,20 +1362,12 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .main-versements .vs-dates:has(> :only-child) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .main-versements .vs-preuves-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .main-versements .vs-card-actions {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .main-versements .vs-card-actions:has(> :only-child) {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .main-versements .vs-preuve-gallery {
