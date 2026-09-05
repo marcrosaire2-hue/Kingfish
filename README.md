@@ -65,9 +65,10 @@ Un workflow GitHub Actions sauvegarde aussi la base (`/.github/workflows/sauvega
 4. **Manual Deploy** après chaque push sur `main`
 5. URL de santé : `/login`
 6. **Mails digests** (Gmail OAuth + liste Alertes mail) — Cron Jobs Render (ou équivalent) :
-   - Quotidien ~00:15 : `GET /api/mail/cron?kind=day` + header `Authorization: Bearer $MAIL_CRON_SECRET` → bilan de la **veille** (articles, qté, totaux)
-   - 1er du mois ~00:30 : `?kind=month` → bilan détaillé du **mois précédent**
-   - Variables : `GMAIL_*`, `MAIL_CRON_SECRET`, optionnel `MAIL_ALERT_TO`, `MAIL_DIGEST_NOTIFY=0` pour couper
+   - Quotidien **00:00** (Africa/Porto-Novo = 23:00 UTC) : `GET /api/mail/cron?kind=day` + header `Authorization: Bearer $MAIL_CRON_SECRET` → **un seul mail** avec le bilan de la **journée écoulée** (articles, qté, totaux)
+   - 1er du mois ~00:10 (optionnel) : `?kind=month` → bilan détaillé du **mois précédent**
+   - Variables : `GMAIL_*`, `MAIL_CRON_SECRET`, optionnel `MAIL_ALERT_TO`
+   - Pas de mail à chaque ticket (sauf dépannage `MAIL_SALE_NOTIFY=1`) ; `MAIL_DIGEST_NOTIFY=0` pour couper les points
 
 ## Scripts utiles
 

@@ -17,9 +17,10 @@
  *   GMAIL_REFRESH_TOKEN=
  *   GMAIL_USER=votre@gmail.com
  *   MAIL_ALERT_TO=destinataire@...
- *   MAIL_SALE_NOTIFY=1
  *   MAIL_DIGEST_NOTIFY=1
  *   MAIL_CRON_SECRET=une-longue-chaine-secrete
+ *
+ * (Pas de MAIL_SALE_NOTIFY : un seul point journalier à minuit. Mettre =1 seulement en dépannage.)
  */
 
 import http from "node:http";
@@ -87,9 +88,11 @@ const server = http.createServer(async (req, res) => {
     console.log(`GMAIL_REFRESH_TOKEN=${tokens.refresh_token || "(aucun — réessaie avec prompt=consent)"}`);
     console.log(`GMAIL_USER=ton.adresse@gmail.com`);
     console.log(`MAIL_ALERT_TO=destinataire@exemple.com`);
-    console.log(`MAIL_SALE_NOTIFY=1`);
     console.log(`MAIL_DIGEST_NOTIFY=1`);
     console.log(`MAIL_CRON_SECRET=${randomBytes(24).toString("base64url")}`);
+    console.log(
+      "# Cron 00:00 Porto-Novo : GET /api/mail/cron?kind=day + Bearer MAIL_CRON_SECRET",
+    );
     console.log("\n");
     if (!tokens.refresh_token) {
       console.warn(

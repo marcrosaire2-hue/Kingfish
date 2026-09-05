@@ -30,11 +30,12 @@ export const maxDuration = 60;
  *   &date=YYYY-MM-DD   (optionnel, kind=day|sales)
  *   &ym=YYYY-MM        (optionnel, kind=month)
  *
- * Planification conseillée (Render Cron / cron externe, fuseau Afrique/Porto-Novo) :
- *   - Quotidien ~00:15 → GET/POST .../api/mail/cron?kind=day   (résume la veille)
- *   - 1er du mois ~00:30 → .../api/mail/cron?kind=month        (résume le mois précédent)
+ * Planification conseillée (Render Cron / cron externe, fuseau Africa/Porto-Novo) :
+ *   - Quotidien 00:00 → GET/POST .../api/mail/cron?kind=day   (point de toutes les ventes de la veille)
+ *   - 1er du mois ~00:10 → .../api/mail/cron?kind=month        (optionnel : bilan du mois précédent)
  *   - (optionnel) lundi → ?kind=week
- *   - Rattrapage tickets POS du jour → ?kind=sales&date=YYYY-MM-DD
+ *
+ * Pas de mail à chaque ticket POS (MAIL_SALE_NOTIFY off par défaut).
  */
 export async function POST(request: Request) {
   try {

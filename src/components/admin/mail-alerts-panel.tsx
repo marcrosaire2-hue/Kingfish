@@ -108,7 +108,7 @@ export function MailAlertsPanel() {
     }
   }
 
-  async function sendDigestTest(kind: "day" | "month" | "test" | "sales") {
+  async function sendDigestTest(kind: "day" | "month" | "test") {
     if (busy) return;
     setBusy(true);
     setError(null);
@@ -140,13 +140,6 @@ export function MailAlertsPanel() {
       }
       if (kind === "test") {
         setFlash("Mail de test envoyé aux destinataires effectifs.");
-      } else if (kind === "sales") {
-        setFlash(
-          `Rattrapage ventes : ${body.sent ?? 0} envoyé(s) / ${body.total ?? 0} ticket(s)` +
-            (body.failed ? ` · ${body.failed} échec(s)` : "") +
-            (body.skipped ? ` · ${body.skipped} ignoré(s)` : "") +
-            ".",
-        );
       } else if (body.ok === false) {
         throw new Error(
           body.error ||
@@ -190,8 +183,8 @@ export function MailAlertsPanel() {
           </span>
           <h2>Alertes mail — ventes</h2>
           <p>
-            Destinataires du détail de chaque vente POS, du point de fin de
-            journée et du bilan mensuel. Accessible à tous les administrateurs.
+            Destinataires du point journalier de toutes les ventes (envoi
+            automatique à minuit). Accessible à tous les administrateurs.
           </p>
         </div>
       </header>
@@ -268,7 +261,8 @@ export function MailAlertsPanel() {
         <section className="equipe-mail-panel">
           <h3>Envois manuels</h3>
           <p className="muted">
-            Utile pour tester la chaîne Gmail ou rattraper un point manqué.
+            Pour tester Gmail ou renvoyer le point d’une journée si le cron a
+            manqué.
           </p>
           <div className="equipe-mail-actions">
             <button
@@ -284,7 +278,7 @@ export function MailAlertsPanel() {
               className="btn btn-ghost"
               disabled={busy || !data?.gmailConfigured}
               onClick={() => void sendDigestTest("day")}
-              title="Envoie le point de la veille (comme le cron de nuit)"
+              title="Envoie le point de la veille (comme le cron de minuit)"
             >
               Point du jour
             </button>
@@ -297,20 +291,12 @@ export function MailAlertsPanel() {
             >
               Point du mois
             </button>
-            <button
-              type="button"
-              className="btn btn-ghost"
-              disabled={busy || !data?.gmailConfigured}
-              onClick={() => void sendDigestTest("sales")}
-              title="Renvoie un mail pour chaque ticket POS valide d’aujourd’hui"
-            >
-              Renvoyer les ventes du jour
-            </button>
           </div>
           <p className="equipe-mail-note">
-            Automatique : chaque ticket POS envoie un mail si Gmail est
-            configuré. Cron quotidien <code>?kind=day</code> (veille) et le 1er
-            du mois <code>?kind=month</code> (mois précédent).
+            Automatique : <strong>un seul mail par jour à 00h00</strong>{" "}
+            (Africa/Porto-Novo) avec le détail de toutes les ventes de la
+            journée écoulée — cron <code>?kind=day</code>. Pas de mail à chaque
+            ticket. Optionnel le 1er du mois : <code>?kind=month</code>.
           </p>
         </section>
       </div>

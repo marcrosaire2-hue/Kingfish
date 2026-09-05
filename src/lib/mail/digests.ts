@@ -46,7 +46,7 @@ type DigestResult = {
 
 /**
  * Point de la journée écoulée (par défaut : hier).
- * À déclencher chaque nuit via cron `?kind=day`.
+ * À déclencher chaque nuit à 00h00 (Africa/Porto-Novo) via cron `?kind=day`.
  */
 export async function sendDailyDigest(
   anchorDate = todayIsoDate(),
