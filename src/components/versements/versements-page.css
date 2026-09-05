@@ -1,41 +1,46 @@
-/* Versements — présentation A→Z (données / API inchangées) */
+/* Versements — responsivité A→Z (mobile → tablette → desktop) */
 
 .main-versements .page-header h1 {
-  font-size: clamp(1.55rem, 3.2vw, 2.1rem);
+  font-size: clamp(1.35rem, 4.2vw, 2.1rem);
   font-weight: 800;
   letter-spacing: -0.035em;
   color: #003d82;
+  overflow-wrap: anywhere;
 }
 
 .main-versements .page-subtitle {
   max-width: 42rem;
   color: var(--ink-soft);
-  font-size: 0.92rem;
+  font-size: clamp(0.84rem, 2.4vw, 0.92rem);
   line-height: 1.45;
 }
 
 .versements-page {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: clamp(0.75rem, 2vw, 1.1rem);
   min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: clip;
 }
 
-/* ——— Hero ——— */
+/* ——— Hero (1 col par défaut) ——— */
 
 .main-versements .vs-hero {
   display: grid;
-  grid-template-columns: minmax(16rem, 0.95fr) minmax(18rem, 1.15fr);
-  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
   align-items: stretch;
+  min-width: 0;
 }
 
 .main-versements .vs-hero-ca {
   display: flex;
   flex-direction: column;
   gap: 0.28rem;
-  padding: 1.2rem 1.3rem 1.25rem;
-  border-radius: 18px;
+  padding: clamp(0.95rem, 2.5vw, 1.25rem) clamp(0.95rem, 2.8vw, 1.3rem);
+  border-radius: clamp(14px, 2vw, 18px);
   border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line));
   background: linear-gradient(
     135deg,
@@ -43,14 +48,15 @@
     var(--surface) 58%
   );
   box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 
 .main-versements .vs-kicker {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.74rem;
+  gap: 0.35rem 0.45rem;
+  font-size: clamp(0.68rem, 1.8vw, 0.74rem);
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -67,23 +73,26 @@
 }
 
 .main-versements .vs-hero-value {
-  font-size: clamp(1.85rem, 3.6vw, 2.55rem);
+  font-size: clamp(1.55rem, 7vw, 2.55rem);
   font-weight: 800;
   letter-spacing: -0.03em;
   color: #003d82;
   line-height: 1.1;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .main-versements .vs-hero-hint {
   margin: 0.15rem 0 0;
-  font-size: 0.92rem;
+  font-size: clamp(0.84rem, 2.2vw, 0.92rem);
   font-weight: 700;
   color: var(--ink);
+  overflow-wrap: anywhere;
 }
 
 .main-versements .vs-hero-meta {
   margin: 0;
-  font-size: 0.86rem;
+  font-size: clamp(0.8rem, 2vw, 0.86rem);
   font-weight: 600;
   color: var(--ink-soft);
 }
@@ -91,14 +100,14 @@
 .main-versements .vs-hero-side {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.65rem;
   min-width: 0;
 }
 
 .main-versements .vs-kpis {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.55rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
 }
 
 .main-versements .vs-kpi {
@@ -108,6 +117,7 @@
   gap: 0.12rem;
   margin: 0;
   padding: 0.75rem 0.85rem;
+  min-height: var(--touch-min, 2.75rem);
   border-radius: 14px;
   border: 1px solid var(--line);
   background: var(--surface);
@@ -115,6 +125,7 @@
   color: inherit;
   text-align: left;
   cursor: pointer;
+  min-width: 0;
 }
 
 .main-versements .vs-kpi:hover,
@@ -131,10 +142,12 @@
 }
 
 .main-versements .vs-kpi strong {
-  font-size: 1.08rem;
+  font-size: clamp(0.95rem, 3.2vw, 1.08rem);
   font-weight: 800;
   color: var(--ink);
+  overflow-wrap: anywhere;
   word-break: break-word;
+  max-width: 100%;
 }
 
 .main-versements .vs-kpi em {
@@ -166,6 +179,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
+  min-width: 0;
 }
 
 .main-versements .vs-mix-bar {
@@ -179,6 +193,7 @@
 .main-versements .vs-mix-seg {
   display: block;
   height: 100%;
+  min-width: 0;
 }
 
 .main-versements .vs-mix-seg.is-pending {
@@ -194,6 +209,7 @@
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--ink-soft);
+  line-height: 1.35;
 }
 
 .main-versements .vs-flash {
@@ -205,19 +221,20 @@
   background: color-mix(in srgb, #16a34a 12%, transparent);
   border: 1px solid color-mix(in srgb, #16a34a 35%, transparent);
   color: #166534;
+  overflow-wrap: anywhere;
 }
 
 /* ——— Barre de commande ——— */
 
 .main-versements .vs-toolbar {
-  position: sticky;
-  top: 0.55rem;
+  position: static;
   z-index: 4;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.85rem 1rem;
+  gap: 0.65rem;
+  padding: 0.75rem 0.8rem;
   overflow: visible;
+  min-width: 0;
 }
 
 .main-versements .vs-toolbar:hover {
@@ -228,35 +245,41 @@
 .main-versements .vs-toolbar-top,
 .main-versements .vs-toolbar-row {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.55rem 0.75rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.5rem;
+  min-width: 0;
 }
 
 .main-versements .vs-periods,
 .main-versements .vs-seg {
-  display: inline-flex;
+  display: flex;
   flex-wrap: wrap;
   gap: 0.22rem;
+  width: 100%;
   padding: 0.18rem;
   border-radius: 12px;
   background: color-mix(in srgb, var(--ink) 4.5%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+  min-width: 0;
 }
 
 .main-versements .vs-chip,
 .main-versements .vs-seg-btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
   border: none;
   background: transparent;
   color: var(--ink-soft);
   font-weight: 700;
-  font-size: 0.84rem;
-  padding: 0.42rem 0.8rem;
+  font-size: clamp(0.76rem, 2.4vw, 0.84rem);
+  padding: 0.45rem 0.55rem;
   border-radius: 9px;
   cursor: pointer;
-  min-height: 2.15rem;
+  min-height: var(--touch-min, 2.75rem);
+  min-width: 0;
 }
 
 .main-versements .vs-chip.is-active,
@@ -287,19 +310,21 @@
 }
 
 .main-versements .vs-dates {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.45rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .main-versements .vs-search {
-  flex: 1 1 14rem;
-  min-width: 12rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .main-versements .vs-search input {
   width: 100%;
-  min-height: 2.55rem;
+  min-height: var(--touch-min, 2.75rem);
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0.45rem 0.85rem;
@@ -307,6 +332,7 @@
   color: var(--ink);
   font: inherit;
   font-weight: 600;
+  font-size: 16px;
 }
 
 .main-versements .vs-search input:focus {
@@ -318,7 +344,9 @@
 .main-versements .vs-lock-pill {
   display: inline-flex;
   align-items: center;
-  min-height: 2.3rem;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--touch-min, 2.75rem);
   padding: 0.35rem 0.85rem;
   border-radius: 12px;
   border: 1px solid var(--line);
@@ -329,15 +357,16 @@
 }
 
 .main-versements .vs-composer-toggle {
-  margin-left: auto;
+  width: 100%;
+  margin-left: 0;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
   font-weight: 750;
   font-size: 0.84rem;
-  padding: 0.42rem 0.9rem;
+  padding: 0.5rem 0.9rem;
   border-radius: 12px;
-  min-height: 2.3rem;
+  min-height: var(--touch-min, 2.75rem);
   cursor: pointer;
 }
 
@@ -354,10 +383,12 @@
   flex-direction: column;
   gap: 0.28rem;
   min-width: 0;
+  width: 100%;
 }
 
 .main-versements .vs-dates .vs-field {
-  flex: 0 1 8.5rem;
+  flex: 1 1 auto;
+  width: 100%;
 }
 
 .main-versements .vs-field span {
@@ -372,13 +403,21 @@
 .main-versements .vs-field select,
 .main-versements .vs-membre-row input {
   width: 100%;
-  min-height: 2.55rem;
+  max-width: 100%;
+  min-height: var(--touch-min, 2.75rem);
   padding: 0.5rem 0.7rem;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fff;
   font-size: 16px;
   color: var(--ink);
+  box-sizing: border-box;
+}
+
+.main-versements .vs-field input[type="date"],
+.main-versements .vs-field input[type="time"] {
+  min-width: 0;
+  appearance: none;
 }
 
 .main-versements .vs-field input:focus,
@@ -390,7 +429,7 @@
 
 .main-versements .vs-readonly {
   margin: 0;
-  min-height: 2.55rem;
+  min-height: var(--touch-min, 2.75rem);
   display: flex;
   align-items: center;
   padding: 0.5rem 0.7rem;
@@ -398,6 +437,7 @@
   border-radius: 10px;
   background: color-mix(in srgb, var(--ink) 3%, #fff);
   font-weight: 650;
+  overflow-wrap: anywhere;
 }
 
 .main-versements .vs-seg-fill {
@@ -405,7 +445,7 @@
 }
 
 .main-versements .vs-seg-fill .vs-seg-btn {
-  flex: 1;
+  flex: 1 1 0;
   justify-content: center;
 }
 
@@ -415,11 +455,11 @@
   align-items: center;
   gap: 0.05rem;
   line-height: 1.15;
-  padding: 0.35rem 0.55rem;
+  padding: 0.4rem 0.4rem;
 }
 
 .main-versements .vs-tranche-btn small {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 600;
   color: var(--ink-soft);
 }
@@ -432,25 +472,26 @@
 
 .main-versements .vs-bordereau {
   padding: 0;
-  border-radius: 18px;
+  border-radius: clamp(14px, 2vw, 18px);
   border: 1px solid color-mix(in srgb, var(--sidebar) 22%, var(--line));
   background: var(--surface);
   box-shadow: var(--shadow-sm);
   overflow: hidden;
+  min-width: 0;
 }
 
 .main-versements .vs-bordereau-form {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .main-versements .vs-bordereau-head {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.75rem 1.25rem;
-  padding: 1.15rem 1.2rem 1rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  padding: clamp(0.9rem, 2.5vw, 1.15rem) clamp(0.9rem, 2.5vw, 1.2rem);
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--sidebar) 7%, var(--surface)) 0%,
@@ -461,25 +502,27 @@
 
 .main-versements .vs-bordereau-head h2 {
   margin: 0.15rem 0 0;
-  font-size: 1.15rem;
+  font-size: clamp(1.02rem, 3vw, 1.15rem);
   font-weight: 800;
   color: #003d82;
+  overflow-wrap: anywhere;
 }
 
 .main-versements .vs-bordereau-head p:last-child {
   margin: 0.2rem 0 0;
   font-size: 0.82rem;
   color: var(--ink-soft);
+  line-height: 1.4;
 }
 
 .main-versements .vs-progress {
   display: flex;
   gap: 0.28rem;
-  padding-top: 0.35rem;
+  width: 100%;
 }
 
 .main-versements .vs-progress span {
-  width: 2.1rem;
+  flex: 1;
   height: 0.38rem;
   border-radius: 999px;
   background: color-mix(in srgb, var(--ink) 12%, transparent);
@@ -493,7 +536,8 @@
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
-  padding: 1rem 1.2rem;
+  padding: clamp(0.85rem, 2.2vw, 1rem) clamp(0.9rem, 2.5vw, 1.2rem);
+  min-width: 0;
 }
 
 .main-versements .vs-step h3 {
@@ -514,6 +558,7 @@
   place-items: center;
   width: 1.45rem;
   height: 1.45rem;
+  flex-shrink: 0;
   border-radius: 999px;
   background: var(--sidebar);
   color: #fff;
@@ -524,15 +569,21 @@
 .main-versements .vs-step-grid {
   display: grid;
   gap: 0.55rem 0.7rem;
+  min-width: 0;
 }
 
 .main-versements .vs-step-grid-4 {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.main-versements .vs-field-wide {
+  grid-column: 1 / -1;
+  min-width: 0;
 }
 
 .main-versements .vs-tx {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.7rem;
   padding: 0.85rem;
   border-radius: 14px;
@@ -542,15 +593,17 @@
     color-mix(in srgb, var(--accent) 14%, #fff) 0%,
     var(--surface) 70%
   );
+  min-width: 0;
 }
 
 .main-versements .vs-amount-wrap {
   position: relative;
+  min-width: 0;
 }
 
 .main-versements .vs-amount-wrap input {
   padding-right: 3.8rem;
-  font-size: 1.15rem;
+  font-size: clamp(1.05rem, 3.5vw, 1.15rem);
   font-weight: 800;
   min-height: 3rem;
 }
@@ -571,12 +624,14 @@
   font-size: 0.82rem;
   font-weight: 700;
   color: #003d82;
+  overflow-wrap: anywhere;
 }
 
 .main-versements .vs-step-split {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   border-top: 1px solid var(--line);
+  min-width: 0;
 }
 
 .main-versements .vs-membres {
@@ -586,12 +641,14 @@
   display: flex;
   flex-direction: column;
   gap: 0.45rem;
+  min-width: 0;
 }
 
 .main-versements .vs-membre-row {
   display: flex;
   gap: 0.4rem;
   align-items: center;
+  min-width: 0;
 }
 
 .main-versements .vs-membre-row b {
@@ -611,8 +668,13 @@
   min-width: 0;
 }
 
+.main-versements .vs-membre-row .btn {
+  flex-shrink: 0;
+}
+
 .main-versements .vs-add-membre {
   align-self: flex-start;
+  min-height: var(--touch-min, 2.75rem);
 }
 
 .main-versements .vs-dropzone {
@@ -623,20 +685,24 @@
   justify-content: center;
   gap: 0.35rem;
   margin: 0;
-  padding: 1.2rem 0.9rem;
-  min-height: 9.5rem;
+  padding: 1.1rem 0.85rem;
+  min-height: 8.5rem;
   text-align: center;
   border: 1.5px dashed color-mix(in srgb, var(--sidebar) 35%, var(--line));
   border-radius: 14px;
   background: color-mix(in srgb, var(--sky-soft) 45%, #fff);
   cursor: pointer;
+  min-width: 0;
 }
 
 .main-versements .vs-dropzone input[type="file"] {
   position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
   opacity: 0;
   cursor: pointer;
+  font-size: 0;
 }
 
 .main-versements .vs-dropzone.is-active,
@@ -646,8 +712,9 @@
 }
 
 .main-versements .vs-dropzone strong {
-  font-size: 0.9rem;
+  font-size: clamp(0.84rem, 2.5vw, 0.9rem);
   color: var(--ink);
+  pointer-events: none;
 }
 
 .main-versements .vs-dropzone em {
@@ -656,6 +723,7 @@
   color: var(--ink-soft);
   line-height: 1.35;
   max-width: 22rem;
+  pointer-events: none;
 }
 
 .main-versements .vs-preuve-preview {
@@ -673,7 +741,7 @@
   margin: 0.55rem 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.55rem;
 }
 
@@ -686,15 +754,16 @@
 
 .main-versements .vs-preuves-grid .btn {
   width: 100%;
+  min-height: var(--touch-min, 2.75rem);
 }
 
 .main-versements .vs-bordereau-foot {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  align-items: stretch;
   gap: 0.75rem;
-  padding: 0.95rem 1.2rem 1.15rem;
+  padding: 0.95rem clamp(0.9rem, 2.5vw, 1.2rem)
+    calc(1.15rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
   background: color-mix(in srgb, var(--ink) 2.5%, var(--surface));
 }
@@ -703,9 +772,9 @@
   list-style: none;
   margin: 0;
   padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem 0.85rem;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 0.65rem;
 }
 
 .main-versements .vs-checks li {
@@ -715,6 +784,7 @@
   font-size: 0.78rem;
   font-weight: 650;
   color: var(--ink-soft);
+  min-width: 0;
 }
 
 .main-versements .vs-checks li::before {
@@ -736,24 +806,28 @@
 
 .main-versements .vs-form-actions {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.45rem;
-  margin-left: auto;
+  width: 100%;
+  margin-left: 0;
 }
 
+.main-versements .vs-form-actions .btn,
 .main-versements .vs-submit {
-  min-height: 2.75rem;
-  min-width: 11rem;
+  width: 100%;
+  min-height: var(--touch-min, 2.75rem);
+  min-width: 0;
 }
 
 /* ——— Registre ——— */
 
 .main-versements .vs-ledger {
   min-width: 0;
-  padding: 1rem 1.05rem 1.15rem;
-  border-radius: 16px;
+  padding: clamp(0.85rem, 2.2vw, 1.05rem);
+  border-radius: clamp(14px, 2vw, 16px);
   border: 1px solid var(--line);
   background: var(--paper);
+  overflow: hidden;
 }
 
 .main-versements .vs-ledger-head {
@@ -762,15 +836,14 @@
 
 .main-versements .vs-ledger-title {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.4rem 0.85rem;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
 }
 
 .main-versements .vs-ledger-title h2 {
   margin: 0;
-  font-size: 1.02rem;
+  font-size: clamp(0.98rem, 2.8vw, 1.05rem);
   font-weight: 800;
   color: #003d82;
 }
@@ -780,6 +853,7 @@
   font-size: 0.82rem;
   font-weight: 650;
   color: #9a6700;
+  line-height: 1.35;
 }
 
 .main-versements .vs-ledger-meta {
@@ -789,8 +863,14 @@
   color: var(--ink-soft);
 }
 
+.main-versements .vs-table-wrap {
+  display: none;
+  min-width: 0;
+}
+
 .main-versements .vs-table {
-  min-width: 44rem;
+  min-width: 42rem;
+  width: 100%;
 }
 
 .main-versements .vs-table tbody tr.is-pending td {
@@ -815,12 +895,14 @@
   text-align: left;
   cursor: pointer;
   font-weight: 750;
+  max-width: 100%;
 }
 
 .main-versements .vs-row-open small {
   font-size: 0.75rem;
   font-weight: 550;
   color: var(--ink-soft);
+  overflow-wrap: anywhere;
 }
 
 .main-versements .vs-row-open:focus-visible {
@@ -831,6 +913,7 @@
 
 .main-versements .vs-td-amount {
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .main-versements .vs-col-action {
@@ -840,14 +923,15 @@
 }
 
 .main-versements .vs-col-action .btn {
-  min-height: 2.2rem;
-  padding: 0.3rem 0.7rem;
+  min-height: 2.4rem;
+  padding: 0.35rem 0.7rem;
   font-size: 0.82rem;
 }
 
 .main-versements .vs-numero {
   font-size: 0.8rem;
   word-break: break-all;
+  overflow-wrap: anywhere;
   color: var(--ink);
 }
 
@@ -871,6 +955,7 @@
   border-radius: 999px;
   font-size: 0.72rem;
   font-weight: 750;
+  white-space: nowrap;
 }
 
 .main-versements .vs-statut.is-en_attente {
@@ -883,13 +968,15 @@
   color: #166534;
 }
 
+/* Cartes = vue mobile / tablette */
 .main-versements .vs-cards {
   list-style: none;
   margin: 0;
   padding: 0;
-  display: none;
+  display: flex;
   flex-direction: column;
   gap: 0.65rem;
+  min-width: 0;
 }
 
 .main-versements .vs-card {
@@ -901,6 +988,7 @@
   border: 1px solid var(--line);
   background: var(--surface);
   box-shadow: var(--shadow-sm);
+  min-width: 0;
 }
 
 .main-versements .vs-card.is-pending {
@@ -922,20 +1010,24 @@
   text-align: left;
   cursor: pointer;
   width: 100%;
+  min-width: 0;
 }
 
 .main-versements .vs-card-main header {
   display: flex;
   width: 100%;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 0.5rem;
+  min-width: 0;
 }
 
 .main-versements .vs-card-main header strong {
-  font-size: 1.05rem;
+  font-size: clamp(0.98rem, 3.5vw, 1.08rem);
   font-weight: 800;
   color: #003d82;
+  overflow-wrap: anywhere;
+  min-width: 0;
 }
 
 .main-versements .vs-card-main p,
@@ -944,12 +1036,20 @@
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--ink-soft);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  max-width: 100%;
 }
 
 .main-versements .vs-card-actions {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.4rem;
+}
+
+.main-versements .vs-card-actions .btn {
+  width: 100%;
+  min-height: var(--touch-min, 2.75rem);
 }
 
 .main-versements .vs-empty {
@@ -958,7 +1058,7 @@
   align-items: center;
   gap: 0.4rem;
   margin: 0;
-  padding: 2.2rem 1rem;
+  padding: clamp(1.5rem, 5vw, 2.2rem) 1rem;
   text-align: center;
   color: var(--ink-soft);
   border: 1px dashed var(--line);
@@ -979,6 +1079,8 @@
 
 .main-versements .vs-empty .btn {
   margin-top: 0.45rem;
+  width: min(100%, 18rem);
+  min-height: var(--touch-min, 2.75rem);
 }
 
 .main-versements .catalogue-footer {
@@ -993,17 +1095,24 @@
   color: var(--ink-soft);
 }
 
+.main-versements .catalogue-meta {
+  margin: 0;
+  line-height: 1.4;
+}
+
 .main-versements .catalogue-pagination {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 0.25rem;
 }
 
 .main-versements .catalogue-page-btn {
   display: inline-grid;
   place-items: center;
-  min-width: 2.15rem;
-  height: 2.15rem;
+  min-width: 2.4rem;
+  height: 2.4rem;
   padding: 0 0.45rem;
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1030,43 +1139,49 @@
   cursor: not-allowed;
 }
 
-/* ——— Dossier ——— */
+/* ——— Dossier / modal ——— */
 
 .main-versements .vs-modal-backdrop {
   position: fixed;
   inset: 0;
   z-index: 80;
   display: grid;
-  place-items: center;
-  padding: 1rem;
+  place-items: end center;
+  padding: 0;
   background: color-mix(in srgb, #0b1a2e 55%, transparent);
 }
 
 .main-versements .vs-modal {
-  width: min(100%, 56rem);
-  max-height: min(92dvh, 52rem);
+  width: 100%;
+  max-width: 100%;
+  max-height: min(94dvh, 100%);
   overflow: auto;
   padding: 0;
-  border-radius: 18px;
+  border-radius: 18px 18px 0 0;
   background: var(--paper);
   border: 1px solid var(--line);
+  border-bottom: 0;
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
   display: flex;
   flex-direction: column;
+  -webkit-overflow-scrolling: touch;
 }
 
 .main-versements .vs-modal-head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 0.85rem;
-  padding: 1.15rem 1.25rem 1.05rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  padding: 1rem 1rem 0.95rem;
   border-bottom: 1px solid var(--line);
   background: linear-gradient(
     135deg,
     color-mix(in srgb, var(--accent) 16%, #fff) 0%,
     #eef4f8 100%
   );
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .main-versements .vs-modal-head-main {
@@ -1078,10 +1193,11 @@
 
 .main-versements .vs-modal-head h2 {
   margin: 0;
-  font-size: 1.5rem;
+  font-size: clamp(1.25rem, 5vw, 1.5rem);
   font-weight: 800;
   letter-spacing: -0.02em;
   color: #003d82;
+  overflow-wrap: anywhere;
 }
 
 .main-versements .vs-modal-head-meta {
@@ -1093,15 +1209,21 @@
   color: var(--ink-soft);
 }
 
+.main-versements .vs-modal-head .btn {
+  width: 100%;
+  min-height: var(--touch-min, 2.75rem);
+}
+
 .main-versements .vs-modal-body {
   display: grid;
   gap: 1rem;
-  padding: 1.05rem 1.2rem;
+  padding: 1rem;
+  min-width: 0;
 }
 
 .main-versements .vs-detail {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.55rem;
   margin: 0;
 }
@@ -1114,6 +1236,7 @@
   border-radius: 12px;
   border: 1px solid var(--line);
   background: var(--surface);
+  min-width: 0;
 }
 
 .main-versements .vs-detail dt {
@@ -1131,6 +1254,7 @@
   font-size: 0.95rem;
   color: var(--ink);
   line-height: 1.35;
+  overflow-wrap: anywhere;
   word-break: break-word;
 }
 
@@ -1143,6 +1267,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.55rem;
+  min-width: 0;
 }
 
 .main-versements .vs-preuve-figure figcaption {
@@ -1155,14 +1280,19 @@
 
 .main-versements .vs-preuve-gallery {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.55rem;
+}
+
+.main-versements .vs-preuve-gallery a {
+  min-width: 0;
+  display: block;
 }
 
 .main-versements .vs-preuve-gallery img {
   display: block;
   width: 100%;
-  max-height: 16rem;
+  max-height: 14rem;
   object-fit: contain;
   border-radius: 10px;
   background: color-mix(in srgb, var(--ink) 3%, #fff);
@@ -1170,13 +1300,15 @@
 }
 
 .main-versements .vs-modal-foot {
-  padding: 0.9rem 1.2rem 1.15rem;
+  padding: 0.9rem 1rem calc(1.15rem + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
   background: color-mix(in srgb, var(--ink) 2%, var(--paper));
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
   align-items: center;
+  position: sticky;
+  bottom: 0;
 }
 
 .main-versements .vs-locked-note {
@@ -1188,28 +1320,178 @@
   font-size: 0.88rem;
   font-weight: 600;
   flex: 1 1 100%;
+  line-height: 1.4;
 }
 
 .main-versements .vs-modal-foot .btn-primary {
-  flex: 1 1 auto;
-  min-width: 10rem;
-  min-height: 2.85rem;
+  flex: 1 1 100%;
+  width: 100%;
+  min-width: 0;
+  min-height: var(--touch-min, 2.75rem);
 }
 
-/* ——— Breakpoints ——— */
+/* ——— Header actions page ——— */
 
-@media (min-width: 640px) {
-  .main-versements .vs-step-grid-4 {
-    grid-template-columns: 1fr 1fr;
+.main-versements .page-actions {
+  gap: 0.45rem;
+}
+
+.main-versements .page-actions .btn,
+.main-versements .page-actions .btn-ghost {
+  min-height: 2.5rem;
+}
+
+.main-versements .vs-action-short {
+  display: none;
+}
+
+.main-versements .vs-action-full {
+  display: inline;
+}
+
+/* ==========================================================================
+   ≥ 480px — grands téléphones / petit paysage
+   ========================================================================== */
+
+@media (min-width: 480px) {
+  .main-versements .vs-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .main-versements .vs-field-wide {
-    grid-column: 1 / -1;
+  .main-versements .vs-dates {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .main-versements .vs-dates:has(> :only-child) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .main-versements .vs-preuves-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .main-versements .vs-card-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .main-versements .vs-card-actions:has(> :only-child) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .main-versements .vs-preuve-gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   ≥ 640px — tablettes portrait / grands mobiles
+   ========================================================================== */
+
+@media (min-width: 640px) {
+  .main-versements .vs-toolbar {
+    padding: 0.85rem 1rem;
+  }
+
+  .main-versements .vs-toolbar-top,
+  .main-versements .vs-toolbar-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .main-versements .vs-periods,
+  .main-versements .vs-seg {
+    width: auto;
+  }
+
+  .main-versements .vs-chip,
+  .main-versements .vs-seg-btn {
+    flex: 0 1 auto;
+    min-height: 2.25rem;
+    padding: 0.42rem 0.75rem;
+  }
+
+  .main-versements .vs-dates {
+    width: auto;
+    flex: 1 1 14rem;
+  }
+
+  .main-versements .vs-search {
+    flex: 1 1 12rem;
+    width: auto;
+  }
+
+  .main-versements .vs-lock-pill {
+    width: auto;
+    min-height: 2.3rem;
+  }
+
+  .main-versements .vs-composer-toggle {
+    width: auto;
+    margin-left: auto;
+    min-height: 2.3rem;
+  }
+
+  .main-versements .vs-bordereau-head {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+  }
+
+  .main-versements .vs-progress {
+    width: auto;
+    padding-top: 0.35rem;
+  }
+
+  .main-versements .vs-progress span {
+    flex: 0 0 auto;
+    width: 2.1rem;
+  }
+
+  .main-versements .vs-step-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .main-versements .vs-tx {
-    grid-template-columns: minmax(12rem, 0.9fr) minmax(14rem, 1.1fr);
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
     align-items: start;
+  }
+
+  .main-versements .vs-bordereau-foot {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .main-versements .vs-checks {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.45rem 0.85rem;
+  }
+
+  .main-versements .vs-form-actions {
+    flex-direction: row;
+    width: auto;
+    margin-left: auto;
+  }
+
+  .main-versements .vs-form-actions .btn,
+  .main-versements .vs-submit {
+    width: auto;
+    min-width: 8rem;
+  }
+
+  .main-versements .vs-submit {
+    min-width: 11rem;
+  }
+
+  .main-versements .vs-ledger-title {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.4rem 0.85rem;
   }
 
   .main-versements .vs-detail {
@@ -1226,19 +1508,104 @@
     justify-content: space-between;
   }
 
-  .main-versements .vs-preuve-gallery {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .main-versements .catalogue-pagination {
+    justify-content: flex-end;
+  }
+
+  .main-versements .vs-modal-backdrop {
+    place-items: center;
+    padding: 1rem;
+  }
+
+  .main-versements .vs-modal {
+    width: min(100%, 40rem);
+    max-height: min(92dvh, 52rem);
+    border-radius: 18px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .main-versements .vs-modal-head {
+    flex-direction: row;
+    align-items: flex-start;
+    justify-content: space-between;
+    padding: 1.15rem 1.25rem 1.05rem;
+  }
+
+  .main-versements .vs-modal-head .btn {
+    width: auto;
+    align-self: flex-start;
+  }
+
+  .main-versements .vs-modal-body {
+    padding: 1.05rem 1.2rem;
+  }
+
+  .main-versements .vs-modal-foot {
+    padding: 0.9rem 1.2rem 1.15rem;
+  }
+
+  .main-versements .vs-modal-foot .btn-primary {
+    flex: 1 1 auto;
+    width: auto;
+    min-width: 10rem;
   }
 }
 
-@media (min-width: 800px) {
+/* ==========================================================================
+   ≥ 768px — tablettes
+   ========================================================================== */
+
+@media (min-width: 768px) {
+  .main-versements .vs-toolbar {
+    position: sticky;
+    top: 0.55rem;
+  }
+
+  .main-versements .vs-hero {
+    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.15fr);
+    gap: 1rem;
+  }
+
+  .main-versements .page-actions {
+    display: flex;
+    flex-wrap: wrap;
+  }
+}
+
+/* ==========================================================================
+   ≥ 900px — tablettes paysage / petits laptops : tableau
+   ========================================================================== */
+
+@media (min-width: 900px) {
+  .main-versements .vs-cards {
+    display: none;
+  }
+
+  .main-versements .vs-table-wrap {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .main-versements .vs-modal {
+    width: min(100%, 56rem);
+  }
+
   .main-versements .vs-modal-body {
-    grid-template-columns: minmax(0, 1.15fr) minmax(15rem, 0.9fr);
+    grid-template-columns: minmax(0, 1.15fr) minmax(14rem, 0.9fr);
     align-items: start;
   }
+
+  .main-versements .vs-col-action .btn {
+    min-height: 2.2rem;
+  }
 }
 
-@media (min-width: 960px) {
+/* ==========================================================================
+   ≥ 1024px — desktop
+   ========================================================================== */
+
+@media (min-width: 1024px) {
   .main-versements .vs-step-grid-4 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1251,77 +1618,114 @@
     border-left: 1px solid var(--line);
     background: color-mix(in srgb, var(--sidebar) 4%, var(--surface));
   }
+
+  .main-versements .vs-dropzone {
+    min-height: 9.5rem;
+  }
 }
 
-@media (max-width: 899px) {
-  .main-versements .vs-hero {
-    grid-template-columns: 1fr;
+/* ==========================================================================
+   ≥ 1280px — grands écrans
+   ========================================================================== */
+
+@media (min-width: 1280px) {
+  .main-versements .vs-hero-value {
+    font-size: clamp(2.1rem, 2.2vw, 2.55rem);
   }
 
-  .main-versements .vs-table-wrap {
+  .main-versements .vs-toolbar {
+    padding: 0.9rem 1.1rem;
+  }
+}
+
+/* ==========================================================================
+   Téléphones étroits
+   ========================================================================== */
+
+@media (max-width: 480px) {
+  .main-versements .page-actions .vs-action-full {
     display: none;
   }
 
-  .main-versements .vs-cards {
-    display: flex;
+  .main-versements .page-actions .vs-action-short {
+    display: inline;
+  }
+
+  .main-versements .page-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  .main-versements .page-actions .btn,
+  .main-versements .page-actions .export-excel-wrap,
+  .main-versements .page-actions .export-excel-wrap .btn {
+    width: 100%;
   }
 }
 
-@media (max-width: 720px) {
-  .main-versements .vs-toolbar-top,
-  .main-versements .vs-toolbar-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .main-versements .vs-periods,
-  .main-versements .vs-seg {
-    width: 100%;
+@media (max-width: 379px) {
+  .main-versements .vs-checks {
+    grid-template-columns: 1fr;
   }
 
   .main-versements .vs-chip,
   .main-versements .vs-seg-btn {
-    flex: 1;
-    justify-content: center;
+    font-size: 0.74rem;
+    padding: 0.4rem 0.4rem;
   }
 
-  .main-versements .vs-dates .vs-field,
-  .main-versements .vs-search {
-    flex: 1 1 100%;
-    min-width: 0;
-    width: 100%;
+  .main-versements .vs-tranche-btn small {
+    display: none;
   }
 
-  .main-versements .vs-composer-toggle {
-    margin-left: 0;
-    width: 100%;
+  .main-versements .vs-mix-legend {
+    font-size: 0.72rem;
+  }
+}
+
+/* ==========================================================================
+   Paysage bas / téléphone couché
+   ========================================================================== */
+
+@media (max-height: 480px) and (orientation: landscape) {
+  .main-versements .vs-toolbar {
+    position: static;
   }
 
-  .main-versements .vs-form-actions {
-    width: 100%;
-    margin-left: 0;
-  }
-
-  .main-versements .vs-form-actions .btn,
-  .main-versements .vs-submit {
-    flex: 1 1 auto;
-    width: 100%;
-    min-height: var(--touch-min, 2.75rem);
-  }
-
-  .main-versements .vs-modal-head {
-    flex-direction: column;
-  }
-
-  .main-versements .vs-modal-head .btn {
-    align-self: stretch;
+  .main-versements .vs-hero {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 
   .main-versements .vs-kpis {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .main-versements .vs-col-action .btn {
-    min-height: 2.4rem;
+  .main-versements .vs-modal {
+    max-height: 96dvh;
+    border-radius: 14px;
+  }
+
+  .main-versements .vs-modal-backdrop {
+    place-items: center;
+    padding: 0.5rem;
+  }
+
+  .main-versements .vs-dropzone {
+    min-height: 5.5rem;
+    padding: 0.75rem;
+  }
+}
+
+/* ==========================================================================
+   Prefers reduced motion
+   ========================================================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  .main-versements .vs-toolbar,
+  .main-versements .vs-kpi,
+  .main-versements .vs-chip,
+  .main-versements .vs-seg-btn {
+    transition: none;
   }
 }

@@ -539,15 +539,16 @@ export function VersementsPage() {
           {canDeclare ? (
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary vs-action-new"
               onClick={focusForm}
             >
-              + Nouveau versement
+              <span className="vs-action-full">+ Nouveau versement</span>
+              <span className="vs-action-short">+ Versement</span>
             </button>
           ) : canConfirm && totals.pending > 0 ? (
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn btn-primary vs-action-confirm"
               onClick={() => {
                 setStatutFilter("en_attente");
                 setComposerOpen(false);
