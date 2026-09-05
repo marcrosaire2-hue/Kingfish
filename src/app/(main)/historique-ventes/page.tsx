@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
 
 /** Ancienne page fusionnée dans le journal des ventes. */
-export default function Page({
+export default async function Page({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
   const qs = new URLSearchParams();
-  for (const [key, value] of Object.entries(searchParams)) {
+  for (const [key, value] of Object.entries(sp)) {
     if (typeof value === "string") qs.set(key, value);
     else if (Array.isArray(value) && value[0]) qs.set(key, value[0]);
   }

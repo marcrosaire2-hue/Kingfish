@@ -3,16 +3,17 @@ import { redirect } from "next/navigation";
 /**
  * Ancienne URL Gbégamey — le stock est saisi sur Stock Gbégamey.
  */
-export default function Page({
+export default async function Page({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const sp = await searchParams;
   const params = new URLSearchParams();
-  const date = searchParams.date;
+  const date = sp.date;
   if (typeof date === "string") params.set("date", date);
 
-  const tab = searchParams.tab ?? searchParams.section;
+  const tab = sp.tab ?? sp.section;
   if (
     tab === "local" ||
     tab === "boissons" ||

@@ -8,16 +8,17 @@ function first(
   return undefined;
 }
 
-export default function Page({
+export default async function Page({
   searchParams,
 }: {
-  searchParams: Record<string, string | string[] | undefined>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
+  const params = await searchParams;
   return (
     <JournalVentesPage
-      initialFrom={first(searchParams.from)}
-      initialTo={first(searchParams.to)}
-      initialSite={first(searchParams.site)}
+      initialFrom={first(params.from)}
+      initialTo={first(params.to)}
+      initialSite={first(params.site)}
     />
   );
 }
