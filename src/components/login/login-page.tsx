@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   APP_LOGO,
   APP_NAME,
@@ -15,9 +15,8 @@ const REMEMBER_KEY = "kingfish-remember-user";
 /** Temps mini d’affichage du logo avant d’entrer dans l’app. */
 const LOGO_HOLD_MS = 900;
 
-export function LoginPage() {
+export function LoginPage({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { refresh } = useSession();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -58,7 +57,7 @@ export function LoginPage() {
         /* stockage indisponible */
       }
 
-      const next = searchParams.get("next");
+      const next = nextPath?.trim() || "";
       const isSafeInternalPath = !!next && /^\/(?!\/|\\)/.test(next);
       const target = isSafeInternalPath ? next : (body.home as string) || "/";
 

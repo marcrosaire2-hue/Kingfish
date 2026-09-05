@@ -1,4 +1,6 @@
-/** Login et routes hors shell : pas d'écran plein page. */
+import { BrandLoader } from "@/components/brand-loader";
+
+/** Évite un écran blanc pendant le chargement (surtout Safari iOS). */
 export default function Loading() {
-  return null;
+  return <BrandLoader label="Chargement…" />;
 }
