@@ -2488,6 +2488,10 @@ select {
   pointer-events: none;
 }
 
+/* Hero marque — réservé au mobile (voir max-width: 860px) */
+.login-mobile-hero {
+  display: none;
+}
 
 .login-card {
   position: relative;
@@ -2626,9 +2630,15 @@ select {
   align-items: center;
 }
 
+.login-form-mark-slot {
+  display: grid;
+  place-items: center;
+  margin: 0 0 1.05rem;
+}
+
 .login-form-head .login-form-mark {
   display: grid;
-  margin: 0 0 1.05rem;
+  margin: 0;
 }
 
 .login-form-tag {
@@ -2785,44 +2795,86 @@ select {
   font-weight: 800;
 }
 
+/* ========== Login mobile — composition + chorégraphie (≤860px) ========== */
 @media (max-width: 860px) {
   .login-screen {
-    display: grid;
-    place-items: center;
-    padding:
-      calc(1rem + env(safe-area-inset-top, 0px))
-      max(1rem, env(safe-area-inset-right, 0px))
-      calc(1rem + env(safe-area-inset-bottom, 0px))
-      max(1rem, env(safe-area-inset-left, 0px));
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: stretch;
+    place-items: unset;
+    padding: 0;
     min-height: 100dvh;
-    background: var(--sidebar);
+    background: #002848;
   }
 
   .login-screen::before {
     display: block;
     filter: none;
-    transform: none;
+    transform: scale(1.08);
+    transform-origin: 55% 40%;
     inset: 0;
     background:
       linear-gradient(
-        165deg,
-        rgba(0, 40, 72, 0.82) 0%,
-        rgba(0, 40, 72, 0.58) 45%,
-        rgba(0, 40, 72, 0.78) 100%
+        180deg,
+        rgba(0, 32, 58, 0.55) 0%,
+        rgba(0, 40, 72, 0.28) 38%,
+        rgba(0, 28, 52, 0.72) 72%,
+        rgba(0, 22, 42, 0.92) 100%
       ),
-      url("/login-bg.png") center center / cover no-repeat;
+      url("/login-bg.png") center 32% / cover no-repeat;
   }
 
+  /* Marque flottante sur la photo */
+  .login-mobile-hero {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+    position: relative;
+    z-index: 1;
+    flex: 1 1 auto;
+    justify-content: center;
+    padding:
+      calc(2.25rem + env(safe-area-inset-top, 0px))
+      1.25rem
+      1.25rem;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  .login-mobile-brand {
+    font-size: clamp(1.55rem, 7vw, 2.05rem);
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #fff;
+    text-shadow: 0 4px 24px rgba(0, 0, 0, 0.45);
+    line-height: 1;
+  }
+
+  .login-mobile-sites {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: rgba(255, 255, 255, 0.78);
+    text-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Feuille formulaire ancrée en bas */
   .login-card {
     display: block;
-    width: min(100%, 22.5rem);
+    width: 100%;
+    max-width: none;
     min-height: auto;
-    border-radius: 1.15rem;
+    margin: 0;
+    border-radius: 1.65rem 1.65rem 0 0;
     overflow: hidden;
     background: var(--login-card);
     box-shadow:
-      0 24px 64px rgba(0, 0, 0, 0.28),
-      0 0 0 1px rgba(255, 255, 255, 0.12);
+      0 -18px 48px rgba(0, 0, 0, 0.28),
+      0 0 0 1px rgba(255, 255, 255, 0.1);
+    animation: none;
   }
 
   .login-visual {
@@ -2832,20 +2884,32 @@ select {
   .login-panel-form {
     margin-top: 0;
     border-radius: 0;
-    justify-content: center;
+    justify-content: flex-start;
     padding:
-      1.65rem 1.35rem
-      calc(1.35rem + env(safe-area-inset-bottom, 0px));
+      1.35rem 1.4rem
+      calc(1.2rem + env(safe-area-inset-bottom, 0px));
     box-shadow: none;
   }
 
   .login-form-wrap {
     width: 100%;
-    gap: 1rem;
+    max-width: 24rem;
+    margin: 0 auto;
+    gap: 1.05rem;
   }
 
   .login-form-head {
     margin-top: 0;
+  }
+
+  .login-form-head .login-form-mark {
+    margin-bottom: 0;
+  }
+
+  .login-form-mark-slot {
+    display: grid;
+    place-items: center;
+    margin: 0 0 0.85rem;
   }
 
   .login-title {
@@ -2860,24 +2924,140 @@ select {
   .login-field input,
   .login-submit {
     min-height: 3.15rem;
-    border-radius: 0.75rem;
+    border-radius: 0.85rem;
+  }
+
+  .login-submit {
+    margin-top: 0.15rem;
+    box-shadow: 0 12px 28px color-mix(in srgb, var(--login-orange) 38%, transparent);
   }
 }
 
-/* Tablette : carte un peu plus large, fond plein */
-@media (min-width: 561px) and (max-width: 860px) {
+/* Choréo d’entrée — mobile uniquement */
+@media (max-width: 860px) and (prefers-reduced-motion: no-preference) {
+  .login-screen::before {
+    animation: login-m-bg 1.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .login-mobile-brand {
+    animation: login-m-brand 0.7s cubic-bezier(0.22, 1, 0.36, 1) 0.12s both;
+  }
+
+  .login-mobile-sites {
+    animation: login-m-fade-up 0.55s ease 0.28s both;
+  }
+
   .login-card {
-    width: min(100%, 26rem);
+    animation: login-m-sheet 0.72s cubic-bezier(0.22, 1, 0.36, 1) 0.22s both;
+  }
+
+  .login-form-mark-slot {
+    animation: login-m-mark 0.6s cubic-bezier(0.22, 1, 0.36, 1) 0.42s both;
+  }
+
+  .login-title {
+    animation: login-m-fade-up 0.5s ease 0.52s both;
+  }
+
+  .login-form-tag {
+    animation: login-m-fade-up 0.5s ease 0.6s both;
+  }
+
+  .login-field-user {
+    animation: login-m-fade-up 0.48s ease 0.7s both;
+  }
+
+  .login-field-pass {
+    animation: login-m-fade-up 0.48s ease 0.8s both;
+  }
+
+  .login-submit {
+    animation: login-m-fade-up 0.48s ease 0.9s both;
+  }
+
+  .login-error {
+    animation: login-m-fade-up 0.35s ease both;
+  }
+}
+
+@keyframes login-m-bg {
+  from {
+    opacity: 0;
+    transform: scale(1.16);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes login-m-brand {
+  from {
+    opacity: 0;
+    letter-spacing: 0.32em;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.14em;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-m-sheet {
+  from {
+    opacity: 0;
+    transform: translateY(42%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes login-m-mark {
+  from {
+    opacity: 0;
+    transform: scale(0.78);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes login-m-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Tablette portrait : un peu plus d’air */
+@media (min-width: 561px) and (max-width: 860px) {
+  .login-mobile-hero {
+    padding-top: calc(3rem + env(safe-area-inset-top, 0px));
+  }
+
+  .login-card {
+    width: min(100%, 28rem);
+    margin: 0 auto;
+    border-radius: 1.65rem 1.65rem 0 0;
   }
 
   .login-panel-form {
-    padding: 2rem 1.75rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    padding: 1.75rem 1.85rem calc(1.5rem + env(safe-area-inset-bottom, 0px));
   }
 }
 
 @media (max-width: 420px) {
-  .login-card {
-    width: 100%;
+  .login-mobile-brand {
+    font-size: 1.4rem;
+    letter-spacing: 0.12em;
   }
 
   .login-title {
@@ -2885,14 +3065,27 @@ select {
   }
 
   .login-panel-form {
-    padding-left: 1.05rem;
-    padding-right: 1.05rem;
+    padding-left: 1.1rem;
+    padding-right: 1.1rem;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .login-card {
     animation: none;
+  }
+
+  .login-screen::before,
+  .login-mobile-brand,
+  .login-mobile-sites,
+  .login-form-mark-slot,
+  .login-title,
+  .login-form-tag,
+  .login-field-user,
+  .login-field-pass,
+  .login-submit,
+  .login-error {
+    animation: none !important;
   }
 }
 

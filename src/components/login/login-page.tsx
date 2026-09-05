@@ -110,6 +110,12 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
 
   return (
     <div className="login-screen">
+      {/* Scène mobile uniquement — masquée dès 861px */}
+      <div className="login-mobile-hero" aria-hidden>
+        <span className="login-mobile-brand">KINGFISH</span>
+        <span className="login-mobile-sites">{APP_SITES_LABEL}</span>
+      </div>
+
       <div className="login-card" role="presentation">
         <aside className="login-visual">
           <div className="login-visual-media" aria-hidden />
@@ -128,7 +134,9 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
         <section className="login-panel-form" aria-label="Connexion">
           <div className="login-form-wrap">
             <header className="login-form-head">
-              <BrandLogoMark size="md" className="login-form-mark" alt="" />
+              <div className="login-form-mark-slot">
+                <BrandLogoMark size="md" className="login-form-mark" alt="" />
+              </div>
               <h1 className="login-title">Welcome To KINGFISH</h1>
               <p className="login-form-tag">{APP_TAGLINE}</p>
             </header>
@@ -143,7 +151,7 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
                 </p>
               ) : null}
 
-              <label className="login-field">
+              <label className="login-field login-field-user">
                 <span className="sr-only">Identifiant</span>
                 <input
                   name="username"
@@ -163,7 +171,7 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
                 />
               </label>
 
-              <label className="login-field login-password">
+              <label className="login-field login-password login-field-pass">
                 <span className="sr-only">Mot de passe</span>
                 <input
                   name="password"
