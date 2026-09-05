@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
-import {
-  isExecutiveAdminAccount,
-  ROLE_LABELS,
-  roleNavUnscoped,
-  type UserRole,
-} from "@/lib/auth-types";
+import { ROLE_LABELS, roleNavUnscoped, type UserRole } from "@/lib/auth-types";
 import {
   PERMISSION_RESOURCES,
   ROLES_FOR_PERMISSIONS,
+  isAdminEquipeResource,
   isPermissionAction,
   isPermissionValue,
   type PermissionOverride,
@@ -25,11 +21,11 @@ import { listUsers } from "@/lib/users-repo";
 
 export const runtime = "nodejs";
 
-async function requireExecutiveAdmin() {
+async function requireAutorisationsAdmin() {
   const user = await requireUser();
-  if (!isExecutiveAdminAccount(user.username) || user.role !== "admin") {
+  if (user.role !== "admin") {
     throw new AuthError(
-      "La matrice d’autorisations est réservée au compte direction.",
+      "Les autorisations sont réservées au rôle Administrateur. Le DAF n’est pas un administrateur.",
       403,
     );
   }
@@ -38,7 +34,7 @@ async function requireExecutiveAdmin() {
 
 export async function GET() {
   try {
-    const user = await requireExecutiveAdmin();
+    const user = await requireAutorisationsAdmin();
     const [config, history, users] = await Promise.all([
       getAutorisationsConfig(),
       listAutorisationsHistory(30),
@@ -47,10 +43,7 @@ export async function GET() {
 
     const roleDefaults: Record<string, string[]> = {};
     for (const role of ROLES_FOR_PERMISSIONS) {
-      roleDefaults[role] = roleNavUnscoped(
-        role,
-        role === "admin" ? user.username : undefined,
-      );
+      roleDefaults[role] = roleNavUnscoped(role);
     }
 
     const matrix = PERMISSION_RESOURCES.map((resource) => {
@@ -59,22 +52,28 @@ export async function GET() {
         Record<string, { value: string; source: string }>
       > = {};
       for (const role of ROLES_FOR_PERMISSIONS) {
-        const defaults = roleNavUnscoped(
-          role as UserRole,
-          role === "admin" ? user.username : undefined,
-        );
-        const defaultAllowed = resource.navKey
-          ? defaults.includes(resource.navKey)
-          : false;
+        const defaults = roleNavUnscoped(role as UserRole);
+        const equipeResource = isAdminEquipeResource(resource.id);
+        const defaultAllowed = equipeResource
+          ? role === "admin"
+          : resource.navKey
+            ? defaults.includes(resource.navKey)
+            : false;
         byRole[role] = {};
         for (const action of resource.actions) {
-          byRole[role][action] = resolveActionDecision({
-            config,
-            role: role as UserRole,
-            resourceId: resource.id,
-            action,
-            defaultAllowed,
-          });
+          const cell = equipeResource
+            ? {
+                value: role === "admin" ? "allow" : "deny",
+                source: "inherit",
+              }
+            : resolveActionDecision({
+                config,
+                role: role as UserRole,
+                resourceId: resource.id,
+                action,
+                defaultAllowed,
+              });
+          byRole[role][action] = cell;
         }
       }
       return { resource, byRole };
@@ -111,7 +110,7 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const user = await requireExecutiveAdmin();
+    const user = await requireAutorisationsAdmin();
     const body = (await request.json()) as {
       overrides?: PermissionOverride[];
       confirmSensitive?: boolean;

@@ -20,19 +20,22 @@ export async function requireUser(): Promise<SessionUser> {
   };
 }
 
-/** Admin, DAF ou comptable — écrans / API financiers et de direction. */
+/** Accès finance (administrateur, DAF ou comptable) — pas la page Équipe. */
 export async function requireAdmin(): Promise<SessionUser> {
   const user = await requireUser();
   if (!hasFinanceAccess(user.role)) {
-    throw new AuthError("Accès administrateur requis", 403);
+    throw new AuthError("Accès finance requis", 403);
   }
   return user;
 }
 
 export async function requireUserManagementAdmin(): Promise<SessionUser> {
-  const user = await requireAdmin();
+  const user = await requireUser();
   if (!canManageUsers(user)) {
-    throw new AuthError("Gestion des comptes non autorisée pour ce profil.", 403);
+    throw new AuthError(
+      "Réservé au rôle Administrateur. Le DAF n’est pas un administrateur.",
+      403,
+    );
   }
   return user;
 }

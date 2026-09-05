@@ -8,12 +8,14 @@ export function RegistreDrawer({
   title,
   subtitle,
   children,
+  closeLabel = "Fermer le registre",
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   subtitle?: string;
   children: React.ReactNode;
+  closeLabel?: string;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -36,7 +38,7 @@ export function RegistreDrawer({
       <button
         type="button"
         className="drawer-backdrop"
-        aria-label="Fermer le registre"
+        aria-label={closeLabel}
         onClick={onClose}
       />
       <aside

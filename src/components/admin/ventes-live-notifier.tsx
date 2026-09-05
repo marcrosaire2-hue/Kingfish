@@ -191,16 +191,22 @@ export function VentesLiveNotifier() {
 
   return (
     <>
-      <div className="admin-vente-live-bar" role="status" aria-live="polite">
-        <span className="admin-vente-live-label">
+      <div
+        className={`equipe-live-bar${listening && !error ? " is-on" : ""}`}
+        role="status"
+        aria-live="polite"
+      >
+        <span className="equipe-live-pill">
+          <span className="equipe-live-dot" aria-hidden />
           Ventes live
-          <span className="muted"> · {Math.round(POLL_MS / 1000)} s</span>
         </span>
         {error ? (
           <span className="admin-vente-live-error">{error}</span>
         ) : (
-          <span className="muted">
-            {listening ? "À l’écoute des encaissements" : "Initialisation…"}
+          <span className="equipe-live-copy">
+            {listening
+              ? `À l’écoute · ${Math.round(POLL_MS / 1000)} s`
+              : "Initialisation…"}
           </span>
         )}
         <span className="admin-vente-live-actions">

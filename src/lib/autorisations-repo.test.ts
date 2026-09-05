@@ -97,4 +97,73 @@ describe("autorisations — résolution", () => {
       }),
     ).toBe(true);
   });
+
+  it("garde Équipe et la matrice allumées pour tout admin, même en deny", () => {
+    const config = {
+      ...EMPTY_AUTORISATIONS,
+      overrides: [
+        {
+          targetType: "role" as const,
+          targetId: "admin",
+          resourceId: "admin",
+          actions: { access: "deny" as const },
+        },
+        {
+          targetType: "role" as const,
+          targetId: "admin",
+          resourceId: "autorisations",
+          actions: { access: "deny" as const },
+        },
+      ],
+    };
+    expect(
+      isActionAllowed({
+        config,
+        role: "admin",
+        site: "gbegamey",
+        username: "chef-zone",
+        resourceId: "admin",
+        action: "access",
+      }),
+    ).toBe(true);
+    expect(
+      isActionAllowed({
+        config,
+        role: "admin",
+        site: "tous",
+        username: "admin",
+        resourceId: "autorisations",
+        action: "access",
+      }),
+    ).toBe(true);
+    expect(
+      isActionAllowed({
+        config: {
+          ...EMPTY_AUTORISATIONS,
+          overrides: [
+            {
+              targetType: "role" as const,
+              targetId: "daf",
+              resourceId: "admin",
+              actions: { access: "allow" as const },
+            },
+          ],
+        },
+        role: "daf",
+        site: "tous",
+        username: "daff",
+        resourceId: "admin",
+        action: "access",
+      }),
+    ).toBe(false);
+    expect(
+      isActionAllowed({
+        config: EMPTY_AUTORISATIONS,
+        role: "daf",
+        site: "tous",
+        resourceId: "autorisations",
+        action: "access",
+      }),
+    ).toBe(false);
+  });
 });

@@ -15,7 +15,7 @@ import type { VenteSite } from "@/lib/types";
 export const runtime = "nodejs";
 
 function canEditSiteRoles(role: string): boolean {
-  return role === "admin" || role === "daf" || role === "gerant";
+  return role === "admin" || role === "gerant";
 }
 
 function parsePermissions(raw: unknown): Partial<VentePolicyPermissions> | null {

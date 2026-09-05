@@ -619,6 +619,14 @@ export function canAccessPath(
   ) {
     return false;
   }
+  // Tous les administrateurs gardent Équipe (page + APIs), même si le JWT
+  // ou la matrice a tenté de retirer la clé « admin ».
+  if (
+    role === "admin" &&
+    (pathname.startsWith("/admin") || pathname.startsWith("/autorisations"))
+  ) {
+    return true;
+  }
   const allowed = filterNavKeysBySite(
     navOverride ?? navForUser(role, site, username),
     role,

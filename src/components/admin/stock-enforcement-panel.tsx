@@ -93,16 +93,22 @@ export function StockEnforcementPanel({ className }: Props) {
   }
 
   return (
-    <section className={`panel admin-stock-policy${className ? ` ${className}` : ""}`}>
-      <div className="panel-head">
-        <h2 className="panel-title">Vente selon le stock</h2>
-        <p className="muted admin-stock-policy-lead">
-          Par défaut les articles sont <strong>dégrisés</strong> (vente libre).
-          Utilisez <strong>Forcer vente selon stock</strong> pour griser tous
-          les articles du site. Sinon, seul un produit dont le stock a été saisi
-          (bouton +) est suivi — Zogbo et Gbégamey restent indépendants.{" "}
-          <strong>Dégriser</strong> revient au mode libre pour le site.
-        </p>
+    <section
+      className={`equipe-policy-panel${className ? ` ${className}` : ""}`}
+    >
+      <div className="equipe-policy-head">
+        <div>
+          <h2>Vente selon le stock</h2>
+          <p>
+            Par défaut les articles sont <strong>dégrisés</strong> (vente
+            libre). Forcer le stock grise le catalogue du site. Sinon, seul un
+            produit dont le stock a été saisi est suivi — Zogbo et Gbégamey
+            restent indépendants.
+          </p>
+        </div>
+        {data ? (
+          <span className="equipe-chip">{formatDateFr(data.date)}</span>
+        ) : null}
       </div>
 
       {error ? (
@@ -111,7 +117,7 @@ export function StockEnforcementPanel({ className }: Props) {
         </p>
       ) : null}
       {flash ? (
-        <p className="admin-stock-policy-flash" role="status">
+        <p className="equipe-flash" role="status">
           {flash}
         </p>
       ) : null}
@@ -119,38 +125,36 @@ export function StockEnforcementPanel({ className }: Props) {
       {loading ? (
         <BrandLoader variant="ligne" label="Chargement du réglage…" />
       ) : data ? (
-        <>
-          <p className="muted admin-stock-policy-date">
-            Jour concerné : <strong>{formatDateFr(data.date)}</strong>
-          </p>
-          <ul className="admin-stock-policy-list">
-            {data.sites.map((row) => (
-              <li key={row.site} className="admin-stock-policy-row">
-                <div className="admin-stock-policy-row-main">
-                  <strong>{row.label}</strong>
-                  <span className="muted">
-                    {row.enforceStock
-                      ? "Les gérants ne peuvent vendre que le stock restant."
-                      : "Vente libre — le stock n'est pas bloquant."}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className={`btn${row.enforceStock ? " btn-primary" : " btn-ghost"}`}
-                  disabled={busySite !== null}
-                  aria-pressed={!row.enforceStock}
-                  onClick={() => void toggle(row.site, !row.enforceStock)}
-                >
-                  {busySite === row.site
-                    ? "…"
-                    : row.enforceStock
-                      ? "Dégriser les articles"
-                      : "Forcer vente selon stock"}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
+        <ul className="equipe-policy-sites">
+          {data.sites.map((row) => (
+            <li
+              key={row.site}
+              className={`equipe-policy-site${row.enforceStock ? " is-strict" : ""}`}
+            >
+              <div>
+                <strong>{row.label}</strong>
+                <span>
+                  {row.enforceStock
+                    ? "Les gérants ne peuvent vendre que le stock restant."
+                    : "Vente libre — le stock n’est pas bloquant."}
+                </span>
+              </div>
+              <button
+                type="button"
+                className={`btn${row.enforceStock ? " btn-primary" : " btn-ghost"}`}
+                disabled={busySite !== null}
+                aria-pressed={!row.enforceStock}
+                onClick={() => void toggle(row.site, !row.enforceStock)}
+              >
+                {busySite === row.site
+                  ? "…"
+                  : row.enforceStock
+                    ? "Dégriser les articles"
+                    : "Forcer vente selon stock"}
+              </button>
+            </li>
+          ))}
+        </ul>
       ) : null}
     </section>
   );

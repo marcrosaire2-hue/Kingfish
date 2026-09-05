@@ -264,6 +264,11 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
   },
 ];
 
+/** Équipe + matrice : toujours allumées pour le rôle administrateur. */
+export function isAdminEquipeResource(resourceId: string): boolean {
+  return resourceId === "admin" || resourceId === "autorisations";
+}
+
 export type PermissionOverride = {
   targetType: "role" | "user";
   /** Rôle (`gerant`…) ou id utilisateur. */

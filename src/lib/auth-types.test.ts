@@ -326,6 +326,40 @@ describe("l'API suit les droits de l'écran", () => {
     expect(
       canAccessPath("admin", "/admin", "tous", "marc", [...navAvecEquipe]),
     ).toBe(true);
+    expect(
+      canAccessPath("daf", "/autorisations", "tous", "daff", [...navAvecEquipe]),
+    ).toBe(false);
+  });
+
+  it("donne Équipe et autorisations à tout admin, même sans la clé dans le JWT", () => {
+    const navSansEquipe = ["synthese", "vente"] as const;
+    for (const username of ["marc", "admin", "chef-zogbo"]) {
+      expect(
+        canAccessPath("admin", "/admin", "tous", username, [...navSansEquipe]),
+      ).toBe(true);
+      expect(
+        canAccessPath("admin", "/autorisations", "tous", username, [
+          ...navSansEquipe,
+        ]),
+      ).toBe(true);
+      expect(
+        canAccessPath("admin", "/admin/users", "tous", username, [
+          ...navSansEquipe,
+        ]),
+      ).toBe(true);
+    }
+    expect(
+      canAccessPath("gerant", "/admin", "zogbo", "paul", [
+        ...navSansEquipe,
+        "admin",
+      ]),
+    ).toBe(false);
+    expect(
+      canAccessPath("daf", "/admin", "tous", "daff", [
+        ...navSansEquipe,
+        "admin",
+      ]),
+    ).toBe(false);
   });
 
   it("retire au DAF vente, pertes, registre, régularisation, réglages POS et comptabilité", () => {

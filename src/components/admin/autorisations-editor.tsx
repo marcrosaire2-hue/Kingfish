@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { BrandLoader } from "@/components/brand-loader";
 import {
   PERMISSION_CATEGORY_LABELS,
+  isAdminEquipeResource,
   type PermissionCategoryId,
   type PermissionOverride,
   type PermissionResource,
@@ -122,7 +123,18 @@ export function AutorisationsEditor({ embedded = false }: Props) {
     return inheritedAccess(resourceId);
   }
 
+  function isAdminTarget(): boolean {
+    if (targetMode === "role") return targetId === "admin";
+    return roleOfTarget === "admin";
+  }
+
+  function equipeLock(resourceId: string): "on" | "off" | null {
+    if (!isAdminEquipeResource(resourceId)) return null;
+    return isAdminTarget() ? "on" : "off";
+  }
+
   function toggleAccess(resource: PermissionResource) {
+    if (equipeLock(resource.id)) return;
     const nextOn = !isOn(resource.id);
     setDirty(true);
     setDraft((prev) => {
@@ -155,12 +167,23 @@ export function AutorisationsEditor({ embedded = false }: Props) {
       const keep = prev.filter(
         (o) => !(o.targetType === targetMode && o.targetId === targetId),
       );
-      const additions: PermissionOverride[] = data.resources.map((resource) => ({
-        targetType: targetMode,
-        targetId,
-        resourceId: resource.id,
-        actions: { access: on ? ("allow" as const) : ("deny" as const) },
-      }));
+      const additions: PermissionOverride[] = data.resources.map((resource) => {
+        const lock = equipeLock(resource.id);
+        const access =
+          lock === "on"
+            ? ("allow" as const)
+            : lock === "off"
+              ? ("deny" as const)
+              : on
+                ? ("allow" as const)
+                : ("deny" as const);
+        return {
+          targetType: targetMode,
+          targetId,
+          resourceId: resource.id,
+          actions: { access },
+        };
+      });
       return [...keep, ...additions];
     });
   }
@@ -408,17 +431,27 @@ export function AutorisationsEditor({ embedded = false }: Props) {
           </div>
           <ul className="authz-switch-list">
             {resources.map((resource) => {
-              const on = isOn(resource.id);
+              const lock = equipeLock(resource.id);
+              const on =
+                lock === "on" ? true : lock === "off" ? false : isOn(resource.id);
               return (
                 <li key={resource.id} className="authz-switch-row">
                   <div className="authz-switch-copy">
                     <strong>{resource.label}</strong>
-                    <span className="muted">{resource.description}</span>
+                    <span className="muted">
+                      {lock === "on"
+                        ? "Toujours actif pour les administrateurs."
+                        : lock === "off"
+                          ? "Réservé au rôle Administrateur. Le DAF n’est pas un administrateur."
+                          : resource.description}
+                    </span>
                   </div>
                   <button
                     type="button"
                     role="switch"
                     aria-checked={on}
+                    aria-disabled={lock !== null}
+                    disabled={lock !== null}
                     className={`authz-switch${on ? " is-on" : ""}`}
                     onClick={() => toggleAccess(resource)}
                   >

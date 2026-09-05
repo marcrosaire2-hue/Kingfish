@@ -12,6 +12,7 @@ import {
 import {
   EMPTY_AUTORISATIONS,
   PERMISSION_RESOURCES,
+  isAdminEquipeResource,
   resourceById,
   type AutorisationsConfig,
   type AutorisationsHistoryEntry,
@@ -20,6 +21,7 @@ import {
   type PermissionValue,
 } from "@/lib/autorisations-model";
 import { getDb } from "@/lib/mongodb";
+import { listUsers } from "@/lib/users-repo";
 
 const CONFIG_ID = "config";
 
@@ -139,11 +141,11 @@ export function isActionAllowed(input: {
 }): boolean {
   const resource = resourceById(input.resourceId);
   if (!resource) return false;
-  if (
-    input.role !== "admin" &&
-    (input.resourceId === "admin" || input.resourceId === "autorisations")
-  ) {
+  if (input.role !== "admin" && isAdminEquipeResource(input.resourceId)) {
     return false;
+  }
+  if (input.role === "admin" && isAdminEquipeResource(input.resourceId)) {
+    return true;
   }
   const defaults = roleNavUnscoped(
     input.role,
@@ -191,9 +193,11 @@ export async function resolveEffectiveNav(
     else allowed.delete(resource.navKey);
   }
 
-  // Compte direction : ne jamais perdre Équipe ni le tableau de bord.
-  if (isExecutiveAdminAccount(user.username)) {
+  // Tous les admins gardent Équipe. Compte direction : aussi le tableau de bord.
+  if (user.role === "admin") {
     allowed.add("admin");
+  }
+  if (isExecutiveAdminAccount(user.username)) {
     allowed.add("synthese");
   }
 
@@ -224,20 +228,21 @@ export function assertSafeAutorisationsSave(input: {
       );
     }
   }
-  if (isExecutiveAdminAccount(actor.username)) {
-    for (const critical of ["autorisations", "admin", "synthese"] as const) {
-      const roleDeny = overrides.find(
-        (o) =>
-          o.targetType === "role" &&
-          o.targetId === "admin" &&
-          o.resourceId === critical &&
-          o.actions.access === "deny",
+  const roleProtected = isExecutiveAdminAccount(actor.username)
+    ? (["autorisations", "admin", "synthese"] as const)
+    : (["autorisations", "admin"] as const);
+  for (const critical of roleProtected) {
+    const roleDeny = overrides.find(
+      (o) =>
+        o.targetType === "role" &&
+        o.targetId === "admin" &&
+        o.resourceId === critical &&
+        o.actions.access === "deny",
+    );
+    if (roleDeny) {
+      throw new Error(
+        `Le rôle Administrateur ne peut pas perdre l’accès critique « ${critical} ».`,
       );
-      if (roleDeny) {
-        throw new Error(
-          `Le rôle Administrateur ne peut pas perdre l’accès critique « ${critical} ».`,
-        );
-      }
     }
   }
 }
@@ -252,9 +257,18 @@ export async function saveAutorisationsConfig(input: {
     overrides: input.overrides,
   });
 
+  const users = await listUsers();
+  const roleByUserId = new Map(users.map((u) => [u.id, u.role]));
   const cleaned = input.overrides
     .map(normalizeOverride)
-    .filter((o): o is PermissionOverride => !!o);
+    .filter((o): o is PermissionOverride => !!o)
+    .filter((o) => {
+      if (!isAdminEquipeResource(o.resourceId) || o.actions.access !== "allow") {
+        return true;
+      }
+      if (o.targetType === "role") return o.targetId === "admin";
+      return roleByUserId.get(o.targetId) === "admin";
+    });
 
   const prev = await getAutorisationsConfig();
   const now = new Date().toISOString();

@@ -1,10 +1,5 @@
 import { NextResponse } from "next/server";
-import {
-  AuthError,
-  authErrorResponse,
-  requireUserManagementAdmin,
-} from "@/lib/api-auth";
-import { isExecutiveAdminAccount } from "@/lib/auth-types";
+import { authErrorResponse, requireUserManagementAdmin } from "@/lib/api-auth";
 import {
   gmailConfigured,
   mailAlertRecipientsFromEnv,
@@ -19,20 +14,9 @@ import { reportError } from "@/lib/report-error";
 
 export const runtime = "nodejs";
 
-async function requireMarcAdmin() {
-  const admin = await requireUserManagementAdmin();
-  if (!isExecutiveAdminAccount(admin.username)) {
-    throw new AuthError(
-      "Réservé au compte direction (Marc) pour gérer les destinataires.",
-      403,
-    );
-  }
-  return admin;
-}
-
 export async function GET() {
   try {
-    const admin = await requireMarcAdmin();
+    const admin = await requireUserManagementAdmin();
     const [emails, envEmails, effective] = await Promise.all([
       getMailAlertEmails(),
       Promise.resolve(mailAlertRecipientsFromEnv()),
@@ -52,7 +36,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const admin = await requireMarcAdmin();
+    const admin = await requireUserManagementAdmin();
     const body = (await request.json()) as {
       action?: "add" | "remove";
       email?: string;

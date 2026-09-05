@@ -179,25 +179,32 @@ export function MailAlertsPanel() {
   }
 
   return (
-    <section className="panel" aria-label="Destinataires alertes mail">
-      <h2 className="panel-title">Alertes mail — ventes</h2>
-      <p className="muted" style={{ marginTop: 0 }}>
-        Adresses qui reçoivent le détail de chaque vente POS, le{" "}
-        <strong>point de fin de journée</strong> (articles, quantités, totaux
-        par site) et le <strong>bilan mensuel détaillé</strong>. Réservé au
-        compte direction (Marc).
-      </p>
+    <div className="equipe-mail">
+      <header className="equipe-mail-hero">
+        <div>
+          <span
+            className={`equipe-live-pill${data?.gmailConfigured ? " is-on" : ""}`}
+          >
+            <span className="equipe-live-dot" aria-hidden />
+            {data?.gmailConfigured ? "Gmail branché" : "Gmail non configuré"}
+          </span>
+          <h2>Alertes mail — ventes</h2>
+          <p>
+            Destinataires du détail de chaque vente POS, du point de fin de
+            journée et du bilan mensuel. Accessible à tous les administrateurs.
+          </p>
+        </div>
+      </header>
 
       {data && !data.gmailConfigured ? (
         <p className="warn-inline" role="status">
-          Gmail n’est pas encore configuré sur le serveur (variables
-          d’environnement). La liste est enregistrée, les envois démarreront
-          une fois Gmail branché.
+          La liste est enregistrée ; les envois démarreront une fois Gmail
+          branché sur le serveur.
         </p>
       ) : null}
 
       {flash ? (
-        <p className="warn-inline" role="status">
+        <p className="equipe-flash" role="status">
           {flash}
         </p>
       ) : null}
@@ -207,161 +214,106 @@ export function MailAlertsPanel() {
         </p>
       ) : null}
 
-      <form
-        onSubmit={(e) => void addEmail(e)}
-        className="admin-mail-add"
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.55rem",
-          alignItems: "end",
-          marginBottom: "1rem",
-        }}
-      >
-        <label
-          style={{
-            flex: "1 1 14rem",
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.28rem",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "0.72rem",
-              fontWeight: 700,
-              letterSpacing: "0.03em",
-              textTransform: "uppercase",
-              color: "var(--ink-soft)",
-            }}
-          >
-            Nouvel e-mail
-          </span>
-          <input
-            type="email"
-            value={email}
-            onChange={(ev) => setEmail(ev.target.value)}
-            placeholder="admin@exemple.com"
-            required
-            disabled={busy}
-            style={{
-              minHeight: "2.65rem",
-              padding: "0.45rem 0.7rem",
-              border: "1px solid var(--line)",
-              borderRadius: "10px",
-              fontSize: 16,
-            }}
-          />
-        </label>
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={busy || !email.trim()}
-        >
-          {busy ? "…" : "Ajouter"}
-        </button>
-      </form>
-
-      {data?.emails.length ? (
-        <ul
-          className="admin-mail-list"
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: "0.45rem",
-          }}
-        >
-          {data.emails.map((addr) => (
-            <li
-              key={addr}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: "0.75rem",
-                padding: "0.65rem 0.8rem",
-                border: "1px solid var(--line)",
-                borderRadius: "10px",
-                background: "var(--surface)",
-              }}
-            >
-              <span className="mono">{addr}</span>
-              <button
-                type="button"
-                className="btn btn-ghost btn-sm"
+      <div className="equipe-mail-grid">
+        <section className="equipe-mail-panel">
+          <h3>Destinataires</h3>
+          <form onSubmit={(e) => void addEmail(e)} className="equipe-mail-add">
+            <label>
+              <span>Nouvel e-mail</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(ev) => setEmail(ev.target.value)}
+                placeholder="admin@exemple.com"
+                required
                 disabled={busy}
-                onClick={() => void removeEmail(addr)}
-              >
-                Retirer
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="muted">Aucune adresse gérée ici pour le moment.</p>
-      )}
+              />
+            </label>
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={busy || !email.trim()}
+            >
+              {busy ? "…" : "Ajouter"}
+            </button>
+          </form>
 
-      {data?.envEmails?.length ? (
-        <p className="muted" style={{ marginTop: "1rem", fontSize: "0.86rem" }}>
-          Aussi via serveur (MAIL_ALERT_TO) : {data.envEmails.join(", ")}
-        </p>
-      ) : null}
+          {data?.emails.length ? (
+            <ul className="equipe-mail-list">
+              {data.emails.map((addr) => (
+                <li key={addr}>
+                  <span className="mono">{addr}</span>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={busy}
+                    onClick={() => void removeEmail(addr)}
+                  >
+                    Retirer
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted">Aucune adresse gérée ici pour le moment.</p>
+          )}
 
-      <div
-        style={{
-          marginTop: "1.25rem",
-          paddingTop: "1rem",
-          borderTop: "1px solid var(--line)",
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "0.5rem",
-        }}
-      >
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={busy || !data?.gmailConfigured}
-          onClick={() => void sendDigestTest("test")}
-        >
-          Tester l’envoi
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={busy || !data?.gmailConfigured}
-          onClick={() => void sendDigestTest("day")}
-          title="Envoie le point de la veille (comme le cron de nuit)"
-        >
-          Envoyer point du jour
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={busy || !data?.gmailConfigured}
-          onClick={() => void sendDigestTest("month")}
-          title="Envoie le bilan du mois précédent"
-        >
-          Envoyer point du mois
-        </button>
-        <button
-          type="button"
-          className="btn btn-ghost btn-sm"
-          disabled={busy || !data?.gmailConfigured}
-          onClick={() => void sendDigestTest("sales")}
-          title="Renvoie un mail pour chaque ticket POS valide d’aujourd’hui"
-        >
-          Renvoyer mails des ventes du jour
-        </button>
+          {data?.envEmails?.length ? (
+            <p className="equipe-mail-env">
+              Aussi via serveur (MAIL_ALERT_TO) : {data.envEmails.join(", ")}
+            </p>
+          ) : null}
+        </section>
+
+        <section className="equipe-mail-panel">
+          <h3>Envois manuels</h3>
+          <p className="muted">
+            Utile pour tester la chaîne Gmail ou rattraper un point manqué.
+          </p>
+          <div className="equipe-mail-actions">
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={busy || !data?.gmailConfigured}
+              onClick={() => void sendDigestTest("test")}
+            >
+              Tester l’envoi
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={busy || !data?.gmailConfigured}
+              onClick={() => void sendDigestTest("day")}
+              title="Envoie le point de la veille (comme le cron de nuit)"
+            >
+              Point du jour
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={busy || !data?.gmailConfigured}
+              onClick={() => void sendDigestTest("month")}
+              title="Envoie le bilan du mois précédent"
+            >
+              Point du mois
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={busy || !data?.gmailConfigured}
+              onClick={() => void sendDigestTest("sales")}
+              title="Renvoie un mail pour chaque ticket POS valide d’aujourd’hui"
+            >
+              Renvoyer les ventes du jour
+            </button>
+          </div>
+          <p className="equipe-mail-note">
+            Automatique : chaque ticket POS envoie un mail si Gmail est
+            configuré. Cron quotidien <code>?kind=day</code> (veille) et le 1er
+            du mois <code>?kind=month</code> (mois précédent).
+          </p>
+        </section>
       </div>
-      <p className="muted" style={{ marginTop: "0.65rem", fontSize: "0.82rem" }}>
-        Automatique : chaque ticket POS envoie un mail (si Gmail est configuré ;
-        couper avec <code>MAIL_SALE_NOTIFY=0</code>). Cron quotidien{" "}
-        <code>?kind=day</code> (veille) et le 1er du mois <code>?kind=month</code>{" "}
-        (mois précédent), avec Bearer <code>MAIL_CRON_SECRET</code>.
-      </p>
-    </section>
+    </div>
   );
 }
