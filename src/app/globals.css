@@ -5122,132 +5122,12 @@ select {
   white-space: nowrap;
 }
 
-/* Journal des ventes détaillé — blocs par jour */
-.jv-day {
-  margin-bottom: 1.25rem;
-}
-
-.jv-day-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  padding: 0.95rem 1.1rem 0.2rem;
-}
-
-.jv-day-head .panel-title {
-  margin: 0;
-}
-
 .jv-day-head-count {
   display: inline-block;
   margin-left: 0.6rem;
   font-size: 0.78rem;
   font-weight: 600;
   color: var(--ink-soft);
-}
-
-.jv-day-total {
-  font-size: 1.05rem;
-}
-
-.jv-day-breakdown {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem 1.25rem;
-  padding: 0 1.1rem 0.85rem;
-  font-size: 0.82rem;
-  color: var(--ink-soft);
-}
-
-.jv-day-breakdown strong {
-  color: var(--ink);
-  margin-left: 0.25rem;
-}
-
-.journal-filters-summary {
-  display: none;
-}
-
-.jv-category-totals {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-  gap: 0.75rem;
-  margin: 0 0 1.25rem;
-}
-
-.jv-category-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.85rem 1rem;
-  border-radius: 0.65rem;
-  background: var(--surface-elevated, #f8fafc);
-  border: 1px solid var(--border, #d5e0ec);
-}
-
-.jv-category-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--ink-soft);
-}
-
-.jv-category-card strong {
-  font-size: 1.05rem;
-}
-
-.jv-category-card .muted {
-  font-size: 0.78rem;
-}
-
-.jv-table td,
-.jv-table th {
-  white-space: nowrap;
-}
-
-.jv-group {
-  margin-bottom: 0.9rem;
-}
-
-.jv-group:last-child {
-  margin-bottom: 0;
-}
-
-.jv-group-title {
-  margin: 0;
-  padding: 0.55rem 1.1rem 0.35rem;
-  font-size: 0.9rem;
-  font-weight: 800;
-  color: var(--ink);
-  border-top: 1px solid var(--line, #d5e0ec);
-  background: var(--surface-elevated, #f4f7fb);
-}
-
-.jv-group-plat .jv-group-title {
-  border-left: 3px solid #0d9488;
-}
-
-.jv-group-accompagnement .jv-group-title {
-  border-left: 3px solid #2563eb;
-}
-
-.jv-group-boisson .jv-group-title {
-  border-left: 3px solid #d97706;
-}
-
-.jv-group-autre .jv-group-title {
-  border-left: 3px solid #7c5cbf;
-}
-
-.jv-group-title .jv-day-head-count {
-  margin-left: 0.55rem;
-  font-weight: 600;
-  color: var(--ink-soft);
-  text-transform: none;
-  letter-spacing: normal;
 }
 
 .journal-qty {
@@ -10239,12 +10119,10 @@ html.nav-open body {
 }
 
 @media (max-width: 900px) {
-  .main-journal-ventes .journal-filters-fold,
   .main-analyse .journal-filters-fold {
     margin-bottom: 0.75rem;
   }
 
-  .main-journal-ventes .journal-filters-summary,
   .main-analyse .journal-filters-summary {
     display: flex;
     align-items: center;
@@ -10262,12 +10140,10 @@ html.nav-open body {
     list-style: none;
   }
 
-  .main-journal-ventes .journal-filters-summary::-webkit-details-marker,
   .main-analyse .journal-filters-summary::-webkit-details-marker {
     display: none;
   }
 
-  .main-journal-ventes .journal-filters-summary::before,
   .main-analyse .journal-filters-summary::before {
     content: "";
     width: 0.4rem;
@@ -10279,12 +10155,10 @@ html.nav-open body {
     flex-shrink: 0;
   }
 
-  .main-journal-ventes .journal-filters-fold[open] .journal-filters-summary::before,
   .main-analyse .journal-filters-fold[open] .journal-filters-summary::before {
     transform: rotate(45deg);
   }
 
-  .main-journal-ventes .journal-filters-summary-hint,
   .main-analyse .journal-filters-summary-hint {
     margin-left: auto;
     font-weight: 600;
@@ -10292,7 +10166,6 @@ html.nav-open body {
     color: var(--ink-soft);
   }
 
-  .main-journal-ventes .dash-toolbar,
   .main-analyse .dash-toolbar {
     position: static;
     top: auto;
@@ -10300,8 +10173,6 @@ html.nav-open body {
     padding: 0.55rem 0.65rem;
   }
 
-  .main-journal-ventes .page-actions .btn,
-  .main-journal-ventes .page-actions .btn-ghost,
   .main-analyse .page-actions .btn,
   .main-analyse .page-actions .btn-ghost {
     min-height: 2.4rem;
@@ -10309,7 +10180,6 @@ html.nav-open body {
     padding: 0.4rem 0.7rem;
   }
 
-  .main-journal-ventes .dash-toolbar-filters,
   .main-analyse .dash-toolbar-filters {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -10317,11 +10187,8 @@ html.nav-open body {
     align-items: stretch;
   }
 
-  .main-journal-ventes .dash-toolbar-filters .hist-search {
-    grid-column: 1 / -1;
-  }
-
   .main-journal-ventes .date-field-pill,
+  .main-historique .date-field-pill,
   .main-analyse .date-field-pill {
     min-width: 0;
     width: 100%;
@@ -10333,6 +10200,7 @@ html.nav-open body {
   }
 
   .main-journal-ventes .date-field-pill span,
+  .main-historique .date-field-pill span,
   .main-analyse .date-field-pill span {
     font-size: 0.68rem;
     letter-spacing: 0.02em;
@@ -10343,6 +10211,9 @@ html.nav-open body {
   .main-journal-ventes .date-field-pill input,
   .main-journal-ventes .date-field-pill select,
   .main-journal-ventes .date-field-pill .select-input,
+  .main-historique .date-field-pill input,
+  .main-historique .date-field-pill select,
+  .main-historique .date-field-pill .select-input,
   .main-analyse .date-field-pill input,
   .main-analyse .date-field-pill select,
   .main-analyse .date-field-pill .select-input {
@@ -10380,20 +10251,6 @@ html.nav-open body {
     min-width: max-content;
     padding: 0.45rem 0.7rem;
     font-size: 0.82rem;
-  }
-
-  .main-journal-ventes .hist-ventes-totaux {
-    margin-bottom: 0.65rem;
-    padding: 0.7rem 0.85rem;
-  }
-
-  .main-journal-ventes .jv-category-totals {
-    gap: 0.45rem;
-    margin-bottom: 0.75rem;
-  }
-
-  .main-journal-ventes .jv-category-card {
-    padding: 0.55rem 0.7rem;
   }
 }
 .authz-toolbar {

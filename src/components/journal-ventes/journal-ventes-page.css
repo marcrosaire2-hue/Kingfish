@@ -1,0 +1,772 @@
+/* Journal des ventes — disposition et présentation */
+
+.main-journal-ventes .jv-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.main-journal-ventes .jv-toolbar {
+  position: sticky;
+  top: 0.55rem;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.85rem 1rem;
+  overflow: visible;
+}
+
+.main-journal-ventes .jv-toolbar:hover {
+  border-color: color-mix(in srgb, var(--line) 85%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.main-journal-ventes .jv-toolbar-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+}
+
+.main-journal-ventes .jv-periods {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding: 0.2rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.main-journal-ventes .jv-chip {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 0.84rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 9px;
+  cursor: pointer;
+  min-height: 2.2rem;
+}
+
+.main-journal-ventes .jv-chip.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+
+.main-journal-ventes .jv-chip.is-static {
+  cursor: default;
+}
+
+.main-journal-ventes .jv-dates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.main-journal-ventes .jv-search {
+  flex: 1 1 14rem;
+  min-width: 12rem;
+}
+
+.main-journal-ventes .jv-search input {
+  width: 100%;
+  min-height: 2.55rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.45rem 0.85rem;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+}
+
+.main-journal-ventes .jv-search input:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 1px;
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.main-journal-ventes .jv-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.75rem;
+}
+
+.main-journal-ventes .jv-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  padding: 0.18rem;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.main-journal-ventes .jv-seg-btn {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 700;
+  font-size: 0.82rem;
+  padding: 0.42rem 0.75rem;
+  border-radius: 9px;
+  cursor: pointer;
+  min-height: 2.1rem;
+}
+
+.main-journal-ventes .jv-seg-btn.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 8%);
+}
+
+.main-journal-ventes .jv-lock-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.3rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--sky-soft);
+  color: var(--ink);
+  font-weight: 800;
+  font-size: 0.84rem;
+}
+
+.main-journal-ventes .jv-more {
+  margin-left: auto;
+}
+
+.main-journal-ventes .jv-more summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.3rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.main-journal-ventes .jv-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.main-journal-ventes .jv-more-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.28rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.main-journal-ventes .jv-more-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.55rem;
+}
+
+.main-journal-ventes .jv-hero {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.9fr) minmax(18rem, 1.2fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.main-journal-ventes .jv-hero-ca {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding: 1.15rem 1.25rem 1.2rem;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, var(--line));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 22%, #fff) 0%,
+    var(--surface) 58%
+  );
+  box-shadow: var(--shadow-sm);
+}
+
+.main-journal-ventes .jv-kicker {
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.main-journal-ventes .jv-hero-value {
+  font-size: clamp(1.85rem, 3.6vw, 2.55rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #003d82;
+  line-height: 1.1;
+}
+
+.main-journal-ventes .jv-hero-hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.main-journal-ventes .jv-hero-meta {
+  margin: 0;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.main-journal-ventes .jv-hero-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.main-journal-ventes .jv-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.main-journal-ventes .jv-kpis > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.main-journal-ventes .jv-kpis span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.main-journal-ventes .jv-kpis strong {
+  font-size: 1.15rem;
+  color: var(--ink);
+}
+
+.main-journal-ventes .jv-mix {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.main-journal-ventes .jv-mix-bar {
+  display: flex;
+  height: 0.55rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+}
+
+.main-journal-ventes .jv-mix-seg {
+  display: block;
+  height: 100%;
+}
+
+.main-journal-ventes .jv-mix-plat,
+.main-journal-ventes .jv-dot-plat {
+  background: #0d9488;
+}
+
+.main-journal-ventes .jv-mix-accompagnement,
+.main-journal-ventes .jv-dot-accompagnement {
+  background: #2563eb;
+}
+
+.main-journal-ventes .jv-mix-boisson,
+.main-journal-ventes .jv-dot-boisson {
+  background: #d97706;
+}
+
+.main-journal-ventes .jv-mix-autre,
+.main-journal-ventes .jv-dot-autre {
+  background: #7c5cbf;
+}
+
+.main-journal-ventes .jv-mix-chip-plat {
+  border-left: 3px solid #0d9488;
+}
+
+.main-journal-ventes .jv-mix-chip-accompagnement {
+  border-left: 3px solid #2563eb;
+}
+
+.main-journal-ventes .jv-mix-chip-boisson {
+  border-left: 3px solid #d97706;
+}
+
+.main-journal-ventes .jv-mix-chip-autre {
+  border-left: 3px solid #7c5cbf;
+}
+
+.main-journal-ventes .jv-mix-accompagnement,
+.main-journal-ventes .jv-dot-accompagnement {
+  background: #2563eb;
+}
+
+.main-journal-ventes .jv-mix-boisson,
+.main-journal-ventes .jv-dot-boisson {
+  background: #d97706;
+}
+
+.main-journal-ventes .jv-mix-autre,
+.main-journal-ventes .jv-dot-autre {
+  background: #7c5cbf;
+}
+
+.main-journal-ventes .jv-mix-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.main-journal-ventes .jv-mix-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.08rem;
+  min-width: 6.5rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.main-journal-ventes .jv-mix-chip span {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.main-journal-ventes .jv-mix-chip strong {
+  font-size: 0.86rem;
+}
+
+.main-journal-ventes .jv-mix-chip.is-active {
+  border-color: color-mix(in srgb, var(--sidebar) 35%, var(--line));
+  background: color-mix(in srgb, var(--sky-soft) 70%, var(--surface));
+}
+
+.main-journal-ventes .jv-mix-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.main-journal-ventes .jv-mix-chip-all {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  min-width: auto;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.main-journal-ventes .jv-viewbar {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.main-journal-ventes .jv-empty {
+  padding: 1.4rem 1.2rem;
+  text-align: center;
+}
+
+.main-journal-ventes .jv-empty strong {
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.main-journal-ventes .jv-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.main-journal-ventes .jv-feed.is-loading {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.main-journal-ventes .jv-day {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.main-journal-ventes .jv-day:hover {
+  border-color: color-mix(in srgb, var(--line) 85%, transparent);
+  box-shadow: var(--shadow-sm);
+}
+
+.main-journal-ventes .jv-toolbar .date-field {
+  min-height: 2.55rem;
+}
+
+.main-journal-ventes .jv-day-summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.65rem 0.85rem;
+  padding: 0.85rem 1.05rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.main-journal-ventes .jv-day-summary::-webkit-details-marker,
+.main-journal-ventes .jv-ticket-summary::-webkit-details-marker {
+  display: none;
+}
+
+.main-journal-ventes .jv-day-summary:hover,
+.main-journal-ventes .jv-ticket-summary:hover {
+  background: color-mix(in srgb, var(--ink) 3.5%, var(--surface));
+}
+
+.main-journal-ventes .jv-day-title {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.main-journal-ventes .jv-day-title strong {
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.main-journal-ventes .jv-day-title span {
+  font-size: 0.8rem;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+
+.main-journal-ventes .jv-day-total {
+  font-size: 1.05rem;
+}
+
+.main-journal-ventes .jv-day-summary::before {
+  content: "";
+  width: 0.42rem;
+  height: 0.42rem;
+  border-right: 2px solid var(--ink-soft);
+  border-bottom: 2px solid var(--ink-soft);
+  transform: rotate(-45deg);
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.main-journal-ventes .jv-day[open] .jv-day-summary::before {
+  transform: rotate(45deg);
+}
+
+.main-journal-ventes .jv-tickets {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.main-journal-ventes .jv-ticket {
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 80%, transparent);
+}
+
+.main-journal-ventes .jv-ticket:last-child {
+  border-bottom: none;
+}
+
+.main-journal-ventes .jv-ticket-summary {
+  display: grid;
+  grid-template-columns: 3.6rem minmax(0, 1fr) auto auto;
+  align-items: start;
+  gap: 0.45rem 0.75rem;
+  padding: 0.7rem 1.05rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.main-journal-ventes .jv-ticket-summary::-webkit-details-marker {
+  display: none;
+}
+
+.main-journal-ventes .jv-ticket-time {
+  font-family: var(--font-mono);
+  font-weight: 800;
+  font-size: 0.86rem;
+  color: var(--ink);
+  padding-top: 0.12rem;
+}
+
+.main-journal-ventes .jv-ticket-id {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.main-journal-ventes .jv-ticket-preview,
+.main-journal-ventes .jv-ticket-meta {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main-journal-ventes .jv-ticket-amount {
+  font-size: 0.95rem;
+  padding-top: 0.08rem;
+}
+
+.main-journal-ventes .jv-ticket-annule .jv-ticket-summary {
+  opacity: 0.62;
+}
+
+.main-journal-ventes .jv-ticket-body {
+  padding: 0 1.05rem 0.85rem 4.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.main-journal-ventes .jv-ticket-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.main-journal-ventes .jv-ticket-lines li {
+  display: grid;
+  grid-template-columns: 0.55rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.main-journal-ventes .jv-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+}
+
+.main-journal-ventes .jv-line-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.main-journal-ventes .jv-line-name .muted {
+  font-size: 0.76rem;
+}
+
+.main-journal-ventes .jv-line-acts {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+
+.main-journal-ventes .jv-ticket-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.main-journal-ventes .jv-act {
+  min-height: 2.2rem;
+  font-size: 0.82rem;
+  padding: 0.3rem 0.7rem;
+}
+
+.main-journal-ventes .jv-act-danger {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+}
+
+.main-journal-ventes .jv-group {
+  border-top: 1px solid var(--line);
+}
+
+.main-journal-ventes .jv-group-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.35rem 0.8rem;
+  margin: 0;
+  padding: 0.6rem 1.05rem 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 800;
+  background: var(--surface-elevated, #f4f7fb);
+}
+
+.main-journal-ventes .jv-group-title span {
+  font-size: 0.78rem;
+  font-weight: 650;
+  color: var(--ink-soft);
+}
+
+.main-journal-ventes .jv-group-plat .jv-group-title {
+  border-left: 3px solid #0d9488;
+}
+
+.main-journal-ventes .jv-group-accompagnement .jv-group-title {
+  border-left: 3px solid #2563eb;
+}
+
+.main-journal-ventes .jv-group-boisson .jv-group-title {
+  border-left: 3px solid #d97706;
+}
+
+.main-journal-ventes .jv-group-autre .jv-group-title {
+  border-left: 3px solid #7c5cbf;
+}
+
+.main-journal-ventes .jv-table td,
+.main-journal-ventes .jv-table th {
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .main-journal-ventes .jv-toolbar {
+    position: static;
+    padding: 0.7rem 0.75rem;
+  }
+
+  .main-journal-ventes .jv-toolbar-top,
+  .main-journal-ventes .jv-toolbar-row {
+    gap: 0.45rem;
+  }
+
+  .main-journal-ventes .jv-dates {
+    width: 100%;
+  }
+
+  .main-journal-ventes .jv-dates .date-field-pill {
+    flex: 1 1 8rem;
+    min-width: 0;
+  }
+
+  .main-journal-ventes .jv-search {
+    flex-basis: 100%;
+  }
+
+  .main-journal-ventes .jv-search input {
+    min-height: 2.7rem;
+    font-size: 16px;
+  }
+
+  .main-journal-ventes .jv-more {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .main-journal-ventes .jv-more summary {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .main-journal-ventes .jv-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .main-journal-ventes .jv-hero-ca {
+    padding: 0.95rem 1rem;
+  }
+
+  .main-journal-ventes .jv-mix-chip {
+    flex: 1 1 calc(50% - 0.4rem);
+    min-width: 0;
+  }
+
+  .main-journal-ventes .page-actions .btn,
+  .main-journal-ventes .page-actions .btn-ghost {
+    min-height: 2.4rem;
+    font-size: 0.82rem;
+    padding: 0.4rem 0.7rem;
+  }
+
+  .main-journal-ventes .jv-ticket-summary {
+    grid-template-columns: 3.2rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "time id amount"
+      "time id statut";
+  }
+
+  .main-journal-ventes .jv-ticket-time {
+    grid-area: time;
+  }
+
+  .main-journal-ventes .jv-ticket-id {
+    grid-area: id;
+  }
+
+  .main-journal-ventes .jv-ticket-amount {
+    grid-area: amount;
+  }
+
+  .main-journal-ventes .jv-ticket-summary .hist-statut {
+    grid-area: statut;
+    justify-self: end;
+  }
+
+  .main-journal-ventes .jv-ticket-preview,
+  .main-journal-ventes .jv-ticket-meta {
+    white-space: normal;
+  }
+
+  .main-journal-ventes .jv-ticket-body {
+    padding-left: 1.05rem;
+  }
+
+  .main-journal-ventes .jv-ticket-lines li {
+    grid-template-columns: 0.5rem minmax(0, 1fr) auto;
+  }
+
+  .main-journal-ventes .jv-line-acts {
+    grid-column: 2 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .main-journal-ventes .jv-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .main-journal-ventes .jv-chip,
+  .main-journal-ventes .jv-seg-btn {
+    font-size: 0.78rem;
+    padding: 0.4rem 0.6rem;
+  }
+}
