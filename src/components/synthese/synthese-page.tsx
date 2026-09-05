@@ -920,7 +920,7 @@ export function SynthesePage() {
       ) : null}
 
       {loading ? (
-        <BrandLoader variant="ligne" label="Chargement du tableau de bord…" />
+        <BrandLoader label="Chargement du tableau de bord…" />
       ) : null}
 
       {!loading && isGeneral && day ? (

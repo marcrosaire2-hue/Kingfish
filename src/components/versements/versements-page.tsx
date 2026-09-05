@@ -1113,7 +1113,7 @@ export function VersementsPage() {
           </div>
 
           {loading || !scope ? (
-            <BrandLoader label="Chargement du registre…" variant="ligne" />
+            <BrandLoader label="Chargement du registre…" />
           ) : filtered.length === 0 ? (
             <div className="vs-empty">
               <strong>

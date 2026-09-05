@@ -616,7 +616,7 @@ export function HistoriquePage({
         ) : null}
 
         {loading && events.length === 0 ? (
-          <BrandLoader variant="ligne" label="Chargement du registre…" />
+          <BrandLoader label="Chargement du registre…" />
         ) : null}
 
         {!loading && focusedEvents.length === 0 ? (

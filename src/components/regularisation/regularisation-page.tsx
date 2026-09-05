@@ -476,7 +476,7 @@ export function RegularisationPage() {
         ) : null}
 
         {loading ? (
-          <BrandLoader variant="ligne" label="Chargement…" />
+          <BrandLoader label="Chargement…" />
         ) : (
           <>
             <div className="reg-workspace">

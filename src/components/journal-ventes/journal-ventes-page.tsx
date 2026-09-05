@@ -868,7 +868,7 @@ export function JournalVentesPage({
         ) : null}
 
         {loading && result.days.length === 0 ? (
-          <BrandLoader variant="ligne" label="Chargement du journal…" />
+          <BrandLoader label="Chargement du journal…" />
         ) : null}
 
         {!loading && !result.days.length ? (

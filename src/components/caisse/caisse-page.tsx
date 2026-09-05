@@ -419,7 +419,7 @@ export function CaissePage() {
         ) : null}
 
         {loading && !board ? (
-          <BrandLoader variant="ligne" label="Chargement de la caisse…" />
+          <BrandLoader label="Chargement de la caisse…" />
         ) : null}
 
         {/* Ouverture, mouvement, versement, clôture : une opération de caisse

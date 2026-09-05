@@ -285,7 +285,7 @@ export function CombosPage() {
         ) : null}
         {busy ? <BrandLoader variant="voile" label="Enregistrement…" /> : null}
         {loading && !board ? (
-          <BrandLoader variant="ligne" label="Chargement des combos…" />
+          <BrandLoader label="Chargement des combos…" />
         ) : null}
 
         {editing ? (

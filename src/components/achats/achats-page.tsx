@@ -465,7 +465,7 @@ export function AchatsPage() {
           </div>
 
           {loading ? (
-            <BrandLoader label="Chargement des achats…" variant="ligne" />
+            <BrandLoader label="Chargement des achats…" />
           ) : filtered.length === 0 ? (
             <div className="achats-empty">
               <strong>

@@ -138,7 +138,7 @@ export function ControlePage() {
       <section className="panel panel-wide">
         <h2 className="panel-title">Plats transferés</h2>
         {loading || !computed ? (
-          <BrandLoader variant="ligne" label="Chargement…" />
+          <BrandLoader label="Chargement…" />
         ) : (
           <ul className="site-rank-list">
             {rows

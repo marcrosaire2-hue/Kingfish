@@ -256,7 +256,7 @@ export function ReglagesPage() {
       ) : tab === "roles" ? (
         <SiteRolesEditor />
       ) : loading || !data ? (
-        <BrandLoader variant="ligne" label="Chargement des réglages…" />
+        <BrandLoader label="Chargement des réglages…" />
       ) : tab === "paiements" ? (
         <PaymentsEditor
           rows={data.paymentMethods}

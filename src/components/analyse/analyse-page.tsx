@@ -372,7 +372,7 @@ export function AnalysePage() {
         ) : null}
 
         {loading && !report ? (
-          <BrandLoader label="Chargement de l’analyse…" variant="ligne" />
+          <BrandLoader label="Chargement de l’analyse…" />
         ) : !report && !error ? (
           <div className="analyse-empty">
             <strong>Aucune donnée pour cette période</strong>

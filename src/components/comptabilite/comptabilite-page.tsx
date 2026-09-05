@@ -216,7 +216,7 @@ function JournalView({
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
 
       {loading ? (
-        <BrandLoader variant="ligne" label="Construction du journal…" />
+        <BrandLoader label="Construction du journal…" />
       ) : (
         <>
           <div className="dash-kpi-grid">
@@ -365,7 +365,7 @@ function GrandLivreView({
       </div>
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       {loading ? (
-        <BrandLoader variant="ligne" label="Construction du grand livre…" />
+        <BrandLoader label="Construction du grand livre…" />
       ) : comptes.length === 0 ? (
         <p className="muted">Aucun mouvement pour ces filtres.</p>
       ) : (
@@ -477,7 +477,7 @@ function BalanceView({
       </div>
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       {loading ? (
-        <BrandLoader variant="ligne" label="Construction de la balance…" />
+        <BrandLoader label="Construction de la balance…" />
       ) : (
         <section className="panel panel-wide">
           <div className="table-scroll">
@@ -661,7 +661,7 @@ function ModulesComptablesPanel({ onSaved }: { onSaved: () => void }) {
       </div>
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
       {loading ? (
-        <BrandLoader variant="ligne" label="Chargement des modules…" />
+        <BrandLoader label="Chargement des modules…" />
       ) : (
         <>
           <ul className="vente-log">
@@ -803,7 +803,7 @@ function BilanView({
       {error ? <p className="error-banner" role="alert">{error}</p> : null}
 
       {loading || !bilan ? (
-        <BrandLoader variant="ligne" label="Construction du bilan…" />
+        <BrandLoader label="Construction du bilan…" />
       ) : (
         <>
           <p className="ui-info" role="note">

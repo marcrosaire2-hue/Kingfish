@@ -721,10 +721,7 @@ export function CompteResultatPage() {
       {error ? <p className="error-banner">{error}</p> : null}
 
       {loading || !statement || !payload ? (
-        <BrandLoader
-          variant="ligne"
-          label="Chargement du compte de résultat…"
-        />
+        <BrandLoader label="Chargement du compte de résultat…" />
       ) : (
         <div className="pnl-layout">
           <section className="panel pnl-statement">

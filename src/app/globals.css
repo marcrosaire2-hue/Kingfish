@@ -159,6 +159,17 @@ select {
   height: 4.75rem;
   border-radius: 16px;
   padding: 0.25rem;
+  transition:
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.28s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sidebar-brand:hover .brand-logo,
+  .sidebar-brand:focus-visible .brand-logo {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 8px 22px color-mix(in srgb, #000 22%, transparent);
+  }
 }
 
 .sidebar-brand .brand-name {
@@ -231,50 +242,78 @@ select {
   padding: 0.3rem;
 }
 
-/* ---------- Logo animé (unique partout) ---------- */
+/* ---------- Scène du logo (chargements & entrée) ---------- */
 
-.brand-logo,
-.brand-logo-sm,
-.brand-logo-lg {
-  animation: kf-logo-breathe 3.2s ease-in-out infinite;
-}
-
-@keyframes kf-logo-breathe {
-  0%,
-  100% {
-    transform: scale(1);
-    filter: drop-shadow(0 4px 12px color-mix(in srgb, #000 14%, transparent));
-  }
-  50% {
-    transform: scale(1.045);
-    filter: drop-shadow(
-      0 4px 18px color-mix(in srgb, var(--accent) 45%, transparent)
-    );
-  }
-}
-
-/* Anneau doré autour du logo pendant les chargements. */
-.logo-ring-wrap {
+.kf-mark {
+  --kf-mark: 6.75rem;
+  --kf-plate: 4.25rem;
   position: relative;
-  width: 6.6rem;
-  height: 6.6rem;
   display: grid;
   place-items: center;
+  width: var(--kf-mark);
+  height: var(--kf-mark);
+  flex-shrink: 0;
+  contain: layout style;
 }
 
-.logo-ring-wrap::before {
-  content: "";
+.kf-mark-sm {
+  --kf-mark: 3.4rem;
+  --kf-plate: 2.15rem;
+}
+
+.kf-mark-sm .kf-mark-crown,
+.kf-mark-sm .kf-mark-ripple {
+  display: none;
+}
+
+.kf-mark-lg {
+  --kf-mark: 8.9rem;
+  --kf-plate: 5.5rem;
+}
+
+.kf-mark-glow,
+.kf-mark-ripple,
+.kf-mark-orbit,
+.kf-mark-crown {
   position: absolute;
+  pointer-events: none;
+}
+
+.kf-mark-glow {
+  inset: 10%;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--accent) 42%, transparent) 0%,
+    color-mix(in srgb, var(--sidebar) 22%, transparent) 42%,
+    transparent 72%
+  );
+  filter: blur(10px);
+  opacity: 0.7;
+}
+
+.kf-mark-ripple {
+  inset: 4%;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  opacity: 0;
+}
+
+.kf-mark-orbit {
   inset: 0;
   border-radius: 50%;
-  padding: 3px;
+}
+
+.kf-mark-orbit-a {
+  padding: 2.5px;
   background: conic-gradient(
     from 0deg,
-    color-mix(in srgb, var(--accent, #f0b018) 80%, transparent),
-    transparent 28%,
-    color-mix(in srgb, var(--accent, #f0b018) 25%, transparent) 55%,
-    transparent 78%,
-    color-mix(in srgb, var(--accent, #f0b018) 80%, transparent)
+    var(--accent),
+    transparent 55deg,
+    transparent 160deg,
+    color-mix(in srgb, var(--accent) 45%, transparent) 210deg,
+    transparent 300deg,
+    var(--accent)
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,
@@ -284,19 +323,209 @@ select {
     linear-gradient(#000 0 0) content-box,
     linear-gradient(#000 0 0);
   mask-composite: exclude;
-  animation: kf-ring-spin 1.6s linear infinite;
 }
 
-@keyframes kf-ring-spin {
-  from {
-    transform: rotate(0deg);
+.kf-mark-orbit-b {
+  inset: 9%;
+  padding: 1.5px;
+  background: conic-gradient(
+    from 120deg,
+    var(--sidebar),
+    transparent 50%,
+    color-mix(in srgb, var(--sky) 70%, transparent) 72%,
+    transparent 92%,
+    var(--sidebar)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+.kf-mark-crown {
+  inset: 0;
+}
+
+.kf-mark-spark {
+  position: absolute;
+  inset: 0;
+}
+
+.kf-mark-spark:nth-child(1) {
+  transform: rotate(-32deg);
+}
+
+.kf-mark-spark:nth-child(3) {
+  transform: rotate(32deg);
+}
+
+.kf-mark-spark span {
+  position: absolute;
+  left: 50%;
+  top: 0.12rem;
+  width: 0.42rem;
+  height: 0.42rem;
+  margin-left: -0.21rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--accent) 85%, transparent);
+}
+
+.kf-mark-sm .kf-mark-spark span {
+  width: 0.28rem;
+  height: 0.28rem;
+  margin-left: -0.14rem;
+  top: 0.08rem;
+}
+
+.kf-mark-spark:nth-child(2) span {
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: -0.25rem;
+  top: 0.02rem;
+}
+
+.kf-mark-sm .kf-mark-spark:nth-child(2) span {
+  width: 0.34rem;
+  height: 0.34rem;
+  margin-left: -0.17rem;
+}
+
+.kf-mark-plate {
+  position: relative;
+  z-index: 1;
+  width: var(--kf-plate);
+  height: var(--kf-plate);
+  border-radius: 22%;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  box-shadow:
+    0 10px 28px color-mix(in srgb, var(--sidebar) 16%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--sidebar) 10%, transparent);
+}
+
+.kf-mark-plate .brand-logo {
+  width: 100%;
+  height: 100%;
+  padding: 7%;
+  border-radius: 18%;
+  box-shadow: none;
+  background: #ffffff;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .kf-mark.is-animated {
+    animation: kf-mark-float 3.8s ease-in-out 0.65s infinite;
   }
+
+  .kf-mark.is-animated .kf-mark-glow {
+    animation: kf-glow-pulse 3.4s ease-in-out infinite;
+  }
+
+  .kf-mark.is-animated .kf-mark-ripple {
+    animation: kf-ripple 1.15s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  .kf-mark.is-animated .kf-mark-orbit-a {
+    animation: kf-orbit-spin 2.4s linear infinite;
+  }
+
+  .kf-mark.is-animated .kf-mark-orbit-b {
+    animation: kf-orbit-spin-rev 3.6s linear infinite;
+  }
+
+  .kf-mark.is-animated .kf-mark-spark span {
+    animation: kf-crown-twinkle 1.8s ease-in-out infinite;
+  }
+
+  .kf-mark.is-animated .kf-mark-spark:nth-child(1) span {
+    animation-delay: 0.15s;
+  }
+
+  .kf-mark.is-animated .kf-mark-spark:nth-child(3) span {
+    animation-delay: 0.3s;
+  }
+
+  .kf-mark.is-animated .kf-mark-plate {
+    animation: kf-mark-in 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+@keyframes kf-mark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.72) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes kf-mark-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes kf-glow-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.08);
+  }
+}
+
+@keyframes kf-ripple {
+  0% {
+    transform: scale(0.78);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.42);
+    opacity: 0;
+  }
+}
+
+@keyframes kf-orbit-spin {
   to {
     transform: rotate(360deg);
   }
 }
 
-/* ---------- Écran de transition (loading.tsx) ---------- */
+@keyframes kf-orbit-spin-rev {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes kf-crown-twinkle {
+  0%,
+  100% {
+    opacity: 0.4;
+    filter: brightness(0.95);
+  }
+  50% {
+    opacity: 1;
+    filter: brightness(1.25);
+  }
+}
+
+/* ---------- Écran de transition (entrée app / login) ---------- */
 
 .route-loader {
   position: fixed;
@@ -304,13 +533,25 @@ select {
   z-index: 1000;
   display: grid;
   place-items: center;
-  background: radial-gradient(
+  padding: 1.5rem;
+  background:
+    radial-gradient(
+      ellipse 46% 38% at 50% 44%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
       120% 90% at 50% 0%,
-      color-mix(in srgb, var(--brand, #005098) 10%, transparent),
+      color-mix(in srgb, var(--sidebar) 11%, transparent),
       transparent 60%
     ),
     var(--surface);
-  animation: kf-route-fade 0.18s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .route-loader {
+    animation: kf-route-fade 0.22s ease;
+  }
 }
 
 @keyframes kf-route-fade {
@@ -322,51 +563,88 @@ select {
   }
 }
 
-.route-loader-box {
+.kf-intro {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.35rem;
   text-align: center;
+  max-width: 22rem;
 }
 
-.route-loader-logo-wrap {
-  margin-bottom: 0.5rem;
-}
-
-.route-loader-name {
-  margin: 0;
-  font-size: 1.28rem;
+.kf-intro-name {
+  margin: 1.35rem 0 0;
+  font-size: 1.32rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   color: var(--ink);
+  line-height: 1.2;
 }
 
-.route-loader-tag {
-  margin: 0;
+.kf-intro-tag {
+  margin: 0.4rem 0 0;
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: color-mix(in srgb, var(--ink) 55%, transparent);
+  color: color-mix(in srgb, var(--ink) 52%, transparent);
 }
 
-.route-loader-bar {
-  width: 11rem;
-  height: 4px;
-  margin-top: 1rem;
+.kf-intro-bar {
+  width: 9.5rem;
+  height: 3px;
+  margin-top: 1.4rem;
   border-radius: 999px;
   background: color-mix(in srgb, var(--ink) 10%, transparent);
   overflow: hidden;
 }
 
-.route-loader-bar-fill {
+.kf-intro-bar-fill {
   display: block;
   height: 100%;
-  width: 36%;
+  width: 38%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--brand, #005098), var(--accent, #f0b018));
-  animation: kf-progress-slide 1.15s ease-in-out infinite;
+  background: linear-gradient(90deg, var(--sidebar), var(--accent));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.kf-intro-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: color-mix(in srgb, var(--ink) 48%, transparent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .kf-intro-name {
+    animation: kf-intro-copy 0.5s ease 0.32s both;
+  }
+
+  .kf-intro-tag {
+    animation: kf-intro-copy 0.5s ease 0.44s both;
+  }
+
+  .kf-intro-bar {
+    animation: kf-intro-copy 0.5s ease 0.56s both;
+  }
+
+  .kf-intro-bar-fill {
+    animation: kf-progress-slide 1.2s ease-in-out infinite;
+  }
+
+  .kf-intro-hint {
+    animation: kf-intro-copy 0.5s ease 0.7s both;
+  }
+}
+
+@keyframes kf-intro-copy {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @keyframes kf-progress-slide {
@@ -378,13 +656,6 @@ select {
   }
 }
 
-.route-loader-hint {
-  margin: 0.35rem 0 0;
-  font-size: 0.78rem;
-  color: color-mix(in srgb, var(--ink) 45%, transparent);
-}
-
-/* Transition post-login : même logo, fond clair aligné à l’écran de connexion. */
 .login-route-loader {
   z-index: 2000;
 }
@@ -2305,12 +2576,6 @@ select {
   padding: 1.25rem 1.35rem 1.4rem;
 }
 
-.login-visual-foot .brand-logo {
-  box-shadow:
-    0 0 0 2px rgba(255, 255, 255, 0.35),
-    0 4px 14px color-mix(in srgb, #000 22%, transparent);
-}
-
 .login-visual-credit {
   display: flex;
   flex-direction: column;
@@ -2355,17 +2620,20 @@ select {
 
 .login-form-head {
   text-align: center;
-  margin-top: 0.75rem;
+  margin-top: 0.15rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.login-form-head .brand-logo {
-  display: none;
-  margin: 0 auto 0.85rem;
+.login-form-head .login-form-mark {
+  display: grid;
+  margin: 0 0 1.05rem;
 }
 
 .login-form-tag {
-  display: none;
-  margin: 0.35rem 0 0;
+  display: block;
+  margin: 0.4rem 0 0;
   font-size: 0.82rem;
   font-weight: 600;
   color: var(--login-muted);
@@ -2578,11 +2846,6 @@ select {
 
   .login-form-head {
     margin-top: 0;
-  }
-
-  .login-form-head .brand-logo,
-  .login-form-tag {
-    display: block;
   }
 
   .login-title {
@@ -8618,8 +8881,18 @@ html.nav-open body {
   .brand-logo-sm,
   .brand-logo-lg,
   .login-spinner,
-  .logo-ring-wrap::before,
-  .route-loader-bar-fill,
+  .kf-mark-glow,
+  .kf-mark-ripple,
+  .kf-mark-orbit,
+  .kf-mark-spark span,
+  .kf-mark-plate,
+  .kf-mark.is-animated,
+  .kf-intro-name,
+  .kf-intro-tag,
+  .kf-intro-bar,
+  .kf-intro-bar-fill,
+  .kf-intro-hint,
+  .brand-loader-wait,
   .route-loader,
   .side-nav-link .nav-pending.is-pending {
     animation: none !important;
@@ -9719,44 +9992,63 @@ html.nav-open body {
 }
 
 /* ————————————————————————————————————————————————————————————————
-   Attente à la marque — logo du restaurant pendant les chargements.
-   Un « Chargement… » nu laissait croire à un blocage ; le logo qui pulse
-   dit que l'application travaille.
+   Attente à la marque — scène du logo pendant les chargements.
    ———————————————————————————————————————————————————————————————— */
 .brand-loader {
   display: grid;
   place-items: center;
-  padding: 3rem 1rem;
+  padding: 3.25rem 1rem;
   min-height: 45vh;
   width: 100%;
 }
 
 .brand-loader-ligne {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
   min-height: 0;
-  padding: 1.5rem 1rem;
+  padding: 1.15rem 0.75rem;
+  width: 100%;
 }
 
-/* Opération en cours : couvre l'écran et absorbe les clics, pour qu'une
-   commande ne parte pas deux fois pendant l'attente. */
+.brand-loader-wait {
+  width: 1.35rem;
+  height: 1.35rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--sidebar) 18%, transparent);
+  border-top-color: var(--accent);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .brand-loader-wait {
+    animation: kf-orbit-spin 0.7s linear infinite;
+  }
+}
+
 .brand-loader-voile {
   position: fixed;
   inset: 0;
-  z-index: 95;
+  z-index: 500;
   display: grid;
   place-items: center;
-  background: color-mix(in srgb, var(--paper) 78%, transparent);
-  backdrop-filter: blur(2px);
+  padding: 1.5rem;
+  background:
+    radial-gradient(
+      ellipse 46% 38% at 50% 44%,
+      color-mix(in srgb, var(--accent) 14%, transparent),
+      transparent 70%
+    ),
+    var(--paper);
 }
 
 .brand-loader-inner {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.9rem;
-}
-
-.brand-loader-mark {
-  margin-bottom: 0;
+  gap: 1.15rem;
 }
 
 .brand-loader-label {
@@ -9766,10 +10058,8 @@ html.nav-open body {
   text-align: center;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .logo-ring-wrap::before {
-    animation: none;
-  }
+.brand-loader-ligne .brand-loader-label {
+  text-align: left;
 }
 
 /* Barre de progression discrète lors d'un changement de page */

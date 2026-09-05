@@ -1,13 +1,10 @@
+import { BrandLoader } from "@/components/brand-loader";
+
 /**
- * Attente légère pendant le chargement d'une page : le menu et l'en-tête
- * restent visibles (layout persistant).
+ * Navigation interne : un overlay unique masque le menu et la page.
+ * Le contenu n’apparaît que lorsque le segment est prêt — pas un second logo
+ * dans le corps de page.
  */
 export default function MainLoading() {
-  return (
-    <div className="page-content-loading" aria-busy="true" aria-label="Chargement">
-      <div className="page-content-loading-line" />
-      <div className="page-content-loading-line short" />
-      <div className="page-content-loading-block" />
-    </div>
-  );
+  return <BrandLoader label="Chargement…" />;
 }

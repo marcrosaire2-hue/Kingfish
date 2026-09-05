@@ -113,7 +113,7 @@ export function RapportQuotidienPage() {
           </p>
         ) : null}
         {loading && !rapport ? (
-          <BrandLoader variant="ligne" label="Génération du rapport…" />
+          <BrandLoader label="Génération du rapport…" />
         ) : null}
 
         {rapport ? (

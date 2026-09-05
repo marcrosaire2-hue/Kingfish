@@ -3,17 +3,17 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  APP_LOGO,
   APP_NAME,
   APP_SITES_LABEL,
   APP_TAGLINE,
 } from "@/lib/brand";
+import { BrandIntro, BrandLogoMark } from "@/components/brand-logo-mark";
 import { EyeIcon } from "./login-icons";
 import { useSession } from "@/components/session-provider";
 
 const REMEMBER_KEY = "kingfish-remember-user";
 /** Temps mini d’affichage du logo avant d’entrer dans l’app. */
-const LOGO_HOLD_MS = 900;
+const LOGO_HOLD_MS = 1400;
 
 export function LoginPage({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
@@ -103,24 +103,7 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
   if (entering) {
     return (
       <div className="route-loader login-route-loader" role="status" aria-live="polite">
-        <div className="route-loader-box">
-          <div className="route-loader-logo-wrap logo-ring-wrap">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={APP_LOGO}
-              alt=""
-              className="brand-logo brand-logo-lg"
-              width={84}
-              height={84}
-            />
-          </div>
-          <p className="route-loader-name">{APP_NAME}</p>
-          <p className="route-loader-tag">{APP_TAGLINE}</p>
-          <div className="route-loader-bar" aria-hidden>
-            <span className="route-loader-bar-fill" />
-          </div>
-          <p className="route-loader-hint">Connexion en cours…</p>
-        </div>
+        <BrandIntro hint="Connexion en cours…" />
       </div>
     );
   }
@@ -135,13 +118,6 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
             <span className="login-brand">KINGFISH</span>
           </header>
           <footer className="login-visual-foot">
-            <img
-              src={APP_LOGO}
-              alt=""
-              className="brand-logo brand-logo-sm"
-              width={40}
-              height={40}
-            />
             <div className="login-visual-credit">
               <strong>{APP_NAME}</strong>
               <span>{APP_SITES_LABEL}</span>
@@ -152,13 +128,7 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
         <section className="login-panel-form" aria-label="Connexion">
           <div className="login-form-wrap">
             <header className="login-form-head">
-              <img
-                src={APP_LOGO}
-                alt=""
-                className="brand-logo brand-logo-lg"
-                width={72}
-                height={72}
-              />
+              <BrandLogoMark size="md" className="login-form-mark" alt="" />
               <h1 className="login-title">Welcome To KINGFISH</h1>
               <p className="login-form-tag">{APP_TAGLINE}</p>
             </header>
