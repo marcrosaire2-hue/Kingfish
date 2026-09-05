@@ -70,6 +70,11 @@ export function ZoneBoissonsPanel({
   const [qrGeneratedByProduct, setQrGeneratedByProduct] = useState<
     Record<string, number>
   >({});
+  const [buyPrompt, setBuyPrompt] = useState<{
+    productId: string;
+    productName: string;
+    raw: string;
+  } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -151,7 +156,23 @@ export function ZoneBoissonsPanel({
     }
   }
 
-  async function submitPurchase(productId: string, raw: string) {
+  function openPurchase(productId: string, raw: string) {
+    if (readOnly) return;
+    const bt = Math.round(Number(raw.replace(",", ".")) || 0);
+    if (bt <= 0) {
+      setError("Indiquez d’abord la quantité en bouteilles.");
+      return;
+    }
+    const name = drinks.find((d) => d.id === productId)?.name ?? "Boisson";
+    setError(null);
+    setBuyPrompt({ productId, productName: name, raw });
+  }
+
+  async function submitPurchase(
+    productId: string,
+    raw: string,
+    generateQr: boolean,
+  ) {
     if (readOnly) return;
     const upc = Math.max(
       1,
@@ -166,11 +187,19 @@ export function ZoneBoissonsPanel({
     const qty = Math.round((bt / upc) * 100) / 100;
     setBusyId(`buy-${productId}`);
     setError(null);
+    setBuyPrompt(null);
     try {
       const res = await fetch("/api/boissons", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, productId, qty, qtyBottles: bt, site }),
+        body: JSON.stringify({
+          date,
+          productId,
+          qty,
+          qtyBottles: bt,
+          site,
+          generateQr,
+        }),
       });
       const body = (await res.json()) as Payload & {
         movement?: BoissonsMovement;
@@ -188,7 +217,7 @@ export function ZoneBoissonsPanel({
       setDraftBuy((d) => ({ ...d, [productId]: "" }));
       const units = body.units ?? [];
       try {
-        if (units.length) {
+        if (generateQr && units.length) {
           await downloadQrSheet({
             qrIds: units.map((u) => u.qrId),
             productName: units[0]?.productName || "Boisson",
@@ -417,19 +446,20 @@ export function ZoneBoissonsPanel({
                   <th scope="col">Boisson</th>
                   <th scope="col">+ Achat (bt)</th>
                   <th scope="col">Vendu {siteLabel} (bt)</th>
+                  <th scope="col">Stock restant (bt)</th>
                   <th scope="col">Stock actuel (bt)</th>
                 </tr>
               </thead>
               <tbody>
                 {loading || !computed ? (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={5}>
                       <BrandLoader variant="ligne" label="Chargement…" />
                     </td>
                   </tr>
                 ) : computed.lines.length === 0 ? (
                   <tr>
-                    <td colSpan={4}>
+                    <td colSpan={5}>
                       <div className="catalogue-empty">
                         <p className="catalogue-empty-title">
                           Aucune boisson
@@ -523,7 +553,7 @@ export function ZoneBoissonsPanel({
                                 }
                                 onKeyDown={(e) => {
                                   if (e.key === "Enter") {
-                                    void submitPurchase(
+                                    openPurchase(
                                       line.productId,
                                       draftBuy[line.productId] ?? "",
                                     );
@@ -534,9 +564,9 @@ export function ZoneBoissonsPanel({
                                 type="button"
                                 className="btn btn-sm btn-primary"
                                 disabled={buyBusy || !!busyId}
-                                aria-label={`Acheter ${line.name} et imprimer les nouveaux QR`}
+                                aria-label={`Acheter ${line.name}`}
                                 onClick={() =>
-                                  void submitPurchase(
+                                  openPurchase(
                                     line.productId,
                                     draftBuy[line.productId] ?? "",
                                   )
@@ -549,6 +579,21 @@ export function ZoneBoissonsPanel({
                         </td>
                         <td>
                           <span className="catalogue-qty-badge">{qty}</span>
+                        </td>
+                        <td>
+                          <span
+                            className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
+                              Math.round(
+                                theoreticalRemaining * line.unitsPerCasier,
+                              ) <= 0
+                                ? " is-empty"
+                                : ""
+                            }`}
+                          >
+                            {Math.round(
+                              theoreticalRemaining * line.unitsPerCasier,
+                            )}
+                          </span>
                         </td>
                         <td>
                           {readOnly ? (
@@ -959,7 +1004,7 @@ export function ZoneBoissonsPanel({
                             }
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
-                                void submitPurchase(
+                                openPurchase(
                                   line.productId,
                                   draftBuy[line.productId] ?? "",
                                 );
@@ -970,9 +1015,9 @@ export function ZoneBoissonsPanel({
                             type="button"
                             className="btn btn-mvt btn-mvt-plus"
                             disabled={buyBusy || !!busyId}
-                            aria-label={`Acheter ${line.name} et imprimer les nouveaux QR`}
+                            aria-label={`Acheter ${line.name}`}
                             onClick={() =>
-                              void submitPurchase(
+                              openPurchase(
                                 line.productId,
                                 draftBuy[line.productId] ?? "",
                               )
@@ -1048,6 +1093,60 @@ export function ZoneBoissonsPanel({
       >
         {renderRegistreContent()}
       </RegistreDrawer>
+
+      {buyPrompt ? (
+        <div
+          className="stock-qr-prompt"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="boisson-qr-prompt-title"
+        >
+          <div className="stock-qr-prompt-card">
+            <h2 id="boisson-qr-prompt-title" className="panel-title">
+              Générer le code QR ?
+            </h2>
+            <p className="muted">
+              <strong>{buyPrompt.productName}</strong> · {buyPrompt.raw} bt sur{" "}
+              {site === "gbegamey" ? "Gbégamey" : "Zogbo"}.
+            </p>
+            <p className="muted">
+              Oui = QR + PDF. Non = achat enregistré sans QR. Les ventes de cette
+              boisson sur ce site dépendront de ce stock.
+            </p>
+            <div className="stock-qr-prompt-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setBuyPrompt(null)}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() =>
+                  void submitPurchase(
+                    buyPrompt.productId,
+                    buyPrompt.raw,
+                    false,
+                  )
+                }
+              >
+                Non
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() =>
+                  void submitPurchase(buyPrompt.productId, buyPrompt.raw, true)
+                }
+              >
+                Oui, PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

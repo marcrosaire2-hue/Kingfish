@@ -61,6 +61,7 @@ export function normalizeTransferLine(
         ? null
         : Math.max(0, Number(line.counted) || 0),
     observations: String(line.observations ?? ""),
+    ...(line.stockTracked === true ? { stockTracked: true } : {}),
   };
 }
 
@@ -77,6 +78,7 @@ export function normalizeLocalLine(line: LegacyLocal): GbegameyLocalLine {
         ? null
         : Math.max(0, Number(line.counted) || 0),
     observations: String(line.observations ?? ""),
+    ...(line.stockTracked === true ? { stockTracked: true } : {}),
   };
 }
 

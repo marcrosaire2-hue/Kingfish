@@ -121,6 +121,7 @@ export async function POST(request: Request) {
       qty?: number;
       qtyBottles?: number;
       site?: "zogbo" | "gbegamey";
+      generateQr?: boolean;
     };
 
     if (body.action === "cancel") {
@@ -195,7 +196,8 @@ export async function POST(request: Request) {
     );
     let units: Awaited<ReturnType<typeof generatePlatQrUnits>>["units"] = [];
     let qrError: string | null = null;
-    if (bottles > 0) {
+    const wantQr = body.generateQr !== false;
+    if (wantQr && bottles > 0) {
       try {
         const generated = await generatePlatQrUnits({
           date: body.date,
@@ -218,7 +220,9 @@ export async function POST(request: Request) {
       user,
       kind: "boissons",
       title: `Achat · ${m.name}`,
-      detail: `+${bottles || m.qty} bt · ${units.length} QR · dispo ${m.stockAfter}`,
+      detail: wantQr
+        ? `+${bottles || m.qty} bt · ${units.length} QR · dispo ${m.stockAfter}`
+        : `+${bottles || m.qty} bt · sans QR · dispo ${m.stockAfter}`,
       date: body.date,
       site: body.site ?? null,
     });

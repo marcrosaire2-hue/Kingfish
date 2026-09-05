@@ -1930,6 +1930,44 @@ select {
   color: var(--ink-soft);
 }
 
+.vente-stock-left {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+
+.vente-stock-left.is-free {
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.vente-stock-left.is-low {
+  color: #9a6700;
+}
+
+.vente-stock-left.is-empty {
+  color: #b42318;
+}
+
+.stock-remaining-badge {
+  font-size: 1rem;
+  font-weight: 800;
+  min-width: 2.4rem;
+  justify-content: center;
+}
+
+.stock-remaining-badge.is-empty {
+  color: #b42318;
+  background: color-mix(in srgb, #b42318 12%, var(--paper));
+}
+
+.stock-mobile-metric-accent strong {
+  font-size: 1.15rem;
+  color: color-mix(in srgb, #1f7a4d 70%, var(--ink));
+}
+
 /* « Reste 48 bt (4 cas.) · 12 bt/cas. » sur trois lignes allongeait toutes
    les tuiles ; l'essentiel tient en deux. */
 .vente-card .vente-hint {
@@ -4446,7 +4484,39 @@ select {
   gap: 1.15rem;
 }
 
-.stock-zogbo-page {
+.stock-qr-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgb(0 0 0 / 45%);
+}
+
+.stock-qr-prompt-card {
+  width: min(24rem, 100%);
+  padding: 1.1rem 1.15rem;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.stock-qr-prompt-card .panel-title {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.stock-qr-prompt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
   display: flex;
   flex-direction: column;
   gap: 1rem;

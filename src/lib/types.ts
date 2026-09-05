@@ -208,6 +208,11 @@ export type ZogboLine = {
   pertes: number;
   counted: number | null;
   observations: string;
+  /**
+   * Stock saisi pour ce produit sur ce site : la caisse décrémente /
+   * plaque les ventes sur ce stock. Les autres produits restent libres.
+   */
+  stockTracked?: boolean;
 };
 
 export type ZogboDay = {
@@ -274,6 +279,8 @@ export type GbegameyTransferLine = {
   pertes: number;
   counted: number | null;
   observations: string;
+  /** Stock saisi pour ce plat à Gbégamey — indépendant de Zogbo. */
+  stockTracked?: boolean;
 };
 
 /** Plats préparés directement à Gbégamey */
@@ -288,6 +295,8 @@ export type GbegameyLocalLine = {
   pertes: number;
   counted: number | null;
   observations: string;
+  /** Stock saisi pour cet accompagnement sur ce site uniquement. */
+  stockTracked?: boolean;
 };
 
 export type GbegameyDay = {
@@ -482,6 +491,10 @@ export type BoissonsLine = {
   /** Comptage physique à Gbégamey, en bouteilles */
   countedGbegamey: number | null;
   observations: string;
+  /** Stock suivi à Zogbo (indépendant de Gbégamey). */
+  stockTrackedZogbo?: boolean;
+  /** Stock suivi à Gbégamey (indépendant de Zogbo). */
+  stockTrackedGbegamey?: boolean;
 };
 
 /** Entrée de stock boissons (achat) — traçable et annulable, par site */

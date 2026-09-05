@@ -1,7 +1,6 @@
 import { assertDayOpen, isValidDate, updateDayDocument } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
-import { endVentesSansStock } from "@/lib/ventes-sans-stock";
 import type {
   BoissonsDay,
   BoissonsLine,
@@ -244,9 +243,8 @@ export async function saveBoissonsDay(
       };
     },
   );
-  if (options?.stockSaisie) {
-    await endVentesSansStock(input.date, input.site);
-  }
+  // Suivi produit × site : on ne bascule plus toute la journée.
+  void options?.stockSaisie;
   return saved;
 }
 
@@ -312,7 +310,7 @@ export async function applyBoissonsPurchase(input: {
       };
     },
   );
-  await endVentesSansStock(input.date, input.site);
+  // Suivi produit × site uniquement — Zogbo et Gbégamey restent indépendants.
   return saved;
 }
 

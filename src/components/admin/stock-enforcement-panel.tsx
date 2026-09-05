@@ -98,9 +98,10 @@ export function StockEnforcementPanel({ className }: Props) {
         <h2 className="panel-title">Vente selon le stock</h2>
         <p className="muted admin-stock-policy-lead">
           Par défaut les articles sont <strong>dégrisés</strong> (vente libre).
-          Utilisez <strong>Forcer vente selon stock</strong> pour griser les
-          articles sans stock restant. <strong>Dégriser</strong> revient au mode
-          libre. Une saisie de stock du jour coupe aussi la vente libre.
+          Utilisez <strong>Forcer vente selon stock</strong> pour griser tous
+          les articles du site. Sinon, seul un produit dont le stock a été saisi
+          (bouton +) est suivi — Zogbo et Gbégamey restent indépendants.{" "}
+          <strong>Dégriser</strong> revient au mode libre pour le site.
         </p>
       </div>
 

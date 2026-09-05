@@ -5,9 +5,11 @@ import { isValidDate } from "@/lib/day-doc";
 import { applyZogboMovement } from "@/lib/zogbo-repo";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
+import { computeLocalLine, computeTransferLine } from "@/lib/gbegamey-calc";
 import { getParametres } from "@/lib/parametres-repo";
 import { normalizeStickerCode, STICKER_ALPHABET } from "@/lib/parse-qr-id";
 import type { GbegameyLocalLine, VenteSite } from "@/lib/types";
+import { computeZogboLine } from "@/lib/zogbo-calc";
 import {
   canTransitionUnitStatus,
   type PlatUnitStats,
@@ -216,13 +218,18 @@ function statsFromCounts(
   const c = counts ?? EMPTY_COUNTS;
   const qrGenerated = c.prepare + c.envoye + c.vendu + c.perdu;
   const qrSent = c.envoye + c.vendu;
+  const soldAggregate = extra.soldAggregate ?? c.vendu;
+  const pertesAggregate = extra.pertesAggregate ?? 0;
+  const stockRemaining =
+    extra.stockRemaining ??
+    Math.max(0, prepared - soldAggregate - pertesAggregate);
   return {
     productId,
     productName,
     prepared,
     sentAggregate: extra.sentAggregate ?? qrSent,
-    soldAggregate: extra.soldAggregate ?? c.vendu,
-    pertesAggregate: extra.pertesAggregate ?? 0,
+    soldAggregate,
+    pertesAggregate,
     stockAggregate: extra.stockAggregate ?? c.prepare,
     qrGenerated,
     qrSent,
@@ -231,6 +238,7 @@ function statsFromCounts(
     qrPerdu: c.perdu,
     qrToGenerate:
       extra.qrToGenerate ?? Math.max(0, prepared - qrGenerated),
+    stockRemaining,
   };
 }
 
@@ -264,6 +272,10 @@ export async function getStockSitePayload(
         (counts?.vendu ?? 0) +
         (counts?.perdu ?? 0);
       const remaining = (counts?.prepare ?? 0) + (counts?.envoye ?? 0);
+      const sent = gbegamey.sentByProductId[dish.id] ?? 0;
+      const stockRemaining = line
+        ? computeTransferLine(line, sent, dish.unitPrice).prevalentRemaining
+        : 0;
       return statsFromCounts(dish.id, dish.name, qrGenerated, counts, {
         sentAggregate: line?.received ?? (counts?.envoye ?? 0) + (counts?.vendu ?? 0),
         soldAggregate: line?.sold ?? counts?.vendu ?? 0,
@@ -271,29 +283,41 @@ export async function getStockSitePayload(
         stockAggregate: remaining,
         qrRemainingZogbo: remaining,
         qrToGenerate: 0,
+        stockRemaining,
       });
     });
     const accLines = gbegamey.day.localLines ?? [];
     const accStats = gbegamey.localDishes.map((dish) => {
       const line = accLines.find((l) => l.productId === dish.id);
+      const stockRemaining = line
+        ? computeLocalLine(line, dish.unitPrice).prevalentRemaining
+        : 0;
       return statsFromCounts(
         dish.id,
         dish.name,
         line?.prepared ?? 0,
         unitCounts.local.get(dish.id),
-        { soldAggregate: line?.sold ?? 0, pertesAggregate: line?.pertes ?? 0 },
+        {
+          soldAggregate: line?.sold ?? 0,
+          pertesAggregate: line?.pertes ?? 0,
+          stockRemaining,
+        },
       );
     });
-    const drinkStats = drinks.map((d) =>
-      statsFromCounts(d.id, d.name, 0, unitCounts.boisson.get(d.id), {
+    const drinkStats = drinks.map((d) => {
+      const counts = unitCounts.boisson.get(d.id);
+      const generated =
+        (counts?.prepare ?? 0) +
+        (counts?.envoye ?? 0) +
+        (counts?.vendu ?? 0) +
+        (counts?.perdu ?? 0);
+      const qrLeft = (counts?.prepare ?? 0) + (counts?.envoye ?? 0);
+      return statsFromCounts(d.id, d.name, generated, counts, {
         qrToGenerate: 0,
-        prepared:
-          (unitCounts.boisson.get(d.id)?.prepare ?? 0) +
-          (unitCounts.boisson.get(d.id)?.envoye ?? 0) +
-          (unitCounts.boisson.get(d.id)?.vendu ?? 0) +
-          (unitCounts.boisson.get(d.id)?.perdu ?? 0),
-      }),
-    );
+        prepared: generated,
+        stockRemaining: qrLeft,
+      });
+    });
 
     return {
       date,
@@ -314,6 +338,9 @@ export async function getStockSitePayload(
   const plats: PlatUnitStats[] = zogbo.baseDishes.map((dish) => {
     const line = zogbo.day.lines.find((l) => l.productId === dish.id);
     const prepared = line?.prepared ?? 0;
+    const stockRemaining = line
+      ? computeZogboLine(line, 0).prevalentRemaining
+      : 0;
     return statsFromCounts(
       dish.id,
       dish.name,
@@ -324,18 +351,26 @@ export async function getStockSitePayload(
         soldAggregate: line?.sold ?? 0,
         pertesAggregate: line?.pertes ?? 0,
         stockAggregate: line?.stock ?? 0,
+        stockRemaining,
       },
     );
   });
   const accLines = zogbo.day.accompanimentLines ?? [];
   const accStats = zogbo.localDishes.map((dish) => {
     const line = accLines.find((l) => l.productId === dish.id);
+    const stockRemaining = line
+      ? computeLocalLine(line, dish.unitPrice).prevalentRemaining
+      : 0;
     return statsFromCounts(
       dish.id,
       dish.name,
       line?.prepared ?? 0,
       unitCounts.local.get(dish.id),
-      { soldAggregate: line?.sold ?? 0, pertesAggregate: line?.pertes ?? 0 },
+      {
+        soldAggregate: line?.sold ?? 0,
+        pertesAggregate: line?.pertes ?? 0,
+        stockRemaining,
+      },
     );
   });
   const drinkStats = drinks.map((d) => {
@@ -345,8 +380,10 @@ export async function getStockSitePayload(
       (counts?.envoye ?? 0) +
       (counts?.vendu ?? 0) +
       (counts?.perdu ?? 0);
+    const qrLeft = (counts?.prepare ?? 0) + (counts?.envoye ?? 0);
     return statsFromCounts(d.id, d.name, generated, counts, {
       qrToGenerate: 0,
+      stockRemaining: qrLeft,
     });
   });
 
@@ -499,6 +536,30 @@ export async function generatePlatQrUnits(input: {
   const db = await getDb();
   await db.collection<StockUnitDoc>("stock_units").insertMany(docs);
 
+  // Générer des QR = activer le suivi pour ce produit sur ce site.
+  if (kind === "plat") {
+    if (site === "zogbo") {
+      const zogbo = await getZogboDayPayload(input.date);
+      await saveZogboDay({
+        date: input.date,
+        lines: zogbo.day.lines.map((l) =>
+          l.productId === input.productId ? { ...l, stockTracked: true } : l,
+        ),
+        accompanimentLines: zogbo.day.accompanimentLines,
+      });
+    } else {
+      const gbegamey = await getGbegameyDayPayload(input.date);
+      await saveGbegameyDay({
+        date: input.date,
+        transferLines: gbegamey.day.transferLines.map((l) =>
+          l.productId === input.productId ? { ...l, stockTracked: true } : l,
+        ),
+        localLines: gbegamey.day.localLines,
+        status: gbegamey.day.status,
+      });
+    }
+  }
+
   const payload = input.skipPayload
     ? undefined
     : await getStockSitePayload(input.date, site);
@@ -528,7 +589,9 @@ function withAccPrepared(
   const line = lines.find((l) => l.productId === input.productId);
   if (line) {
     return lines.map((l) =>
-      l.productId === input.productId ? { ...l, prepared: input.needed } : l,
+      l.productId === input.productId
+        ? { ...l, prepared: input.needed, stockTracked: true }
+        : l,
     );
   }
   return [
@@ -542,6 +605,7 @@ function withAccPrepared(
       pertes: 0,
       counted: null,
       observations: "",
+      stockTracked: true,
     },
   ];
 }
@@ -929,6 +993,135 @@ export async function saveAccompanimentStock(input: {
     stockSaisie: true,
   });
   return getStockSitePayload(input.date, "zogbo");
+}
+
+/**
+ * Saisie stock d’un produit (site courant) + option QR.
+ * Active le suivi pour CE produit seulement — l’autre site n’est pas touché.
+ */
+export async function registerProductStock(input: {
+  date: string;
+  site: VenteSite;
+  productId: string;
+  qty: number;
+  kind?: StockUnitKind;
+  generateQr: boolean;
+}): Promise<{ units: StockUnit[]; payload?: StockZogboPayload }> {
+  const qty = Math.round(Number(input.qty));
+  const site: VenteSite = input.site === "gbegamey" ? "gbegamey" : "zogbo";
+  const kind: StockUnitKind =
+    input.kind === "local" || input.kind === "boisson" ? input.kind : "plat";
+  if (!Number.isFinite(qty) || qty <= 0) {
+    throw new Error("Quantité invalide.");
+  }
+  if (!isValidDate(input.date)) throw new Error("Date invalide.");
+  if (kind === "boisson") {
+    throw new Error("Les boissons s’enregistrent via l’achat (+).");
+  }
+
+  const parametres = await getParametres();
+
+  if (kind === "local") {
+    const dish = parametres.localDishes.find((d) => d.id === input.productId);
+    if (!dish) throw new Error("Accompagnement introuvable dans le catalogue.");
+    if (site === "gbegamey") {
+      const gbegamey = await getGbegameyDayPayload(input.date);
+      const lines = gbegamey.day.localLines ?? [];
+      const existing = lines.find((l) => l.productId === input.productId);
+      const prepared = (existing?.prepared ?? 0) + qty;
+      await saveGbegameyDay({
+        date: input.date,
+        transferLines: gbegamey.day.transferLines,
+        localLines: withAccPrepared(lines, {
+          productId: input.productId,
+          productName: dish.name,
+          needed: prepared,
+        }),
+        status: gbegamey.day.status,
+      });
+    } else {
+      const zogbo = await getZogboDayPayload(input.date);
+      const lines = zogbo.day.accompanimentLines ?? [];
+      const existing = lines.find((l) => l.productId === input.productId);
+      const prepared = (existing?.prepared ?? 0) + qty;
+      await saveZogboDay({
+        date: input.date,
+        lines: zogbo.day.lines,
+        accompanimentLines: withAccPrepared(lines, {
+          productId: input.productId,
+          productName: dish.name,
+          needed: prepared,
+        }),
+      });
+    }
+  } else if (site === "zogbo") {
+    await applyZogboMovement({
+      date: input.date,
+      productId: input.productId,
+      type: "prepare",
+      qty,
+    });
+    const zogbo = await getZogboDayPayload(input.date);
+    await saveZogboDay({
+      date: input.date,
+      lines: zogbo.day.lines.map((l) =>
+        l.productId === input.productId ? { ...l, stockTracked: true } : l,
+      ),
+      accompanimentLines: zogbo.day.accompanimentLines,
+    });
+  } else {
+    const dish = parametres.baseDishes.find((d) => d.id === input.productId);
+    if (!dish) throw new Error("Plat introuvable dans le catalogue.");
+    const gbegamey = await getGbegameyDayPayload(input.date);
+    const lines = gbegamey.day.transferLines.map((l) => {
+      if (l.productId !== input.productId) return l;
+      const counted =
+        l.counted !== null && l.counted !== undefined
+          ? Math.max(0, Number(l.counted) || 0) + qty
+          : qty;
+      return { ...l, counted, stockTracked: true };
+    });
+    const hasLine = gbegamey.day.transferLines.some(
+      (l) => l.productId === input.productId,
+    );
+    const nextLines = hasLine
+      ? lines
+      : [
+          ...lines,
+          {
+            productId: dish.id,
+            name: dish.name,
+            initialStock: 0,
+            received: null,
+            sold: 0,
+            pertes: 0,
+            counted: qty,
+            observations: "",
+            stockTracked: true,
+          },
+        ];
+    await saveGbegameyDay({
+      date: input.date,
+      transferLines: nextLines,
+      localLines: gbegamey.day.localLines,
+      status: gbegamey.day.status,
+    });
+  }
+
+  if (!input.generateQr) {
+    return {
+      units: [],
+      payload: await getStockSitePayload(input.date, site),
+    };
+  }
+
+  return generatePlatQrUnits({
+    date: input.date,
+    productId: input.productId,
+    qty,
+    site,
+    kind,
+  });
 }
 
 /** Vérifie la cohérence agrégés ↔ unités (tests / diagnostic). */

@@ -136,8 +136,8 @@ function parseGmailRetryAt(error: unknown): Date | null {
 /**
  * Envoie un e-mail via Gmail API (compte GMAIL_USER + refresh token OAuth).
  * Embarque le logo King Fish en pièce jointe inline (CID).
- * Retourne false si non configuré ou sans destinataire — ne jette pas.
- * En cas de rate-limit Gmail, jette {@link MailRateLimitError}.
+ * Retourne false si non configuré ou sans destinataire.
+ * En cas d’échec API : jette (rate-limit → {@link MailRateLimitError}).
  */
 export async function sendMail(input: SendMailInput): Promise<boolean> {
   if (!gmailConfigured()) {
@@ -176,6 +176,35 @@ export async function sendMail(input: SendMailInput): Promise<boolean> {
         error instanceof Error ? error.message : "Rate limit Gmail",
       );
     }
-    return false;
+    throw error instanceof Error
+      ? error
+      : new Error("Envoi Gmail impossible.");
+  }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Envoi avec une relance si Gmail rate-limit (rapports / digests).
+ * `maxWaitMs` borne l’attente (ex. 45s pour un clic admin).
+ */
+export async function sendMailWithRetry(
+  input: SendMailInput,
+  opts?: { maxWaitMs?: number },
+): Promise<boolean> {
+  const maxWaitMs = opts?.maxWaitMs ?? 45_000;
+  try {
+    return await sendMail(input);
+  } catch (error) {
+    if (!(error instanceof MailRateLimitError)) throw error;
+    const waitMs = Math.min(
+      maxWaitMs,
+      Math.max(1500, error.retryAt.getTime() - Date.now() + 1500),
+    );
+    if (waitMs > maxWaitMs) throw error;
+    await sleep(waitMs);
+    return sendMail(input);
   }
 }

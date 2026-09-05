@@ -187,6 +187,10 @@ export function normalizeBoissonsLine(line: LegacyBoissonsLine): BoissonsLine {
     pertesGbegamey,
     countedGbegamey,
     observations: String(line.observations ?? ""),
+    ...(line.stockTrackedZogbo === true ? { stockTrackedZogbo: true } : {}),
+    ...(line.stockTrackedGbegamey === true
+      ? { stockTrackedGbegamey: true }
+      : {}),
   };
 }
 
@@ -471,8 +475,8 @@ export function applyBoissonsPurchaseToState(
   const purchases =
     (isZogbo ? line.purchasesZogbo : line.purchasesGbegamey) + qty;
   const nextLine: BoissonsLine = isZogbo
-    ? { ...line, purchasesZogbo: purchases }
-    : { ...line, purchasesGbegamey: purchases };
+    ? { ...line, purchasesZogbo: purchases, stockTrackedZogbo: true }
+    : { ...line, purchasesGbegamey: purchases, stockTrackedGbegamey: true };
   const stockAfter = remainingCasiersForSite(nextLine, input.site, upc);
 
   const movement: BoissonsMovement = {

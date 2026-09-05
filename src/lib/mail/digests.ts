@@ -2,7 +2,7 @@ import {
   digestNotifyEnabled,
   resolveMailAlertRecipients,
 } from "@/lib/mail/mail-config";
-import { sendMail } from "@/lib/mail/gmail-send";
+import { sendMailWithRetry } from "@/lib/mail/gmail-send";
 import {
   detailedSalesDigestMail,
   digestMail,
@@ -35,6 +35,15 @@ async function caForRange(from: string, to: string) {
   };
 }
 
+type DigestResult = {
+  ok: boolean;
+  from: string;
+  to: string;
+  total: number;
+  articles?: number;
+  error?: string;
+};
+
 /**
  * Point de la journée écoulée (par défaut : hier).
  * À déclencher chaque nuit via cron `?kind=day`.
@@ -42,19 +51,27 @@ async function caForRange(from: string, to: string) {
 export async function sendDailyDigest(
   anchorDate = todayIsoDate(),
   opts?: { date?: string },
-): Promise<{
-  ok: boolean;
-  from: string;
-  to: string;
-  total: number;
-  articles: number;
-}> {
+): Promise<DigestResult> {
   if (!digestNotifyEnabled()) {
-    return { ok: false, from: "", to: "", total: 0, articles: 0 };
+    return {
+      ok: false,
+      from: "",
+      to: "",
+      total: 0,
+      articles: 0,
+      error: "MAIL_DIGEST_NOTIFY=0 ou Gmail non configuré.",
+    };
   }
   const recipients = await resolveMailAlertRecipients();
   if (recipients.length === 0) {
-    return { ok: false, from: "", to: "", total: 0, articles: 0 };
+    return {
+      ok: false,
+      from: "",
+      to: "",
+      total: 0,
+      articles: 0,
+      error: "Aucun destinataire (Alertes mail ou MAIL_ALERT_TO).",
+    };
   }
 
   const date =
@@ -64,9 +81,19 @@ export async function sendDailyDigest(
 
   const report = await buildDailySalesDigest(date);
   const mail = detailedSalesDigestMail(report);
-  const ok = await sendMail({ to: recipients, ...mail });
+  const ok = await sendMailWithRetry({ to: recipients, ...mail });
+  if (!ok) {
+    return {
+      ok: false,
+      from: report.from,
+      to: report.to,
+      total: report.total,
+      articles: report.articles,
+      error: "Envoi Gmail non effectué.",
+    };
+  }
   return {
-    ok,
+    ok: true,
     from: report.from,
     to: report.to,
     total: report.total,
@@ -74,17 +101,28 @@ export async function sendDailyDigest(
   };
 }
 
-export async function sendWeeklyDigest(anchorDate = todayIsoDate()): Promise<{
-  ok: boolean;
-  from: string;
-  to: string;
-  total: number;
-}> {
+export async function sendWeeklyDigest(
+  anchorDate = todayIsoDate(),
+): Promise<DigestResult> {
   if (!digestNotifyEnabled()) {
-    return { ok: false, from: "", to: "", total: 0 };
+    return {
+      ok: false,
+      from: "",
+      to: "",
+      total: 0,
+      error: "MAIL_DIGEST_NOTIFY=0 ou Gmail non configuré.",
+    };
   }
   const recipients = await resolveMailAlertRecipients();
-  if (recipients.length === 0) return { ok: false, from: "", to: "", total: 0 };
+  if (recipients.length === 0) {
+    return {
+      ok: false,
+      from: "",
+      to: "",
+      total: 0,
+      error: "Aucun destinataire (Alertes mail ou MAIL_ALERT_TO).",
+    };
+  }
 
   const thisMonday = mondayOf(anchorDate);
   const prevMonday = shiftIsoDate(thisMonday, -7)!;
@@ -98,8 +136,17 @@ export async function sendWeeklyDigest(anchorDate = todayIsoDate()): Promise<{
     to: prevSunday,
     ...ca,
   });
-  const ok = await sendMail({ to: recipients, ...mail });
-  return { ok, from: prevMonday, to: prevSunday, total: ca.total };
+  const ok = await sendMailWithRetry({ to: recipients, ...mail });
+  if (!ok) {
+    return {
+      ok: false,
+      from: prevMonday,
+      to: prevSunday,
+      total: ca.total,
+      error: "Envoi Gmail non effectué.",
+    };
+  }
+  return { ok: true, from: prevMonday, to: prevSunday, total: ca.total };
 }
 
 /**
@@ -109,19 +156,27 @@ export async function sendWeeklyDigest(anchorDate = todayIsoDate()): Promise<{
 export async function sendMonthlyDigest(
   anchorDate = todayIsoDate(),
   opts?: { ym?: string },
-): Promise<{
-  ok: boolean;
-  from: string;
-  to: string;
-  total: number;
-  articles: number;
-}> {
+): Promise<DigestResult> {
   if (!digestNotifyEnabled()) {
-    return { ok: false, from: "", to: "", total: 0, articles: 0 };
+    return {
+      ok: false,
+      from: "",
+      to: "",
+      total: 0,
+      articles: 0,
+      error: "MAIL_DIGEST_NOTIFY=0 ou Gmail non configuré.",
+    };
   }
   const recipients = await resolveMailAlertRecipients();
   if (recipients.length === 0) {
-    return { ok: false, from: "", to: "", total: 0, articles: 0 };
+    return {
+      ok: false,
+      from: "",
+      to: "",
+      total: 0,
+      articles: 0,
+      error: "Aucun destinataire (Alertes mail ou MAIL_ALERT_TO).",
+    };
   }
 
   let ym = opts?.ym;
@@ -133,9 +188,19 @@ export async function sendMonthlyDigest(
 
   const report = await buildMonthlySalesDigest(ym);
   const mail = detailedSalesDigestMail(report);
-  const ok = await sendMail({ to: recipients, ...mail });
+  const ok = await sendMailWithRetry({ to: recipients, ...mail });
+  if (!ok) {
+    return {
+      ok: false,
+      from: report.from,
+      to: report.to,
+      total: report.total,
+      articles: report.articles,
+      error: "Envoi Gmail non effectué.",
+    };
+  }
   return {
-    ok,
+    ok: true,
     from: report.from,
     to: report.to,
     total: report.total,

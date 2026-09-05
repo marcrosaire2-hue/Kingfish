@@ -7,6 +7,7 @@ import {
   generatePlatQrUnits,
   getStockSitePayload,
   listPlatUnits,
+  registerProductStock,
   saveAccompanimentStock,
   sendPlatQrUnits,
 } from "@/lib/stock-unit-repo";
@@ -118,6 +119,42 @@ export async function POST(request: Request) {
         kind: "gbegamey",
         title: `QR générés · ${body.productId}`,
         detail: `${result.units.length} unité(s) · ${date}`,
+        date,
+        site: "gbegamey",
+      });
+      return NextResponse.json(result);
+    }
+
+    if (action === "register-stock") {
+      if (!body.productId) {
+        return NextResponse.json({ error: "productId requis." }, { status: 400 });
+      }
+      if (body.kind === "boisson") {
+        return NextResponse.json(
+          {
+            error: "Les boissons s’enregistrent via l’achat (+).",
+          },
+          { status: 400 },
+        );
+      }
+      const generateQr = Boolean(
+        (body as { generateQr?: boolean }).generateQr,
+      );
+      const result = await registerProductStock({
+        date,
+        site: "gbegamey",
+        productId: body.productId,
+        qty: body.qty ?? 0,
+        kind: body.kind,
+        generateQr,
+      });
+      await logActivity({
+        user,
+        kind: "gbegamey",
+        title: generateQr
+          ? `Stock + QR · ${body.productId}`
+          : `Stock saisi · ${body.productId}`,
+        detail: `+${body.qty ?? 0} · ${date}`,
         date,
         site: "gbegamey",
       });

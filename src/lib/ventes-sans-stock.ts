@@ -84,13 +84,14 @@ export async function endVentesSansStock(
 }
 
 /**
- * Après saisie de stock → vente plafonnée.
- * Sinon : conserve un forçage stock explicite, sinon vente libre (défaut).
+ * Après saisie de stock → ne plus basculer toute la journée.
+ * Le suivi est produit × site (`stockTracked`). On conserve seulement
+ * un forçage admin explicite (`ventesSansStock: false`).
  */
 export function mergeVentesSansStockOnSave(input: {
   stockSaisie?: boolean;
   existing?: { ventesSansStock?: boolean } | null;
 }): boolean {
-  if (input.stockSaisie) return false;
+  void input.stockSaisie;
   return dayVentesSansStock(input.existing);
 }

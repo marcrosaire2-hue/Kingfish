@@ -240,43 +240,43 @@ const ProductGrid = memo(function ProductGrid({
     <div className="vente-grid">
       {products.map((p) => {
         const disabledPv = p.kind === "boisson" && p.unitPrice <= 0;
-        // Accompagnements toujours vendables, même à stock nul.
-        const outOfStock =
+        const stockBlocked =
           !ignoreStock &&
-          p.kind !== "local" &&
           p.stockLeft !== null &&
           p.stockLeft !== undefined &&
           p.stockLeft <= 0;
-        const blocked = disabledPv || outOfStock || !canSell;
-        const showStockUi = p.kind !== "local";
+        const blocked = disabledPv || stockBlocked || !canSell;
         const reason = !canSell
           ? "Ouvrez la caisse pour vendre"
           : disabledPv
             ? p.blockReason || "Prix de vente manquant"
-            : outOfStock
+            : stockBlocked
               ? p.blockReason || p.hint || "Stock insuffisant"
               : null;
         const badgeLabel =
-          outOfStock && p.blockReason?.toLowerCase().includes("pas encore reçu")
+          stockBlocked && p.blockReason?.toLowerCase().includes("pas encore reçu")
             ? "PAS REÇU"
-            : outOfStock && p.blockReason?.toLowerCase().includes("pas encore préparé")
+            : stockBlocked &&
+                p.blockReason?.toLowerCase().includes("pas encore préparé")
               ? "À PRÉPARER"
-              : outOfStock
+              : stockBlocked
                 ? "Épuisé"
                 : null;
+        const stockLabel =
+          p.stockLeft === null || p.stockLeft === undefined
+            ? "Libre"
+            : `Reste ${p.stockLeft}${p.kind === "boisson" ? " bt" : ""}`;
         return (
           <article
             key={`${p.kind}-${p.productId}`}
             className={`vente-card${blocked ? " is-disabled" : ""}${
-              showStockUi && p.lowStock && !outOfStock ? " is-low" : ""
+              p.lowStock && !stockBlocked ? " is-low" : ""
             }`}
-            title={
-              showStockUi ? (reason ?? p.hint ?? undefined) : undefined
-            }
+            title={reason ?? p.hint ?? stockLabel}
           >
             <div className="vente-card-media" aria-hidden>
               <ProductIcon kind={p.kind} name={p.name} size="lg" />
-              {showStockUi && badgeLabel ? (
+              {badgeLabel ? (
                 <span
                   className={`vente-out-badge${
                     badgeLabel === "PAS REÇU" || badgeLabel === "À PRÉPARER"
@@ -286,7 +286,7 @@ const ProductGrid = memo(function ProductGrid({
                 >
                   {badgeLabel}
                 </span>
-              ) : showStockUi && p.lowStock && !outOfStock ? (
+              ) : p.lowStock && !stockBlocked ? (
                 <span className="vente-low-badge">Bientôt épuisé</span>
               ) : null}
             </div>
@@ -295,10 +295,21 @@ const ProductGrid = memo(function ProductGrid({
               <span className="vente-price mono">
                 {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
               </span>
-              {showStockUi && reason && badgeLabel !== "Épuisé" ? (
+              <p
+                className={`vente-stock-left${
+                  stockBlocked
+                    ? " is-empty"
+                    : p.lowStock
+                      ? " is-low"
+                      : p.stockLeft == null
+                        ? " is-free"
+                        : ""
+                }`}
+              >
+                {stockLabel}
+              </p>
+              {reason && badgeLabel !== "Épuisé" ? (
                 <p className="vente-unavailable-reason">{reason}</p>
-              ) : showStockUi && p.hint && badgeLabel !== "Épuisé" ? (
-                <p className="vente-hint">{p.hint}</p>
               ) : null}
             </div>
             <div className="vente-card-actions is-single">

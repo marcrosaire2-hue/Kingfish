@@ -11,13 +11,14 @@ import {
   sendWeeklyDigest,
   sendMonthlyDigest,
 } from "@/lib/mail/digests";
-import { sendMail } from "@/lib/mail/gmail-send";
+import { sendMail, MailRateLimitError } from "@/lib/mail/gmail-send";
 import { testMail } from "@/lib/mail/mail-templates";
 import { resendSaleMailsForDate } from "@/lib/mail/notify-sale";
 import { reportError } from "@/lib/report-error";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 /**
  * Cron / test digests.
@@ -86,6 +87,12 @@ export async function POST(request: Request) {
 
     if (kind === "day") {
       const result = await sendDailyDigest(undefined, { date });
+      if (!result.ok) {
+        return NextResponse.json(
+          { kind: "day", recipients, ...result },
+          { status: 502 },
+        );
+      }
       return NextResponse.json({
         kind: "day",
         recipients,
@@ -95,6 +102,12 @@ export async function POST(request: Request) {
 
     if (kind === "month") {
       const result = await sendMonthlyDigest(undefined, { ym });
+      if (!result.ok) {
+        return NextResponse.json(
+          { kind: "month", recipients, ...result },
+          { status: 502 },
+        );
+      }
       return NextResponse.json({
         kind: "month",
         recipients,
@@ -104,6 +117,12 @@ export async function POST(request: Request) {
 
     if (kind === "week") {
       const result = await sendWeeklyDigest();
+      if (!result.ok) {
+        return NextResponse.json(
+          { kind: "week", recipients, ...result },
+          { status: 502 },
+        );
+      }
       return NextResponse.json({
         kind: "week",
         recipients,
@@ -116,7 +135,19 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   } catch (error) {
+    if (error instanceof MailRateLimitError) {
+      return NextResponse.json(
+        {
+          error: `Gmail rate-limit — réessayez vers ${error.retryAt.toLocaleString("fr-FR", { timeZone: "Africa/Porto-Novo" })}.`,
+          retryAt: error.retryAt.toISOString(),
+        },
+        { status: 429 },
+      );
+    }
     reportError("POST /api/mail/cron", error);
+    if (error instanceof Error && error.message && !/Erreur serveur/i.test(error.message)) {
+      return NextResponse.json({ error: error.message }, { status: 502 });
+    }
     return authErrorResponse(error);
   }
 }

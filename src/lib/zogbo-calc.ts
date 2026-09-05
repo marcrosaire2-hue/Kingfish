@@ -59,6 +59,7 @@ export function normalizeZogboLine(line: LegacyZogboLine): ZogboLine {
         ? null
         : Math.max(0, Number(line.counted) || 0),
     observations: String(line.observations ?? ""),
+    ...(line.stockTracked === true ? { stockTracked: true } : {}),
   };
 }
 

@@ -73,6 +73,11 @@ export type PlatUnitStats = {
   qrPerdu: number;
   /** QR restant à générer = prepared − qrGenerated */
   qrToGenerate: number;
+  /**
+   * Stock physique restant vendable (préparé/compté − vendu − pertes).
+   * Indépendant du compteur QR.
+   */
+  stockRemaining: number;
 };
 
 export type StockZogboPayload = {

@@ -110,14 +110,14 @@ function StockSearch({
   );
 }
 
-function QrQtyControls({
+function StockAddControls({
   productId,
   productName,
   kind,
   draftQr,
   onDraft,
   busy,
-  onGenerate,
+  onAdd,
 }: {
   productId: string;
   productName: string;
@@ -125,7 +125,7 @@ function QrQtyControls({
   draftQr: Record<string, string>;
   onDraft: (key: string, value: string) => void;
   busy: string | null;
-  onGenerate: (
+  onAdd: (
     productId: string,
     productName: string,
     kind: StockUnitKind,
@@ -140,7 +140,7 @@ function QrQtyControls({
         min={1}
         className="input input-qty"
         placeholder="Qté"
-        aria-label={`Quantité de QR — ${productName}`}
+        aria-label={`Stock initial — ${productName}`}
         value={draftQr[draftKey] ?? ""}
         onChange={(e) => onDraft(draftKey, e.target.value)}
       />
@@ -148,9 +148,10 @@ function QrQtyControls({
         type="button"
         className="btn btn-sm btn-primary"
         disabled={busy === busyKey}
-        onClick={() => onGenerate(productId, productName, kind)}
+        aria-label={`Enregistrer le stock — ${productName}`}
+        onClick={() => onAdd(productId, productName, kind)}
       >
-        {busy === busyKey ? "…" : "PDF"}
+        {busy === busyKey ? "…" : "+"}
       </button>
     </div>
   );
@@ -231,6 +232,12 @@ export function StockZogboPage({
   const [platPage, setPlatPage] = useState(1);
   const [accSearch, setAccSearch] = useState("");
   const [accPage, setAccPage] = useState(1);
+  const [qrPrompt, setQrPrompt] = useState<{
+    productId: string;
+    productName: string;
+    kind: StockUnitKind;
+    qty: number;
+  } | null>(null);
 
   const debouncedPlatSearch = useDebouncedValue(platSearch);
   const debouncedAccSearch = useDebouncedValue(accSearch);
@@ -243,7 +250,7 @@ export function StockZogboPage({
       prepared: sumPlats(plats, "prepared"),
       qrGenerated: sumPlats(plats, "qrGenerated"),
       qrSent: sumPlats(plats, "qrSent"),
-      remaining: sumPlats(plats, "qrRemainingZogbo"),
+      remaining: sumPlats(plats, "stockRemaining"),
       sold: sumPlats(plats, "soldAggregate"),
     }),
     [plats],
@@ -303,7 +310,7 @@ export function StockZogboPage({
     return next;
   }
 
-  async function handleGenerateQr(
+  function openRegisterStock(
     productId: string,
     productName: string,
     kind: StockUnitKind = "plat",
@@ -311,19 +318,32 @@ export function StockZogboPage({
     if (readOnly) return;
     const draftKey = kind === "plat" ? productId : `${kind}:${productId}`;
     const qty = Math.round(Number(draftQr[draftKey]) || 0);
-    if (qty <= 0) return;
+    if (qty <= 0) {
+      setError("Indiquez d’abord la quantité de stock.");
+      return;
+    }
+    setError(null);
+    setQrPrompt({ productId, productName, kind, qty });
+  }
+
+  async function confirmRegisterStock(generateQr: boolean) {
+    if (readOnly || !qrPrompt) return;
+    const { productId, productName, kind, qty } = qrPrompt;
+    const draftKey = kind === "plat" ? productId : `${kind}:${productId}`;
     setBusy(`qr-${kind}-${productId}`);
     setError(null);
+    setQrPrompt(null);
     try {
       const res = await fetch(apiBase, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date,
-          action: "generate-qr",
+          action: "register-stock",
           productId,
           qty,
           kind,
+          generateQr,
         }),
       });
       const body = await res.json();
@@ -333,20 +353,22 @@ export function StockZogboPage({
         setAccLines(body.payload.accompanimentLines ?? []);
       }
       const units = (body.units ?? []) as StockUnit[];
-      if (!units.length) {
-        throw new Error("Aucun QR généré.");
+      if (generateQr) {
+        if (!units.length) {
+          throw new Error("Aucun QR généré.");
+        }
+        await downloadQrSheet({
+          qrIds: units.map((u) => u.qrId),
+          productName,
+          date,
+        });
       }
-      await downloadQrSheet({
-        qrIds: units.map((u) => u.qrId),
-        productName,
-        date,
-      });
       setDraftQr((d) => ({ ...d, [draftKey]: "" }));
       if (expandedProductId === productId) {
         await loadUnits(productId, false);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur génération QR.");
+      setError(e instanceof Error ? e.message : "Erreur enregistrement stock.");
     } finally {
       setBusy(null);
     }
@@ -646,7 +668,7 @@ export function StockZogboPage({
               </div>
               <div className="catalogue-kpi catalogue-kpi-accent">
                 <span className="catalogue-kpi-label">
-                  {isGbegamey ? "Reste Gbégamey" : "Reste Zogbo"}
+                  {isGbegamey ? "Stock restant Gbé" : "Stock restant"}
                 </span>
                 <strong className="catalogue-kpi-value">{totals.remaining}</strong>
               </div>
@@ -674,7 +696,7 @@ export function StockZogboPage({
               <p>
                 {readOnly
                   ? "Les plats du jour, les QR générés et les ventes s’affichent ici."
-                  : "Indiquez une quantité : les QR et le code collé sont générés en PDF à imprimer. Le compteur « Préparé » est mis à jour automatiquement."}
+                  : "Saisissez la quantité puis + . On vous demande si vous voulez générer le QR (PDF). Oui ou non : les ventes de ce produit seulement commenceront à dépendre de ce stock."}
               </p>
             </div>
 
@@ -708,20 +730,20 @@ export function StockZogboPage({
                           Préparé
                         </th>
                         <th scope="col" className="col-qty">
-                          QR
+                          Stock restant
+                        </th>
+                        <th scope="col" className="col-qty">
+                          QR dispo
                         </th>
                         <th scope="col" className="col-qty">
                           {isGbegamey ? "Reçu" : "Envoyé"}
-                        </th>
-                        <th scope="col" className="col-qty">
-                          Reste
                         </th>
                         <th scope="col" className="col-qty">
                           Vendu
                         </th>
                         {readOnly ? null : (
                           <th scope="col" className="col-action">
-                            Générer QR
+                            Stock initial
                           </th>
                         )}
                         <th scope="col" className="col-actions">
@@ -754,8 +776,17 @@ export function StockZogboPage({
                                 </span>
                               </td>
                               <td>
+                                <span
+                                  className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
+                                    row.stockRemaining <= 0 ? " is-empty" : ""
+                                  }`}
+                                >
+                                  {row.stockRemaining}
+                                </span>
+                              </td>
+                              <td>
                                 <span className="catalogue-qty-badge">
-                                  {row.qrGenerated}
+                                  {row.qrRemainingZogbo}
                                   {row.qrToGenerate > 0 ? (
                                     <span className="stock-zogbo-pending">
                                       +{row.qrToGenerate}
@@ -766,11 +797,6 @@ export function StockZogboPage({
                               <td>
                                 <span className="catalogue-qty-badge">
                                   {row.qrSent}
-                                </span>
-                              </td>
-                              <td>
-                                <span className="catalogue-qty-badge catalogue-qty-badge-accent">
-                                  {row.qrRemainingZogbo}
                                 </span>
                               </td>
                               <td>
@@ -800,7 +826,7 @@ export function StockZogboPage({
                                       className="btn btn-sm btn-primary"
                                       disabled={busy === `qr-plat-${row.productId}`}
                                       onClick={() =>
-                                        void handleGenerateQr(
+                                        openRegisterStock(
                                           row.productId,
                                           row.productName,
                                           "plat",
@@ -809,7 +835,7 @@ export function StockZogboPage({
                                     >
                                       {busy === `qr-plat-${row.productId}`
                                         ? "…"
-                                        : "PDF"}
+                                        : "+"}
                                     </button>
                                   </div>
                                 </td>
@@ -871,11 +897,11 @@ export function StockZogboPage({
                                 </span>
                                 <strong>{row.prepared}</strong>
                               </div>
-                              <div className="stock-mobile-metric">
+                              <div className="stock-mobile-metric stock-mobile-metric-accent">
                                 <span className="stock-mobile-metric-label">
-                                  Reste
+                                  Stock restant
                                 </span>
-                                <strong>{row.qrRemainingZogbo}</strong>
+                                <strong>{row.stockRemaining}</strong>
                               </div>
                               <div className="stock-mobile-metric">
                                 <span className="stock-mobile-metric-label">
@@ -906,7 +932,7 @@ export function StockZogboPage({
                                     className="btn btn-sm btn-primary"
                                     disabled={busy === `qr-plat-${row.productId}`}
                                     onClick={() =>
-                                      void handleGenerateQr(
+                                      openRegisterStock(
                                         row.productId,
                                         row.productName,
                                         "plat",
@@ -915,7 +941,7 @@ export function StockZogboPage({
                                   >
                                     {busy === `qr-plat-${row.productId}`
                                       ? "…"
-                                      : "PDF"}
+                                      : "+"}
                                   </button>
                                 </>
                               )}
@@ -1118,11 +1144,11 @@ export function StockZogboPage({
                           <th scope="col">Préparé</th>
                           <th scope="col">Comptage</th>
                           <th scope="col">Vendu</th>
-                          <th scope="col">Reste</th>
+                          <th scope="col">Stock restant</th>
                           <th scope="col">QR</th>
                           {readOnly ? null : (
                             <th scope="col" className="col-action">
-                              Générer QR
+                              Stock initial
                             </th>
                           )}
                         </tr>
@@ -1182,7 +1208,11 @@ export function StockZogboPage({
                               </span>
                             </td>
                             <td>
-                              <span className="catalogue-qty-badge catalogue-qty-badge-accent">
+                              <span
+                                className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
+                                  row.theoreticalRemaining <= 0 ? " is-empty" : ""
+                                }`}
+                              >
                                 {row.theoreticalRemaining}
                               </span>
                             </td>
@@ -1193,15 +1223,15 @@ export function StockZogboPage({
                             </td>
                             {readOnly ? null : (
                               <td className="col-action">
-                                <QrQtyControls
+                                <StockAddControls
                                   productId={row.productId}
                                   productName={row.name}
                                   kind="local"
                                   draftQr={draftQr}
                                   onDraft={patchDraftQr}
                                   busy={busy}
-                                  onGenerate={(id, name, kind) =>
-                                    void handleGenerateQr(id, name, kind)
+                                  onAdd={(id, name, kind) =>
+                                    openRegisterStock(id, name, kind)
                                   }
                                 />
                               </td>
@@ -1237,9 +1267,9 @@ export function StockZogboPage({
                             </span>
                             <strong>{row.sold}</strong>
                           </div>
-                          <div className="stock-mobile-metric">
+                          <div className="stock-mobile-metric stock-mobile-metric-accent">
                             <span className="stock-mobile-metric-label">
-                              Reste
+                              Stock restant
                             </span>
                             <strong>{row.theoreticalRemaining}</strong>
                           </div>
@@ -1283,15 +1313,15 @@ export function StockZogboPage({
                         </div>
                         {readOnly ? null : (
                           <div className="stock-mobile-actions">
-                            <QrQtyControls
+                            <StockAddControls
                               productId={row.productId}
                               productName={row.name}
                               kind="local"
                               draftQr={draftQr}
                               onDraft={patchDraftQr}
                               busy={busy}
-                              onGenerate={(id, name, kind) =>
-                                void handleGenerateQr(id, name, kind)
+                              onAdd={(id, name, kind) =>
+                                openRegisterStock(id, name, kind)
                               }
                             />
                           </div>
@@ -1321,6 +1351,52 @@ export function StockZogboPage({
           />
         )}
       </div>
+
+      {qrPrompt ? (
+        <div
+          className="stock-qr-prompt"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="stock-qr-prompt-title"
+        >
+          <div className="stock-qr-prompt-card">
+            <h2 id="stock-qr-prompt-title" className="panel-title">
+              Générer le code QR ?
+            </h2>
+            <p className="muted">
+              <strong>{qrPrompt.productName}</strong> · {qrPrompt.qty} unité(s)
+              sur {isGbegamey ? "Gbégamey" : "Zogbo"}.
+            </p>
+            <p className="muted">
+              Oui = QR + PDF. Non = stock enregistré sans QR. Dans les deux cas,
+              les ventes de ce produit seulement dépendront de ce stock.
+            </p>
+            <div className="stock-qr-prompt-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => setQrPrompt(null)}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => void confirmRegisterStock(false)}
+              >
+                Non
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => void confirmRegisterStock(true)}
+              >
+                Oui, PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </AppShell>
   );
 }

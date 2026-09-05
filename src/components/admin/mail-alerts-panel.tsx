@@ -128,8 +128,16 @@ export function MailAlertsPanel() {
         sent?: number;
         failed?: number;
         skipped?: number;
+        retryAt?: string;
       };
-      if (!res.ok) throw new Error(body.error || "Envoi impossible.");
+      if (!res.ok) {
+        throw new Error(
+          body.error ||
+            (res.status === 429
+              ? "Gmail rate-limit — réessayez dans quelques minutes."
+              : "Envoi impossible."),
+        );
+      }
       if (kind === "test") {
         setFlash("Mail de test envoyé aux destinataires effectifs.");
       } else if (kind === "sales") {
@@ -140,8 +148,9 @@ export function MailAlertsPanel() {
             ".",
         );
       } else if (body.ok === false) {
-        setFlash(
-          "Envoi non effectué (MAIL_DIGEST_NOTIFY=0 ou aucun destinataire).",
+        throw new Error(
+          body.error ||
+            "Envoi non effectué (MAIL_DIGEST_NOTIFY=0, Gmail ou destinataires).",
         );
       } else {
         const period =

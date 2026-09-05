@@ -29,6 +29,11 @@ import {
   dayVentesSansStock,
   isVentesSansStockActive,
 } from "@/lib/ventes-sans-stock";
+import {
+  isDrinkStockTracked,
+  isLineStockTracked,
+  shouldEnforceProductStock,
+} from "@/lib/stock-tracked";
 
 export type { VenteKind, VenteLogEntry, VenteProduct, VenteSite, VentesDaySummary };
 
@@ -237,12 +242,18 @@ async function getBaseDishStockLeft(
   site: VenteSite,
   productId: string,
 ): Promise<{ left: number; maxSold: number | null }> {
-  if (await isVentesSansStockActive(date, site)) {
-    return { left: Number.MAX_SAFE_INTEGER, maxSold: null };
-  }
+  const dayFreeSale = await isVentesSansStockActive(date, site);
   if (site === "zogbo") {
     const { day } = await getZogboDayPayload(date);
     const line = day.lines.find((l) => l.productId === productId);
+    if (
+      !shouldEnforceProductStock({
+        dayFreeSale,
+        productTracked: isLineStockTracked(line),
+      })
+    ) {
+      return { left: Number.MAX_SAFE_INTEGER, maxSold: null };
+    }
     if (!line) return { left: 0, maxSold: 0 };
     const computed = computeZogboLine(line, 0);
     return {
@@ -252,6 +263,14 @@ async function getBaseDishStockLeft(
   }
   const { day, sentByProductId } = await getGbegameyDayPayload(date);
   const line = day.transferLines.find((l) => l.productId === productId);
+  if (
+    !shouldEnforceProductStock({
+      dayFreeSale,
+      productTracked: isLineStockTracked(line),
+    })
+  ) {
+    return { left: Number.MAX_SAFE_INTEGER, maxSold: null };
+  }
   if (!line) return { left: 0, maxSold: 0 };
   const computed = computeTransferLine(
     line,
@@ -264,20 +283,14 @@ async function getBaseDishStockLeft(
   };
 }
 
-/** Un accompagnement est suivi (stock contrôlé) dès qu'il a une activité. */
+/** Un accompagnement est suivi seulement après saisie stock explicite. */
 export function accompanimentTracked(line: GbegameyLocalLine): boolean {
-  return (
-    line.initialStock > 0 ||
-    line.prepared > 0 ||
-    line.counted !== null ||
-    line.pertes > 0
-  );
+  return isLineStockTracked(line);
 }
 
 /**
- * Disponibilité d'un accompagnement, identique à Zogbo et à Gbégamey :
- * le stock est une indication pour le caissier, jamais un blocage — les
- * accompagnements restent vendables même à stock nul.
+ * Disponibilité d'un accompagnement : si suivi, les ventes dépendent du stock
+ * (blocage à zéro). Sinon vente libre.
  */
 export function accompanimentAvailability(
   line: GbegameyLocalLine | null | undefined,
@@ -288,20 +301,22 @@ export function accompanimentAvailability(
   // Comptage saisi : le stock physique prévaut sur le théorique.
   if (line.counted !== null && line.counted !== undefined) {
     const prevalent = Math.max(0, Number(line.counted) || 0);
+    const stockLeft = Math.max(0, prevalent - line.sold);
     return {
       tracked: true,
-      stockLeft: Math.max(0, prevalent - line.sold),
-      maxSold: null,
+      stockLeft,
+      maxSold: prevalent,
     };
   }
   const stock = Math.max(
     0,
     line.initialStock + line.prepared - Math.max(0, Number(line.pertes) || 0),
   );
+  const stockLeft = Math.max(0, stock - line.sold);
   return {
     tracked: true,
-    stockLeft: Math.max(0, stock - line.sold),
-    maxSold: null,
+    stockLeft,
+    maxSold: stock,
   };
 }
 
@@ -360,10 +375,12 @@ export async function getVenteBoard(
     for (const dish of parametres.baseDishes) {
       const line = zogbo.day.lines.find((l) => l.productId === dish.id);
       const computed = line ? computeZogboLine(line, 0) : null;
-      const stockLeft = ventesSansStock
-        ? null
-        : (computed?.prevalentRemaining ?? 0);
-      const status = ventesSansStock
+      const enforce = shouldEnforceProductStock({
+        dayFreeSale: ventesSansStock,
+        productTracked: isLineStockTracked(line),
+      });
+      const stockLeft = enforce ? (computed?.prevalentRemaining ?? 0) : null;
+      const status = !enforce
         ? { hint: "Vente libre — stock non saisi", blockReason: null }
         : zogboPlatStatus({
             stockLeft: computed?.prevalentRemaining ?? 0,
@@ -378,9 +395,9 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: soldById.get(dish.id) ?? 0,
         stockLeft,
-        lowStock: ventesSansStock
-          ? false
-          : isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold),
+        lowStock: enforce
+          ? isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold)
+          : false,
         hint: status.hint,
         blockReason: status.blockReason,
         qrRequired: qrProductIds.has(dish.id),
@@ -392,13 +409,26 @@ export async function getVenteBoard(
     for (const dish of parametres.localDishes) {
       const line = accById.get(dish.id);
       const { tracked, stockLeft } = accompanimentAvailability(line);
+      const enforce = shouldEnforceProductStock({
+        dayFreeSale: ventesSansStock,
+        productTracked: tracked,
+      });
       products.push({
         kind: "local",
         productId: dish.id,
         name: dish.name,
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
-        stockLeft,
+        stockLeft: enforce ? stockLeft : null,
+        blockReason:
+          enforce && stockLeft !== null && stockLeft <= 0
+            ? "Stock épuisé"
+            : null,
+        hint: enforce
+          ? stockLeft !== null && stockLeft <= 0
+            ? "Stock épuisé"
+            : `Reste ${stockLeft}`
+          : "Vente libre — stock non saisi",
         qrRequired: qrProductIds.has(dish.id),
       });
     }
@@ -411,10 +441,12 @@ export async function getVenteBoard(
       const computed = line
         ? computeTransferLine(line, sent, dish.unitPrice)
         : null;
-      const stockLeft = ventesSansStock
-        ? null
-        : (computed?.prevalentRemaining ?? 0);
-      const status = ventesSansStock
+      const enforce = shouldEnforceProductStock({
+        dayFreeSale: ventesSansStock,
+        productTracked: isLineStockTracked(line),
+      });
+      const stockLeft = enforce ? (computed?.prevalentRemaining ?? 0) : null;
+      const status = !enforce
         ? { hint: "Vente libre — stock non saisi", blockReason: null }
         : gbegameyPlatStatus({
             stockLeft: computed?.prevalentRemaining ?? 0,
@@ -430,26 +462,38 @@ export async function getVenteBoard(
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
         stockLeft,
-        lowStock: ventesSansStock
-          ? false
-          : isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold),
+        lowStock: enforce
+          ? isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold)
+          : false,
         hint: status.hint,
         blockReason: status.blockReason,
         qrRequired: qrProductIds.has(dish.id),
       });
     }
-    // Même règle qu'à Zogbo : un accompagnement jamais préparé ni compté
-    // n'est pas bloqué à zéro — le stock réel n'est pas encore maîtrisé.
+    // Même règle qu'à Zogbo : suivi seulement après saisie stock explicite.
     for (const dish of parametres.localDishes) {
       const line = gbegamey.day.localLines.find((l) => l.productId === dish.id);
       const { tracked, stockLeft } = accompanimentAvailability(line);
+      const enforce = shouldEnforceProductStock({
+        dayFreeSale: ventesSansStock,
+        productTracked: tracked,
+      });
       products.push({
         kind: "local",
         productId: dish.id,
         name: dish.name,
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
-        stockLeft,
+        stockLeft: enforce ? stockLeft : null,
+        blockReason:
+          enforce && stockLeft !== null && stockLeft <= 0
+            ? "Stock épuisé"
+            : null,
+        hint: enforce
+          ? stockLeft !== null && stockLeft <= 0
+            ? "Stock épuisé"
+            : `Reste ${stockLeft}`
+          : "Vente libre — stock non saisi",
         qrRequired: qrProductIds.has(dish.id),
       });
     }
@@ -475,13 +519,11 @@ export async function getVenteBoard(
     const stockLeft = drinkStock.get(drink.id) ?? 0;
     const upc = Math.max(1, drink.unitsPerCasier || 12);
     const line = boissons.day.lines.find((l) => l.productId === drink.id);
-    const countedThisSite =
-      site === "zogbo" ? line?.countedZogbo : line?.countedGbegamey;
-    // Boisson jamais inventoriée (aucun comptage, stock 0) : vendable sans
-    // stock, comme un accompagnement non suivi — sinon elle resterait grisée.
-    const untracked =
-      ventesSansStock ||
-      (countedThisSite === null && stockLeft <= 0 && (drink.salePrice ?? 0) > 0);
+    const tracked = isDrinkStockTracked(line, site);
+    const untracked = !shouldEnforceProductStock({
+      dayFreeSale: ventesSansStock,
+      productTracked: tracked,
+    });
     products.push({
       kind: "boisson",
       productId: drink.id,
@@ -497,7 +539,7 @@ export async function getVenteBoard(
         drink.salePrice === null
           ? "PV manquant"
           : untracked
-            ? "Stock non inventorié"
+            ? "Vente libre — stock non saisi"
             : stockLeft <= 0
               ? "Plus de stock boisson inventorié"
               : `Reste ${stockLeft} bt`,
@@ -1204,8 +1246,8 @@ export async function recordVente(input: {
   // (stock − pertes) : transmis à applySoldDelta, il borne l'écriture.
   // Régularisation gérant : pas de plafond (maxSold null).
   let maxSold: number | null = null;
-  const ventesSansStock = await isVentesSansStockActive(input.date, input.site);
-  if (qty > 0 && !input.bypassStock && !input.qrId && !ventesSansStock) {
+  const dayFreeSale = await isVentesSansStockActive(input.date, input.site);
+  if (qty > 0 && !input.bypassStock && !input.qrId) {
     if (input.kind === "plat") {
       const { left, maxSold: max } = await getBaseDishStockLeft(
         input.date,
@@ -1213,29 +1255,48 @@ export async function recordVente(input: {
         input.productId,
       );
       maxSold = max;
-      if (left < qty) {
+      if (max !== null && left < qty) {
         throw new Error(`Stock insuffisant (reste ${left})`);
       }
     } else if (input.kind === "local") {
-      // Accompagnements toujours vendables, même à stock nul : le stock est
-      // une indication, jamais un blocage.
-      maxSold = null;
+      let line: GbegameyLocalLine | undefined;
+      if (input.site === "zogbo") {
+        const { day } = await getZogboDayPayload(input.date);
+        line = (day.accompanimentLines ?? []).find(
+          (l) => l.productId === input.productId,
+        );
+      } else {
+        const { day } = await getGbegameyDayPayload(input.date);
+        line = day.localLines.find((l) => l.productId === input.productId);
+      }
+      const avail = accompanimentAvailability(line ?? null);
+      const enforce = shouldEnforceProductStock({
+        dayFreeSale,
+        productTracked: avail.tracked,
+      });
+      if (enforce) {
+        maxSold = avail.maxSold;
+        if ((avail.stockLeft ?? 0) < qty) {
+          throw new Error(`Stock insuffisant (reste ${avail.stockLeft ?? 0})`);
+        }
+      } else {
+        maxSold = null;
+      }
     } else if (input.kind === "boisson") {
       const { day, drinks } = await getBoissonsDayPayload(input.date);
       const line = day.lines.find((l) => l.productId === input.productId);
       const drink = drinks.find((d) => d.id === input.productId);
       const upc = drink?.unitsPerCasier;
-      const countedThisSite = line
-        ? input.site === "zogbo"
-          ? line.countedZogbo
-          : line.countedGbegamey
-        : null;
-      // Boisson jamais inventoriée (pas de comptage) : vente libre, comme un
-      // accompagnement non suivi — sinon elle resterait « épuisée » à tort.
-      const untracked = !line || countedThisSite === null;
-      if (untracked) {
+      const tracked = isDrinkStockTracked(line, input.site);
+      const untracked = !shouldEnforceProductStock({
+        dayFreeSale,
+        productTracked: tracked,
+      });
+      if (untracked || !line) {
         maxSold = null;
       } else {
+        const countedThisSite =
+          input.site === "zogbo" ? line.countedZogbo : line.countedGbegamey;
         const left = physicalBoissonsStockForSite(line, input.site, upc);
         const upcResolved = Math.max(
           1,
@@ -1249,13 +1310,10 @@ export async function recordVente(input: {
           input.site === "zogbo" ? line.purchasesZogbo : line.purchasesGbegamey;
         const pertes =
           input.site === "zogbo" ? line.pertesZogbo : line.pertesGbegamey;
-        // Comptage saisi en bouteilles : le stock physique prévaut.
         const stockBottles =
           countedThisSite !== null && countedThisSite !== undefined
             ? Math.max(0, Number(countedThisSite) || 0)
             : (initialStock + purchases) * upcResolved;
-        // Stock propre à ce site : plus besoin de retirer les ventes de
-        // l'autre site, elles ne partagent plus le même pot.
         maxSold = Math.max(
           0,
           stockBottles - Math.max(0, Number(pertes) || 0),
