@@ -35,6 +35,28 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
     }
   }, []);
 
+  // Session réellement valide (pas le cache) : entrer dans l’app.
+  useEffect(() => {
+    if (entering) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (cancelled || !res.ok) return;
+        const body = (await res.json()) as { home?: string };
+        const next = nextPath?.trim() || "";
+        const isSafeInternalPath = !!next && /^\/(?!\/|\\)/.test(next);
+        const target = isSafeInternalPath ? next : body.home || "/";
+        router.replace(target);
+      } catch {
+        /* hors ligne / cookie invalide : rester sur le formulaire */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [entering, nextPath, router]);
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (loading || entering) return;

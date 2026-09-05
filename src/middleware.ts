@@ -87,11 +87,15 @@ export async function middleware(request: NextRequest) {
 
   if (
     pathname.startsWith("/api/auth/login") ||
+    pathname.startsWith("/api/auth/logout") ||
+    pathname.startsWith("/api/auth/me") ||
     pathname.startsWith("/api/mail/cron") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     PWA_PUBLIC.includes(pathname)
   ) {
+    // /api/auth/me|logout : accessibles sans JWT soft (sinon cookie fantôme
+    // impossible à effacer → boucle login ↔ accueil).
     // /api/mail/cron : auth par Bearer MAIL_CRON_SECRET (ou session admin),
     // contrôlée dans la route — pas de cookie requis pour Render Cron.
     return NextResponse.next();
@@ -157,19 +161,30 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Ne jamais renvoyer /login → accueil sur la seule signature JWT.
+  // getSessionUser() (Mongo + tokenVersion + planning) peut refuser la même
+  // session : sinon boucle redirect + BrandLoader (logo qui part et revient).
   if (PUBLIC.includes(pathname)) {
-    if (user) {
-      return NextResponse.redirect(
-        new URL(homeForRole(user.role), request.url),
-      );
-    }
     return NextResponse.next();
   }
 
   if (!user) {
     const url = new URL("/login", request.url);
     url.searchParams.set("next", pathname);
-    return NextResponse.redirect(url);
+    const res = NextResponse.redirect(url);
+    // Cookie présent mais JWT illisible : l’effacer pour éviter un rebond.
+    if (token) {
+      res.cookies.set({
+        name: SESSION_COOKIE,
+        value: "",
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 0,
+      });
+    }
+    return res;
   }
 
   if (pathname === "/autorisations" || pathname.startsWith("/autorisations/")) {

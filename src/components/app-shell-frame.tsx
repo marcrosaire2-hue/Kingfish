@@ -132,11 +132,16 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
   const [navBusy, setNavBusy] = useState(false);
 
   useEffect(() => {
-    // Session révoquée (tokenVersion, désactivation) : /api/auth/me renvoie
-    // 401 → cache vidé. On renvoie au login sans laisser l’UI « fantôme ».
+    // Session révoquée (tokenVersion, désactivation, hors créneau) :
+    // /api/auth/me renvoie 401 → cache vidé. On déconnecte le cookie puis
+    // login (sinon middleware pouvait renvoyer vers l’accueil en boucle).
     if (ready && !user) {
       clearSessionCache();
-      router.replace("/login");
+      void fetch("/api/auth/logout", { method: "POST", cache: "no-store" })
+        .catch(() => undefined)
+        .finally(() => {
+          router.replace("/login");
+        });
     }
   }, [ready, user, router]);
 
