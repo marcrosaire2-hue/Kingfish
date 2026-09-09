@@ -994,10 +994,11 @@ export type MatieresDay = {
 
 /**
  * Versement d’espèces / mobile money déclaré par l’équipe après les ventes,
- * puis confirmé par le comptable. Append-only : pas de modification ni
- * suppression après enregistrement.
+ * puis confirmé par le comptable.
+ * Modifiable en attente (gérant) ; corrigeable une fois confirmé (comptable →
+ * remet en attente de re-confirmation).
  */
-export type VersementStatut = "en_attente" | "confirmee";
+export type VersementStatut = "en_attente" | "confirmee" | "annulee";
 
 /** Tranche d’horaire de service déclarée avec le versement. */
 export type VersementTranche = "nuit" | "matin" | "soir";
@@ -1045,9 +1046,18 @@ export type Versement = {
   confirmedAt: string | null;
   confirmedById: string | null;
   confirmedByName: string | null;
+  /** Dernière modification / correction (si applicable). */
+  updatedAt?: string | null;
+  updatedById?: string | null;
+  updatedByName?: string | null;
+  /** Annulation (soft) — gérant sur un versement encore en attente. */
+  cancelledAt?: string | null;
+  cancelledById?: string | null;
+  cancelledByName?: string | null;
 };
 
 export const VERSEMENT_STATUT_LABELS: Record<VersementStatut, string> = {
   en_attente: "En attente",
   confirmee: "Confirmée",
+  annulee: "Annulée",
 };

@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   assertPreuveFile,
+  canCancelPendingVersement,
+  canCancelVersement,
   canConfirmVersement,
+  canCorrectVersement,
   canDeclareVersement,
+  canEditPendingVersement,
+  canUpdateVersement,
   defaultTrancheFromShift,
   parseVersementHeure,
   parseVersementMembres,
@@ -22,6 +27,23 @@ describe("droits versements", () => {
     expect(canConfirmVersement("daf")).toBe(false);
     expect(canConfirmVersement("admin")).toBe(false);
     expect(canConfirmVersement("gerant")).toBe(false);
+  });
+
+  it("le gérant peut modifier et annuler un versement en attente seulement", () => {
+    expect(canEditPendingVersement("gerant")).toBe(true);
+    expect(canCancelPendingVersement("gerant")).toBe(true);
+    expect(canUpdateVersement("gerant", "en_attente")).toBe(true);
+    expect(canUpdateVersement("gerant", "confirmee")).toBe(false);
+    expect(canUpdateVersement("gerant", "annulee")).toBe(false);
+    expect(canCancelVersement("gerant", "en_attente")).toBe(true);
+    expect(canCancelVersement("gerant", "confirmee")).toBe(false);
+    expect(canCancelVersement("gerant", "annulee")).toBe(false);
+
+    expect(canEditPendingVersement("comptable")).toBe(false);
+    expect(canCancelPendingVersement("comptable")).toBe(false);
+    expect(canCorrectVersement("comptable")).toBe(true);
+    expect(canUpdateVersement("comptable", "confirmee")).toBe(true);
+    expect(canCancelVersement("comptable", "en_attente")).toBe(false);
   });
 });
 

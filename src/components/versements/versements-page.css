@@ -968,6 +968,27 @@
   color: #166534;
 }
 
+.main-versements .vs-statut.is-annulee {
+  background: color-mix(in srgb, #64748b 16%, transparent);
+  color: #475569;
+}
+
+.main-versements .vs-card.is-cancelled,
+.main-versements .vs-table tr.is-cancelled {
+  opacity: 0.72;
+}
+
+.main-versements .vs-btn-cancel {
+  color: #b91c1c;
+}
+
+.main-versements .vs-preuve-kept {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.72rem;
+  color: var(--muted, #64748b);
+}
+
 /* Cartes = vue mobile / tablette */
 .main-versements .vs-cards {
   list-style: none;

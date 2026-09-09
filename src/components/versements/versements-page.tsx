@@ -176,6 +176,8 @@ export function VersementsPage() {
   const [filterSite, setFilterSite] = useState<SiteFilter>("all");
   const [canDeclare, setCanDeclare] = useState(false);
   const [canConfirm, setCanConfirm] = useState(false);
+  const [canEditPending, setCanEditPending] = useState(false);
+  const [canCancelPending, setCanCancelPending] = useState(false);
 
   const [heure, setHeure] = useState(() => nowHeureLocale());
   const [tranche, setTranche] = useState<VersementTranche>("matin");
@@ -184,6 +186,10 @@ export function VersementsPage() {
   const [numero, setNumero] = useState("");
   const [preuves, setPreuves] = useState<File[]>([]);
   const [preuvePreviews, setPreuvePreviews] = useState<string[]>([]);
+  const [existingPreuves, setExistingPreuves] = useState<
+    { url: string; mime: string }[]
+  >([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [dropActive, setDropActive] = useState(false);
 
   const [versements, setVersements] = useState<Versement[]>([]);
@@ -231,12 +237,16 @@ export function VersementsPage() {
         versements?: Versement[];
         canDeclare?: boolean;
         canConfirm?: boolean;
+        canEditPending?: boolean;
+        canCancelPending?: boolean;
         error?: string;
       };
       if (!res.ok) throw new Error(body.error || "Chargement impossible.");
       setVersements(body.versements ?? []);
       setCanDeclare(body.canDeclare === true);
       setCanConfirm(body.canConfirm === true);
+      setCanEditPending(body.canEditPending === true);
+      setCanCancelPending(body.canCancelPending === true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chargement impossible.");
     } finally {
@@ -300,43 +310,89 @@ export function VersementsPage() {
   const totals = useMemo(() => {
     let pending = 0;
     let confirmed = 0;
+    let cancelled = 0;
     let pendingAmount = 0;
     let confirmedAmount = 0;
+    let cancelledAmount = 0;
     for (const v of versements) {
       if (v.statut === "en_attente") {
         pending += 1;
         pendingAmount += v.montant;
-      } else {
+      } else if (v.statut === "confirmee") {
         confirmed += 1;
         confirmedAmount += v.montant;
+      } else {
+        cancelled += 1;
+        cancelledAmount += v.montant;
       }
     }
     return {
       pending,
       confirmed,
+      cancelled,
       pendingAmount,
       confirmedAmount,
+      cancelledAmount,
       totalAmount: pendingAmount + confirmedAmount,
       totalCount: pending + confirmed,
     };
   }, [versements]);
 
+  const hasPreuves = preuves.length > 0 || existingPreuves.length > 0;
   const checks = {
     montant: Boolean(montant),
     numero: Boolean(numero.trim()),
     membres: membres.some((m) => m.trim().length >= 2),
-    preuves: preuves.length > 0,
+    preuves: hasPreuves,
   };
   const checkDone = Object.values(checks).filter(Boolean).length;
   const formReady = checkDone === 4;
   const montantN = Number(montant);
   const montantOk = Number.isFinite(montantN) && montantN > 0;
+  const isEditing = editingId !== null;
+
+  function resetComposerFields() {
+    setEditingId(null);
+    setExistingPreuves([]);
+    setMontant("");
+    setNumero("");
+    setMembres([""]);
+    setPreuves([]);
+    setHeure(nowHeureLocale());
+    setTranche(defaultTrancheFromShift(user?.shift));
+    setDeclareDate(todayIsoDate());
+  }
 
   function focusForm() {
     setComposerOpen(true);
     window.setTimeout(() => {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }, 40);
+  }
+
+  function startEdit(v: Versement) {
+    if (!canEditPending || v.statut !== "en_attente") return;
+    setSelected(null);
+    setEditingId(v.id);
+    setDeclareDate(v.date);
+    setSite(v.site);
+    setHeure(v.heureTransaction.slice(0, 5));
+    setTranche(v.trancheHoraire);
+    setMembres(v.membresPresents.length ? [...v.membresPresents] : [""]);
+    setMontant(String(v.montant));
+    setNumero(v.numeroTransaction);
+    setPreuves([]);
+    setExistingPreuves(
+      preuvesOf(v).map((p) => ({ url: p.url, mime: p.mime })),
+    );
+    setError(null);
+    setFlash(null);
+    focusForm();
+  }
+
+  function closeComposer() {
+    setComposerOpen(false);
+    resetComposerFields();
   }
 
   function applyPeriod(id: PeriodPreset) {
@@ -409,7 +465,12 @@ export function VersementsPage() {
   async function onDeclare(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    if (!canDeclare) {
+    if (isEditing) {
+      if (!canEditPending) {
+        setError("Votre compte ne peut pas modifier ce versement.");
+        return;
+      }
+    } else if (!canDeclare) {
       setError("Votre compte ne peut pas déclarer de versement.");
       return;
     }
@@ -423,8 +484,17 @@ export function VersementsPage() {
     setError(null);
     setFlash(null);
     try {
-      if (preuves.length === 0) throw new Error("Joignez au moins une capture.");
+      if (!isEditing && preuves.length === 0) {
+        throw new Error("Joignez au moins une capture.");
+      }
+      if (isEditing && !hasPreuves) {
+        throw new Error("Conservez ou joignez au moins une capture.");
+      }
       const form = new FormData();
+      if (isEditing && editingId) {
+        form.set("action", "update");
+        form.set("id", editingId);
+      }
       form.set("date", declareDate);
       form.set("site", site);
       form.set("heureTransaction", heure.slice(0, 5));
@@ -452,14 +522,13 @@ export function VersementsPage() {
         );
       }
       if (!res.ok) throw new Error(body.error || "Enregistrement impossible.");
-      setMontant("");
-      setNumero("");
-      setMembres([""]);
-      setPreuves([]);
-      setHeure(nowHeureLocale());
-      setTranche(defaultTrancheFromShift(user?.shift));
+      resetComposerFields();
       setDate(declareDate);
-      setFlash("Versement enregistré — en attente de confirmation.");
+      setFlash(
+        isEditing
+          ? "Versement modifié — toujours en attente de confirmation."
+          : "Versement enregistré — en attente de confirmation.",
+      );
       setComposerOpen(false);
       await charger();
     } catch (err) {
@@ -493,6 +562,34 @@ export function VersementsPage() {
     }
   }
 
+  async function onCancelVersement(id: string) {
+    if (busy || !canCancelPending) return;
+    const ok = window.confirm(
+      "Annuler ce versement ? Il restera visible comme annulé, sans effet.",
+    );
+    if (!ok) return;
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/versements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel", id }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(body.error || "Annulation impossible.");
+      setFlash("Versement annulé.");
+      setSelected(null);
+      if (editingId === id) closeComposer();
+      await charger();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Annulation impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const siteLocked = scope === "zogbo" || scope === "gbegamey";
   const periodHint = followAll
     ? from === to
@@ -508,7 +605,7 @@ export function VersementsPage() {
         isReaderOnly
           ? "Consultation des déclarations et confirmations."
           : canDeclare
-            ? "Déclarez le versement avec preuve, puis suivez les confirmations."
+            ? "Déclarez, modifiez ou annulez un versement en attente, puis suivez les confirmations."
             : "Vérifiez la preuve puis confirmez la transaction."
       }
       mainClassName="main-versements"
@@ -540,7 +637,10 @@ export function VersementsPage() {
             <button
               type="button"
               className="btn btn-primary vs-action-new"
-              onClick={focusForm}
+              onClick={() => {
+                resetComposerFields();
+                focusForm();
+              }}
             >
               <span className="vs-action-full">+ Nouveau versement</span>
               <span className="vs-action-short">+ Versement</span>
@@ -780,9 +880,10 @@ export function VersementsPage() {
             <div className="vs-seg" role="tablist" aria-label="Statut">
               {(
                 [
-                  ["all", "Tous", totals.totalCount],
+                  ["all", "Tous", totals.totalCount + totals.cancelled],
                   ["en_attente", "En attente", totals.pending],
                   ["confirmee", "Confirmés", totals.confirmed],
+                  ["annulee", "Annulés", totals.cancelled],
                 ] as const
               ).map(([key, label, count]) => (
                 <button
@@ -802,30 +903,47 @@ export function VersementsPage() {
               <button
                 type="button"
                 className={`vs-composer-toggle${composerOpen ? " is-on" : ""}`}
-                onClick={() =>
-                  composerOpen ? setComposerOpen(false) : focusForm()
-                }
+                onClick={() => {
+                  if (composerOpen) {
+                    closeComposer();
+                  } else {
+                    if (!isEditing) resetComposerFields();
+                    focusForm();
+                  }
+                }}
               >
-                {composerOpen ? "Fermer le bordereau" : "Ouvrir le bordereau"}
+                {composerOpen
+                  ? "Fermer le bordereau"
+                  : isEditing
+                    ? "Reprendre la modification"
+                    : "Ouvrir le bordereau"}
               </button>
             ) : null}
           </div>
         </section>
 
-        {canDeclare && composerOpen ? (
+        {(canDeclare || (canEditPending && isEditing)) && composerOpen ? (
           <section
             ref={formRef}
             className="vs-bordereau"
             id="nouveau-versement"
-            aria-label="Nouveau versement"
+            aria-label={isEditing ? "Modifier un versement" : "Nouveau versement"}
           >
             <form className="vs-bordereau-form" onSubmit={onDeclare}>
               <header className="vs-bordereau-head">
                 <div>
-                  <p className="vs-kicker">Nouveau bordereau</p>
-                  <h2>Déclarer un versement</h2>
+                  <p className="vs-kicker">
+                    {isEditing ? "Correction" : "Nouveau bordereau"}
+                  </p>
+                  <h2>
+                    {isEditing
+                      ? "Modifier le versement"
+                      : "Déclarer un versement"}
+                  </h2>
                   <p>
-                    Après confirmation comptable, plus aucune modification.
+                    {isEditing
+                      ? "Les captures actuelles sont conservées si vous n’en ajoutez pas de nouvelles."
+                      : "Tant que le comptable n’a pas confirmé, vous pouvez encore modifier ou annuler."}
                   </p>
                 </div>
                 <div
@@ -1027,7 +1145,9 @@ export function VersementsPage() {
                     />
                     <strong>
                       {preuves.length === 0
-                        ? "Déposez ou cliquez pour joindre"
+                        ? isEditing && existingPreuves.length > 0
+                          ? `${existingPreuves.length} capture${existingPreuves.length > 1 ? "s" : ""} actuelle${existingPreuves.length > 1 ? "s" : ""} — cliquer pour remplacer`
+                          : "Déposez ou cliquez pour joindre"
                         : `${preuves.length} image${preuves.length > 1 ? "s" : ""} — cliquer pour ajouter`}
                     </strong>
                     <em>
@@ -1057,6 +1177,20 @@ export function VersementsPage() {
                         </li>
                       ))}
                     </ul>
+                  ) : isEditing && existingPreuves.length > 0 ? (
+                    <ul className="vs-preuves-grid" aria-label="Captures actuelles">
+                      {existingPreuves.map((p, index) => (
+                        <li key={`${p.url}-${index}`}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={p.url}
+                            alt=""
+                            className="vs-preuve-preview"
+                          />
+                          <span className="vs-preuve-kept">Conservée</span>
+                        </li>
+                      ))}
+                    </ul>
                   ) : null}
                 </div>
               </div>
@@ -1069,23 +1203,32 @@ export function VersementsPage() {
                   </li>
                   <li className={checks.membres ? "is-ok" : ""}>Membres</li>
                   <li className={checks.preuves ? "is-ok" : ""}>
-                    Capture{preuves.length > 1 ? `s (${preuves.length})` : ""}
+                    Capture
+                    {preuves.length > 1
+                      ? `s (${preuves.length})`
+                      : preuves.length === 0 && existingPreuves.length > 1
+                        ? `s (${existingPreuves.length})`
+                        : ""}
                   </li>
                 </ul>
                 <div className="vs-form-actions">
                   <button
                     type="button"
                     className="btn btn-ghost"
-                    onClick={() => setComposerOpen(false)}
+                    onClick={closeComposer}
                   >
-                    Annuler
+                    Fermer
                   </button>
                   <button
                     type="submit"
                     className="btn btn-primary vs-submit"
                     disabled={busy || !formReady}
                   >
-                    {busy ? "Enregistrement…" : "Envoyer le bordereau"}
+                    {busy
+                      ? "Enregistrement…"
+                      : isEditing
+                        ? "Enregistrer les modifications"
+                        : "Envoyer le bordereau"}
                   </button>
                 </div>
               </footer>
@@ -1132,7 +1275,10 @@ export function VersementsPage() {
                 <button
                   type="button"
                   className="btn btn-primary"
-                  onClick={focusForm}
+                  onClick={() => {
+                    resetComposerFields();
+                    focusForm();
+                  }}
                 >
                   + Nouveau versement
                 </button>
@@ -1144,7 +1290,7 @@ export function VersementsPage() {
                 {paged.items.map((v) => (
                   <li key={v.id}>
                     <article
-                      className={`vs-card${v.statut === "en_attente" ? " is-pending" : ""}`}
+                      className={`vs-card${v.statut === "en_attente" ? " is-pending" : ""}${v.statut === "annulee" ? " is-cancelled" : ""}`}
                     >
                       <button
                         type="button"
@@ -1174,6 +1320,26 @@ export function VersementsPage() {
                             onClick={() => void onConfirm(v.id)}
                           >
                             Confirmer
+                          </button>
+                        ) : null}
+                        {canEditPending && v.statut === "en_attente" ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            disabled={busy}
+                            onClick={() => startEdit(v)}
+                          >
+                            Modifier
+                          </button>
+                        ) : null}
+                        {canCancelPending && v.statut === "en_attente" ? (
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm vs-btn-cancel"
+                            disabled={busy}
+                            onClick={() => void onCancelVersement(v.id)}
+                          >
+                            Annuler
                           </button>
                         ) : null}
                         <button
@@ -1209,7 +1375,11 @@ export function VersementsPage() {
                       <tr
                         key={v.id}
                         className={
-                          v.statut === "en_attente" ? "is-pending" : ""
+                          v.statut === "en_attente"
+                            ? "is-pending"
+                            : v.statut === "annulee"
+                              ? "is-cancelled"
+                              : ""
                         }
                       >
                         <td className="vs-td-date">
@@ -1250,6 +1420,26 @@ export function VersementsPage() {
                               onClick={() => void onConfirm(v.id)}
                             >
                               Confirmer
+                            </button>
+                          ) : null}
+                          {canEditPending && v.statut === "en_attente" ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              disabled={busy}
+                              onClick={() => startEdit(v)}
+                            >
+                              Modifier
+                            </button>
+                          ) : null}
+                          {canCancelPending && v.statut === "en_attente" ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm vs-btn-cancel"
+                              disabled={busy}
+                              onClick={() => void onCancelVersement(v.id)}
+                            >
+                              Annuler
                             </button>
                           ) : null}
                           <button
@@ -1365,9 +1555,33 @@ export function VersementsPage() {
                       <dd>
                         {selected.confirmedAt
                           ? `${formatDateHeure(selected.confirmedAt)} — ${selected.confirmedByName}`
-                          : "En attente"}
+                          : selected.statut === "annulee"
+                            ? "—"
+                            : "En attente"}
                       </dd>
                     </div>
+                    {selected.cancelledAt ? (
+                      <div className="is-wide">
+                        <dt>Annulé</dt>
+                        <dd>
+                          {formatDateHeure(selected.cancelledAt)}
+                          {selected.cancelledByName
+                            ? ` — ${selected.cancelledByName}`
+                            : ""}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {selected.updatedAt && !selected.cancelledAt ? (
+                      <div className="is-wide">
+                        <dt>Modifié</dt>
+                        <dd>
+                          {formatDateHeure(selected.updatedAt)}
+                          {selected.updatedByName
+                            ? ` — ${selected.updatedByName}`
+                            : ""}
+                        </dd>
+                      </div>
+                    ) : null}
                   </dl>
                 </div>
 
@@ -1404,17 +1618,44 @@ export function VersementsPage() {
                   >
                     {busy ? "Confirmation…" : "Confirmer la transaction"}
                   </button>
-                ) : selected.statut === "confirmee" ? (
+                ) : null}
+                {canEditPending && selected.statut === "en_attente" ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    disabled={busy}
+                    onClick={() => startEdit(selected)}
+                  >
+                    Modifier
+                  </button>
+                ) : null}
+                {canCancelPending && selected.statut === "en_attente" ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost vs-btn-cancel"
+                    disabled={busy}
+                    onClick={() => void onCancelVersement(selected.id)}
+                  >
+                    Annuler le versement
+                  </button>
+                ) : null}
+                {selected.statut === "confirmee" ? (
                   <p className="vs-locked-note">Transaction verrouillée.</p>
-                ) : isReaderOnly ? (
-                  <p className="vs-locked-note">
-                    Consultation seule — confirmation réservée au comptable.
-                  </p>
-                ) : (
-                  <p className="vs-locked-note">
-                    En attente de confirmation par le comptable.
-                  </p>
-                )}
+                ) : selected.statut === "annulee" ? (
+                  <p className="vs-locked-note">Versement annulé.</p>
+                ) : !canConfirm &&
+                  !canEditPending &&
+                  !canCancelPending ? (
+                  isReaderOnly ? (
+                    <p className="vs-locked-note">
+                      Consultation seule — confirmation réservée au comptable.
+                    </p>
+                  ) : (
+                    <p className="vs-locked-note">
+                      En attente de confirmation par le comptable.
+                    </p>
+                  )
+                ) : null}
               </footer>
             </div>
           </div>

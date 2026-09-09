@@ -30,6 +30,45 @@ export function canConfirmVersement(role: UserRole): boolean {
   return role === "comptable";
 }
 
+/** Gérant : modifier un versement encore en attente. */
+export function canEditPendingVersement(role: UserRole): boolean {
+  return role === "gerant";
+}
+
+/**
+ * Comptable : corriger un versement (y compris confirmé).
+ * Une correction d’un confirmé le remet en attente de re-confirmation.
+ */
+export function canCorrectVersement(role: UserRole): boolean {
+  return role === "comptable";
+}
+
+/** Gérant : annuler un versement encore en attente. */
+export function canCancelPendingVersement(role: UserRole): boolean {
+  return role === "gerant";
+}
+
+/** Peut ouvrir le formulaire d’édition selon le statut. */
+export function canUpdateVersement(
+  role: UserRole,
+  statut: "en_attente" | "confirmee" | "annulee",
+): boolean {
+  if (statut === "annulee") return false;
+  if (statut === "en_attente") {
+    return canEditPendingVersement(role) || canCorrectVersement(role);
+  }
+  return canCorrectVersement(role);
+}
+
+/** Peut annuler selon le statut. */
+export function canCancelVersement(
+  role: UserRole,
+  statut: "en_attente" | "confirmee" | "annulee",
+): boolean {
+  if (statut !== "en_attente") return false;
+  return canCancelPendingVersement(role);
+}
+
 export function parseVersementHeure(raw: string): string {
   const value = raw
     .trim()

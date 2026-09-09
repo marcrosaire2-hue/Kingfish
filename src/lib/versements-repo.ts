@@ -17,8 +17,10 @@ import type {
 import {
   assertPreuveFile,
   assertPreuvesList,
+  canCancelVersement,
   canConfirmVersement,
   canDeclareVersement,
+  canUpdateVersement,
   defaultTrancheFromShift,
   inferPreuveMime,
   isVersementTranche,
@@ -33,8 +35,13 @@ import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export {
   assertPreuveFile,
+  canCancelPendingVersement,
+  canCancelVersement,
   canConfirmVersement,
+  canCorrectVersement,
   canDeclareVersement,
+  canEditPendingVersement,
+  canUpdateVersement,
   defaultTrancheFromShift,
   parseVersementHeure,
   parseVersementMembres,
@@ -152,6 +159,12 @@ function toPublic(doc: VersementDoc): Versement {
     confirmedAt: doc.confirmedAt ?? null,
     confirmedById: doc.confirmedById ?? null,
     confirmedByName: doc.confirmedByName ?? null,
+    updatedAt: doc.updatedAt ?? null,
+    updatedById: doc.updatedById ?? null,
+    updatedByName: doc.updatedByName ?? null,
+    cancelledAt: doc.cancelledAt ?? null,
+    cancelledById: doc.cancelledById ?? null,
+    cancelledByName: doc.cancelledByName ?? null,
   };
 }
 
@@ -278,6 +291,15 @@ export async function listVersements(input: {
   return docs.map(toPublic);
 }
 
+export async function getVersement(id: string): Promise<Versement | null> {
+  if (!ObjectId.isValid(id)) return null;
+  const db = await getDb();
+  const doc = await db
+    .collection<VersementDoc>(COLLECTION)
+    .findOne({ _id: new ObjectId(id) });
+  return doc ? toPublic(doc) : null;
+}
+
 export async function declareVersement(input: {
   date?: string;
   site: VenteSite;
@@ -391,6 +413,161 @@ export async function confirmVersement(input: {
   }
 
   return toPublic(doc);
+}
+
+export async function updateVersement(input: {
+  id: string;
+  date?: string;
+  site?: VenteSite;
+  heureTransaction: string;
+  trancheHoraire: unknown;
+  membresPresents: unknown;
+  montant: unknown;
+  numeroTransaction: string;
+  /** Si fourni et non vide, remplace les captures existantes. */
+  preuves?: PreuveUpload[];
+  actor: VersementActor;
+}): Promise<Versement> {
+  if (!ObjectId.isValid(input.id)) {
+    throw new Error("Versement introuvable.");
+  }
+
+  const db = await getDb();
+  const existing = await db
+    .collection<VersementDoc>(COLLECTION)
+    .findOne({ _id: new ObjectId(input.id) });
+  if (!existing) throw new Error("Versement introuvable.");
+  if (existing.statut === "annulee") {
+    throw new Error("Ce versement est annulé : aucune modification possible.");
+  }
+  if (!canUpdateVersement(input.actor.role, existing.statut)) {
+    if (existing.statut === "confirmee") {
+      throw new Error(
+        "Ce versement est confirmé : seule une correction comptable est possible.",
+      );
+    }
+    throw new Error("Vous ne pouvez pas modifier ce versement.");
+  }
+
+  const date = input.date || existing.date;
+  assertValidDate(date);
+  const site = input.site || existing.site;
+  const heureTransaction = parseVersementHeure(input.heureTransaction);
+  const trancheHoraire = parseVersementTranche(input.trancheHoraire);
+  const membresPresents = parseVersementMembres(input.membresPresents);
+  const montant = parseVersementMontant(input.montant);
+  const numeroTransaction = parseVersementNumero(input.numeroTransaction);
+  const updatedAt = new Date().toISOString();
+
+  const setFields: Record<string, unknown> = {
+    date,
+    site,
+    heureTransaction,
+    trancheHoraire,
+    membresPresents,
+    montant,
+    numeroTransaction,
+    updatedAt,
+    updatedById: input.actor.id,
+    updatedByName: input.actor.name,
+  };
+
+  const unsetFields: Record<string, "" > = {};
+
+  if (input.preuves && input.preuves.length > 0) {
+    const stored = await storePreuves({
+      files: input.preuves,
+      versementId: input.id,
+      date,
+      site,
+    });
+    const first = stored[0]!;
+    setFields.preuveMime = first.mime;
+    setFields.preuveUrl = first.url;
+    setFields.preuvePublicId = first.publicId;
+    setFields.preuves = stored.map(({ mime, url, publicId, data }) => ({
+      mime,
+      url,
+      publicId,
+      ...(data ? { data } : {}),
+    }));
+    if (first.data) {
+      setFields.preuveData = first.data;
+    } else {
+      unsetFields.preuveData = "";
+    }
+  }
+
+  // Correction comptable d’un confirmé → remet en attente de re-confirmation.
+  if (existing.statut === "confirmee" && input.actor.role === "comptable") {
+    setFields.statut = "en_attente" satisfies VersementStatut;
+    setFields.confirmedAt = null;
+    setFields.confirmedById = null;
+    setFields.confirmedByName = null;
+  }
+
+  const updateDoc: {
+    $set: Record<string, unknown>;
+    $unset?: Record<string, "">;
+  } = { $set: setFields };
+  if (Object.keys(unsetFields).length > 0) {
+    updateDoc.$unset = unsetFields;
+  }
+
+  const result = await db
+    .collection<VersementDoc>(COLLECTION)
+    .findOneAndUpdate({ _id: new ObjectId(input.id) }, updateDoc, {
+      returnDocument: "after",
+    });
+
+  if (!result) throw new Error("Modification impossible.");
+  return toPublic(result);
+}
+
+export async function cancelVersement(input: {
+  id: string;
+  actor: VersementActor;
+}): Promise<Versement> {
+  if (!ObjectId.isValid(input.id)) {
+    throw new Error("Versement introuvable.");
+  }
+
+  const db = await getDb();
+  const existing = await db
+    .collection<VersementDoc>(COLLECTION)
+    .findOne({ _id: new ObjectId(input.id) });
+  if (!existing) throw new Error("Versement introuvable.");
+  if (!canCancelVersement(input.actor.role, existing.statut)) {
+    if (existing.statut === "annulee") {
+      throw new Error("Ce versement est déjà annulé.");
+    }
+    if (existing.statut === "confirmee") {
+      throw new Error(
+        "Ce versement est confirmé et verrouillé : annulation impossible.",
+      );
+    }
+    throw new Error("Vous ne pouvez pas annuler ce versement.");
+  }
+
+  const cancelledAt = new Date().toISOString();
+  const result = await db.collection<VersementDoc>(COLLECTION).findOneAndUpdate(
+    { _id: new ObjectId(input.id), statut: "en_attente" },
+    {
+      $set: {
+        statut: "annulee" satisfies VersementStatut,
+        cancelledAt,
+        cancelledById: input.actor.id,
+        cancelledByName: input.actor.name,
+        updatedAt: cancelledAt,
+        updatedById: input.actor.id,
+        updatedByName: input.actor.name,
+      },
+    },
+    { returnDocument: "after" },
+  );
+
+  if (!result) throw new Error("Annulation impossible.");
+  return toPublic(result);
 }
 
 /** URL distante d’une preuve (Cloudinary), ou null si locale / absente. */

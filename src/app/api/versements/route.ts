@@ -5,11 +5,16 @@ import { logActivity } from "@/lib/log-activity";
 import { reportError } from "@/lib/report-error";
 import type { VersementStatut, VenteSite } from "@/lib/types";
 import {
+  canCancelPendingVersement,
   canConfirmVersement,
   canDeclareVersement,
+  canEditPendingVersement,
+  cancelVersement,
   confirmVersement,
   declareVersement,
+  getVersement,
   listVersements,
+  updateVersement,
 } from "@/lib/versements-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
@@ -63,7 +68,9 @@ export async function GET(request: Request) {
     const siteFilter = searchParams.get("site");
     const statutRaw = searchParams.get("statut");
     const statut: VersementStatut | "all" =
-      statutRaw === "en_attente" || statutRaw === "confirmee"
+      statutRaw === "en_attente" ||
+      statutRaw === "confirmee" ||
+      statutRaw === "annulee"
         ? statutRaw
         : "all";
     const scope = effectiveSite(user.role, user.site);
@@ -91,6 +98,8 @@ export async function GET(request: Request) {
       versements,
       canDeclare: canDeclareVersement(user.role),
       canConfirm: canConfirmVersement(user.role),
+      canEditPending: canEditPendingVersement(user.role),
+      canCancelPending: canCancelPendingVersement(user.role),
       canFollowAll: scope === "tous",
     });
   } catch (error) {
@@ -108,15 +117,47 @@ export async function POST(request: Request) {
 
     if (contentType.includes("application/json")) {
       const body = (await request.json()) as {
-        action?: "confirm";
+        action?: "confirm" | "cancel";
         id?: string;
       };
-      if (body.action !== "confirm" || !body.id) {
+      if (!body.id || (body.action !== "confirm" && body.action !== "cancel")) {
         return NextResponse.json(
-          { error: "Action de confirmation invalide." },
+          { error: "Action invalide." },
           { status: 400 },
         );
       }
+
+      const existing = await getVersement(body.id);
+      if (!existing) {
+        return NextResponse.json(
+          { error: "Versement introuvable." },
+          { status: 404 },
+        );
+      }
+      if (!canUseSite(scope, existing.site)) {
+        return NextResponse.json(
+          { error: "Site non autorisé." },
+          { status: 403 },
+        );
+      }
+
+      if (body.action === "cancel") {
+        const entry = await cancelVersement({
+          id: body.id,
+          actor: actorFrom(user),
+        });
+        await logActivity({
+          user,
+          kind: "versements",
+          title: "Versement annulé",
+          detail: `Annulé · ${entry.montant} FCFA · n° ${entry.numeroTransaction} · déclaré par ${entry.actorName} (@${entry.actorUsername})`,
+          date: entry.date,
+          site: entry.site,
+          amount: entry.montant,
+        });
+        return NextResponse.json({ entry });
+      }
+
       const entry = await confirmVersement({
         id: body.id,
         actor: actorFrom(user),
@@ -134,6 +175,8 @@ export async function POST(request: Request) {
     }
 
     const form = await request.formData();
+    const action =
+      typeof form.get("action") === "string" ? String(form.get("action")) : "";
     const site = resolveSite(
       typeof form.get("site") === "string" ? String(form.get("site")) : null,
       user.site,
@@ -143,18 +186,67 @@ export async function POST(request: Request) {
     }
 
     const preuves = await preuvesFromForm(form);
+    const membresRaw = form.getAll("membresPresents");
+    const membresPresents =
+      membresRaw.length > 0
+        ? membresRaw.map((v) => String(v))
+        : String(form.get("membresPresents") ?? "");
+
+    if (action === "update") {
+      const id =
+        typeof form.get("id") === "string" ? String(form.get("id")) : "";
+      if (!id) {
+        return NextResponse.json(
+          { error: "Identifiant de versement manquant." },
+          { status: 400 },
+        );
+      }
+      const existing = await getVersement(id);
+      if (!existing) {
+        return NextResponse.json(
+          { error: "Versement introuvable." },
+          { status: 404 },
+        );
+      }
+      if (!canUseSite(scope, existing.site) || !canUseSite(scope, site)) {
+        return NextResponse.json(
+          { error: "Site non autorisé." },
+          { status: 403 },
+        );
+      }
+      const entry = await updateVersement({
+        id,
+        date:
+          typeof form.get("date") === "string" && String(form.get("date"))
+            ? String(form.get("date"))
+            : undefined,
+        site,
+        heureTransaction: String(form.get("heureTransaction") ?? ""),
+        trancheHoraire: form.get("trancheHoraire"),
+        membresPresents,
+        montant: form.get("montant"),
+        numeroTransaction: String(form.get("numeroTransaction") ?? ""),
+        ...(preuves.length > 0 ? { preuves } : {}),
+        actor: actorFrom(user),
+      });
+      await logActivity({
+        user,
+        kind: "versements",
+        title: "Versement modifié",
+        detail: `${entry.statut === "en_attente" ? "En attente" : entry.statut} · ${entry.montant} FCFA · n° ${entry.numeroTransaction} · ${entry.trancheHoraire} · présents : ${entry.membresPresents.join(", ")} · ${user.name} (@${user.username})`,
+        date: entry.date,
+        site: entry.site,
+        amount: entry.montant,
+      });
+      return NextResponse.json({ entry });
+    }
+
     if (preuves.length === 0) {
       return NextResponse.json(
         { error: "Capture d’écran obligatoire." },
         { status: 400 },
       );
     }
-
-    const membresRaw = form.getAll("membresPresents");
-    const membresPresents =
-      membresRaw.length > 0
-        ? membresRaw.map((v) => String(v))
-        : String(form.get("membresPresents") ?? "");
 
     const entry = await declareVersement({
       date:
