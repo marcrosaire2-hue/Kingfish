@@ -317,6 +317,7 @@ export async function listVentesHistory(
           ticket.numero,
           ticket.client,
           ticket.serveur,
+          ticket.caissier,
           ticket.paiement,
           ...lines.map((l) => l.name),
         ]
@@ -501,6 +502,8 @@ export type JournalVenteLine = {
   source: "kingfish" | "aquapro";
   typeVente: string;
   serveur: string | null;
+  /** Personne qui a enregistré / encaissé la vente. */
+  caissier: string | null;
   paiement: string | null;
   client: string | null;
   table: string | null;
@@ -570,6 +573,7 @@ export async function listJournalVentes(
         source: t.source,
         typeVente: t.typeVente,
         serveur: t.serveur,
+        caissier: t.caissier,
         paiement: t.paiement,
         client: t.client,
         table: t.table,

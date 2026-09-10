@@ -1015,6 +1015,7 @@ export function exportJournalVentesExcel(input: {
       source: string;
       typeVente: string;
       serveur: string | null;
+      caissier: string | null;
       paiement: string | null;
       client: string | null;
       table: string | null;
@@ -1046,6 +1047,7 @@ export function exportJournalVentesExcel(input: {
       Article: l.produit,
       Quantité: l.qty,
       "Montant (FCFA)": l.montant,
+      "Enregistré par": l.caissier || l.serveur || "",
       "Chiffre (FCFA)": d.montant,
     })),
   }));

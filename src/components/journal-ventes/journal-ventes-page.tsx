@@ -44,6 +44,7 @@ type TicketGroup = {
   source: JournalVenteLine["source"];
   typeVente: string;
   serveur: string | null;
+  caissier: string | null;
   paiement: string | null;
   client: string | null;
   table: string | null;
@@ -185,6 +186,7 @@ function groupByTicket(lines: JournalVenteLine[]): TicketGroup[] {
         source: l.source,
         typeVente: l.typeVente,
         serveur: l.serveur,
+        caissier: l.caissier,
         paiement: l.paiement,
         client: l.client,
         table: l.table,
@@ -1064,11 +1066,19 @@ function JournalTicketCard({
   const preview = ticket.lines
     .map((l) => (l.qty > 1 ? `${l.produit} ×${l.qty}` : l.produit))
     .join(" · ");
+  const enregistrePar = ticket.caissier || ticket.serveur || null;
+  const serveurDistinct =
+    ticket.serveur &&
+    ticket.caissier &&
+    ticket.serveur !== ticket.caissier
+      ? ticket.serveur
+      : null;
   const meta = [
     hideSite ? null : siteLabel(ticket.site),
     ticket.table ? `Table ${ticket.table}` : null,
     ticket.client,
-    ticket.serveur,
+    serveurDistinct,
+    enregistrePar ? `Enregistré par ${enregistrePar}` : null,
     ticket.paiement,
     ticket.typeVente,
     ticket.source === "aquapro" ? "Importé" : null,
