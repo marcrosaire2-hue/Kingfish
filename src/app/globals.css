@@ -9856,6 +9856,8 @@ html.nav-open body {
     gap: 0.7rem;
   }
 
+  .main-vente .vente-topbar,
+  .main-vente .vente-status-strip,
   .main-vente .context-bar,
   .main-vente .vente-hero,
   .main-vente .error-banner {
@@ -9912,14 +9914,10 @@ html.nav-open body {
     flex-shrink: 0;
   }
 
-  /* Composeur plat + accompagnements : le panneau tient dans la colonne et
-     seule la liste des accompagnements défile, pour que le total et le
-     bouton « Ajouter au panier » restent sous les yeux. */
+  /* Composeur : hauteur naturelle — pas d’étirement qui crée un grand vide */
   .main-vente .vente-meal-composer {
-    /* occupe la colonne : c'est la liste d'accompagnements qui absorbe
-       la hauteur disponible, pas le vide sous le panneau */
-    flex: 1 1 auto;
-    max-height: 100%;
+    flex: 0 0 auto;
+    max-height: none;
     min-height: 0;
     margin-bottom: 0;
   }
@@ -9928,33 +9926,25 @@ html.nav-open body {
     flex-shrink: 0;
   }
 
-  /* Consigne lue une fois pour toutes par un vendeur quotidien : en hauteur
-     fixe, ces trois lignes valent mieux en accompagnements visibles. */
   .main-vente .vente-meal-composer .vente-panel-head p {
     display: none;
   }
 
   .main-vente .vente-acc-picker {
-    margin: 0.5rem 0 0;
-  }
-
-  .main-vente .vente-acc-picker {
     display: flex;
     flex-direction: column;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
+    margin: 0.5rem 0 0;
     min-height: 0;
-    overflow: hidden;
+    max-height: 14rem;
+    overflow: auto;
   }
 
   .main-vente .vente-acc-list {
-    flex: 1 1 auto;
-    min-height: 3.5rem;
+    flex: 0 1 auto;
+    min-height: 0;
     max-height: none;
   }
-
-  /* Pas de `margin-top: auto` ici : une marge automatique absorbe l'espace
-     libre avant tout `flex-grow`, et la liste d'accompagnements restait à sa
-     hauteur minimale. C'est la liste qui pousse les actions vers le bas. */
 }
 
 /* Écrans courts (portables 720–800 px) : l'entête, le bandeau et les

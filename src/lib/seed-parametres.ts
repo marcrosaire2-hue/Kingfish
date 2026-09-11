@@ -244,8 +244,8 @@ export const SEED_PARAMETRES: Parametres = {
       unitsPerCasier: 24,
     },
     {
-      id: "drink-kiwabo-gb",
-      name: "Kiwabo GB",
+      id: "drink-kwabo-gb",
+      name: "Kwabo GB",
       purchasePrice: 333,
       salePrice: 600,
       unitsPerCasier: 12,

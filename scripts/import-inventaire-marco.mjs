@@ -111,7 +111,7 @@ const DRINKS = [
   ["GUINNESS PM", 700],
   ["EKU PM", 600],
   ["PILS GM", 800],
-  ["Kiwabo GB", 600],
+  ["Kwabo GB", 600],
   ["CONTESSE FRUIT", 600],
   ["POSSOTOME", 600],
   ["POSSOTOME CITRON", 600],

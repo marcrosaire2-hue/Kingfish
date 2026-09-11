@@ -15,7 +15,6 @@ import { formatFcfa } from "@/lib/format";
 import { SITE_LABELS } from "@/lib/auth-types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import {
-  lastDayOfMonth,
   type AnalysePeriod,
   type AnalyseReport,
   type HealthCard,
@@ -285,32 +284,17 @@ export function AnalysePage() {
           filters={
             <>
               <label className="date-field date-field-pill">
-                <span>{period === "day" ? "Jour" : "Mois"}</span>
-                {period === "month" ? (
-                  <input
-                    type="month"
-                    value={date.slice(0, 7)}
-                    max={todayIsoDate().slice(0, 7)}
-                    onChange={(e) => {
-                      const ym = e.target.value;
-                      if (!/^\d{4}-\d{2}$/.test(ym)) return;
-                      const today = todayIsoDate();
-                      const end = lastDayOfMonth(ym);
-                      setDate(ym === today.slice(0, 7) ? today : end);
-                    }}
-                  />
-                ) : (
-                  <input
-                    type="date"
-                    value={date}
-                    max={todayIsoDate()}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-                      setDate(v);
-                    }}
-                  />
-                )}
+                <span>Date</span>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    setDate(v);
+                  }}
+                />
               </label>
               {lockedSite ? null : (
                 <label className="date-field date-field-pill">

@@ -816,7 +816,7 @@ export function SynthesePage() {
             ) : null}
             {viewMode === "day" ? (
               <label className="date-field date-field-pill">
-                <span>Jour</span>
+                <span>Date</span>
                 <input
                   type="date"
                   value={date}
@@ -831,23 +831,34 @@ export function SynthesePage() {
             ) : null}
             {viewMode === "month" ? (
               <label className="date-field date-field-pill">
-                <span>Mois</span>
+                <span>Date</span>
                 <input
-                  type="month"
-                  value={month}
-                  onChange={(e) => setMonth(e.target.value)}
+                  type="date"
+                  value={date.slice(0, 7) === month ? date : `${month}-01`}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    setDate(v);
+                    setMonth(v.slice(0, 7));
+                  }}
                 />
               </label>
             ) : null}
             {viewMode === "year" ? (
               <label className="date-field date-field-pill">
-                <span>Année</span>
+                <span>Date</span>
                 <input
-                  type="number"
-                  min={2020}
-                  max={2100}
-                  value={year}
-                  onChange={(e) => setYear(e.target.value)}
+                  type="date"
+                  value={date.slice(0, 4) === year ? date : `${year}-01-01`}
+                  max={todayIsoDate()}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+                    setDate(v);
+                    setMonth(v.slice(0, 7));
+                    setYear(v.slice(0, 4));
+                  }}
                 />
               </label>
             ) : null}
