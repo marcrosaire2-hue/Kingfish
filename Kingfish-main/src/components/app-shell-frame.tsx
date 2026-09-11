@@ -1,0 +1,322 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { roleSiteLabel, type NavKey } from "@/lib/auth-types";
+import { APP_LOGO, APP_NAME, APP_SHORT } from "@/lib/brand";
+import { usePageChrome } from "@/components/page-chrome-context";
+import { clearSessionCache, useSession } from "@/components/session-provider";
+import { setOfflineQueueUser } from "@/lib/offline-queue";
+
+const NAV_ITEMS: {
+  href: string;
+  label: string;
+  key: NavKey;
+  group: "home" | "ops" | "pilot" | "admin";
+  groupLabel?: string;
+}[] = [
+  {
+    href: "/",
+    label: "Tableau de bord",
+    key: "synthese",
+    group: "home",
+    groupLabel: "Accueil",
+  },
+  {
+    href: "/analyse",
+    label: "Analyse",
+    key: "analyse",
+    group: "home",
+  },
+  {
+    href: "/compte-resultat",
+    label: "Compte de résultat",
+    key: "compte-resultat",
+    group: "home",
+  },
+  {
+    href: "/comptabilite",
+    label: "Comptabilité",
+    key: "comptabilite",
+    group: "home",
+  },
+  {
+    href: "/vente",
+    label: "Vente",
+    key: "vente",
+    group: "ops",
+    groupLabel: "Quotidien",
+  },
+  {
+    href: "/stock-zogbo",
+    label: "Stock Zogbo",
+    key: "zogbo",
+    group: "ops",
+  },
+  {
+    href: "/stock-gbegamey",
+    label: "Stock Gbégamey",
+    key: "gbegamey",
+    group: "ops",
+  },
+  {
+    href: "/achats",
+    label: "Achats",
+    key: "appro",
+    group: "ops",
+  },
+  {
+    href: "/pertes",
+    label: "Pertes",
+    key: "pertes",
+    group: "ops",
+  },
+  {
+    href: "/versements",
+    label: "Versements",
+    key: "versements",
+    group: "ops",
+  },
+  {
+    href: "/immobilisations",
+    label: "Immobilisations",
+    key: "immobilisations",
+    group: "ops",
+  },
+  {
+    href: "/journal-ventes",
+    label: "Journal ventes",
+    key: "journal-ventes",
+    group: "pilot",
+    groupLabel: "Pilotage",
+  },
+  {
+    href: "/regularisation",
+    label: "Régularisation",
+    key: "regularisation",
+    group: "pilot",
+  },
+  {
+    href: "/historique",
+    label: "Registre",
+    key: "historique",
+    group: "pilot",
+  },
+  {
+    href: "/reglages",
+    label: "Réglages POS",
+    key: "reglages",
+    group: "pilot",
+  },
+  {
+    href: "/admin",
+    label: "Équipe",
+    key: "admin",
+    group: "admin",
+    groupLabel: "Compte",
+  },
+];
+
+function isActive(pathname: string, href: string) {
+  if (href === "/") return pathname === "/";
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+export function AppShellFrame({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const router = useRouter();
+  const { user, nav, ready } = useSession();
+  const { meta, setActionsSlot } = usePageChrome();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [navBusy, setNavBusy] = useState(false);
+
+  useEffect(() => {
+    // Session révoquée (tokenVersion, désactivation, hors créneau) :
+    // /api/auth/me renvoie 401 → cache vidé. On déconnecte le cookie puis
+    // login (sinon middleware pouvait renvoyer vers l’accueil en boucle).
+    if (ready && !user) {
+      clearSessionCache();
+      void fetch("/api/auth/logout", { method: "POST", cache: "no-store" })
+        .catch(() => undefined)
+        .finally(() => {
+          router.replace("/login");
+        });
+    }
+  }, [ready, user, router]);
+
+  useEffect(() => {
+    setMenuOpen(false);
+    setNavBusy(true);
+    const t = window.setTimeout(() => setNavBusy(false), 450);
+    return () => window.clearTimeout(t);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const root = document.documentElement;
+    root.classList.add("nav-open");
+    return () => {
+      root.classList.remove("nav-open");
+    };
+  }, [menuOpen]);
+
+  const links = useMemo(() => {
+    if (!nav?.length) return [];
+    return NAV_ITEMS.filter((item) => nav.includes(item.key));
+  }, [nav]);
+
+  async function logout() {
+    setOfflineQueueUser(null);
+    await fetch("/api/auth/logout", { method: "POST" });
+    clearSessionCache();
+    router.replace("/login");
+    router.refresh();
+  }
+
+  const initials = user?.name
+    ? user.name
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((p) => p[0]?.toUpperCase() ?? "")
+        .join("")
+    : "·";
+
+  const mainClass = meta.mainClassName ? ` ${meta.mainClassName}` : "";
+
+  return (
+    <div className={`app-shell${menuOpen ? " is-nav-open" : ""}`}>
+      <aside className="sidebar" aria-label="Navigation">
+        <Link href="/" className="brand brand-link sidebar-brand" prefetch>
+          <img
+            src={APP_LOGO}
+            alt={APP_NAME}
+            className="brand-logo"
+            width={76}
+            height={76}
+          />
+          <span className="brand-text">
+            <span className="brand-name">{APP_SHORT}</span>
+            <span className="brand-tag">
+              <span>Production · Vente</span>
+              <span>Stock</span>
+            </span>
+          </span>
+        </Link>
+
+        <nav id="site-nav" className="side-nav" aria-label="Navigation principale">
+          {links.map((item, index) => {
+            const prev = links[index - 1];
+            const showDivider = prev && prev.group !== item.group;
+            const showGroupLabel =
+              !!item.groupLabel && (!prev || prev.group !== item.group);
+            return (
+              <div key={item.href} className="side-nav-item-wrap">
+                {showDivider ? (
+                  <div className="side-nav-divider" aria-hidden />
+                ) : null}
+                {showGroupLabel ? (
+                  <p className="side-nav-group">{item.groupLabel}</p>
+                ) : null}
+                <Link
+                  href={item.href}
+                  prefetch
+                  className={`side-nav-link${isActive(pathname, item.href) ? " is-active" : ""}`}
+                >
+                  {item.label}
+                </Link>
+              </div>
+            );
+          })}
+        </nav>
+
+        <div className="sidebar-footer">
+          {user ? (
+            <div className="user-chip user-chip-sidebar">
+              <span className="user-avatar" aria-hidden>
+                {initials}
+              </span>
+              <span className="user-meta">
+                <span className="user-name">{user.name}</span>
+                <span className="user-role">
+                  {roleSiteLabel(user.role, user.site)}
+                </span>
+              </span>
+              <button type="button" className="btn-logout" onClick={logout}>
+                Sortir
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </aside>
+
+      <button
+        type="button"
+        className="sidebar-backdrop"
+        aria-label="Fermer le menu"
+        tabIndex={menuOpen ? 0 : -1}
+        onClick={() => setMenuOpen(false)}
+      />
+
+      <div className={`main${mainClass}`}>
+        <div
+          className={`page-nav-progress${navBusy ? " is-active" : ""}`}
+          aria-hidden
+        />
+
+        <div className="mobile-bar">
+          <button
+            type="button"
+            className="nav-toggle"
+            aria-expanded={menuOpen}
+            aria-controls="site-nav"
+            onClick={() => setMenuOpen((o) => !o)}
+          >
+            <span className="sr-only">Menu</span>
+            <span className={`nav-toggle-bars${menuOpen ? " is-open" : ""}`} />
+          </button>
+          <Link href="/" className="mobile-bar-brand" prefetch>
+            <img
+              src={APP_LOGO}
+              alt=""
+              className="brand-logo brand-logo-sm"
+              width={40}
+              height={40}
+            />
+            <span className="mobile-bar-title">{APP_NAME}</span>
+          </Link>
+          {user ? (
+            <span className="user-avatar mobile-bar-avatar" aria-hidden>
+              {initials}
+            </span>
+          ) : (
+            <span className="mobile-bar-spacer" aria-hidden />
+          )}
+        </div>
+
+        <header className="page-header">
+          <div>
+            <h1>{meta.title}</h1>
+            {meta.subtitle ? (
+              <p className="page-subtitle">{meta.subtitle}</p>
+            ) : null}
+          </div>
+          <div className="page-actions" ref={setActionsSlot} />
+        </header>
+
+        <main className={`page-body page-body-route${navBusy ? " is-busy" : ""}`}>
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
