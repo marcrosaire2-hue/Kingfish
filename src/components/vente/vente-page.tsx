@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import "./vente-pos.css";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
+import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
 import { RegistreDrawer } from "@/components/registre-drawer";
@@ -266,24 +267,14 @@ const ProductGrid = memo(function ProductGrid({
             ? "Libre"
             : `Reste ${p.stockLeft}${p.kind === "boisson" ? " bt" : ""}`;
         return (
-          <button
+          <article
             key={`${p.kind}-${p.productId}`}
-            type="button"
             className={`vente-card${blocked ? " is-disabled" : ""}${
               p.lowStock && !stockBlocked ? " is-low" : ""
             }`}
-            disabled={blocked}
             title={reason ?? p.hint ?? stockLabel}
-            aria-label={
-              reason
-                ? `${p.name} — ${reason}`
-                : p.qrRequired
-                  ? `Saisir le code de ${p.name}`
-                  : `Ajouter ${p.name}`
-            }
-            onClick={() => onAdd(p)}
           >
-            <span className="vente-card-media" aria-hidden>
+            <div className="vente-card-media" aria-hidden>
               <ProductIcon kind={p.kind} name={p.name} size="lg" />
               {badgeLabel ? (
                 <span
@@ -298,35 +289,47 @@ const ProductGrid = memo(function ProductGrid({
               ) : p.lowStock && !stockBlocked ? (
                 <span className="vente-low-badge">Bientôt épuisé</span>
               ) : null}
-            </span>
-            <span className="vente-card-body">
-              <span className="vente-card-name">{p.name}</span>
-              <span className="vente-card-meta">
-                <span className="vente-price mono">
-                  {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
-                </span>
-                <span
-                  className={`vente-stock-left${
-                    stockBlocked
-                      ? " is-empty"
-                      : p.lowStock
-                        ? " is-low"
-                        : p.stockLeft == null
-                          ? " is-free"
-                          : ""
-                  }`}
-                >
-                  {stockLabel}
-                </span>
+            </div>
+            <div className="vente-card-body">
+              <h3>{p.name}</h3>
+              <span className="vente-price mono">
+                {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
               </span>
+              <p
+                className={`vente-stock-left${
+                  stockBlocked
+                    ? " is-empty"
+                    : p.lowStock
+                      ? " is-low"
+                      : p.stockLeft == null
+                        ? " is-free"
+                        : ""
+                }`}
+              >
+                {stockLabel}
+              </p>
               {reason && badgeLabel !== "Épuisé" ? (
-                <span className="vente-unavailable-reason">{reason}</span>
+                <p className="vente-unavailable-reason">{reason}</p>
               ) : null}
-            </span>
-            <span className="vente-card-add" aria-hidden>
-              +
-            </span>
-          </button>
+            </div>
+            <div className="vente-card-actions is-single">
+              <button
+                type="button"
+                className="vente-plus"
+                disabled={blocked}
+                aria-label={
+                  reason
+                    ? `${p.name} — ${reason}`
+                    : p.qrRequired
+                      ? `Saisir le code de ${p.name}`
+                      : `Ajouter ${p.name}`
+                }
+                onClick={() => onAdd(p)}
+              >
+                +
+              </button>
+            </div>
+          </article>
         );
       })}
     </div>
@@ -372,109 +375,108 @@ const MealComposer = memo(function MealComposer({
   return (
     <section className="vente-meal-composer vente-panel vente-sale-card">
       <header className="vente-panel-head">
-        <div>
-          <h2>Composer un plat</h2>
-          <p>Choisissez le plat, la quantité, puis les accompagnements.</p>
-        </div>
-        <div className="vente-meal-qty">
-          <span className="vente-qty-label">Qté</span>
-          <div className="vente-meal-qty-stepper">
-            <button
-              type="button"
-              className="vente-minus"
-              aria-label="Moins de plats"
-              disabled={!composerPlat || composerQty <= 1 || !!busyKey}
-              onClick={() => onQtyChange(-1)}
-            >
-              −
-            </button>
-            <span className="vente-qty mono">{composerQty}</span>
-            <button
-              type="button"
-              className="vente-plus"
-              aria-label="Plus de plats"
-              disabled={
-                !composerPlat ||
-                !!busyKey ||
-                (!ignoreStock &&
-                  composerPlat.stockLeft !== null &&
-                  composerPlat.stockLeft !== undefined &&
-                  composerQty >= composerPlat.stockLeft)
-              }
-              onClick={() => onQtyChange(1)}
-            >
-              +
-            </button>
-          </div>
-        </div>
+        <h2>Vente plat + accompagnements</h2>
+        <p>
+          Choisissez le plat, puis les accompagnements. Le code collé n’est
+          demandé que si des QR sont déjà en stock pour l’article.
+        </p>
       </header>
       {plats.length === 0 ? (
         <p className="muted vente-empty">Aucun plat au catalogue.</p>
       ) : (
         <>
-          <div
-            className="vente-plat-tiles"
-            role="listbox"
-            aria-label="Plats"
-          >
-            {plats.map((p) => {
-              const platEpuise =
-                !ignoreStock &&
-                p.stockLeft !== null &&
-                p.stockLeft !== undefined &&
-                p.stockLeft <= 0;
-              const selected = composerPlatId === p.productId;
-              return (
+          <div className="vente-meal-plat-row">
+            <label className="vente-field vente-field-plat">
+              <span>Plat</span>
+              <select
+                value={composerPlatId}
+                onChange={(e) => onSelectPlat(e.target.value)}
+              >
+                <option value="">— Choisir —</option>
+                {plats.map((p) => {
+                  const platEpuise =
+                    !ignoreStock &&
+                    p.stockLeft !== null &&
+                    p.stockLeft !== undefined &&
+                    p.stockLeft <= 0;
+                  const suffix = platEpuise
+                    ? ` · ${p.blockReason || "épuisé"}`
+                    : !ignoreStock
+                      ? ""
+                      : p.stockLeft != null && p.stockLeft <= 0
+                        ? " · sans stock (correction)"
+                        : "";
+                  return (
+                    <option
+                      key={p.productId}
+                      value={p.productId}
+                      disabled={platEpuise}
+                    >
+                      {p.name}
+                      {suffix}
+                      {p.unitPrice > 0
+                        ? ` · ${formatFcfa(p.unitPrice)}`
+                        : ""}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+            <div className="vente-meal-qty">
+              <span className="vente-qty-label">Qté</span>
+              <div className="vente-meal-qty-stepper">
                 <button
-                  key={p.productId}
                   type="button"
-                  role="option"
-                  aria-selected={selected}
-                  disabled={platEpuise}
-                  className={`vente-plat-tile${selected ? " is-active" : ""}${
-                    platEpuise ? " is-disabled" : ""
-                  }`}
-                  onClick={() => onSelectPlat(p.productId)}
+                  className="vente-minus"
+                  aria-label="Moins de plats"
+                  disabled={
+                    !composerPlat ||
+                    composerQty <= 1 ||
+                    !!busyKey
+                  }
+                  onClick={() => onQtyChange(-1)}
                 >
-                  <span className="vente-plat-tile-icon" aria-hidden>
-                    <ProductIcon kind="plat" name={p.name} size="md" />
-                  </span>
-                  <span className="vente-plat-tile-body">
-                    <span className="vente-plat-tile-name">{p.name}</span>
-                    <span className="vente-plat-tile-meta mono">
-                      {p.unitPrice > 0 ? formatFcfa(p.unitPrice) : "—"}
-                      {platEpuise
-                        ? ` · ${p.blockReason || "épuisé"}`
-                        : p.stockLeft != null
-                          ? ` · reste ${p.stockLeft}`
-                          : ""}
-                    </span>
-                  </span>
+                  −
                 </button>
-              );
-            })}
+                <span className="vente-qty mono">{composerQty}</span>
+                <button
+                  type="button"
+                  className="vente-plus"
+                  aria-label="Plus de plats"
+                  disabled={
+                    !composerPlat ||
+                    !!busyKey ||
+                    (!ignoreStock &&
+                      composerPlat.stockLeft !== null &&
+                      composerPlat.stockLeft !== undefined &&
+                      composerQty >= composerPlat.stockLeft)
+                  }
+                  onClick={() => onQtyChange(1)}
+                >
+                  +
+                </button>
+              </div>
+            </div>
           </div>
           {composerPlat?.hint ? (
             <p className="vente-hint">{composerPlat.hint}</p>
           ) : null}
           {composerAccOptions.length > 0 ? (
             <fieldset className="vente-acc-picker">
-              <legend>Accompagnements</legend>
+              <legend>Accompagnements (optionnel) — quantité par ligne</legend>
               <ul className="vente-acc-list">
                 {composerAccOptions.map((a) => {
                   const accQty = composerAccQtys[a.productId] ?? 0;
                   const accPrice = accPriceFor(a);
                   return (
                     <li key={a.productId}>
-                      <div
-                        className={`vente-acc-option${
-                          accQty > 0 ? " is-picked" : ""
-                        }`}
-                      >
+                      <div className="vente-acc-option">
                         <span className="vente-acc-option-name">
-                          <span>{a.name}</span>
-                          <span className="vente-acc-option-price mono">
-                            {accPrice > 0 ? formatFcfa(accPrice) : "Inclus"}
+                          <span>
+                            {a.name}
+                            {accPrice > 0
+                              ? ` · ${formatFcfa(accPrice)}`
+                              : ""}
                           </span>
                         </span>
                         <span className="vente-acc-qty">
@@ -483,17 +485,23 @@ const MealComposer = memo(function MealComposer({
                             className="vente-minus"
                             aria-label={`Moins de ${a.name}`}
                             disabled={accQty <= 0 || !!busyKey}
-                            onClick={() => onAccQtyChange(a.productId, -1)}
+                            onClick={() =>
+                              onAccQtyChange(a.productId, -1)
+                            }
                           >
                             −
                           </button>
-                          <span className="vente-qty mono">{accQty}</span>
+                          <span className="vente-qty mono">
+                            {accQty}
+                          </span>
                           <button
                             type="button"
                             className="vente-plus"
                             aria-label={`Plus de ${a.name}`}
                             disabled={!!busyKey}
-                            onClick={() => onAccQtyChange(a.productId, 1)}
+                            onClick={() =>
+                              onAccQtyChange(a.productId, 1)
+                            }
                           >
                             +
                           </button>
@@ -562,7 +570,7 @@ const VenteQrScanPanel = memo(function VenteQrScanPanel({
         }}
       >
         <label className="vente-sticker-field">
-          <span>Code étiquette</span>
+          <span>Code collé sur l’étiquette</span>
           <input
             value={draft}
             onChange={(e) => setDraft(e.target.value.toUpperCase())}
@@ -581,30 +589,31 @@ const VenteQrScanPanel = memo(function VenteQrScanPanel({
         >
           Ajouter
         </button>
-        <button
-          type="button"
-          className={`vente-qr-scan-toggle btn btn-ghost${scanOpen ? " is-active" : ""}`}
-          onClick={onToggleScan}
-        >
-          <span className="vente-qr-scan-icon" aria-hidden>
-            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-              />
-              <path
-                d="M8 12h8"
-                stroke="currentColor"
-                strokeWidth="1.75"
-                strokeLinecap="round"
-              />
-            </svg>
-          </span>
-          {scanOpen ? "Fermer" : "Scanner"}
-        </button>
       </form>
+
+      <button
+        type="button"
+        className={`vente-qr-scan-toggle btn btn-ghost${scanOpen ? " is-active" : ""}`}
+        onClick={onToggleScan}
+      >
+        <span className="vente-qr-scan-icon" aria-hidden>
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path
+              d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+            />
+            <path
+              d="M8 12h8"
+              stroke="currentColor"
+              strokeWidth="1.75"
+              strokeLinecap="round"
+            />
+          </svg>
+        </span>
+        {scanOpen ? "Fermer la caméra" : "Scanner le QR"}
+      </button>
 
       {scanOpen ? (
         <>
@@ -713,21 +722,21 @@ const CartLines = memo(function CartLines({
     <ul className="pos-cart-list">
       {cart.map((l) => (
         <li key={l.key}>
-          <div className="vente-cart-line-info">
+          <div>
             <strong>
               {l.name}
               {l.stickerCode || l.qrId ? (
-                <span className="vente-qr-badge" title={l.qrId}>
+                <span
+                  className="vente-qr-badge"
+                  title={l.qrId}
+                >
                   {" "}
                   · {formatStickerCode(l.stickerCode || l.qrId || "")}
                 </span>
               ) : null}
             </strong>
-            <div className="vente-cart-line-meta muted mono">
+            <div className="muted mono">
               {formatFcfa(l.unitPrice)} × {l.qty}
-              <span className="vente-cart-line-amount">
-                {formatFcfa(l.unitPrice * l.qty)}
-              </span>
             </div>
           </div>
           <div className="vente-card-actions">
@@ -1812,19 +1821,25 @@ export function VentePage({
   return (
     <AppShell
       title="Vente"
-      subtitle={`${siteLabel} · poste de caisse`}
+      subtitle={`${siteLabel} · panier multi-articles · ticket`}
       /* Poste de vente : tenu à hauteur d'écran, la page ne défile pas. */
       mainClassName="main-vente"
     >
       <div
         className={`vente-page${cart.length ? " has-mobile-cart" : ""}${
           cartSheetOpen ? " is-cart-open" : ""
-        }${canSell ? " is-caisse-open" : " is-caisse-closed"}${
-          backdateMode ? " is-backdate" : ""
         }`}
       >
-        <header className="vente-topbar" aria-label="Poste de vente">
-          <div className="vente-topbar-day">
+        <div className="vente-context-wrap">
+          <ContextBar
+            date={date}
+            onDateChange={(v) => {
+              if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
+              setFlash(null);
+              setDate(v);
+            }}
+            siteLabel={siteLabel}
+          >
             <div
               className="vente-date-stepper"
               role="group"
@@ -1832,7 +1847,7 @@ export function VentePage({
             >
               <button
                 type="button"
-                className="vente-day-btn"
+                className="btn btn-ghost"
                 title="Jour précédent"
                 onClick={() => {
                   const prev = previousIsoDate(date);
@@ -1844,23 +1859,9 @@ export function VentePage({
               >
                 ←
               </button>
-              <label className="vente-date-field">
-                <span className="sr-only">Jour</span>
-                <input
-                  type="date"
-                  value={date}
-                  max={todayIsoDate()}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return;
-                    setFlash(null);
-                    setDate(v);
-                  }}
-                />
-              </label>
               <button
                 type="button"
-                className="vente-day-btn"
+                className="btn btn-ghost"
                 title="Jour suivant"
                 disabled={date >= todayIsoDate()}
                 onClick={() => {
@@ -1874,111 +1875,6 @@ export function VentePage({
                 →
               </button>
             </div>
-            {allowedSites.length > 1 ? (
-              <div
-                className="vente-site-seg"
-                role="tablist"
-                aria-label="Site"
-              >
-                {allowedSites.map((s) => (
-                  <button
-                    key={s}
-                    type="button"
-                    role="tab"
-                    aria-selected={site === s}
-                    className={`vente-site-btn${site === s ? " is-active" : ""}`}
-                    onClick={() => setSite(s)}
-                  >
-                    {s === "zogbo" ? "Zogbo" : "Gbégamey"}
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <span className="vente-site-pill">{siteLabel}</span>
-            )}
-          </div>
-
-          <div
-            className={`vente-topbar-ca${canSell ? " is-open" : " is-closed"}${
-              backdateMode ? " is-backdate" : ""
-            }`}
-          >
-            <div className="vente-topbar-ca-main">
-              <div className="vente-topbar-ca-head">
-                <span className="vente-status-chip">
-                  <span className="vente-status-dot" aria-hidden />
-                  {cashStatusLabel}
-                </span>
-                <span className="vente-topbar-ca-label">CA du jour</span>
-              </div>
-              <p className="vente-topbar-amount mono">
-                {loading && !board ? "…" : formatFcfa(board?.caToday ?? 0)}
-              </p>
-              <p className="vente-topbar-meta">
-                {cashMeta}
-                {board?.caParEquipe &&
-                (board.caParEquipe.jour > 0 ||
-                  board.caParEquipe.soir > 0 ||
-                  board.caParEquipe.nuit > 0) ? (
-                  <span className="vente-equipes">
-                    {" "}
-                    · Jour {formatFcfa(board.caParEquipe.jour ?? 0)} · Soir{" "}
-                    {formatFcfa(board.caParEquipe.soir ?? 0)} · Nuit{" "}
-                    {formatFcfa(board.caParEquipe.nuit ?? 0)}
-                  </span>
-                ) : null}
-                {enAttente > 0 ? (
-                  <span className="vente-attente" role="status">
-                    {" "}
-                    · {enAttente} en attente d&apos;envoi
-                  </span>
-                ) : null}
-              </p>
-            </div>
-            <div className="vente-topbar-ca-actions">
-              {loading ? null : caisse ? (
-                <Link
-                  href={`/caisse?caisse=${site}`}
-                  className="vente-ca-action"
-                >
-                  Caisse →
-                </Link>
-              ) : backdateMode ? (
-                caisseActive && caisseActive.date !== date ? (
-                  <button
-                    type="button"
-                    className="vente-ca-action"
-                    onClick={() => void rejoindreCaisseActive()}
-                  >
-                    Rejoindre →
-                  </button>
-                ) : null
-              ) : caisseActive ? (
-                <button
-                  type="button"
-                  className="vente-ca-action"
-                  disabled={openingCaisse}
-                  onClick={() => void openCaisseHere()}
-                >
-                  {openingCaisse ? "Reprise…" : "Reprendre →"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  className="vente-ca-action is-primary"
-                  disabled={
-                    openingCaisse ||
-                    (allowedSites.length > 0 && !allowedSites.includes(site))
-                  }
-                  onClick={() => void openCaisseHere()}
-                >
-                  {openingCaisse ? "Ouverture…" : "Ouvrir caisse"}
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="vente-topbar-tools">
             <ExportExcelButton
               onExport={() => exportVenteExcel(date, site)}
               disabled={loading}
@@ -1986,23 +1882,21 @@ export function VentePage({
             {canViewHistory ? (
               <Link
                 href="/journal-ventes"
-                className="btn btn-ghost vente-tool-btn vente-context-journal-link"
+                className="btn btn-ghost vente-context-journal-link"
               >
-                Historique
+                Journal
               </Link>
             ) : null}
             <button
               type="button"
-              className="btn btn-ghost vente-tool-btn vente-journal-btn"
+              className="btn btn-ghost vente-journal-btn"
               onClick={() => setJournalOpen(true)}
             >
-              Journal
-              <span className="vente-tool-count">{recentCount}</span>
+              Journal ({recentCount})
             </button>
-          </div>
-        </header>
+          </ContextBar>
+        </div>
 
-        <div className="vente-status-strip">
         {ruptureAlert ? (
           <div className="vente-rupture-alert" role="alert">
             <span className="vente-stock-tag">Épuisé</span>
@@ -2032,6 +1926,106 @@ export function VentePage({
             <span className="vente-rupture-bar-hint">Voir</span>
           </button>
         ) : null}
+
+        <section
+          className={`vente-cash-card${canSell ? " is-open" : " is-closed"}${
+            backdateMode ? " is-backdate" : ""
+          }`}
+          aria-label="État de la caisse"
+        >
+          <div className="vente-cash-card-body">
+            <span className="vente-cash-badge">
+              <span className="vente-cash-badge-dot" aria-hidden />
+              {cashStatusLabel}
+            </span>
+            <p className="vente-cash-site">Caisse {siteLabel}</p>
+            <p className="vente-cash-amount mono">
+              {loading && !board ? "…" : formatFcfa(board?.caToday ?? 0)}
+            </p>
+            <p className="vente-cash-meta">
+              {cashMeta}
+              {board?.caParEquipe &&
+              (board.caParEquipe.jour > 0 ||
+                board.caParEquipe.soir > 0 ||
+                board.caParEquipe.nuit > 0) ? (
+                <span className="vente-equipes">
+                  {" "}
+                  Jour {formatFcfa(board.caParEquipe.jour ?? 0)} · Soir{" "}
+                  {formatFcfa(board.caParEquipe.soir ?? 0)} · Nuit{" "}
+                  {formatFcfa(board.caParEquipe.nuit ?? 0)}
+                </span>
+              ) : null}
+              {enAttente > 0 ? (
+                <span className="vente-attente" role="status">
+                  {enAttente} vente{enAttente > 1 ? "s" : ""} en attente
+                  d&apos;envoi
+                </span>
+              ) : null}
+            </p>
+            <div className="vente-cash-actions">
+              {allowedSites.length > 1 ? (
+                <div
+                  className="site-switch site-switch-vente"
+                  role="tablist"
+                  aria-label="Site"
+                >
+                  {allowedSites.map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      className={`site-btn${site === s ? " is-active" : ""}`}
+                      onClick={() => setSite(s)}
+                    >
+                      {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {loading ? null : caisse ? (
+                <Link
+                  href={`/caisse?caisse=${site}`}
+                  className="vente-cash-link"
+                >
+                  Voir la caisse →
+                </Link>
+              ) : backdateMode ? (
+                caisseActive && caisseActive.date !== date ? (
+                  <button
+                    type="button"
+                    className="vente-cash-link"
+                    onClick={() => void rejoindreCaisseActive()}
+                  >
+                    Rejoindre la caisse →
+                  </button>
+                ) : null
+              ) : caisseActive ? (
+                <button
+                  type="button"
+                  className="vente-cash-link"
+                  disabled={openingCaisse}
+                  onClick={() => void openCaisseHere()}
+                >
+                  {openingCaisse ? "Reprise…" : "Reprendre la caisse →"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="vente-cash-link"
+                  disabled={
+                    openingCaisse ||
+                    (allowedSites.length > 0 && !allowedSites.includes(site))
+                  }
+                  onClick={() => void openCaisseHere()}
+                >
+                  {openingCaisse
+                    ? "Ouverture…"
+                    : `Ouvrir la caisse ${siteLabel} →`}
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="vente-cash-card-deco" aria-hidden />
+        </section>
 
         {rejets.length > 0 ? (
           <div className="error-banner" role="alert">
@@ -2176,87 +2170,77 @@ export function VentePage({
           </p>
         ) : null}
 
-        </div>
-
         <div className="vente-workspace">
           <div className="vente-catalog" ref={catalogRef}>
-            <div className="vente-catalog-toolbar">
-              <div
-                className="vente-cat-pills"
-                role="tablist"
-                aria-label="Catégories"
-              >
-                {categories.map((c) => (
-                  <button
-                    key={c.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={cat === c.key}
-                    className={`vente-cat-pill${cat === c.key ? " is-active" : ""}`}
-                    onClick={() => setCat(c.key)}
-                  >
-                    <span className="vente-cat-pill-icon" aria-hidden>
-                      <ProductIcon
-                        kind={CAT_ICON[c.key].kind}
-                        name={CAT_ICON[c.key].name}
-                        size="md"
-                      />
+            <div
+              className="vente-cat-pills"
+              role="tablist"
+              aria-label="Catégories"
+            >
+              {categories.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={cat === c.key}
+                  className={`vente-cat-pill${cat === c.key ? " is-active" : ""}`}
+                  onClick={() => setCat(c.key)}
+                >
+                  <span className="vente-cat-pill-icon">
+                    <ProductIcon
+                      kind={CAT_ICON[c.key].kind}
+                      name={CAT_ICON[c.key].name}
+                      size="md"
+                    />
+                  </span>
+                  <span className="vente-cat-pill-label">
+                    <span className="vente-cat-pill-label-long">{c.label}</span>
+                    <span className="vente-cat-pill-label-short">
+                      {CAT_SHORT_LABELS[c.key]}
                     </span>
-                    <span className="vente-cat-pill-text">
-                      <span className="vente-cat-pill-label">
-                        <span className="vente-cat-pill-label-long">
-                          {c.label}
-                        </span>
-                        <span className="vente-cat-pill-label-short">
-                          {CAT_SHORT_LABELS[c.key]}
-                        </span>
-                      </span>
-                      <span className="vente-cat-pill-count">{c.count}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
+                  </span>
+                  <span className="vente-cat-pill-count">{c.count}</span>
+                </button>
+              ))}
+            </div>
 
-              <VenteQrScanPanel
-                scanOpen={scanOpen}
-                scanBusy={scanBusy}
-                onToggleScan={toggleQrScan}
-                onScanSubmit={(raw) => handleQrScan(raw, codeQueue[0] ?? null)}
+            <VenteQrScanPanel
+              scanOpen={scanOpen}
+              scanBusy={scanBusy}
+              onToggleScan={toggleQrScan}
+              onScanSubmit={(raw) => handleQrScan(raw, codeQueue[0] ?? null)}
+            />
+
+            {loading && !board ? (
+              <BrandLoader variant="ligne" label="Chargement du catalogue…" />
+            ) : cat === "plat" ? (
+              <MealComposer
+                plats={plats}
+                canSell={canSell}
+                ignoreStock={ignoreStock}
+                busyKey={busyKey}
+                composerPlatId={composerPlatId}
+                composerPlat={composerPlat}
+                composerQty={composerQty}
+                composerAccOptions={composerAccOptions}
+                composerAccQtys={composerAccQtys}
+                composerTotal={composerTotal}
+                onSelectPlat={setComposerPlatId}
+                onQtyChange={changeComposerQty}
+                onAccQtyChange={changeComposerAccQty}
+                onCommit={commitMeal}
+                accPriceFor={accPriceFor}
               />
-            </div>
-
-            <div className="vente-catalog-body">
-              {loading && !board ? (
-                <BrandLoader variant="ligne" label="Chargement du catalogue…" />
-              ) : cat === "plat" ? (
-                <MealComposer
-                  plats={plats}
-                  canSell={canSell}
-                  ignoreStock={ignoreStock}
-                  busyKey={busyKey}
-                  composerPlatId={composerPlatId}
-                  composerPlat={composerPlat}
-                  composerQty={composerQty}
-                  composerAccOptions={composerAccOptions}
-                  composerAccQtys={composerAccQtys}
-                  composerTotal={composerTotal}
-                  onSelectPlat={setComposerPlatId}
-                  onQtyChange={changeComposerQty}
-                  onAccQtyChange={changeComposerAccQty}
-                  onCommit={commitMeal}
-                  accPriceFor={accPriceFor}
-                />
-              ) : (
-                <ProductGrid
-                  products={products}
-                  canSell={canSell}
-                  ignoreStock={ignoreStock}
-                  onAdd={(p) =>
-                    p.qrRequired ? requestCodes([{ product: p }]) : addToCart(p)
-                  }
-                />
-              )}
-            </div>
+            ) : (
+              <ProductGrid
+                products={products}
+                canSell={canSell}
+                ignoreStock={ignoreStock}
+                onAdd={(p) =>
+                  p.qrRequired ? requestCodes([{ product: p }]) : addToCart(p)
+                }
+              />
+            )}
           </div>
 
           <aside
@@ -2264,34 +2248,28 @@ export function VentePage({
               cartSheetOpen ? " is-sheet-open" : ""
             }`}
           >
-            <header className="vente-panel-head vente-cart-head">
-              <div>
-                <h2>Panier</h2>
-                <p>
-                  {cart.length
-                    ? `${cartItemCount} article${cartItemCount > 1 ? "s" : ""}`
-                    : "Ajoutez un produit pour commencer"}
-                </p>
-              </div>
-              {cart.length > 0 ? (
-                <span className="vente-cart-badge mono">
-                  {formatFcfa(cartNet)}
-                </span>
-              ) : null}
-              <button
-                type="button"
-                className="vente-cart-close"
-                aria-label="Fermer le panier"
-                onClick={() => setCartSheetOpen(false)}
-              >
-                ×
-              </button>
-            </header>
+              <header className="vente-panel-head vente-cart-head">
+                <div>
+                  <h2>Panier</h2>
+                  <p>
+                    {cart.length
+                      ? `${cartItemCount} article${cartItemCount > 1 ? "s" : ""}`
+                      : "Vide — touchez + sur un produit"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="vente-cart-close"
+                  aria-label="Fermer le panier"
+                  onClick={() => setCartSheetOpen(false)}
+                >
+                  ×
+                </button>
+              </header>
 
-            <div className="vente-cart-body">
               {!cart.length ? (
                 <p className="muted vente-cart-empty">
-                  Touchez un article ou composez un plat pour remplir le panier.
+                  Le panier apparaîtra ici.
                 </p>
               ) : (
                 <CartLines cart={cart} onChangeQty={changeCartQty} />
@@ -2325,6 +2303,8 @@ export function VentePage({
                     ))}
                   </select>
                 </label>
+                {/* Ni table ni serveur à choisir : c'est le compte connecté
+                    qui répond de l'opération, il n'y a rien à saisir. */}
                 <div className="vente-field vente-field-static">
                   <span>Enregistré par</span>
                   <strong>{operateur ?? "…"}</strong>
@@ -2337,8 +2317,8 @@ export function VentePage({
                     placeholder="Nom client"
                   />
                 </label>
-                <label className="vente-field vente-field-reduction">
-                  <span>Réduction (FCFA)</span>
+                <label className="vente-field">
+                  <span>Réduction commerciale (FCFA)</span>
                   <input
                     type="number"
                     min={0}
@@ -2348,46 +2328,45 @@ export function VentePage({
                   />
                 </label>
               </div>
-            </div>
 
-            <div className="pos-cart-foot">
-              {reductionN > 0 ? (
-                <div className="pos-total pos-total-sub">
-                  <span>Sous-total</span>
-                  <strong className="mono">{formatFcfa(cartTotal)}</strong>
+              <div className="pos-cart-foot">
+                {reductionN > 0 ? (
+                  <div className="pos-total pos-total-sub">
+                    <span>Sous-total</span>
+                    <strong className="mono">{formatFcfa(cartTotal)}</strong>
+                  </div>
+                ) : null}
+                {reductionN > 0 ? (
+                  <div className="pos-total pos-total-sub">
+                    <span>Réduction</span>
+                    <strong className="mono">−{formatFcfa(reductionN)}</strong>
+                  </div>
+                ) : null}
+                <div className="pos-total">
+                  <span>Total</span>
+                  <strong className="mono">{formatFcfa(cartNet)}</strong>
                 </div>
-              ) : null}
-              {reductionN > 0 ? (
-                <div className="pos-total pos-total-sub">
-                  <span>Réduction</span>
-                  <strong className="mono">−{formatFcfa(reductionN)}</strong>
-                </div>
-              ) : null}
-              <div className="pos-total">
-                <span>Total</span>
-                <strong className="mono">{formatFcfa(cartNet)}</strong>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={posBusy || !cart.length || !canSell}
+                  onClick={() => void validateCart()}
+                >
+                  {posBusy ? "Validation…" : "Créer la commande"}
+                </button>
               </div>
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={posBusy || !cart.length || !canSell}
-                onClick={() => void validateCart()}
-              >
-                {posBusy ? "Validation…" : "Créer la commande"}
-              </button>
-            </div>
 
-            {tickets.length > 0 ? (
-              <TicketsList
-                tickets={tickets}
-                busyKey={busyKey}
-                canViewHistory={canViewHistory}
-                canPurge={canPurge}
-                onFacture={openFacture}
-                onCancel={cancelTicket}
-                onDeletePermanent={deleteTicketPermanent}
-              />
-            ) : null}
+              {tickets.length > 0 ? (
+                <TicketsList
+                  tickets={tickets}
+                  busyKey={busyKey}
+                  canViewHistory={canViewHistory}
+                  canPurge={canPurge}
+                  onFacture={openFacture}
+                  onCancel={cancelTicket}
+                  onDeletePermanent={deleteTicketPermanent}
+                />
+              ) : null}
           </aside>
         </div>
 
@@ -2419,7 +2398,7 @@ export function VentePage({
                 className="btn btn-ghost vente-mobile-cart-details"
                 onClick={() => setCartSheetOpen((open) => !open)}
               >
-                {cartSheetOpen ? "Fermer" : "Voir"}
+                {cartSheetOpen ? "Fermer" : "Détails"}
               </button>
               <button
                 type="button"
