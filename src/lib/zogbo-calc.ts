@@ -454,6 +454,22 @@ function hourInTimeZone(instant: Date, timeZone = BUSINESS_TIMEZONE): number {
 }
 
 /**
+ * Tranche horaire d'un instant, avec les mêmes bornes que les versements
+ * (nuit 00h–08h, matin 08h–16h, soir 16h–00h) — sert à rapprocher les
+ * ventes caisse des versements déclarés sur la même tranche.
+ */
+export function trancheHoraireFromInstant(
+  instant: string | Date,
+  timeZone = BUSINESS_TIMEZONE,
+): "nuit" | "matin" | "soir" {
+  const d = instant instanceof Date ? instant : new Date(instant);
+  const h = hourInTimeZone(d, timeZone);
+  if (h < 8) return "nuit";
+  if (h < 16) return "matin";
+  return "soir";
+}
+
+/**
  * Une caisse datée d'avant aujourd'hui n'est « oubliée » qu'après l'heure de
  * coupure : avant, elle peut encore correspondre au service de la veille qui
  * déborde après minuit (cf. operatingDateFromCaisse, qui la garde active).

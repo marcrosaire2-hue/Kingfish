@@ -29,6 +29,7 @@ import {
   type VersementTranche,
   type VenteSite,
 } from "@/lib/types";
+import type { VenteTrancheDay } from "@/lib/ventes-history-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import {
   defaultTrancheFromShift,
@@ -258,6 +259,42 @@ export function VersementsPage() {
     void charger();
   }, [charger]);
 
+  const [ventesTotals, setVentesTotals] = useState<VenteTrancheDay[]>([]);
+  const [ventesTotalsLoading, setVentesTotalsLoading] = useState(true);
+
+  const chargerVentes = useCallback(async () => {
+    if (!scope) {
+      setVentesTotalsLoading(false);
+      return;
+    }
+    setVentesTotalsLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (followAll) {
+        params.set("from", from);
+        params.set("to", to);
+        if (filterSite !== "all") params.set("site", filterSite);
+      } else {
+        params.set("from", date);
+        params.set("to", date);
+      }
+      const res = await fetch(`/api/ventes/totaux-jour?${params}`, {
+        cache: "no-store",
+      });
+      const body = (await res.json()) as { days?: VenteTrancheDay[] };
+      if (!res.ok) throw new Error();
+      setVentesTotals(body.days ?? []);
+    } catch {
+      setVentesTotals([]);
+    } finally {
+      setVentesTotalsLoading(false);
+    }
+  }, [scope, followAll, from, to, filterSite, date]);
+
+  useEffect(() => {
+    void chargerVentes();
+  }, [chargerVentes]);
+
   useEffect(() => {
     const urls = preuves.map((file) => URL.createObjectURL(file));
     setPreuvePreviews(urls);
@@ -337,6 +374,51 @@ export function VersementsPage() {
       totalCount: pending + confirmed,
     };
   }, [versements]);
+
+  // Jour + zone : Zogbo et Gbégamey ont chacun leur équipe et leur propre
+  // caisse, il ne faut jamais fusionner leurs montants dans une même ligne.
+  const versementsByDaySite = useMemo(() => {
+    const map = new Map<string, VenteTrancheDay>();
+    for (const v of versements) {
+      if (v.statut === "annulee") continue;
+      const key = `${v.date}|${v.site}`;
+      let day = map.get(key);
+      if (!day) {
+        day = { date: v.date, site: v.site, nuit: 0, matin: 0, soir: 0, total: 0 };
+        map.set(key, day);
+      }
+      day[v.trancheHoraire] += v.montant;
+      day.total += v.montant;
+    }
+    return map;
+  }, [versements]);
+
+  const comparisonDays = useMemo(() => {
+    const keys = new Set<string>();
+    for (const d of ventesTotals) keys.add(`${d.date}|${d.site}`);
+    for (const k of versementsByDaySite.keys()) keys.add(k);
+    const zero: Omit<VenteTrancheDay, "date" | "site"> = {
+      nuit: 0,
+      matin: 0,
+      soir: 0,
+      total: 0,
+    };
+    return [...keys]
+      .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0))
+      .map((key) => {
+        const [date, site] = key.split("|") as [string, VenteSite];
+        return {
+          date,
+          site,
+          ventes: ventesTotals.find((d) => d.date === date && d.site === site) ?? {
+            date,
+            site,
+            ...zero,
+          },
+          verse: versementsByDaySite.get(key) ?? { date, site, ...zero },
+        };
+      });
+  }, [ventesTotals, versementsByDaySite]);
 
   const hasPreuves = preuves.length > 0 || existingPreuves.length > 0;
   const checks = {
@@ -744,6 +826,74 @@ export function VersementsPage() {
               </p>
             </div>
           </div>
+        </section>
+
+        <section className="panel vs-compare" aria-label="Ventes du jour vs versements">
+          <div className="vs-compare-head">
+            <h2>Ventes vs versements</h2>
+            <p className="vs-compare-hint">
+              Total encaissé au point de vente (matin / soir / nuit) face aux
+              versements déclarés sur la même tranche, pour repérer un écart.
+            </p>
+          </div>
+          {ventesTotalsLoading || loading ? (
+            <BrandLoader label="Chargement du comparatif…" />
+          ) : comparisonDays.length === 0 ? (
+            <p className="vs-compare-empty">Aucune vente ni versement sur cette période.</p>
+          ) : (
+            <div className="table-scroll vs-compare-table-wrap">
+              <table className="data-table vs-compare-table">
+                <thead>
+                  <tr>
+                    <th rowSpan={2}>Jour</th>
+                    {followAll ? <th rowSpan={2}>Zone</th> : null}
+                    <th className="vs-compare-group" colSpan={2}>
+                      Matin
+                    </th>
+                    <th className="vs-compare-group" colSpan={2}>
+                      Soir
+                    </th>
+                    <th className="vs-compare-group" colSpan={2}>
+                      Nuit
+                    </th>
+                    <th className="vs-compare-group" colSpan={2}>
+                      Total
+                    </th>
+                  </tr>
+                  <tr>
+                    <th className="num">Ventes</th>
+                    <th className="num">Versé</th>
+                    <th className="num">Ventes</th>
+                    <th className="num">Versé</th>
+                    <th className="num">Ventes</th>
+                    <th className="num">Versé</th>
+                    <th className="num">Ventes</th>
+                    <th className="num">Versé</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparisonDays.map((row) => (
+                    <tr key={`${row.date}|${row.site}`}>
+                      <td className="vs-td-date">{formatDateFr(row.date)}</td>
+                      {followAll ? <td>{SITE_LABELS[row.site]}</td> : null}
+                      <td className="num mono">{formatFcfa(row.ventes.matin)}</td>
+                      <td className="num mono">{formatFcfa(row.verse.matin)}</td>
+                      <td className="num mono">{formatFcfa(row.ventes.soir)}</td>
+                      <td className="num mono">{formatFcfa(row.verse.soir)}</td>
+                      <td className="num mono">{formatFcfa(row.ventes.nuit)}</td>
+                      <td className="num mono">{formatFcfa(row.verse.nuit)}</td>
+                      <td className="num mono vs-td-amount">
+                        {formatFcfa(row.ventes.total)}
+                      </td>
+                      <td className="num mono vs-td-amount">
+                        {formatFcfa(row.verse.total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </section>
 
         {error ? (

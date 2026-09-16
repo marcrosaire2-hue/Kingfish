@@ -224,6 +224,69 @@
   overflow-wrap: anywhere;
 }
 
+/* ——— Comparatif ventes vs versements ——— */
+
+.main-versements .vs-compare {
+  min-width: 0;
+  padding: clamp(0.85rem, 2.2vw, 1.05rem);
+  border-radius: clamp(14px, 2vw, 16px);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.main-versements .vs-compare-head h2 {
+  margin: 0;
+  font-size: clamp(0.98rem, 2.8vw, 1.05rem);
+  font-weight: 800;
+  color: #003d82;
+}
+
+.main-versements .vs-compare-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.main-versements .vs-compare-empty {
+  margin: 0;
+  padding: 0.9rem;
+  border-radius: 12px;
+  border: 1px dashed var(--line);
+  background: color-mix(in srgb, var(--ink) 2%, transparent);
+  color: var(--ink-soft);
+  font-size: 0.88rem;
+  text-align: center;
+}
+
+.main-versements .vs-compare-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.main-versements .vs-compare-table {
+  min-width: 44rem;
+  width: 100%;
+}
+
+.main-versements .vs-compare-table th.vs-compare-group {
+  text-align: center;
+  border-left: 1px solid var(--line);
+}
+
+.main-versements .vs-compare-table thead tr:last-child th {
+  padding-top: 0.4rem;
+  font-size: 0.7rem;
+}
+
+.main-versements .vs-compare-table td.num,
+.main-versements .vs-compare-table th.num {
+  text-align: right;
+  border-left: 1px solid color-mix(in srgb, var(--line) 65%, transparent);
+}
+
 /* ——— Barre de commande ——— */
 
 .main-versements .vs-toolbar {

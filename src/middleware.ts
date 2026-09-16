@@ -27,6 +27,7 @@ const PWA_PUBLIC = ["/manifest.webmanifest", "/sw.js"];
 const API_VERS_ECRAN: Record<string, string> = {
   "/api/pos": "/vente",
   "/api/pos-config": "/reglages",
+  "/api/ventes/totaux-jour": "/versements",
 };
 
 /**
