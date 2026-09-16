@@ -28,6 +28,7 @@ import { AutorisationsEditor } from "@/components/admin/autorisations-editor";
 import { ConnexionsPanel } from "@/components/admin/connexions-panel";
 import { MailAlertsPanel } from "@/components/admin/mail-alerts-panel";
 import { StockEnforcementPanel } from "@/components/admin/stock-enforcement-panel";
+import { VentesAdminPanel } from "@/components/admin/ventes-admin-panel";
 import { VentesLiveNotifier } from "@/components/admin/ventes-live-notifier";
 import { SiteRolesEditor } from "@/components/reglages/site-roles-editor";
 
@@ -45,6 +46,7 @@ type AdminSection =
   | "comptes"
   | "connexions"
   | "ventes"
+  | "journal"
   | "autorisations"
   | "mails";
 
@@ -157,6 +159,14 @@ function RailIcon({ id }: { id: AdminSection }) {
       <svg {...common}>
         <path d="M4 7h16l-1.4 9.2a2 2 0 0 1-2 1.8H7.4a2 2 0 0 1-2-1.8L4 7Z" />
         <path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7" />
+      </svg>
+    );
+  }
+  if (id === "journal") {
+    return (
+      <svg {...common}>
+        <path d="M6 4h9l3 3v13H6V4Z" />
+        <path d="M9 9h6M9 12.5h6M9 16h4" />
       </svg>
     );
   }
@@ -416,6 +426,11 @@ export function AdminPage() {
         id: "ventes",
         label: "Politiques",
         hint: "Stock et droits POS",
+      },
+      {
+        id: "journal",
+        label: "Ventes",
+        hint: "Journal et suppression",
       },
     ];
     if (showAutorisations) {
@@ -891,6 +906,12 @@ export function AdminPage() {
                 <StockEnforcementPanel />
                 <SiteRolesEditor />
               </div>
+            </div>
+          ) : null}
+
+          {section === "journal" ? (
+            <div className="equipe-section">
+              <VentesAdminPanel userRole={actor?.role ?? null} />
             </div>
           ) : null}
 

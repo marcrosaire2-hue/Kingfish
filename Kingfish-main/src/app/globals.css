@@ -11507,3 +11507,6 @@ html.nav-open body {
     transition: none;
   }
 }
+
+.admin-ventes-panel .admin-field-actions { display: flex; align-items: flex-end; gap: 8px; }
+.admin-ventes-resume { margin: 6px 0 0; }
