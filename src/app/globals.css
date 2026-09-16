@@ -1994,13 +1994,14 @@ select {
 
 .vente-meal-plat-row {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 0.9rem;
   align-items: end;
 }
 
 .vente-meal-plat-row .vente-field {
   margin-bottom: 0;
+  min-width: 0;
 }
 
 .vente-meal-qty {
@@ -2061,7 +2062,15 @@ select {
 
 /* Tuiles produit : 350 px de haut et 3 par rangée ne montraient qu'une
    rangée et demie d'un catalogue de 24 boissons. La vignette redevient un
-   bandeau, le reste garde ses tailles tactiles. */
+   bandeau, le reste garde ses tailles tactiles.
+
+   Colonnes de .vente-grid — une seule règle fait autorité par palier :
+     ≥ 981px : cette règle de base (remplissage auto, ≥150px par tuile)
+     421–980px : règle !important plus bas (« @media max-width: 980px »)
+     ≤ 420px : règle !important « téléphones étroits » (2 colonnes fixes)
+   Les autres paliers (900/720/520px…) ne règlent plus que le gap : ils
+   n'ont jamais gagné sur les colonnes face aux règles !important
+   ci-dessus, les redéclarer y a longtemps semé des conflits. */
 .vente-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
@@ -5231,8 +5240,10 @@ select {
     max-height: none;
   }
 
+  /* Colonnes pilotées par la règle !important plus bas (cf. .vente-grid de
+     base) : ne pas les redéclarer ici, seul le gap est spécifique à ce
+     palier. */
   .vente-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.7rem;
   }
 
@@ -5249,10 +5260,6 @@ select {
 }
 
 @media (max-width: 520px) {
-  .vente-grid {
-    grid-template-columns: 1fr;
-  }
-
   .vente-card-actions {
     grid-template-columns: 52px 1fr 64px;
   }
@@ -7645,10 +7652,11 @@ body {
   }
 
   /* Remplissage automatique plutôt que 2 colonnes figées : 2 tuiles sur un
-     téléphone, 4 sur un grand format, sans nouveau point de rupture. */
+     téléphone, 4 sur un grand format, sans nouveau point de rupture. Les
+     colonnes sont pilotées par la règle !important de .vente-grid (base) ;
+     seul le gap est propre à ce palier. */
   .vente-page .vente-layout.is-caisse .vente-grid,
   .vente-page .vente-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
     gap: 0.65rem;
   }
 
@@ -7769,11 +7777,12 @@ body {
   }
 }
 
-/* Téléphones étroits : toujours 2 colonnes produits (caisse rapide) */
+/* Téléphones étroits : toujours 2 colonnes produits (caisse rapide) — les
+   colonnes viennent de la règle !important de .vente-grid (base), ici on ne
+   règle que le gap. */
 @media (max-width: 420px) {
   .vente-page .vente-layout.is-caisse .vente-grid,
   .vente-page .vente-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.5rem;
   }
 
@@ -7794,13 +7803,6 @@ body {
   .vente-page .vente-minus {
     height: 52px;
     font-size: 1.55rem;
-  }
-}
-
-@media (max-width: 520px) {
-  /* Override earlier 1-col rule for vente caisse */
-  .vente-page .vente-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -9422,12 +9424,9 @@ html.nav-open body {
   }
 
   /* --- Tuiles produit : plus denses, la vignette cesse d'occuper 42% --- */
-  /* Les colonnes sont pilotées plus haut (remplissage automatique) : ne pas
-     redéclarer ici, sous peine de rouvrir le conflit de règles. */
-  .vente-grid {
-    gap: 0.6rem;
-  }
-
+  /* Gap déjà réglé par les blocs 720px/420px plus haut (spécificité
+     .vente-page .vente-grid supérieure) : ne pas redéclarer ici, cette règle
+     ne l'emportait jamais et ne faisait que rouvrir le conflit. */
   .vente-card {
     padding: 0.6rem;
     gap: 0.5rem;
