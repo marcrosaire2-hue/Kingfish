@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/mongodb";
 import type { VenteKind, VenteSite } from "@/lib/types";
+import { trancheHoraireFromInstant } from "@/lib/zogbo-calc";
 import { ObjectId } from "mongodb";
 
 export type VenteHistoryStatut = "valide" | "annule" | "encours" | "all";
@@ -317,6 +318,7 @@ export async function listVentesHistory(
           ticket.numero,
           ticket.client,
           ticket.serveur,
+          ticket.caissier,
           ticket.paiement,
           ...lines.map((l) => l.name),
         ]
@@ -501,6 +503,8 @@ export type JournalVenteLine = {
   source: "kingfish" | "aquapro";
   typeVente: string;
   serveur: string | null;
+  /** Personne qui a enregistré / encaissé la vente. */
+  caissier: string | null;
   paiement: string | null;
   client: string | null;
   table: string | null;
@@ -570,6 +574,7 @@ export async function listJournalVentes(
         source: t.source,
         typeVente: t.typeVente,
         serveur: t.serveur,
+        caissier: t.caissier,
         paiement: t.paiement,
         client: t.client,
         table: t.table,
@@ -607,6 +612,77 @@ export async function listJournalVentes(
   }
 
   return { days, totals, facets: result.facets };
+}
+
+export type VenteTrancheDay = {
+  date: string;
+  /** Zone d'origine des ventes — toujours renseignée, même en vue "tous". */
+  site: VenteSite;
+  nuit: number;
+  matin: number;
+  soir: number;
+  total: number;
+};
+
+export type VenteTrancheTotalsResult = {
+  /** Une entrée par jour ET par zone — ne jamais fusionner Zogbo/Gbégamey. */
+  days: VenteTrancheDay[];
+  totals: Omit<VenteTrancheDay, "date" | "site">;
+};
+
+/**
+ * Totaux de ventes validées par jour, par zone et par tranche horaire
+ * (nuit/matin/soir), sans le détail des tickets — pour comparer le chiffre
+ * encaissé aux versements déclarés sur la même tranche. Zogbo et Gbégamey
+ * ne sont jamais mélangés dans une même ligne : les comparer entre zones
+ * différentes n'aurait pas de sens (versements et ventes sont saisis par
+ * équipe de zone).
+ */
+export async function listVentesTrancheTotals(
+  filters: Pick<VenteHistoryFilters, "from" | "to" | "site">,
+): Promise<VenteTrancheTotalsResult> {
+  const result = await listVentesHistory({
+    from: filters.from,
+    to: filters.to,
+    site: filters.site,
+    statut: "valide",
+    limit: "all",
+  });
+
+  const byKey = new Map<string, VenteTrancheDay>();
+  for (const t of result.tickets) {
+    if (t.statut !== "valide") continue;
+    const site: VenteSite = t.site === "zogbo" ? "zogbo" : "gbegamey";
+    const key = `${t.date}|${site}`;
+    let day = byKey.get(key);
+    if (!day) {
+      day = { date: t.date, site, nuit: 0, matin: 0, soir: 0, total: 0 };
+      byKey.set(key, day);
+    }
+    const tranche = trancheHoraireFromInstant(t.at);
+    day[tranche] += t.montant;
+    day.total += t.montant;
+  }
+
+  const days = [...byKey.values()].sort((a, b) =>
+    a.date === b.date
+      ? a.site.localeCompare(b.site)
+      : a.date < b.date
+        ? 1
+        : -1,
+  );
+
+  const totals = days.reduce(
+    (acc, d) => ({
+      nuit: acc.nuit + d.nuit,
+      matin: acc.matin + d.matin,
+      soir: acc.soir + d.soir,
+      total: acc.total + d.total,
+    }),
+    { nuit: 0, matin: 0, soir: 0, total: 0 },
+  );
+
+  return { days, totals };
 }
 
 export async function getVenteHistoryTicket(
