@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import {
-  getKwaterPreuveBytes,
-  getKwaterPreuveUrl,
-} from "@/lib/kwater-repo";
+  getCompteurPreuveBytes,
+  getCompteurPreuveUrl,
+} from "@/lib/compteur-repo";
 import { reportError } from "@/lib/report-error";
 
 export const runtime = "nodejs";
@@ -16,12 +16,12 @@ export async function GET(_request: Request, context: RouteContext) {
     await requireUser();
     const { id } = await context.params;
 
-    const remote = await getKwaterPreuveUrl(id);
+    const remote = await getCompteurPreuveUrl(id);
     if (remote) {
       return NextResponse.redirect(remote, 302);
     }
 
-    const local = await getKwaterPreuveBytes(id);
+    const local = await getCompteurPreuveBytes(id);
     if (!local) {
       return NextResponse.json(
         { error: "Capture introuvable." },
@@ -38,7 +38,7 @@ export async function GET(_request: Request, context: RouteContext) {
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    reportError("GET /api/kwater/[id]/preuve", error);
+    reportError("GET /api/compteur/[id]/preuve", error);
     return authErrorResponse(error);
   }
 }

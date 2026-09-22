@@ -27,7 +27,7 @@ const KINDS: Array<HistoriqueKind | "all"> = [
   "immobilisations",
   "pertes",
   "versements",
-  "kwater",
+  "compteur",
   "reprise",
   "connexion",
 ];

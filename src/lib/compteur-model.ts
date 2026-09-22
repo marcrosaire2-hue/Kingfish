@@ -1,14 +1,14 @@
 /**
- * Modèle / validation Kwater — sans Mongo ni Cloudinary
+ * Modèle / validation Compteur — sans Mongo ni Cloudinary
  * (importable depuis les Client Components).
  */
 import type { UserRole, UserShift } from "@/lib/auth-types";
 import { effectiveShift } from "@/lib/auth-types";
-import type { KwaterPeriode } from "@/lib/types";
+import type { CompteurPeriode } from "@/lib/types";
 
-const PERIODES: KwaterPeriode[] = ["matin", "soir"];
+const PERIODES: CompteurPeriode[] = ["matin", "soir"];
 
-export const MAX_KWATER_PREUVE_BYTES = 4 * 1024 * 1024;
+export const MAX_COMPTEUR_PREUVE_BYTES = 4 * 1024 * 1024;
 
 const ALLOWED_MIME = new Set([
   "image/jpeg",
@@ -18,31 +18,31 @@ const ALLOWED_MIME = new Set([
 ]);
 
 /** Gérant : enregistre / met à jour un relevé. Admin et DAF / comptable : lecture. */
-export function canDeclareKwater(role: UserRole): boolean {
+export function canDeclareCompteur(role: UserRole): boolean {
   return role === "gerant";
 }
 
-export function canUpdateKwater(role: UserRole): boolean {
+export function canUpdateCompteur(role: UserRole): boolean {
   return role === "gerant";
 }
 
-export function parseKwaterPeriode(raw: unknown): KwaterPeriode {
+export function parseCompteurPeriode(raw: unknown): CompteurPeriode {
   const value = String(raw ?? "")
     .trim()
     .toLowerCase();
-  if (!PERIODES.includes(value as KwaterPeriode)) {
+  if (!PERIODES.includes(value as CompteurPeriode)) {
     throw new Error("Période requise : Matin ou Soir.");
   }
-  return value as KwaterPeriode;
+  return value as CompteurPeriode;
 }
 
-export function parseKwaterQuantite(raw: unknown): number {
+export function parseCompteurQuantite(raw: unknown): number {
   const n =
     typeof raw === "number"
       ? raw
       : Number(String(raw ?? "").replace(/\s/g, "").replace(",", "."));
   if (!Number.isFinite(n) || n < 0) {
-    throw new Error("Quantité invalide (nombre ≥ 0).");
+    throw new Error("Courant restant invalide (nombre ≥ 0).");
   }
   // Une décimale suffit pour un relevé de stock / compteur.
   return Math.round(n * 10) / 10;
@@ -51,13 +51,13 @@ export function parseKwaterQuantite(raw: unknown): number {
 /** Propose la période à partir du shift du compte connecté. */
 export function defaultPeriodeFromShift(
   shift: UserShift | string | null | undefined,
-): KwaterPeriode {
+): CompteurPeriode {
   const s = effectiveShift(shift);
   if (s === "soir" || s === "nuit") return "soir";
   return "matin";
 }
 
-export function inferKwaterPreuveMime(input: {
+export function inferCompteurPreuveMime(input: {
   mime?: string;
   filename?: string;
   bytes?: Buffer | Uint8Array;
@@ -92,24 +92,24 @@ export function inferKwaterPreuveMime(input: {
   return mime;
 }
 
-export function assertKwaterPreuveFile(input: {
+export function assertCompteurPreuveFile(input: {
   mime: string;
   size: number;
   filename?: string;
   bytes?: Buffer | Uint8Array;
 }): void {
-  const mime = inferKwaterPreuveMime(input);
+  const mime = inferCompteurPreuveMime(input);
   if (!ALLOWED_MIME.has(mime)) {
-    throw new Error("Capture d’écran : JPEG, PNG ou WebP uniquement.");
+    throw new Error("Capture du compteur : JPEG, PNG ou WebP uniquement.");
   }
   if (input.size <= 0) {
     throw new Error("Capture d’écran manquante.");
   }
-  if (input.size > MAX_KWATER_PREUVE_BYTES) {
+  if (input.size > MAX_COMPTEUR_PREUVE_BYTES) {
     throw new Error("Capture d’écran trop lourde (max. 4 Mo).");
   }
 }
 
-export function isKwaterPeriode(value: unknown): value is KwaterPeriode {
-  return PERIODES.includes(value as KwaterPeriode);
+export function isCompteurPeriode(value: unknown): value is CompteurPeriode {
+  return PERIODES.includes(value as CompteurPeriode);
 }

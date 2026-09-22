@@ -1063,22 +1063,22 @@ export const VERSEMENT_STATUT_LABELS: Record<VersementStatut, string> = {
 };
 
 /**
- * Relevé quotidien Kwater (quantité restante + capture) — matin et soir,
- * un enregistrement par site et par période.
+ * Relevé quotidien du compteur électrique (courant restant + capture)
+ * — matin et soir, un enregistrement par site et par période.
  */
-export type KwaterPeriode = "matin" | "soir";
+export type CompteurPeriode = "matin" | "soir";
 
-export const KWATER_PERIODE_LABELS: Record<KwaterPeriode, string> = {
+export const COMPTEUR_PERIODE_LABELS: Record<CompteurPeriode, string> = {
   matin: "Matin",
   soir: "Soir",
 };
 
-export type KwaterReleve = {
+export type CompteurReleve = {
   id: string;
   date: string;
   site: VenteSite;
-  periode: KwaterPeriode;
-  /** Quantité de Kwater restante au moment du relevé. */
+  periode: CompteurPeriode;
+  /** Courant / unités restantes affichées sur le compteur. */
   quantite: number;
   preuveMime: string;
   preuveUrl: string;

@@ -2,31 +2,31 @@ import { Binary, ObjectId } from "mongodb";
 import type { UserRole } from "@/lib/auth-types";
 import {
   cloudinaryConfigured,
-  uploadKwaterPreuve,
+  uploadCompteurPreuve,
 } from "@/lib/cloudinary";
 import { assertValidDate } from "@/lib/day-doc";
 import {
-  assertKwaterPreuveFile,
-  canDeclareKwater,
-  canUpdateKwater,
-  inferKwaterPreuveMime,
-  isKwaterPeriode,
-  parseKwaterPeriode,
-  parseKwaterQuantite,
-} from "@/lib/kwater-model";
+  assertCompteurPreuveFile,
+  canDeclareCompteur,
+  canUpdateCompteur,
+  inferCompteurPreuveMime,
+  isCompteurPeriode,
+  parseCompteurPeriode,
+  parseCompteurQuantite,
+} from "@/lib/compteur-model";
 import { getDb } from "@/lib/mongodb";
-import type { KwaterPeriode, KwaterReleve, VenteSite } from "@/lib/types";
+import type { CompteurPeriode, CompteurReleve, VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export {
-  canDeclareKwater,
-  canUpdateKwater,
+  canDeclareCompteur,
+  canUpdateCompteur,
   defaultPeriodeFromShift,
-  parseKwaterPeriode,
-  parseKwaterQuantite,
-} from "@/lib/kwater-model";
+  parseCompteurPeriode,
+  parseCompteurQuantite,
+} from "@/lib/compteur-model";
 
-const COLLECTION = "kwater_releves";
+const COLLECTION = "compteur_releves";
 const LOCAL_PREUVE_PUBLIC_ID = "local";
 const MAX_LOCAL_BYTES = 4 * 1024 * 1024;
 
@@ -37,12 +37,12 @@ type StoredPreuve = {
   data?: Binary;
 };
 
-type KwaterDoc = Omit<KwaterReleve, "id"> & {
+type CompteurDoc = Omit<CompteurReleve, "id"> & {
   _id: ObjectId;
   preuveData?: Binary;
 };
 
-export type KwaterActor = {
+export type CompteurActor = {
   id: string;
   name: string;
   username: string;
@@ -56,7 +56,7 @@ export type PreuveUpload = {
 };
 
 function localPreuveUrl(id: string): string {
-  return `/api/kwater/${id}/preuve`;
+  return `/api/compteur/${id}/preuve`;
 }
 
 function binaryFromBuffer(bytes: Buffer): Binary {
@@ -68,7 +68,7 @@ function bufferFromBinary(data: Binary): Buffer {
   return Buffer.from(raw.buffer, raw.byteOffset, raw.byteLength);
 }
 
-function toPublic(doc: KwaterDoc): KwaterReleve {
+function toPublic(doc: CompteurDoc): CompteurReleve {
   const id = doc._id.toHexString();
   const isLocal =
     doc.preuvePublicId === LOCAL_PREUVE_PUBLIC_ID ||
@@ -78,7 +78,7 @@ function toPublic(doc: KwaterDoc): KwaterReleve {
     id,
     date: doc.date,
     site: doc.site,
-    periode: isKwaterPeriode(doc.periode) ? doc.periode : "matin",
+    periode: isCompteurPeriode(doc.periode) ? doc.periode : "matin",
     quantite: doc.quantite,
     preuveMime: doc.preuveMime || "image/jpeg",
     preuveUrl: isLocal
@@ -102,14 +102,14 @@ async function storePreuve(input: {
   releveId: string;
   date: string;
   site: VenteSite;
-  periode: KwaterPeriode;
+  periode: CompteurPeriode;
 }): Promise<StoredPreuve> {
-  const mime = inferKwaterPreuveMime({
+  const mime = inferCompteurPreuveMime({
     mime: input.file.mime,
     filename: input.file.filename,
     bytes: input.file.bytes,
   });
-  assertKwaterPreuveFile({
+  assertCompteurPreuveFile({
     mime,
     size: input.file.bytes.length,
     filename: input.file.filename,
@@ -118,7 +118,7 @@ async function storePreuve(input: {
 
   if (cloudinaryConfigured()) {
     try {
-      const uploaded = await uploadKwaterPreuve({
+      const uploaded = await uploadCompteurPreuve({
         bytes: input.file.bytes,
         mime,
         releveId: input.releveId,
@@ -148,12 +148,12 @@ async function storePreuve(input: {
   };
 }
 
-export async function listKwaterReleves(input: {
+export async function listCompteurReleves(input: {
   date?: string;
   from?: string;
   to?: string;
   site?: VenteSite | "all";
-}): Promise<KwaterReleve[]> {
+}): Promise<CompteurReleve[]> {
   const db = await getDb();
   const filter: Record<string, unknown> = {};
 
@@ -173,7 +173,7 @@ export async function listKwaterReleves(input: {
   }
 
   const docs = await db
-    .collection<KwaterDoc>(COLLECTION)
+    .collection<CompteurDoc>(COLLECTION)
     .find(filter)
     .sort({ date: -1, periode: 1, createdAt: -1 })
     .limit(500)
@@ -182,11 +182,11 @@ export async function listKwaterReleves(input: {
   return docs.map(toPublic);
 }
 
-export async function getKwaterReleve(id: string): Promise<KwaterReleve | null> {
+export async function getCompteurReleve(id: string): Promise<CompteurReleve | null> {
   if (!ObjectId.isValid(id)) return null;
   const db = await getDb();
   const doc = await db
-    .collection<KwaterDoc>(COLLECTION)
+    .collection<CompteurDoc>(COLLECTION)
     .findOne({ _id: new ObjectId(id) });
   return doc ? toPublic(doc) : null;
 }
@@ -196,29 +196,31 @@ export async function getKwaterReleve(id: string): Promise<KwaterReleve | null> 
  * Une capture est obligatoire à la création ; optionnelle à la mise à jour
  * (conserve l’existante si absente).
  */
-export async function upsertKwaterReleve(input: {
+export async function upsertCompteurReleve(input: {
   date?: string;
   site: VenteSite;
   periode: unknown;
   quantite: unknown;
   preuve?: PreuveUpload | null;
-  actor: KwaterActor;
-}): Promise<KwaterReleve> {
-  if (!canDeclareKwater(input.actor.role) && !canUpdateKwater(input.actor.role)) {
-    throw new Error("Seuls les gérants peuvent enregistrer un relevé Kwater.");
+  actor: CompteurActor;
+}): Promise<CompteurReleve> {
+  if (!canDeclareCompteur(input.actor.role) && !canUpdateCompteur(input.actor.role)) {
+    throw new Error(
+      "Seuls les gérants peuvent enregistrer un relevé de compteur.",
+    );
   }
 
   const date = input.date || todayIsoDate();
   assertValidDate(date);
-  const periode = parseKwaterPeriode(input.periode);
-  const quantite = parseKwaterQuantite(input.quantite);
+  const periode = parseCompteurPeriode(input.periode);
+  const quantite = parseCompteurQuantite(input.quantite);
 
   const db = await getDb();
-  const col = db.collection<KwaterDoc>(COLLECTION);
+  const col = db.collection<CompteurDoc>(COLLECTION);
   const existing = await col.findOne({ date, site: input.site, periode });
 
   if (existing) {
-    if (!canUpdateKwater(input.actor.role)) {
+    if (!canUpdateCompteur(input.actor.role)) {
       throw new Error("Mise à jour non autorisée.");
     }
     const idHex = existing._id.toHexString();
@@ -234,7 +236,7 @@ export async function upsertKwaterReleve(input: {
     }
 
     const updatedAt = new Date().toISOString();
-    const $set: Partial<KwaterDoc> = {
+    const $set: Partial<CompteurDoc> = {
       quantite,
       updatedAt,
       updatedById: input.actor.id,
@@ -267,11 +269,11 @@ export async function upsertKwaterReleve(input: {
     return toPublic(refreshed);
   }
 
-  if (!canDeclareKwater(input.actor.role)) {
-    throw new Error("Seuls les gérants peuvent créer un relevé Kwater.");
+  if (!canDeclareCompteur(input.actor.role)) {
+    throw new Error("Seuls les gérants peuvent créer un relevé de compteur.");
   }
   if (!input.preuve || input.preuve.bytes.length <= 0) {
-    throw new Error("Joignez la capture d’écran du compteur / stock.");
+    throw new Error("Joignez la capture d’écran du compteur électrique.");
   }
 
   const _id = new ObjectId();
@@ -285,7 +287,7 @@ export async function upsertKwaterReleve(input: {
     periode,
   });
 
-  const doc: KwaterDoc = {
+  const doc: CompteurDoc = {
     _id,
     date,
     site: input.site,
@@ -305,11 +307,11 @@ export async function upsertKwaterReleve(input: {
   return toPublic(doc);
 }
 
-export async function getKwaterPreuveUrl(id: string): Promise<string | null> {
+export async function getCompteurPreuveUrl(id: string): Promise<string | null> {
   if (!ObjectId.isValid(id)) return null;
   const db = await getDb();
   const doc = await db
-    .collection<KwaterDoc>(COLLECTION)
+    .collection<CompteurDoc>(COLLECTION)
     .findOne(
       { _id: new ObjectId(id) },
       { projection: { preuveUrl: 1, preuvePublicId: 1 } },
@@ -320,13 +322,13 @@ export async function getKwaterPreuveUrl(id: string): Promise<string | null> {
   return null;
 }
 
-export async function getKwaterPreuveBytes(
+export async function getCompteurPreuveBytes(
   id: string,
 ): Promise<{ mime: string; bytes: Buffer } | null> {
   if (!ObjectId.isValid(id)) return null;
   const db = await getDb();
   const doc = await db
-    .collection<KwaterDoc>(COLLECTION)
+    .collection<CompteurDoc>(COLLECTION)
     .findOne(
       { _id: new ObjectId(id) },
       { projection: { preuveMime: 1, preuveData: 1 } },

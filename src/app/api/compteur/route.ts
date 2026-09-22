@@ -3,12 +3,12 @@ import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite, effectiveSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import {
-  canDeclareKwater,
-  canUpdateKwater,
-  listKwaterReleves,
-  upsertKwaterReleve,
-} from "@/lib/kwater-repo";
-import { KWATER_PERIODE_LABELS, type VenteSite } from "@/lib/types";
+  canDeclareCompteur,
+  canUpdateCompteur,
+  listCompteurReleves,
+  upsertCompteurReleve,
+} from "@/lib/compteur-repo";
+import { COMPTEUR_PERIODE_LABELS, type VenteSite } from "@/lib/types";
 import { reportError } from "@/lib/report-error";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
@@ -61,7 +61,7 @@ export async function GET(request: Request) {
     }
 
     const rangeMode = !!(from || to);
-    const releves = await listKwaterReleves({
+    const releves = await listCompteurReleves({
       ...(rangeMode
         ? { from: from || to || todayIsoDate(), to: to || from || todayIsoDate() }
         : { date: date || todayIsoDate() }),
@@ -75,13 +75,13 @@ export async function GET(request: Request) {
       site: scope,
       filterSite: site,
       releves,
-      canDeclare: canDeclareKwater(user.role),
-      canUpdate: canUpdateKwater(user.role),
+      canDeclare: canDeclareCompteur(user.role),
+      canUpdate: canUpdateCompteur(user.role),
       canFollowAll: scope === "tous",
     });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
-    reportError("GET /api/kwater", error);
+    reportError("GET /api/compteur", error);
     return authErrorResponse(error);
   }
 }
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
     const quantite = form.get("quantite");
     const preuve = await preuveFromForm(form);
 
-    const entry = await upsertKwaterReleve({
+    const entry = await upsertCompteurReleve({
       date,
       site,
       periode,
@@ -118,12 +118,12 @@ export async function POST(request: Request) {
     });
 
     const periodeLabel =
-      KWATER_PERIODE_LABELS[entry.periode] ?? entry.periode;
+      COMPTEUR_PERIODE_LABELS[entry.periode] ?? entry.periode;
 
     await logActivity({
       user,
-      kind: "kwater",
-      title: "Relevé Kwater",
+      kind: "compteur",
+      title: "Relevé compteur électrique",
       detail: `${periodeLabel} · ${entry.quantite} restant(s) · ${entry.site} · ${entry.actorName}`,
       date: entry.date,
       site: entry.site,
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
     if (error instanceof AuthError) return authErrorResponse(error);
     const message =
       error instanceof Error ? error.message : "Enregistrement impossible.";
-    reportError("POST /api/kwater", error);
+    reportError("POST /api/compteur", error);
     return NextResponse.json({ error: message }, { status: 400 });
   }
 }

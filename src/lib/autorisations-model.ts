@@ -169,13 +169,13 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "create", "update"],
   },
   {
-    id: "kwater",
-    navKey: "kwater",
-    label: "Kwater",
-    path: "/kwater",
+    id: "compteur",
+    navKey: "compteur",
+    label: "Compteur",
+    path: "/compteur",
     category: "quotidien",
     description:
-      "Relevé quotidien de quantité restante (matin / soir) avec capture. Gérants : saisie ; lecture pour les autres rôles.",
+      "Relevé du courant restant sur le compteur électrique (matin / soir) avec capture d’écran. Gérants : saisie ; lecture pour les autres rôles.",
     actions: ["access", "view", "create", "update"],
   },
   {

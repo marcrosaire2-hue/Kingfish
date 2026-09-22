@@ -79,9 +79,9 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
-    href: "/kwater",
-    label: "Kwater",
-    key: "kwater",
+    href: "/compteur",
+    label: "Compteur électrique",
+    key: "compteur",
     group: "ops",
   },
   {

@@ -13,15 +13,15 @@ import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { useSession } from "@/components/session-provider";
 import { effectiveSite, SITE_LABELS } from "@/lib/auth-types";
-import { defaultPeriodeFromShift } from "@/lib/kwater-model";
+import { defaultPeriodeFromShift } from "@/lib/compteur-model";
 import {
-  KWATER_PERIODE_LABELS,
-  type KwaterPeriode,
-  type KwaterReleve,
+  COMPTEUR_PERIODE_LABELS,
+  type CompteurPeriode,
+  type CompteurReleve,
   type VenteSite,
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
-import "./kwater-page.css";
+import "./compteur-page.css";
 
 type SiteFilter = "all" | VenteSite;
 
@@ -53,7 +53,7 @@ function formatQuantite(n: number): string {
     : n.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
 }
 
-export function KwaterPage() {
+export function CompteurPage() {
   const { user } = useSession();
   const scope = user ? effectiveSite(user.role, user.site) : null;
   const followAll = scope === "tous";
@@ -66,14 +66,14 @@ export function KwaterPage() {
   const [date, setDate] = useState(() => todayIsoDate());
   const [site, setSite] = useState<VenteSite>("zogbo");
   const [filterSite, setFilterSite] = useState<SiteFilter>("all");
-  const [periode, setPeriode] = useState<KwaterPeriode>("matin");
+  const [periode, setPeriode] = useState<CompteurPeriode>("matin");
   const [quantite, setQuantite] = useState("");
   const [preuve, setPreuve] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [existingPreview, setExistingPreview] = useState<string | null>(null);
   const [dropActive, setDropActive] = useState(false);
 
-  const [releves, setReleves] = useState<KwaterReleve[]>([]);
+  const [releves, setReleves] = useState<CompteurReleve[]>([]);
   const [canDeclare, setCanDeclare] = useState(false);
   const [canUpdate, setCanUpdate] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -110,9 +110,9 @@ export function KwaterPage() {
     try {
       const params = new URLSearchParams({ date });
       if (followAll && filterSite !== "all") params.set("site", filterSite);
-      const res = await fetch(`/api/kwater?${params}`, { cache: "no-store" });
+      const res = await fetch(`/api/compteur?${params}`, { cache: "no-store" });
       const body = (await res.json()) as {
-        releves?: KwaterReleve[];
+        releves?: CompteurReleve[];
         canDeclare?: boolean;
         canUpdate?: boolean;
         error?: string;
@@ -199,7 +199,7 @@ export function KwaterPage() {
     e.preventDefault();
     if (busy || (!canDeclare && !canUpdate)) return;
     if (!releveCourant && !preuve) {
-      setError("Joignez la capture d’écran du matin ou du soir.");
+      setError("Joignez la capture d’écran du compteur (matin ou soir).");
       return;
     }
     setBusy(true);
@@ -213,14 +213,14 @@ export function KwaterPage() {
       form.set("quantite", quantite);
       if (preuve) form.append("preuve", preuve);
 
-      const res = await fetch("/api/kwater", { method: "POST", body: form });
-      const body = (await res.json()) as { error?: string; entry?: KwaterReleve };
+      const res = await fetch("/api/compteur", { method: "POST", body: form });
+      const body = (await res.json()) as { error?: string; entry?: CompteurReleve };
       if (!res.ok) throw new Error(body.error || "Enregistrement impossible.");
 
       setFlash(
         releveCourant
-          ? `Relevé ${KWATER_PERIODE_LABELS[periode].toLowerCase()} mis à jour.`
-          : `Relevé ${KWATER_PERIODE_LABELS[periode].toLowerCase()} enregistré.`,
+          ? `Relevé ${COMPTEUR_PERIODE_LABELS[periode].toLowerCase()} mis à jour.`
+          : `Relevé ${COMPTEUR_PERIODE_LABELS[periode].toLowerCase()} enregistré.`,
       );
       setPreuve(null);
       await charger();
@@ -238,13 +238,13 @@ export function KwaterPage() {
 
   return (
     <AppShell
-      title="Kwater"
+      title="Compteur électrique"
       subtitle={
         isReaderOnly
-          ? "Consultation des relevés de quantité restante (matin et soir)."
-          : "Chaque jour : quantité restante + capture d’écran le matin et le soir."
+          ? "Consultation des relevés de courant restant sur le compteur (matin et soir)."
+          : "Chaque jour : courant restant sur le compteur + capture d’écran le matin et le soir."
       }
-      mainClassName="main-kwater"
+      mainClassName="main-compteur"
       actions={
         canWrite ? (
           <button
@@ -258,7 +258,7 @@ export function KwaterPage() {
         ) : undefined
       }
     >
-      <div className="kwater-page">
+      <div className="compteur-page">
         <section className="panel kw-toolbar" aria-label="Filtres">
           <div className="kw-field">
             <label htmlFor="kw-date">Jour</label>
@@ -297,7 +297,7 @@ export function KwaterPage() {
         </section>
 
         <section className="kw-status" aria-label="État du jour">
-          {(["matin", "soir"] as KwaterPeriode[]).map((p) => {
+          {(["matin", "soir"] as CompteurPeriode[]).map((p) => {
             const entry = statusByPeriode[p];
             return (
               <article
@@ -305,7 +305,7 @@ export function KwaterPage() {
                 className={`kw-status-card${entry ? " is-done" : " is-missing"}`}
               >
                 <span className="kw-status-label">
-                  {KWATER_PERIODE_LABELS[p]}
+                  {COMPTEUR_PERIODE_LABELS[p]}
                 </span>
                 <strong className="kw-status-value mono">
                   {loading
@@ -348,8 +348,8 @@ export function KwaterPage() {
           <section className="panel kw-composer" aria-label="Saisie du relevé">
             <h2>
               {releveCourant
-                ? `Modifier — ${KWATER_PERIODE_LABELS[periode]}`
-                : `Nouveau relevé — ${KWATER_PERIODE_LABELS[periode]}`}
+                ? `Modifier — ${COMPTEUR_PERIODE_LABELS[periode]}`
+                : `Nouveau relevé — ${COMPTEUR_PERIODE_LABELS[periode]}`}
             </h2>
             <form onSubmit={onSubmit}>
               <div className="kw-form-grid">
@@ -369,24 +369,24 @@ export function KwaterPage() {
                 <div className="kw-field" style={{ gridColumn: "1 / -1" }}>
                   <label>Période</label>
                   <div className="kw-periode" role="group" aria-label="Période">
-                    {(["matin", "soir"] as KwaterPeriode[]).map((p) => (
+                    {(["matin", "soir"] as CompteurPeriode[]).map((p) => (
                       <button
                         key={p}
                         type="button"
                         className={periode === p ? "is-on" : ""}
                         onClick={() => setPeriode(p)}
                       >
-                        {KWATER_PERIODE_LABELS[p]}
+                        {COMPTEUR_PERIODE_LABELS[p]}
                       </button>
                     ))}
                   </div>
                 </div>
                 <div className="kw-field">
-                  <label htmlFor="kw-qty">Quantité restante</label>
+                  <label htmlFor="kw-qty">Courant restant (compteur)</label>
                   <input
                     id="kw-qty"
                     inputMode="decimal"
-                    placeholder="ex. 12"
+                    placeholder="ex. 125.5"
                     value={quantite}
                     onChange={(e) => setQuantite(e.target.value)}
                     required
@@ -395,7 +395,7 @@ export function KwaterPage() {
               </div>
 
               <div className="kw-field" style={{ marginTop: "0.85rem" }}>
-                <label>Capture d’écran</label>
+                <label>Capture d’écran du compteur</label>
                 <input
                   ref={fileRef}
                   type="file"
@@ -496,7 +496,7 @@ export function KwaterPage() {
                   <tr>
                     <th>Période</th>
                     {followAll ? <th>Site</th> : null}
-                    <th>Quantité</th>
+                    <th>Courant restant</th>
                     <th>Par</th>
                     <th>Heure</th>
                     <th>Capture</th>
@@ -510,7 +510,7 @@ export function KwaterPage() {
                         <span
                           className={`kw-badge${r.periode === "soir" ? " is-soir" : ""}`}
                         >
-                          {KWATER_PERIODE_LABELS[r.periode]}
+                          {COMPTEUR_PERIODE_LABELS[r.periode]}
                         </span>
                       </td>
                       {followAll ? (
@@ -579,7 +579,7 @@ export function KwaterPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={lightbox}
-            alt="Capture Kwater"
+            alt="Capture du compteur"
             onClick={(e) => e.stopPropagation()}
           />
         </div>

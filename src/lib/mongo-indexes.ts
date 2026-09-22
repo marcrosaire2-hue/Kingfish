@@ -81,13 +81,13 @@ export const MONGO_INDEXES: MongoIndexDef[] = [
     name: "en_attente",
   },
   {
-    collection: "kwater_releves",
+    collection: "compteur_releves",
     index: { date: 1, site: 1, periode: 1 },
     name: "jour_site_periode",
     unique: true,
   },
   {
-    collection: "kwater_releves",
+    collection: "compteur_releves",
     index: { date: -1, site: 1 },
     name: "jour_site",
   },

@@ -120,9 +120,9 @@ export async function uploadVersementPreuve(input: {
 }
 
 /**
- * Envoie une capture de relevé Kwater sur Cloudinary (dossier kingfish/kwater).
+ * Envoie une capture de relevé Compteur sur Cloudinary (dossier kingfish/compteur).
  */
-export async function uploadKwaterPreuve(input: {
+export async function uploadCompteurPreuve(input: {
   bytes: Buffer;
   mime: string;
   releveId: string;
@@ -134,7 +134,7 @@ export async function uploadKwaterPreuve(input: {
 
   const dataUri = `data:${input.mime};base64,${input.bytes.toString("base64")}`;
   const result = await cloudinary.uploader.upload(dataUri, {
-    folder: "kingfish/kwater",
+    folder: "kingfish/compteur",
     public_id: `${input.date}_${input.site}_${input.periode}_${input.releveId}`,
     resource_type: "image",
     overwrite: true,
