@@ -84,8 +84,8 @@ export async function GET(request: Request) {
       listCaisses({ caisse, limit: 40 }),
     ]);
 
-    // Admin multi-sites : aperçu séparé des deux caisses (jamais un solde unique).
-    const overview =
+    // Admin multi-sites : aperçu séparé des deux caisses + solde global (somme).
+    const overviewPack =
       user.site === "tous" ? await getCaissesOverview() : null;
 
     return NextResponse.json({
@@ -94,7 +94,8 @@ export async function GET(request: Request) {
       site: active?.site ?? caisse,
       active,
       historique,
-      overview,
+      overview: overviewPack?.items ?? null,
+      soldeGlobal: overviewPack?.soldeGlobal ?? null,
       allowedCaisses: allowedCaisses(user),
       independentSites: true,
       zoneCaisses: ZONE_CAISSES,
@@ -275,7 +276,11 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
-      if (body.kind !== "depense" && body.kind !== "recette") {
+      if (
+        body.kind !== "depense" &&
+        body.kind !== "recette" &&
+        body.kind !== "versement-entree"
+      ) {
         return NextResponse.json({ error: "kind invalide" }, { status: 400 });
       }
       const result = await addCaisseMouvement({
@@ -287,12 +292,18 @@ export async function POST(request: Request) {
         montant: Number(body.montant) || 0,
       });
       const montant = Number(body.montant) || 0;
+      const titreKind =
+        body.kind === "depense"
+          ? "Dépense"
+          : body.kind === "versement-entree"
+            ? "Versement"
+            : "Recette";
       await logActivity({
         user,
         kind: "caisse",
-        title: `${body.kind === "depense" ? "Dépense" : "Recette"} · ${body.nature}`,
+        title: `${titreKind} · ${body.nature}`,
         detail: body.beneficiaire?.trim()
-          ? `${CAISSE_LABELS[result.session.caisse]} · bénéficiaire ${body.beneficiaire.trim()}`
+          ? `${CAISSE_LABELS[result.session.caisse]} · ${body.beneficiaire.trim()}`
           : CAISSE_LABELS[result.session.caisse],
         date: todayIsoDate(),
         site: result.session.site ?? "tous",
@@ -312,10 +323,16 @@ export async function POST(request: Request) {
         mouvementId: body.mouvementId,
         user,
       });
+      const titreAnnul =
+        result.mouvement.kind === "depense"
+          ? "dépense"
+          : result.mouvement.kind === "versement-entree"
+            ? "versement"
+            : "recette";
       await logActivity({
         user,
         kind: "caisse",
-        title: `Annulation ${result.mouvement.kind === "depense" ? "dépense" : "recette"} · ${result.mouvement.nature}`,
+        title: `Annulation ${titreAnnul} · ${result.mouvement.nature}`,
         detail: CAISSE_LABELS[result.session.caisse],
         date: result.session.date,
         site: result.session.site ?? "tous",

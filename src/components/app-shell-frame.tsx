@@ -13,7 +13,7 @@ const NAV_ITEMS: {
   href: string;
   label: string;
   key: NavKey;
-  group: "home" | "ops" | "pilot" | "admin";
+  group: "home" | "ops" | "cash" | "supply" | "pilot" | "admin";
   groupLabel?: string;
 }[] = [
   {
@@ -61,34 +61,54 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
-    href: "/achats",
-    label: "Achats",
-    key: "appro",
-    group: "ops",
+    href: "/caisse",
+    label: "Caisse",
+    key: "caisse",
+    group: "cash",
+    groupLabel: "Trésorerie",
   },
   {
-    href: "/pertes",
-    label: "Pertes",
-    key: "pertes",
-    group: "ops",
+    href: "/depenses",
+    label: "Dépenses",
+    key: "depenses",
+    group: "cash",
   },
   {
     href: "/versements",
     label: "Versements",
     key: "versements",
-    group: "ops",
+    group: "cash",
+  },
+  {
+    href: "/mouvements-caisse",
+    label: "Mouvements de fonds",
+    key: "mouvements-caisse",
+    group: "cash",
+  },
+  {
+    href: "/achats",
+    label: "Achats",
+    key: "appro",
+    group: "supply",
+    groupLabel: "Approvisionnement",
+  },
+  {
+    href: "/pertes",
+    label: "Pertes",
+    key: "pertes",
+    group: "supply",
   },
   {
     href: "/compteur",
-    label: "Compteur électrique",
+    label: "Compteur",
     key: "compteur",
-    group: "ops",
+    group: "supply",
   },
   {
     href: "/immobilisations",
     label: "Immobilisations",
     key: "immobilisations",
-    group: "ops",
+    group: "supply",
   },
   {
     href: "/journal-ventes",

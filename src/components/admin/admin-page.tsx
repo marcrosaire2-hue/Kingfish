@@ -125,57 +125,6 @@ function parseBulkLines(
   return { rows, parseErrors };
 }
 
-function RailIcon({ id }: { id: AdminSection }) {
-  const common = {
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: 1.8,
-    strokeLinecap: "round" as const,
-    strokeLinejoin: "round" as const,
-    "aria-hidden": true,
-  };
-  if (id === "comptes") {
-    return (
-      <svg {...common}>
-        <path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
-        <circle cx="9.5" cy="7" r="3.2" />
-        <path d="M20 8v6M17 11h6" />
-      </svg>
-    );
-  }
-  if (id === "connexions") {
-    return (
-      <svg {...common}>
-        <path d="M12 3v3M12 18v3M3 12h3M18 12h3" />
-        <circle cx="12" cy="12" r="3.2" />
-      </svg>
-    );
-  }
-  if (id === "ventes") {
-    return (
-      <svg {...common}>
-        <path d="M4 7h16l-1.4 9.2a2 2 0 0 1-2 1.8H7.4a2 2 0 0 1-2-1.8L4 7Z" />
-        <path d="M8 7V5.5A2.5 2.5 0 0 1 10.5 3h3A2.5 2.5 0 0 1 16 5.5V7" />
-      </svg>
-    );
-  }
-  if (id === "autorisations") {
-    return (
-      <svg {...common}>
-        <path d="M12 3 5 6.2v5.3c0 4 3 6.8 7 8.5 4-1.7 7-4.5 7-8.5V6.2L12 3Z" />
-        <path d="M9.2 12.1 11.1 14l3.7-3.8" />
-      </svg>
-    );
-  }
-  return (
-    <svg {...common}>
-      <path d="M4 7.5 12 3l8 4.5v6.2c0 4.2-3.4 7.2-8 8.8-4.6-1.6-8-4.6-8-8.8V7.5Z" />
-      <path d="M8.5 12h7M8.5 15h4.5" />
-    </svg>
-  );
-}
-
 export function AdminPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [actor, setActor] = useState<ActorInfo | null>(null);
@@ -495,45 +444,39 @@ export function AdminPage() {
         ) : null
       }
     >
-      <div className="equipe-workspace">
-        <nav className="equipe-rail" aria-label="Sections Équipe">
-          <p className="equipe-rail-kicker">Espace admin</p>
+      <div className="equipe-canvas">
+        <div className="section-tabs equipe-section-tabs" role="tablist" aria-label="Sections Équipe">
           {navItems.map((item) => (
             <button
               key={item.id}
               type="button"
-              className={`equipe-rail-item${section === item.id ? " is-active" : ""}`}
-              aria-current={section === item.id ? "page" : undefined}
+              role="tab"
+              title={item.hint}
+              aria-selected={section === item.id}
+              className={`section-tab${section === item.id ? " is-active" : ""}`}
               onClick={() => setSection(item.id)}
             >
-              <span className="equipe-rail-icon">
-                <RailIcon id={item.id} />
-              </span>
-              <span className="equipe-rail-copy">
-                <strong>{item.label}</strong>
-                <span>{item.hint}</span>
-              </span>
+              {item.label}
               {item.badge != null ? (
-                <span className="equipe-rail-badge">{item.badge}</span>
+                <span className="section-count">{item.badge}</span>
               ) : null}
             </button>
           ))}
-        </nav>
+        </div>
 
-        <div className="equipe-canvas">
-          <div className="equipe-status-row">
-            <VentesLiveNotifier />
-            {flash ? (
-              <p className="equipe-flash" role="status">
-                {flash}
-              </p>
-            ) : null}
-          </div>
-          {error ? (
-            <p className="error-banner" role="alert">
-              {error}
+        <div className="equipe-status-row">
+          <VentesLiveNotifier />
+          {flash ? (
+            <p className="equipe-flash" role="status">
+              {flash}
             </p>
           ) : null}
+        </div>
+        {error ? (
+          <p className="error-banner" role="alert">
+            {error}
+          </p>
+        ) : null}
 
           {section === "comptes" ? (
             <div className="equipe-section">
@@ -900,12 +843,11 @@ export function AdminPage() {
             </div>
           ) : null}
 
-          {section === "mails" && showAutorisations ? (
-            <div className="equipe-section">
-              <MailAlertsPanel />
-            </div>
-          ) : null}
-        </div>
+        {section === "mails" && showAutorisations ? (
+          <div className="equipe-section">
+            <MailAlertsPanel />
+          </div>
+        ) : null}
       </div>
 
       <RegistreDrawer

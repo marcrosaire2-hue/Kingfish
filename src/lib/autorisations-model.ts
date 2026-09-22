@@ -114,15 +114,6 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "create", "update", "delete"],
   },
   {
-    id: "caisse",
-    navKey: "caisse",
-    label: "Caisse",
-    path: "/caisse",
-    category: "quotidien",
-    description: "Ouverture, mouvements et clôture.",
-    actions: ["access", "view", "create", "update", "admin"],
-  },
-  {
     id: "zogbo",
     navKey: "zogbo",
     label: "Stock Zogbo",
@@ -141,6 +132,46 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "update"],
   },
   {
+    id: "caisse",
+    navKey: "caisse",
+    label: "Caisse",
+    path: "/caisse",
+    category: "quotidien",
+    description: "Ouverture, mouvements et clôture.",
+    actions: ["access", "view", "create", "update", "admin"],
+  },
+  {
+    id: "depenses",
+    navKey: "depenses",
+    label: "Dépenses",
+    path: "/depenses",
+    category: "quotidien",
+    description:
+      "Saisie des dépenses de caisse par site (hors admin).",
+    actions: ["access", "view", "create", "update"],
+  },
+  {
+    id: "versements",
+    navKey: "versements",
+    label: "Versements",
+    path: "/versements",
+    category: "quotidien",
+    description:
+      "Déclaration (équipe) et confirmation (comptable). Admin et DAF : consultation seule.",
+    actions: ["access", "view", "create", "update"],
+  },
+  {
+    id: "mouvements-caisse",
+    navKey: "mouvements-caisse",
+    label: "Mouvements de fonds",
+    path: "/mouvements-caisse",
+    category: "quotidien",
+    description:
+      "Capital initial, ajout ou modification du capital, consultation des mouvements (admin).",
+    actions: ["access", "view", "create", "update", "admin"],
+    sensitive: true,
+  },
+  {
     id: "appro",
     navKey: "appro",
     label: "Approvisionnement / Achats",
@@ -157,16 +188,6 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     category: "quotidien",
     description: "Déclaration des pertes de stock.",
     actions: ["access", "view", "create"],
-  },
-  {
-    id: "versements",
-    navKey: "versements",
-    label: "Versements",
-    path: "/versements",
-    category: "quotidien",
-    description:
-      "Déclaration (équipe) et confirmation (comptable). Admin et DAF : consultation seule.",
-    actions: ["access", "view", "create", "update"],
   },
   {
     id: "compteur",

@@ -845,6 +845,10 @@ export type CaisseMouvement = {
   beneficiaire: string;
   montant: number;
   at: string;
+  /** Solde théorique de la caisse juste avant l'écriture (traçabilité). */
+  soldeAvant?: number | null;
+  /** Solde théorique de la caisse juste après l'écriture. */
+  soldeApres?: number | null;
   /** Qui a saisi — la caisse étant partagée, c'est la seule traçabilité. */
   actorId?: string | null;
   actorName?: string | null;
@@ -894,11 +898,22 @@ export type CaisseSession = {
   updatedAt: string | null;
 };
 
-/** Vue d'ensemble des trois caisses — bandeau de consolidation. */
+/** Vue d'ensemble des caisses de zone — bandeau multi-sites. */
 export type CaisseOverviewItem = {
   caisse: CaisseKey;
   session: CaisseSession | null;
   soldeTheorique: number;
+};
+
+/**
+ * Totaux dérivés d'une session — solde toujours = initial + entrées − sorties.
+ * Les ventes POS comptent dans les entrées ; les versements historiques aussi.
+ */
+export type CaisseSoldeTotaux = {
+  soldeInitial: number;
+  totalEntrees: number;
+  totalSorties: number;
+  soldeCourant: number;
 };
 
 export type PosTicketLine = {

@@ -20,11 +20,12 @@ describe("rôle Comptable", () => {
       "synthese",
       "compte-resultat",
       "comptabilite",
-      "caisse",
       "zogbo",
       "gbegamey",
-      "appro",
+      "caisse",
+      "depenses",
       "versements",
+      "appro",
       "compteur",
       "stock",
       "immobilisations",
@@ -254,6 +255,7 @@ describe("l'API suit les droits de l'écran", () => {
     expect(menu).toEqual([
       "synthese",
       "analyse",
+      "mouvements-caisse",
       "versements",
       "compteur",
       "journal-ventes",
@@ -282,16 +284,21 @@ describe("l'API suit les droits de l'écran", () => {
     expect(canAccessPath("admin", "/zogbo", "tous", "marc")).toBe(false);
   });
 
-  it("retire à l’admin le compte de résultat et la comptabilité", () => {
+  it("retire à l’admin le compte de résultat, la comptabilité et les dépenses", () => {
     const menu = navForUser("admin", "tous", "admin");
     expect(menu).not.toContain("compte-resultat");
     expect(menu).not.toContain("comptabilite");
+    expect(menu).not.toContain("depenses");
     expect(canAccessPath("admin", "/compte-resultat", "tous", "admin")).toBe(
       false,
     );
     expect(canAccessPath("admin", "/comptabilite", "tous", "admin")).toBe(
       false,
     );
+    expect(canAccessPath("admin", "/depenses", "tous", "admin")).toBe(false);
+    expect(canAccessPath("gerant", "/depenses", "zogbo")).toBe(true);
+    expect(canAccessPath("comptable", "/depenses", "tous")).toBe(true);
+    expect(canAccessPath("daf", "/depenses", "tous", "daff")).toBe(true);
     expect(
       navForSession({
         role: "admin",
@@ -378,6 +385,7 @@ describe("l'API suit les droits de l'écran", () => {
     expect(menu).not.toContain("reglages");
     expect(menu).not.toContain("comptabilite");
     expect(menu).toContain("compte-resultat");
+    expect(menu).toContain("depenses");
     expect(menu).toContain("zogbo");
     expect(menu).toContain("gbegamey");
     expect(menu).toContain("versements");

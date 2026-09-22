@@ -11,7 +11,9 @@ import {
 } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
+import { CataloguePaginationBar } from "@/components/parametres/catalogue-view";
 import { useSession } from "@/components/session-provider";
+import { formatDateFr } from "@/components/achats/achats-shared";
 import { effectiveSite, SITE_LABELS } from "@/lib/auth-types";
 import { defaultPeriodeFromShift } from "@/lib/compteur-model";
 import {
@@ -21,19 +23,45 @@ import {
   type VenteSite,
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import "@/components/achats/achats-page.css";
 import "./compteur-page.css";
 
+const RANGE_FROM = "2020-01-01";
+const PAGE_SIZE = 12;
+
+type PeriodeFilter = "all" | CompteurPeriode;
 type SiteFilter = "all" | VenteSite;
 
-function formatDateFr(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat("fr-FR", {
-      dateStyle: "medium",
-      timeZone: "Africa/Porto-Novo",
-    }).format(new Date(`${iso}T12:00:00`));
-  } catch {
-    return iso;
-  }
+function useDebouncedValue<T>(value: T, delayMs = 280): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = window.setTimeout(() => setDebounced(value), delayMs);
+    return () => window.clearTimeout(t);
+  }, [value, delayMs]);
+  return debounced;
+}
+
+function normalizeSearch(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function paginate<T>(items: T[], page: number, pageSize: number) {
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  const start = (safePage - 1) * pageSize;
+  return {
+    items: items.slice(start, start + pageSize),
+    page: safePage,
+    totalPages,
+    total,
+    from: total === 0 ? 0 : start + 1,
+    to: Math.min(start + pageSize, total),
+  };
 }
 
 function formatHeure(iso: string): string {
@@ -61,9 +89,11 @@ export function CompteurPage() {
     user?.role === "admin" ||
     user?.role === "daf" ||
     user?.role === "comptable";
+  const composerRef = useRef<HTMLElement | null>(null);
+  const qtyInputRef = useRef<HTMLInputElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
-  const [date, setDate] = useState(() => todayIsoDate());
+  const [draftDate, setDraftDate] = useState(() => todayIsoDate());
   const [site, setSite] = useState<VenteSite>("zogbo");
   const [filterSite, setFilterSite] = useState<SiteFilter>("all");
   const [periode, setPeriode] = useState<CompteurPeriode>("matin");
@@ -81,6 +111,11 @@ export function CompteurPage() {
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [periodeFilter, setPeriodeFilter] = useState<PeriodeFilter>("all");
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const debouncedSearch = useDebouncedValue(search);
 
   useEffect(() => {
     if (scope === "zogbo" || scope === "gbegamey") setSite(scope);
@@ -108,7 +143,10 @@ export function CompteurPage() {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ date });
+      const params = new URLSearchParams({
+        from: RANGE_FROM,
+        to: todayIsoDate(),
+      });
       if (followAll && filterSite !== "all") params.set("site", filterSite);
       const res = await fetch(`/api/compteur?${params}`, { cache: "no-store" });
       const body = (await res.json()) as {
@@ -127,7 +165,7 @@ export function CompteurPage() {
     } finally {
       setLoading(false);
     }
-  }, [scope, date, followAll, filterSite]);
+  }, [scope, followAll, filterSite]);
 
   useEffect(() => {
     void charger();
@@ -138,11 +176,11 @@ export function CompteurPage() {
     () =>
       releves.find(
         (r) =>
-          r.date === date &&
+          r.date === draftDate &&
           r.site === siteForForm &&
           r.periode === periode,
       ) ?? null,
-    [releves, date, siteForForm, periode],
+    [releves, draftDate, siteForForm, periode],
   );
 
   useEffect(() => {
@@ -154,28 +192,88 @@ export function CompteurPage() {
       setExistingPreview(null);
     }
     setPreuve(null);
-    // Sync quand on change de période / site / jour (pas à chaque refresh liste).
     // eslint-disable-next-line react-hooks/exhaustive-deps -- id suffit
-  }, [releveCourant?.id, periode, siteForForm, date]);
+  }, [releveCourant?.id, periode, siteForForm, draftDate]);
 
-  const statusByPeriode = useMemo(() => {
-    const forSite = followAll
-      ? filterSite === "all"
-        ? releves
-        : releves.filter((r) => r.site === filterSite)
-      : releves.filter((r) => r.site === siteForForm);
+  const sorted = useMemo(
+    () =>
+      [...releves].sort((a, b) => {
+        const byDate = b.date.localeCompare(a.date);
+        if (byDate !== 0) return byDate;
+        return (b.updatedAt || b.createdAt).localeCompare(
+          a.updatedAt || a.createdAt,
+        );
+      }),
+    [releves],
+  );
+
+  const filtered = useMemo(() => {
+    const q = normalizeSearch(debouncedSearch);
+    return sorted.filter((r) => {
+      if (periodeFilter !== "all" && r.periode !== periodeFilter) return false;
+      if (!q) return true;
+      const blob = [
+        COMPTEUR_PERIODE_LABELS[r.periode],
+        SITE_LABELS[r.site],
+        String(r.quantite),
+        r.actorName,
+        r.date,
+      ].join(" ");
+      return normalizeSearch(blob).includes(q);
+    });
+  }, [sorted, debouncedSearch, periodeFilter]);
+
+  const paged = useMemo(
+    () => paginate(filtered, page, PAGE_SIZE),
+    [filtered, page],
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, periodeFilter, filterSite]);
+
+  const today = todayIsoDate();
+  const statusToday = useMemo(() => {
+    const forSite = releves.filter(
+      (r) =>
+        r.date === today &&
+        (followAll && filterSite === "all"
+          ? r.site === siteForForm
+          : r.site ===
+            (followAll && filterSite !== "all" ? filterSite : siteForForm)),
+    );
     return {
       matin: forSite.find((r) => r.periode === "matin") ?? null,
       soir: forSite.find((r) => r.periode === "soir") ?? null,
     };
-  }, [releves, followAll, filterSite, siteForForm]);
+  }, [releves, today, followAll, filterSite, siteForForm]);
+
+  const counts = useMemo(() => {
+    let matin = 0;
+    let soir = 0;
+    for (const r of releves) {
+      if (r.periode === "matin") matin += 1;
+      else soir += 1;
+    }
+    return { matin, soir, all: releves.length };
+  }, [releves]);
+
+  const lastDate = sorted[0]?.date ?? null;
+  const canWrite = canDeclare || canUpdate;
+  const siteLocked = scope === "zogbo" || scope === "gbegamey";
+
+  function focusComposer() {
+    composerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(() => qtyInputRef.current?.focus(), 220);
+  }
 
   function onPickFiles(files: FileList | File[] | null) {
     if (!files) return;
     const list = Array.from(files);
-    const image = list.find((f) =>
-      /image\/(jpeg|jpg|png|webp)/i.test(f.type || "") ||
-      /\.(jpe?g|png|webp)$/i.test(f.name),
+    const image = list.find(
+      (f) =>
+        /image\/(jpeg|jpg|png|webp)/i.test(f.type || "") ||
+        /\.(jpe?g|png|webp)$/i.test(f.name),
     );
     if (!image) {
       setError("Capture : JPEG, PNG ou WebP uniquement.");
@@ -207,14 +305,17 @@ export function CompteurPage() {
     setFlash(null);
     try {
       const form = new FormData();
-      form.set("date", date);
+      form.set("date", draftDate);
       form.set("site", siteForForm);
       form.set("periode", periode);
       form.set("quantite", quantite);
       if (preuve) form.append("preuve", preuve);
 
       const res = await fetch("/api/compteur", { method: "POST", body: form });
-      const body = (await res.json()) as { error?: string; entry?: CompteurReleve };
+      const body = (await res.json()) as {
+        error?: string;
+        entry?: CompteurReleve;
+      };
       if (!res.ok) throw new Error(body.error || "Enregistrement impossible.");
 
       setFlash(
@@ -233,98 +334,89 @@ export function CompteurPage() {
     }
   }
 
-  const siteLocked = scope === "zogbo" || scope === "gbegamey";
-  const canWrite = canDeclare || canUpdate;
-
   return (
     <AppShell
       title="Compteur électrique"
       subtitle={
         isReaderOnly
-          ? "Consultation des relevés de courant restant sur le compteur (matin et soir)."
-          : "Chaque jour : courant restant sur le compteur + capture d’écran le matin et le soir."
+          ? "Consultation des relevés de courant restant (matin et soir)."
+          : "Courant restant + capture d’écran, matin et soir."
       }
-      mainClassName="main-compteur"
+      mainClassName="main-achats"
       actions={
-        canWrite ? (
-          <button
-            type="button"
-            className="btn btn-ghost"
-            disabled={loading}
-            onClick={() => void charger()}
-          >
-            Actualiser
-          </button>
-        ) : undefined
+        <>
+          {followAll ? (
+            <div className="site-switch" role="tablist" aria-label="Site">
+              {(
+                [
+                  ["all", "Les deux"],
+                  ["zogbo", SITE_LABELS.zogbo],
+                  ["gbegamey", SITE_LABELS.gbegamey],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={filterSite === key}
+                  className={`site-btn${filterSite === key ? " is-active" : ""}`}
+                  onClick={() => setFilterSite(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {canWrite ? (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={focusComposer}
+            >
+              + Nouveau relevé
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-ghost"
+              disabled={loading}
+              onClick={() => void charger()}
+            >
+              Actualiser
+            </button>
+          )}
+        </>
       }
     >
-      <div className="compteur-page">
-        <section className="panel kw-toolbar" aria-label="Filtres">
-          <div className="kw-field">
-            <label htmlFor="kw-date">Jour</label>
-            <input
-              id="kw-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </div>
-          {followAll ? (
-            <div className="kw-field">
-              <label htmlFor="kw-filter-site">Site (liste)</label>
-              <select
-                id="kw-filter-site"
-                value={filterSite}
-                onChange={(e) =>
-                  setFilterSite(e.target.value as SiteFilter)
-                }
-              >
-                <option value="all">Les deux</option>
-                <option value="zogbo">{SITE_LABELS.zogbo}</option>
-                <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
-              </select>
-            </div>
-          ) : (
-            <div className="kw-field">
-              <label>Site</label>
-              <input
-                value={SITE_LABELS[siteForForm]}
-                readOnly
-                disabled
-              />
-            </div>
-          )}
-        </section>
-
-        <section className="kw-status" aria-label="État du jour">
-          {(["matin", "soir"] as CompteurPeriode[]).map((p) => {
-            const entry = statusByPeriode[p];
-            return (
-              <article
-                key={p}
-                className={`kw-status-card${entry ? " is-done" : " is-missing"}`}
-              >
-                <span className="kw-status-label">
-                  {COMPTEUR_PERIODE_LABELS[p]}
-                </span>
-                <strong className="kw-status-value mono">
-                  {loading
-                    ? "…"
-                    : entry
-                      ? formatQuantite(entry.quantite)
-                      : "—"}
-                </strong>
-                <p className="kw-status-meta">
-                  {loading
-                    ? "Chargement…"
-                    : entry
-                      ? `Enregistré · ${formatHeure(entry.updatedAt || entry.createdAt)}`
-                      : "Pas encore de relevé"}
-                </p>
-              </article>
-            );
-          })}
-        </section>
+      <div className="achats-page">
+        <div className="achats-stats" aria-label="État du jour">
+          <article className="achats-stat is-gold">
+            <span>Matin · {formatDateFr(today)}</span>
+            <strong>
+              {loading
+                ? "…"
+                : statusToday.matin
+                  ? `${formatQuantite(statusToday.matin.quantite)} KW`
+                  : "—"}
+            </strong>
+          </article>
+          <article className="achats-stat is-blue">
+            <span>Soir · {formatDateFr(today)}</span>
+            <strong>
+              {loading
+                ? "…"
+                : statusToday.soir
+                  ? `${formatQuantite(statusToday.soir.quantite)} KW`
+                  : "—"}
+            </strong>
+          </article>
+          <article className="achats-stat">
+            <span>Dernier relevé</span>
+            <strong>
+              {loading ? "…" : lastDate ? formatDateFr(lastDate) : "—"}
+            </strong>
+          </article>
+        </div>
 
         {error ? (
           <p className="error-banner" role="alert">
@@ -338,64 +430,88 @@ export function CompteurPage() {
             </button>
           </p>
         ) : null}
+
         {flash ? (
-          <p className="kw-flash" role="status">
+          <p className="achats-flash" role="status">
             {flash}
           </p>
         ) : null}
 
         {canWrite ? (
-          <section className="panel kw-composer" aria-label="Saisie du relevé">
-            <h2>
-              {releveCourant
-                ? `Modifier — ${COMPTEUR_PERIODE_LABELS[periode]}`
-                : `Nouveau relevé — ${COMPTEUR_PERIODE_LABELS[periode]}`}
-            </h2>
-            <form onSubmit={onSubmit}>
-              <div className="kw-form-grid">
-                {followAll && !siteLocked ? (
-                  <div className="kw-field">
-                    <label htmlFor="kw-site">Site</label>
-                    <select
-                      id="kw-site"
-                      value={site}
-                      onChange={(e) => setSite(e.target.value as VenteSite)}
-                    >
-                      <option value="zogbo">{SITE_LABELS.zogbo}</option>
-                      <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
-                    </select>
-                  </div>
-                ) : null}
-                <div className="kw-field" style={{ gridColumn: "1 / -1" }}>
-                  <label>Période</label>
-                  <div className="kw-periode" role="group" aria-label="Période">
-                    {(["matin", "soir"] as CompteurPeriode[]).map((p) => (
-                      <button
-                        key={p}
-                        type="button"
-                        className={periode === p ? "is-on" : ""}
-                        onClick={() => setPeriode(p)}
-                      >
-                        {COMPTEUR_PERIODE_LABELS[p]}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div className="kw-field">
-                  <label htmlFor="kw-qty">Courant restant (compteur)</label>
+          <section
+            ref={composerRef}
+            className="achats-composer"
+            id="nouveau-releve"
+            aria-label="Saisie d’un relevé"
+          >
+            <header className="achats-composer-head">
+              <h2>Saisie rapide</h2>
+              <p>
+                {releveCourant
+                  ? `Mise à jour du relevé ${COMPTEUR_PERIODE_LABELS[periode].toLowerCase()}.`
+                  : "Indiquez le courant restant et joignez la capture d’écran."}
+              </p>
+            </header>
+            <form
+              className="achats-composer-grid"
+              onSubmit={(e) => void onSubmit(e)}
+            >
+              <label className="achats-field">
+                <span>Date</span>
+                <input
+                  type="date"
+                  value={draftDate}
+                  max={todayIsoDate()}
+                  onChange={(e) => setDraftDate(e.target.value)}
+                  required
+                />
+              </label>
+              {followAll && !siteLocked ? (
+                <label className="achats-field">
+                  <span>Site</span>
+                  <select
+                    value={site}
+                    onChange={(e) => setSite(e.target.value as VenteSite)}
+                  >
+                    <option value="zogbo">{SITE_LABELS.zogbo}</option>
+                    <option value="gbegamey">{SITE_LABELS.gbegamey}</option>
+                  </select>
+                </label>
+              ) : (
+                <label className="achats-field">
+                  <span>Site</span>
+                  <input value={SITE_LABELS[siteForForm]} readOnly disabled />
+                </label>
+              )}
+              <label className="achats-field">
+                <span>Période</span>
+                <select
+                  value={periode}
+                  onChange={(e) =>
+                    setPeriode(e.target.value as CompteurPeriode)
+                  }
+                >
+                  <option value="matin">{COMPTEUR_PERIODE_LABELS.matin}</option>
+                  <option value="soir">{COMPTEUR_PERIODE_LABELS.soir}</option>
+                </select>
+              </label>
+              <label className="achats-field">
+                <span>Courant restant</span>
+                <div className="achats-price-wrap">
                   <input
-                    id="kw-qty"
+                    ref={qtyInputRef}
                     inputMode="decimal"
                     placeholder="ex. 125.5"
                     value={quantite}
                     onChange={(e) => setQuantite(e.target.value)}
                     required
                   />
+                  <span className="achats-price-suffix">KW</span>
                 </div>
-              </div>
+              </label>
 
-              <div className="kw-field" style={{ marginTop: "0.85rem" }}>
-                <label>Capture d’écran du compteur</label>
+              <div className="achats-field achats-field-grow kw-preuve-field">
+                <span>Capture d’écran</span>
                 <input
                   ref={fileRef}
                   type="file"
@@ -428,135 +544,217 @@ export function CompteurPage() {
                         ? "Remplacer la capture (optionnel)"
                         : "Déposer ou choisir une capture"}
                   </strong>
-                  <span>JPEG, PNG ou WebP · max. 4 Mo</span>
+                  <em>JPEG, PNG ou WebP · max. 4 Mo</em>
                 </div>
-                <div className="kw-preview-wrap">
-                  {preview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
+                {(preview || existingPreview) && (
+                  <div className="kw-preview-wrap">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={preview}
-                      alt="Aperçu nouvelle capture"
+                      src={preview || existingPreview || ""}
+                      alt={
+                        preview
+                          ? "Aperçu nouvelle capture"
+                          : "Capture enregistrée"
+                      }
                       className="kw-preview"
                     />
-                  ) : existingPreview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={existingPreview}
-                      alt="Capture enregistrée"
-                      className="kw-preview"
-                    />
-                  ) : null}
-                </div>
+                    {preuve ? (
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        disabled={busy}
+                        onClick={() => setPreuve(null)}
+                      >
+                        Retirer
+                      </button>
+                    ) : null}
+                  </div>
+                )}
               </div>
 
-              <div className="kw-actions" style={{ marginTop: "1rem" }}>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={busy}
-                >
-                  {busy
-                    ? "Enregistrement…"
-                    : releveCourant
-                      ? "Mettre à jour"
-                      : "Enregistrer"}
-                </button>
-                {preuve ? (
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    disabled={busy}
-                    onClick={() => setPreuve(null)}
-                  >
-                    Retirer la nouvelle image
-                  </button>
-                ) : null}
-              </div>
+              <button
+                type="submit"
+                className="btn btn-primary achats-submit kw-submit"
+                disabled={busy}
+              >
+                {busy
+                  ? "…"
+                  : releveCourant
+                    ? "Mettre à jour"
+                    : "Enregistrer"}
+              </button>
             </form>
           </section>
         ) : null}
 
-        <section className="panel kw-list" aria-label="Relevés du jour">
-          <div className="kw-list-head">
-            <h2>Relevés · {formatDateFr(date)}</h2>
-            <p>
-              {loading
-                ? "…"
-                : `${releves.length} enregistrement${releves.length > 1 ? "s" : ""}`}
-            </p>
+        <section className="achats-ledger" aria-label="Registre des relevés">
+          <div className="achats-ledger-head">
+            <h2>Registre</h2>
+            <div className="achats-toolbar">
+              <input
+                type="search"
+                className="achats-search"
+                placeholder="Rechercher un relevé…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                aria-label="Rechercher un relevé"
+              />
+              <div
+                className="achats-status-filters"
+                role="group"
+                aria-label="Filtre période"
+              >
+                {(
+                  [
+                    ["all", "Tous", counts.all],
+                    ["matin", "Matin", counts.matin],
+                    ["soir", "Soir", counts.soir],
+                  ] as const
+                ).map(([key, label, count]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={`achats-filter-chip${periodeFilter === key ? " is-active" : ""}`}
+                    onClick={() => setPeriodeFilter(key)}
+                  >
+                    {label}
+                    <i>{count}</i>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
+
           {loading ? (
-            <BrandLoader variant="ligne" label="Chargement des relevés…" />
-          ) : releves.length === 0 ? (
-            <p className="kw-empty">Aucun relevé pour ce jour.</p>
+            <BrandLoader label="Chargement des relevés…" />
+          ) : filtered.length === 0 ? (
+            <div className="achats-empty">
+              <strong>
+                {sorted.length === 0
+                  ? "Aucun relevé enregistré"
+                  : "Aucun relevé trouvé"}
+              </strong>
+              <span>
+                {sorted.length === 0
+                  ? canWrite
+                    ? "Saisissez le premier relevé dans la barre du haut."
+                    : "Aucun relevé pour ce filtre."
+                  : "Modifiez votre recherche ou vos filtres."}
+              </span>
+              {sorted.length === 0 && canWrite ? (
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={focusComposer}
+                >
+                  + Nouveau relevé
+                </button>
+              ) : null}
+            </div>
           ) : (
-            <div className="kw-table-wrap">
-              <table className="kw-table">
-                <thead>
-                  <tr>
-                    <th>Période</th>
-                    {followAll ? <th>Site</th> : null}
-                    <th>Courant restant</th>
-                    <th>Par</th>
-                    <th>Heure</th>
-                    <th>Capture</th>
-                    {canWrite ? <th /> : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {releves.map((r) => (
-                    <tr key={r.id}>
-                      <td>
-                        <span
-                          className={`kw-badge${r.periode === "soir" ? " is-soir" : ""}`}
+            <>
+              <div className="table-scroll">
+                <table className="data-table achats-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Période</th>
+                      {followAll ? <th>Site</th> : null}
+                      <th className="num">Courant (KW)</th>
+                      <th>Par</th>
+                      <th>Heure</th>
+                      <th className="achats-col-action">
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paged.items.map((r) => {
+                      const open = detailId === r.id;
+                      return (
+                        <tr
+                          key={r.id}
+                          className={open ? "is-open" : undefined}
                         >
-                          {COMPTEUR_PERIODE_LABELS[r.periode]}
-                        </span>
-                      </td>
-                      {followAll ? (
-                        <td>{SITE_LABELS[r.site]}</td>
-                      ) : null}
-                      <td className="mono">{formatQuantite(r.quantite)}</td>
-                      <td>{r.actorName}</td>
-                      <td>{formatHeure(r.updatedAt || r.createdAt)}</td>
-                      <td>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => setLightbox(r.preuveUrl)}
-                          aria-label="Voir la capture"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={r.preuveUrl}
-                            alt=""
-                            className="kw-thumb"
-                          />
-                        </button>
-                      </td>
-                      {canWrite ? (
-                        <td>
-                          {(siteLocked ? r.site === siteForForm : true) ? (
+                          <td className="achats-td-date">
+                            {formatDateFr(r.date)}
+                          </td>
+                          <td>
+                            <strong className="achats-td-name">
+                              {COMPTEUR_PERIODE_LABELS[r.periode]}
+                            </strong>
+                            {open ? (
+                              <p className="achats-td-detail">
+                                {formatQuantite(r.quantite)} KW restant
+                                {followAll
+                                  ? ` · ${SITE_LABELS[r.site]}`
+                                  : ""}
+                                {" · "}
+                                {formatHeure(r.updatedAt || r.createdAt)}
+                                {r.updatedAt ? " · mis à jour" : ""}
+                              </p>
+                            ) : null}
+                          </td>
+                          {followAll ? <td>{SITE_LABELS[r.site]}</td> : null}
+                          <td className="num mono achats-td-amount">
+                            {formatQuantite(r.quantite)}
+                          </td>
+                          <td>{r.actorName}</td>
+                          <td className="achats-td-date">
+                            {formatHeure(r.updatedAt || r.createdAt)}
+                          </td>
+                          <td className="achats-col-action">
                             <button
                               type="button"
                               className="btn btn-ghost btn-sm"
-                              onClick={() => {
-                                setSite(r.site);
-                                setPeriode(r.periode);
-                                setQuantite(String(r.quantite));
-                                window.scrollTo({ top: 0, behavior: "smooth" });
-                              }}
+                              onClick={() => setLightbox(r.preuveUrl)}
                             >
-                              Modifier
+                              Capture
                             </button>
-                          ) : null}
-                        </td>
-                      ) : null}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              aria-expanded={open}
+                              onClick={() =>
+                                setDetailId(open ? null : r.id)
+                              }
+                            >
+                              {open ? "Masquer" : "Détail"}
+                            </button>
+                            {canWrite &&
+                            (siteLocked ? r.site === siteForForm : true) ? (
+                              <button
+                                type="button"
+                                className="btn btn-ghost btn-sm"
+                                onClick={() => {
+                                  setDraftDate(r.date);
+                                  setSite(r.site);
+                                  setPeriode(r.periode);
+                                  setQuantite(String(r.quantite));
+                                  focusComposer();
+                                }}
+                              >
+                                Modifier
+                              </button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <CataloguePaginationBar
+                from={paged.from}
+                to={paged.to}
+                total={paged.total}
+                page={paged.page}
+                totalPages={paged.totalPages}
+                onPage={setPage}
+                itemLabel="relevé"
+              />
+            </>
           )}
         </section>
       </div>

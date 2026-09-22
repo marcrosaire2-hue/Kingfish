@@ -891,6 +891,8 @@ export function exportCaisseExcel(input: {
     Nature: m.nature,
     "Bénéficiaire / provenance": m.beneficiaire ?? "",
     "Montant (FCFA)": m.montant,
+    "Solde avant (FCFA)": m.soldeAvant ?? "",
+    "Solde après (FCFA)": m.soldeApres ?? "",
     Acteur: m.actorName ?? "",
     Contrepartie: m.contrepartie ? CAISSE_LABELS[m.contrepartie] : "",
     Statut: m.cancelledAt
@@ -923,15 +925,27 @@ export function exportCaisseExcel(input: {
   ];
 
   if (input.overview) {
+    const soldeGlobal = input.overview.reduce(
+      (sum, o) => sum + (o.session ? Math.round(o.soldeTheorique) || 0 : 0),
+      0,
+    );
     sheets.push({
       name: "Réseau",
       subtitle: input.date,
-      rows: input.overview.map((o) => ({
-        Caisse: CAISSE_LABELS[o.caisse],
-        Statut: o.session ? "Ouverte" : "Fermée",
-        "Ouverte par": o.session?.userName ?? "",
-        "Solde théorique (FCFA)": o.session ? o.soldeTheorique : "",
-      })),
+      rows: [
+        ...input.overview.map((o) => ({
+          Caisse: CAISSE_LABELS[o.caisse],
+          Statut: o.session ? "Ouverte" : "Fermée",
+          "Ouverte par": o.session?.userName ?? "",
+          "Solde théorique (FCFA)": o.session ? o.soldeTheorique : "",
+        })),
+        {
+          Caisse: "Solde global",
+          Statut: "",
+          "Ouverte par": "",
+          "Solde théorique (FCFA)": soldeGlobal,
+        },
+      ],
     });
   }
 
@@ -939,10 +953,10 @@ export function exportCaisseExcel(input: {
 }
 
 const MOUVEMENT_KIND_LABELS: Record<CaisseMouvement["kind"], string> = {
-  depense: "Dépense",
-  recette: "Recette",
+  depense: "Dépense / achat",
+  recette: "Recette (ancienne)",
   "versement-sortie": "Versement sorti",
-  "versement-entree": "Versement reçu",
+  "versement-entree": "Versement",
 };
 
 /** Pertes — journal du jour, tel qu'affiché à l'écran. */

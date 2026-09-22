@@ -6,7 +6,13 @@
  * dans le type pour lire l'historique, mais elle n'est plus utilisable.
  */
 import type { UserRole, UserSite } from "@/lib/auth-types";
-import type { CaisseKey, CaisseSession, VenteSite } from "@/lib/types";
+import type {
+  CaisseKey,
+  CaisseMouvementKind,
+  CaisseSession,
+  CaisseSoldeTotaux,
+  VenteSite,
+} from "@/lib/types";
 
 /** Toutes les clés connues (y compris l'ancienne centrale, lecture seule). */
 export const CAISSES: CaisseKey[] = ["centrale", "zogbo", "gbegamey"];
@@ -80,18 +86,100 @@ export function assertIndependentCaisseTransfer(
   );
 }
 
+/** Sortie d'espèces du tiroir (dépense / achat ou versement sorti historique). */
+export function estSortieCaisse(kind: CaisseMouvementKind): boolean {
+  return kind === "depense" || kind === "versement-sortie";
+}
+
+/** Entrée d'espèces via mouvement (versement) — jamais une vente POS. */
+export function estEntreeCaisse(kind: CaisseMouvementKind): boolean {
+  return kind === "versement-entree" || kind === "recette";
+}
+
 /**
- * Solde attendu dans le tiroir. Les versements historiques comptent au solde
- * mais jamais aux charges ni aux produits.
+ * Entrées qui alimentent le solde de la caisse centrale du site.
+ * Uniquement les versements (et anciennes recettes saisies) — les ventes POS
+ * n'entrent pas dans ce total : elles ne sont pas des mouvements de caisse.
+ */
+export function totalEntrees(s: CaisseSession): number {
+  return (
+    Math.round(Number(s.totalVersementRecu) || 0) +
+    Math.round(Number(s.totalRecette) || 0)
+  );
+}
+
+/** Sorties qui diminuent le solde (dépenses / achats + versements sortis). */
+export function totalSorties(s: CaisseSession): number {
+  return (
+    Math.round(Number(s.totalDepense) || 0) +
+    Math.round(Number(s.totalVersementSorti) || 0)
+  );
+}
+
+/**
+ * Solde de la caisse centrale du site.
+ * Formule : solde initial + versements (entrées) − sorties.
+ * Les ventes POS (`totalVente`) sont suivies à part et n'alimentent pas ce solde.
  */
 export function soldeTheorique(s: CaisseSession): number {
   return (
-    s.soldeInitial +
-    s.totalVente +
-    s.totalRecette +
-    (Number(s.totalVersementRecu) || 0) -
-    s.totalDepense -
-    (Number(s.totalVersementSorti) || 0)
+    Math.round(Number(s.soldeInitial) || 0) + totalEntrees(s) - totalSorties(s)
+  );
+}
+
+/** Totaux affichés sur le tableau de bord / héros de session. */
+export function soldeTotaux(s: CaisseSession): CaisseSoldeTotaux {
+  const soldeInitial = Math.round(Number(s.soldeInitial) || 0);
+  const entrees = totalEntrees(s);
+  const sorties = totalSorties(s);
+  return {
+    soldeInitial,
+    totalEntrees: entrees,
+    totalSorties: sorties,
+    soldeCourant: soldeInitial + entrees - sorties,
+  };
+}
+
+/**
+ * Solde après une écriture. Une annulation ne change pas le solde « figé »
+ * de la ligne : le total de session est repris à part.
+ */
+export function soldeApresMouvement(
+  soldeAvant: number,
+  kind: CaisseMouvementKind,
+  montant: number,
+): number {
+  const m = Math.round(Number(montant) || 0);
+  const avant = Math.round(Number(soldeAvant) || 0);
+  return estSortieCaisse(kind) ? avant - m : avant + m;
+}
+
+/**
+ * Refuse une sortie qui ferait passer le tiroir en négatif.
+ * Pas de découvert sauf paramètre explicite (non activé par défaut).
+ */
+export function assertSortieDansSolde(
+  disponible: number,
+  montant: number,
+  options?: { autoriserDecouvert?: boolean },
+): void {
+  if (options?.autoriserDecouvert) return;
+  const m = Math.round(Number(montant) || 0);
+  const dispo = Math.round(Number(disponible) || 0);
+  if (m > dispo) {
+    throw new Error(
+      `Dépense supérieure au solde de la caisse (${dispo} FCFA).`,
+    );
+  }
+}
+
+/** Consolidation des soldes de zone — somme, sans mélange des flux. */
+export function soldeGlobalSites(
+  items: Array<{ soldeTheorique: number }>,
+): number {
+  return items.reduce(
+    (sum, item) => sum + Math.round(Number(item.soldeTheorique) || 0),
+    0,
   );
 }
 

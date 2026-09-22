@@ -15,6 +15,7 @@ import {
 import {
   getOpenCaisse,
   listDepensesByCaisse,
+  listDepensesByCaisseRange,
 } from "@/lib/achats-repo";
 import { logActivity } from "@/lib/log-activity";
 import type { CaisseKey, VenteSite } from "@/lib/types";
@@ -24,6 +25,7 @@ import { isValidDate } from "@/lib/day-doc";
 export const runtime = "nodejs";
 
 const ZONE_CAISSES: CaisseKey[] = ["zogbo", "gbegamey"];
+const RANGE_FROM = "2020-01-01";
 
 /** Caisse de zone par défaut : le site du compte, sinon Zogbo. */
 function defaultZoneCaisse(user: SessionUser): CaisseKey {
@@ -51,14 +53,16 @@ function resolveZoneCaisse(
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    const { searchParams } = new URL(request.url);
-    const date = searchParams.get("date") || todayIsoDate();
-    if (!isValidDate(date)) {
+    if (user.role === "admin") {
       return NextResponse.json(
-        { error: "Date invalide (attendu YYYY-MM-DD)." },
-        { status: 400 },
+        {
+          error:
+            "Les dépenses sont réservées aux équipes de site. L'admin gère le capital.",
+        },
+        { status: 403 },
       );
     }
+    const { searchParams } = new URL(request.url);
     const caisse = resolveZoneCaisse(searchParams.get("caisse"), user);
     if (!caisse) {
       return NextResponse.json(
@@ -67,8 +71,47 @@ export async function GET(request: Request) {
       );
     }
 
+    const dateFrom = searchParams.get("from") || RANGE_FROM;
+    const dateTo = searchParams.get("to") || todayIsoDate();
+    const singleDate = searchParams.get("date");
+
+    if (singleDate) {
+      if (!isValidDate(singleDate)) {
+        return NextResponse.json(
+          { error: "Date invalide (attendu YYYY-MM-DD)." },
+          { status: 400 },
+        );
+      }
+      const [depenses, active] = await Promise.all([
+        listDepensesByCaisse({ caisse, date: singleDate }),
+        getOpenCaisse(caisse),
+      ]);
+      const total = depenses
+        .filter((d) => !d.mouvement.cancelledAt)
+        .reduce((s, d) => s + d.mouvement.montant, 0);
+      return NextResponse.json({
+        date: singleDate,
+        caisse,
+        depenses,
+        total,
+        caisseOpen: active !== null,
+        activeDate: active?.date ?? null,
+        allowedCaisses: allowedCaisses(user).filter((c) =>
+          ZONE_CAISSES.includes(c),
+        ),
+        defaultCaisse: defaultZoneCaisse(user),
+      });
+    }
+
+    if (!isValidDate(dateFrom) || !isValidDate(dateTo)) {
+      return NextResponse.json(
+        { error: "Plage de dates invalide." },
+        { status: 400 },
+      );
+    }
+
     const [depenses, active] = await Promise.all([
-      listDepensesByCaisse({ caisse, date }),
+      listDepensesByCaisseRange({ caisse, dateFrom, dateTo }),
       getOpenCaisse(caisse),
     ]);
     const total = depenses
@@ -76,13 +119,16 @@ export async function GET(request: Request) {
       .reduce((s, d) => s + d.mouvement.montant, 0);
 
     return NextResponse.json({
-      date,
+      dateFrom,
+      dateTo,
       caisse,
       depenses,
       total,
       caisseOpen: active !== null,
       activeDate: active?.date ?? null,
-      allowedCaisses: allowedCaisses(user).filter((c) => ZONE_CAISSES.includes(c)),
+      allowedCaisses: allowedCaisses(user).filter((c) =>
+        ZONE_CAISSES.includes(c),
+      ),
       defaultCaisse: defaultZoneCaisse(user),
     });
   } catch (error) {
@@ -93,6 +139,15 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const user = await requireUser();
+    if (user.role === "admin") {
+      return NextResponse.json(
+        {
+          error:
+            "L'admin ne saisit pas les dépenses. Utilisez Mouvements de caisse pour le capital.",
+        },
+        { status: 403 },
+      );
+    }
     const body = (await request.json()) as {
       action?: "depense";
       caisse?: CaisseKey;

@@ -68,3 +68,49 @@ export async function getOpenCaisse(
 ): Promise<CaisseSession | null> {
   return getActiveCaisse(caisse);
 }
+
+/**
+ * Dépenses d'une caisse sur une plage de dates (registre type Achats).
+ */
+export async function listDepensesByCaisseRange(input: {
+  caisse: CaisseKey;
+  dateFrom: string;
+  dateTo: string;
+}): Promise<DepenseRow[]> {
+  const db = await getDb();
+  const sessions = await db
+    .collection<CaisseDoc>("caisses_sessions")
+    .find({
+      date: { $gte: input.dateFrom, $lte: input.dateTo },
+      $or: [
+        { caisse: input.caisse },
+        { caisse: { $exists: false }, site: input.caisse as VenteSite },
+      ],
+    })
+    .sort({ date: -1, openedAt: -1 })
+    .toArray();
+  if (sessions.length === 0) return [];
+
+  const ids = sessions.map((s) => s._id.toHexString());
+  const docs = await db
+    .collection<MouvementDoc>("caisse_mouvements")
+    .find({ caisseId: { $in: ids }, kind: "depense" })
+    .sort({ at: -1 })
+    .toArray();
+
+  const sessionById = new Map(
+    sessions.map((s) => [s._id.toHexString(), s]),
+  );
+  return docs.flatMap((d) => {
+    const session = sessionById.get(d.caisseId);
+    if (!session) return [];
+    return [
+      {
+        sessionId: d.caisseId,
+        sessionDate: session.date,
+        sessionUserName: session.userName ?? null,
+        mouvement: toMouvement(d),
+      },
+    ];
+  });
+}

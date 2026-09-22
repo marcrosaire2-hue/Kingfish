@@ -170,6 +170,7 @@ export function canManageUsers(user: {
 const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "synthese",
   "analyse",
+  "mouvements-caisse",
   "versements",
   "compteur",
   "journal-ventes",
@@ -271,6 +272,8 @@ export function userVisibleToAdmin(
 export type NavKey =
   | "vente"
   | "caisse"
+  | "mouvements-caisse"
+  | "depenses"
   | "appro"
   | "matieres"
   | "pertes"
@@ -298,12 +301,13 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
   gerant: [
     "synthese",
     "vente",
-    "caisse",
     "zogbo",
     "gbegamey",
+    "caisse",
+    "depenses",
+    "versements",
     "appro",
     "pertes",
-    "versements",
     "compteur",
     "stock",
     "parametres",
@@ -321,11 +325,12 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "synthese",
     "compte-resultat",
     "comptabilite",
-    "caisse",
     "zogbo",
     "gbegamey",
-    "appro",
+    "caisse",
+    "depenses",
     "versements",
+    "appro",
     "compteur",
     "stock",
     "immobilisations",
@@ -340,12 +345,13 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "synthese",
     "analyse",
     "compte-resultat",
-    "caisse",
     "parametres",
     "zogbo",
     "gbegamey",
-    "appro",
+    "caisse",
+    "depenses",
     "versements",
+    "appro",
     "compteur",
     "journal-ventes",
     "quantites-vendues",
@@ -358,14 +364,15 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "synthese",
     "analyse",
     "vente",
-    "caisse",
-    "parametres",
     "zogbo",
     "gbegamey",
+    "caisse",
+    "mouvements-caisse",
+    "versements",
     "appro",
     "pertes",
-    "versements",
     "compteur",
+    "parametres",
     "reglages",
     "journal-ventes",
     "quantites-vendues",
@@ -374,8 +381,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "immobilisations",
     "historique",
     "admin",
-    "rapport-quotidien",
-    "controle",
+    "rapport-quotidien",    "controle",
   ],
 };
 
@@ -440,10 +446,11 @@ const COMPTABLE_DENIED_NAV: readonly NavKey[] = ["analyse", "historique"];
 /** Pages refusées au gérant même si un JWT / une matrice les réintroduit. */
 const GERANT_DENIED_NAV: readonly NavKey[] = ["analyse", "immobilisations"];
 
-/** Pages refusées à l’admin (finance réservée DAF / comptable). */
+/** Pages refusées à l’admin (finance réservée DAF / comptable ; dépenses opérationnelles). */
 const ADMIN_DENIED_NAV: readonly NavKey[] = [
   "compte-resultat",
   "comptabilite",
+  "depenses",
 ];
 
 export function stripRoleDeniedNavKeys(
@@ -544,6 +551,12 @@ function canAccessPathWithAllowed(
   }
   if (pathname.startsWith("/vente")) return allowed.includes("vente");
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");
+  if (pathname.startsWith("/mouvements-caisse")) {
+    return allowed.includes("mouvements-caisse");
+  }
+  if (pathname.startsWith("/depenses")) {
+    return allowed.includes("depenses");
+  }
   if (
     pathname.startsWith("/appro") ||
     pathname.startsWith("/achats") ||

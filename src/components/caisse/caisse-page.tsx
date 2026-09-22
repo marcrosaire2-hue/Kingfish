@@ -13,7 +13,9 @@ import {
   CAISSE_STATUT_LABELS,
   canReceiveCaisseSales,
   ecartCaisse,
+  estSortieCaisse,
   soldeTheorique as theo,
+  soldeTotaux,
 } from "@/lib/caisse-model";
 import { formatFcfa } from "@/lib/format";
 import { exportCaisseExcel } from "@/lib/page-exports";
@@ -22,6 +24,7 @@ import type {
   CaisseMouvement,
   CaisseOverviewItem,
   CaisseSession,
+  CaisseSoldeTotaux,
 } from "@/lib/types";
 import { todayIsoDate, isCaisseStale, CAISSE_AUTO_CLOSE_HOUR } from "@/lib/zogbo-calc";
 
@@ -31,6 +34,7 @@ type Board = {
   active: CaisseSession | null;
   historique: CaisseSession[];
   overview: CaisseOverviewItem[] | null;
+  soldeGlobal: number | null;
   allowedCaisses: CaisseKey[];
 };
 
@@ -38,8 +42,11 @@ type Detail = {
   session: CaisseSession;
   mouvements: CaisseMouvement[];
   soldeTheorique: number;
+  totaux?: CaisseSoldeTotaux;
   ecart: number | null;
 };
+
+type JournalFilter = "tous" | CaisseMouvement["kind"];
 
 /**
  * Jours écoulés entre la date de service de la caisse et aujourd'hui. Sert à
@@ -70,16 +77,19 @@ function formatOpened(iso: string): string {
 }
 
 const MOUVEMENT_LABELS: Record<CaisseMouvement["kind"], string> = {
-  depense: "Dépense",
-  recette: "Recette",
+  depense: "Dépense / achat",
+  recette: "Recette (ancienne)",
   "versement-sortie": "Versement sorti",
-  "versement-entree": "Versement reçu",
+  "versement-entree": "Versement",
 };
 
-/** Un versement sorti et une dépense vident tous deux le tiroir. */
-function sortDuTiroir(kind: CaisseMouvement["kind"]): boolean {
-  return kind === "depense" || kind === "versement-sortie";
-}
+const JOURNAL_FILTERS: Array<{ id: JournalFilter; label: string }> = [
+  { id: "tous", label: "Tous" },
+  { id: "depense", label: "Sorties" },
+  { id: "versement-entree", label: "Versements" },
+  { id: "recette", label: "Recettes" },
+  { id: "versement-sortie", label: "Vers. sortis" },
+];
 
 export function CaissePage() {
   const [date, setDate] = useState(() => todayIsoDate());
@@ -106,7 +116,9 @@ export function CaissePage() {
   const [mNature, setMNature] = useState("");
   const [mBenef, setMBenef] = useState("");
   const [mMontant, setMMontant] = useState("");
-  const [mKind, setMKind] = useState<"depense" | "recette">("depense");
+  const [mKind, setMKind] = useState<"depense" | "versement-entree">("depense");
+  const [journalFilter, setJournalFilter] = useState<JournalFilter>("tous");
+  const [journalQuery, setJournalQuery] = useState("");
 
   async function load(nextDate = date, nextCaisse = caisse) {
     setLoading(true);
@@ -313,6 +325,7 @@ export function CaissePage() {
 
   const active = board?.active ?? null;
   const theoActive = active ? theo(active) : 0;
+  const totauxActive = active ? soldeTotaux(active) : null;
   // La caisse affichée est celle résolue par le serveur ; tant qu'aucune
   // réponse valide n'arrive, la première caisse autorisée sert d'étiquette.
   const resolved: CaisseKey = board?.caisse ?? allowed[0] ?? "zogbo";
@@ -323,6 +336,18 @@ export function CaissePage() {
       : Math.round(Number(soldePhysique) || 0) - theoActive;
   const enComptage = active?.statut === "en_comptage";
   const peutMouvements = active ? canReceiveCaisseSales(active.statut) : false;
+
+  const mouvementsFiltres = (detail?.mouvements ?? []).filter((m) => {
+    if (journalFilter !== "tous" && m.kind !== journalFilter) return false;
+    const q = journalQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      m.nature.toLowerCase().includes(q) ||
+      m.beneficiaire.toLowerCase().includes(q) ||
+      (m.actorName ?? "").toLowerCase().includes(q) ||
+      MOUVEMENT_LABELS[m.kind].toLowerCase().includes(q)
+    );
+  });
 
   return (
     <AppShell
@@ -390,8 +415,8 @@ export function CaissePage() {
             aria-label="Caisses par site (indépendantes)"
           >
             <p className="muted caisse-hint" style={{ gridColumn: "1 / -1" }}>
-              Zogbo et Gbégamey ont chacune leur caisse : les soldes ne se
-              mélangent pas.
+              Zogbo et Gbégamey ont chacune leur caisse : les flux ne se
+              mélangent pas. Le solde global est la somme des soldes.
             </p>
             {board.overview.map((o) => (
               <button
@@ -415,6 +440,13 @@ export function CaissePage() {
                 </span>
               </button>
             ))}
+            {typeof board.soldeGlobal === "number" ? (
+              <div className="caisse-overview-card caisse-overview-global" aria-live="polite">
+                <span className="caisse-overview-label">Solde global</span>
+                <strong className="mono">{formatFcfa(board.soldeGlobal)}</strong>
+                <span className="muted">Somme des caisses de site</span>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -438,7 +470,7 @@ export function CaissePage() {
                     <span className="caisse-status-dot" aria-hidden />
                     {label} · {CAISSE_STATUT_LABELS[active.statut]}
                   </span>
-                  <span className="caisse-hero-label">Solde théorique</span>
+                  <span className="caisse-hero-label">Solde courant</span>
                   <strong className="caisse-hero-value mono">
                     {formatFcfa(theoActive)}
                   </strong>
@@ -446,6 +478,10 @@ export function CaissePage() {
                     Ouverte le {formatOpened(active.openedAt)} par{" "}
                     {active.userName}
                   </span>
+                  <p className="caisse-formula">
+                    Solde = solde initial + versements − sorties (hors ventes
+                    POS)
+                  </p>
                   {joursOuverte(active.date) >= 1 ? (
                     <div
                       className={`caisse-hero-warn${isCaisseStale(active.date) ? "" : " is-pending"}`}
@@ -472,39 +508,33 @@ export function CaissePage() {
                 </div>
                 <div className="caisse-hero-metrics">
                   <div>
-                    <span>Fond de caisse</span>
+                    <span>Solde initial</span>
                     <strong className="mono">
-                      {formatFcfa(active.soldeInitial)}
+                      {formatFcfa(totauxActive?.soldeInitial ?? active.soldeInitial)}
                     </strong>
                   </div>
                   <div>
-                    <span>Ventes</span>
+                    <span>Versements (entrées)</span>
                     <strong className="mono text-ok">
-                      +{formatFcfa(active.totalVente)}
+                      +{formatFcfa(totauxActive?.totalEntrees ?? 0)}
                     </strong>
                   </div>
                   <div>
-                    <span>Dépenses</span>
+                    <span>Total sorties</span>
+                    <strong className="mono text-danger">
+                      −{formatFcfa(totauxActive?.totalSorties ?? 0)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Dépenses / achats</span>
                     <strong className="mono text-danger">
                       −{formatFcfa(active.totalDepense)}
                     </strong>
                   </div>
                   <div>
-                    <span>Autres recettes</span>
+                    <span>CA ventes POS (hors solde)</span>
                     <strong className="mono">
-                      +{formatFcfa(active.totalRecette)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Versements reçus</span>
-                    <strong className="mono text-ok">
-                      +{formatFcfa(active.totalVersementRecu)}
-                    </strong>
-                  </div>
-                  <div>
-                    <span>Versements sortis</span>
-                    <strong className="mono text-danger">
-                      −{formatFcfa(active.totalVersementSorti)}
+                      {formatFcfa(active.totalVente)}
                     </strong>
                   </div>
                 </div>
@@ -551,7 +581,7 @@ export function CaissePage() {
                     <h2>Mouvement</h2>
                     <p>
                       {peutMouvements
-                        ? "Dépense ou autre recette hors tickets POS"
+                        ? "Dépense / achat ou versement d'entrée (hors ventes POS)"
                         : "Suspendu pendant le comptage"}
                     </p>
                   </header>
@@ -567,14 +597,14 @@ export function CaissePage() {
                       className={`caisse-kind-btn${mKind === "depense" ? " is-active is-depense" : ""}`}
                       onClick={() => setMKind("depense")}
                     >
-                      Dépense
+                      Dépense / achat
                     </button>
                     <button
                       type="button"
-                      className={`caisse-kind-btn${mKind === "recette" ? " is-active is-recette" : ""}`}
-                      onClick={() => setMKind("recette")}
+                      className={`caisse-kind-btn${mKind === "versement-entree" ? " is-active is-recette" : ""}`}
+                      onClick={() => setMKind("versement-entree")}
                     >
-                      Autre recette
+                      Versement
                     </button>
                   </div>
                   <div className="caisse-form-grid">
@@ -767,23 +797,55 @@ export function CaissePage() {
                   </button>
                 </section>
 
-                {/* Grille : Mouvement | Fermeture, Journal à côté. */}
                 <section className="caisse-panel">
                   <header className="caisse-panel-head">
                     <h2>Journal de session</h2>
                     <p>
                       {detail?.mouvements?.length
-                        ? `${detail.mouvements.length} mouvement${detail.mouvements.length > 1 ? "s" : ""}`
+                        ? `${detail.mouvements.length} mouvement${detail.mouvements.length > 1 ? "s" : ""} · solde avant / après`
                         : "Aucun mouvement hors POS"}
                     </p>
                   </header>
+                  {(detail?.mouvements?.length ?? 0) > 0 ? (
+                    <div className="caisse-journal-tools">
+                      <div
+                        className="caisse-kind-switch caisse-journal-filters"
+                        role="tablist"
+                        aria-label="Filtrer le journal"
+                      >
+                        {JOURNAL_FILTERS.map((f) => (
+                          <button
+                            key={f.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={journalFilter === f.id}
+                            className={`caisse-kind-btn${journalFilter === f.id ? " is-active" : ""}`}
+                            onClick={() => setJournalFilter(f.id)}
+                          >
+                            {f.label}
+                          </button>
+                        ))}
+                      </div>
+                      <label className="caisse-field caisse-journal-search">
+                        <span className="sr-only">Rechercher</span>
+                        <input
+                          value={journalQuery}
+                          onChange={(e) => setJournalQuery(e.target.value)}
+                          placeholder="Nature, bénéficiaire, utilisateur…"
+                        />
+                      </label>
+                    </div>
+                  ) : null}
                   {!detail?.mouvements?.length ? (
                     <p className="muted">
-                      Les dépenses et recettes de cette caisse apparaîtront ici.
+                      Les dépenses, achats et versements de cette caisse
+                      apparaîtront ici.
                     </p>
+                  ) : !mouvementsFiltres.length ? (
+                    <p className="muted">Aucun mouvement pour ce filtre.</p>
                   ) : (
                     <ul className="caisse-mouvements">
-                      {detail.mouvements.map((m) => (
+                      {mouvementsFiltres.map((m) => (
                         <li
                           key={m.id}
                           className={m.cancelledAt ? "is-cancelled" : undefined}
@@ -800,16 +862,24 @@ export function CaissePage() {
                                 ? ` · annulé par ${m.cancelledByName ?? "—"}`
                                 : ""}
                             </span>
+                            {m.soldeAvant != null && m.soldeApres != null ? (
+                              <span className="caisse-mvt-balance muted mono">
+                                {formatFcfa(m.soldeAvant)} →{" "}
+                                {formatFcfa(m.soldeApres)}
+                              </span>
+                            ) : null}
                           </div>
                           <span
-                            className={`mono ${sortDuTiroir(m.kind) ? "text-danger" : "text-ok"}`}
+                            className={`mono ${estSortieCaisse(m.kind) ? "text-danger" : "text-ok"}`}
                           >
-                            {sortDuTiroir(m.kind) ? "−" : "+"}
+                            {estSortieCaisse(m.kind) ? "−" : "+"}
                             {formatFcfa(m.montant)}
                           </span>
                           {!m.cancelledAt &&
                           peutMouvements &&
-                          (m.kind === "depense" || m.kind === "recette") ? (
+                          (m.kind === "depense" ||
+                            m.kind === "recette" ||
+                            m.kind === "versement-entree") ? (
                             <button
                               type="button"
                               className="btn btn-ghost"

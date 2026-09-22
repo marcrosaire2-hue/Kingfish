@@ -3099,130 +3099,21 @@ select {
 }
 
 /* ——— Équipe (admin) ——— */
-.equipe-workspace {
-  display: grid;
-  grid-template-columns: 15.75rem minmax(0, 1fr);
-  gap: 1.15rem;
-  align-items: start;
-}
-
-.equipe-rail {
-  position: sticky;
-  top: 0.65rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  padding: 0.85rem 0.7rem 0.95rem;
-  border-radius: 18px;
-  background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--line) 85%, transparent);
-  box-shadow: var(--shadow-sm);
-}
-
-.equipe-rail-kicker {
-  margin: 0 0.45rem 0.45rem;
-  font-size: 0.68rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-}
-
-.equipe-rail-item {
-  display: grid;
-  grid-template-columns: 2.15rem minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 0.65rem;
-  width: 100%;
-  padding: 0.55rem 0.55rem;
-  border: 1px solid transparent;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--ink-soft);
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease;
-}
-
-.equipe-rail-item:hover {
-  background: var(--paper);
-  color: var(--ink);
-}
-
-.equipe-rail-item.is-active {
-  background: var(--accent-soft);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  color: var(--ink);
-  box-shadow: var(--shadow-sm);
-}
-
-.equipe-rail-icon {
-  display: grid;
-  place-items: center;
-  width: 2.15rem;
-  height: 2.15rem;
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--ink) 6%, var(--paper));
-  color: var(--ink);
-}
-
-.equipe-rail-item.is-active .equipe-rail-icon {
-  background: var(--accent);
-  color: var(--accent-ink);
-}
-
-.equipe-rail-icon svg {
-  width: 1.15rem;
-  height: 1.15rem;
-}
-
-.equipe-rail-copy {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 0.08rem;
-}
-
-.equipe-rail-copy strong {
-  font-size: 0.9rem;
-  font-weight: 800;
-  color: inherit;
-  line-height: 1.15;
-}
-
-.equipe-rail-copy span {
-  font-size: 0.72rem;
-  color: var(--ink-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.equipe-rail-badge {
-  display: inline-flex;
-  min-width: 1.35rem;
-  justify-content: center;
-  padding: 0.12rem 0.4rem;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--ink) 8%, var(--paper));
-  color: var(--ink);
-  font-size: 0.72rem;
-  font-weight: 800;
-}
-
-.equipe-rail-item.is-active .equipe-rail-badge {
-  background: color-mix(in srgb, var(--accent) 55%, #fff);
-}
-
 .equipe-canvas {
   display: flex;
   flex-direction: column;
   gap: 0.95rem;
   min-width: 0;
+}
+
+.equipe-section-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.equipe-section-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .equipe-status-row {
@@ -4084,36 +3975,6 @@ select {
 }
 
 @media (max-width: 980px) {
-  .equipe-workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .equipe-rail {
-    position: static;
-    flex-direction: row;
-    overflow-x: auto;
-    padding: 0.45rem;
-    gap: 0.3rem;
-  }
-
-  .equipe-rail-kicker {
-    display: none;
-  }
-
-  .equipe-rail-copy span {
-    display: none;
-  }
-
-  .equipe-rail-item {
-    grid-template-columns: auto minmax(0, 1fr);
-    min-width: 10.5rem;
-    flex: 0 0 auto;
-  }
-
-  .equipe-rail-badge {
-    display: none;
-  }
-
   .equipe-mail-grid {
     grid-template-columns: 1fr;
   }
@@ -8244,6 +8105,39 @@ body {
   font-size: 0.78rem;
 }
 
+.caisse-overview-card.caisse-overview-global {
+  cursor: default;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border-style: dashed;
+}
+
+.caisse-formula {
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  color: color-mix(in srgb, #ffffff 70%, transparent);
+}
+
+.caisse-journal-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  margin-bottom: 0.75rem;
+}
+
+.caisse-journal-filters {
+  flex-wrap: wrap;
+}
+
+.caisse-journal-search {
+  margin: 0;
+}
+
+.caisse-mvt-balance {
+  display: block;
+  font-size: 0.78rem;
+  margin-top: 0.15rem;
+}
+
 @media (max-width: 900px) {
   .caisse-hero,
   .caisse-layout {
@@ -9768,6 +9662,54 @@ html.nav-open body {
   font-size: 0.72rem;
   font-weight: 700;
   white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .equipe-kpis {
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  }
+
+  .equipe-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .equipe-filters {
+    justify-content: stretch;
+  }
+
+  .equipe-filters .select-input {
+    flex: 1 1 8rem;
+  }
+
+  .equipe-create-btn {
+    margin-left: 0;
+  }
+
+  .equipe-card-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .equipe-kpis {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .equipe-card-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .equipe-card-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .equipe-card-flags {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
 }
 
 /* Répartition du chiffre d'affaires entre les équipes de jour et de nuit. */
@@ -11351,8 +11293,7 @@ html.nav-open body {
 @media (max-width: 980px) {
   .dash-toolbar,
   .dash-section-nav,
-  .admin-section-nav,
-  .dash-command {
+  .admin-section-nav {
     top: var(--sticky-offset);
   }
 

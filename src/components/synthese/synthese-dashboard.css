@@ -72,9 +72,6 @@
 /* ——— Barre de commande ——— */
 
 .dash-command {
-  position: sticky;
-  top: 0.55rem;
-  z-index: 4;
   display: flex;
   flex-direction: column;
   gap: 0.7rem;
@@ -832,7 +829,6 @@
   }
 
   .dash-command {
-    top: var(--sticky-offset);
     padding: 0.7rem 0.85rem;
     gap: 0.55rem;
   }

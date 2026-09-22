@@ -6,12 +6,16 @@ import {
   ZONE_CAISSES,
   assertClotureValide,
   assertIndependentCaisseTransfer,
+  assertSortieDansSolde,
   canReceiveCaisseSales,
   caisseZone,
   canUseCaisse,
   isCaisseSessionActive,
   isZoneCaisse,
+  soldeApresMouvement,
+  soldeGlobalSites,
   soldeTheorique as calcSoldeTheorique,
+  soldeTotaux,
 } from "@/lib/caisse-model";
 import type { SessionUser } from "@/lib/auth-types";
 import type {
@@ -20,6 +24,7 @@ import type {
   CaisseMouvementKind,
   CaisseOverviewItem,
   CaisseSession,
+  CaisseSoldeTotaux,
   CaisseStatut,
   VenteSite,
 } from "@/lib/types";
@@ -88,6 +93,14 @@ export function toMouvement(doc: MouvementDoc): CaisseMouvement {
     beneficiaire: doc.beneficiaire,
     montant: Number(doc.montant) || 0,
     at: doc.at,
+    soldeAvant:
+      doc.soldeAvant === null || doc.soldeAvant === undefined
+        ? null
+        : Math.round(Number(doc.soldeAvant) || 0),
+    soldeApres:
+      doc.soldeApres === null || doc.soldeApres === undefined
+        ? null
+        : Math.round(Number(doc.soldeApres) || 0),
     actorId: doc.actorId ?? null,
     actorName: doc.actorName ?? null,
     transfertId: doc.transfertId ?? null,
@@ -364,10 +377,17 @@ export async function listCaisses(input: {
   return docs.map(toSession);
 }
 
-/** État instantané des caisses de zone — jamais consolidées en un seul solde. */
-export async function getCaissesOverview(): Promise<CaisseOverviewItem[]> {
+/**
+ * État instantané des caisses de zone.
+ * Chaque site garde son suivi ; le solde global (somme) est calculé à part
+ * pour le tableau de bord, sans mélanger les flux.
+ */
+export async function getCaissesOverview(): Promise<{
+  items: CaisseOverviewItem[];
+  soldeGlobal: number;
+}> {
   const sessions = await Promise.all(ZONE_CAISSES.map((c) => getActiveCaisse(c)));
-  return ZONE_CAISSES.map((caisse, i) => {
+  const items = ZONE_CAISSES.map((caisse, i) => {
     const session = sessions[i] ?? null;
     return {
       caisse,
@@ -375,6 +395,7 @@ export async function getCaissesOverview(): Promise<CaisseOverviewItem[]> {
       soldeTheorique: session ? calcSoldeTheorique(session) : 0,
     };
   });
+  return { items, soldeGlobal: soldeGlobalSites(items) };
 }
 
 /**
@@ -523,6 +544,31 @@ export async function listMouvementsByDateRange(input: {
   });
 }
 
+/**
+ * Journal multi-sites pour l'admin : mouvements des caisses demandées,
+ * fusionnés chronologiquement. Chaque ligne reste rattachée à son site.
+ */
+export async function listMouvementsReseau(input: {
+  dateFrom: string;
+  dateTo: string;
+  sites: Array<"zogbo" | "gbegamey">;
+}): Promise<MouvementAvecCaisse[]> {
+  const sites = input.sites.filter(isZoneCaisse);
+  if (sites.length === 0) return [];
+  const parts = await Promise.all(
+    sites.map((site) =>
+      listMouvementsByDateRange({
+        dateFrom: input.dateFrom,
+        dateTo: input.dateTo,
+        scopeSite: site,
+      }),
+    ),
+  );
+  return parts
+    .flat()
+    .sort((a, b) => a.mouvement.at.localeCompare(b.mouvement.at));
+}
+
 export async function getCaisseById(id: string): Promise<CaisseSession | null> {
   if (!ObjectId.isValid(id)) return null;
   const db = await getDb();
@@ -583,6 +629,159 @@ export async function openCaisse(input: {
   const db = await getDb();
   await db.collection<CaisseDoc>("caisses_sessions").insertOne(doc);
   return toSession(doc);
+}
+
+/**
+ * Admin : ajoute des fonds au capital d'un site.
+ * Le capital initial augmente du montant saisi ; la date d'effet devient
+ * la date de l'ajout. Les mouvements opérationnels (versements, dépenses,
+ * achats) restent saisis ailleurs (caisse / achats), pas par l'admin.
+ */
+export async function addFondsCaisse(input: {
+  caisse: CaisseKey;
+  user: SessionUser;
+  montant: number;
+  /** Date d'effet de l'ajout (défaut : aujourd'hui). */
+  date?: string;
+  motif?: string | null;
+}): Promise<{ session: CaisseSession; capitalAvant: number; capitalApres: number }> {
+  if (!isZoneCaisse(input.caisse)) {
+    throw new Error(
+      "La caisse centrale est désactivée : Zogbo et Gbégamey sont indépendantes.",
+    );
+  }
+  assertAcces(input.user, input.caisse);
+
+  const date = input.date || todayIsoDate();
+  if (!isValidDate(date)) throw new Error("Date invalide");
+
+  const montant = Math.round(Number(input.montant) || 0);
+  if (montant <= 0) throw new Error("Montant invalide : indiquez un ajout positif.");
+
+  const existing = await getActiveCaisse(input.caisse);
+
+  if (!existing) {
+    const session = await openCaisse({
+      date,
+      caisse: input.caisse,
+      user: input.user,
+      soldeInitial: montant,
+    });
+    return { session, capitalAvant: 0, capitalApres: montant };
+  }
+
+  if (existing.statut === "en_comptage") {
+    throw new Error(
+      "Caisse en comptage : terminez ou annulez le comptage avant d'ajouter des fonds.",
+    );
+  }
+
+  const capitalAvant = Math.round(Number(existing.soldeInitial) || 0);
+  const capitalApres = capitalAvant + montant;
+  const now = new Date().toISOString();
+  const motif = (input.motif ?? "").trim();
+  const db = await getDb();
+  const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+    {
+      _id: new ObjectId(existing.id),
+      statut: "ouverte" satisfies CaisseStatut,
+    },
+    {
+      $set: {
+        soldeInitial: capitalApres,
+        date,
+        updatedAt: now,
+        ...(motif
+          ? {
+              commentaire: existing.commentaire
+                ? `${existing.commentaire}\n[Fonds +${montant} ${date}] ${motif}`
+                : `[Fonds +${montant} ${date}] ${motif}`,
+            }
+          : {}),
+      },
+    },
+  );
+  if (result.modifiedCount !== 1) {
+    throw new Error("Impossible d'ajouter des fonds à cette caisse.");
+  }
+
+  const updated = await getCaisseById(existing.id);
+  if (!updated) throw new Error("Caisse introuvable");
+  return { session: updated, capitalAvant, capitalApres };
+}
+
+/**
+ * Admin : fixe (ou corrige) le capital initial d'une caisse ouverte.
+ * La nouvelle valeur devient le solde initial à la date de modification.
+ * Les mouvements déjà saisis restent ; le solde courant se recalcule :
+ * nouveau capital + versements − sorties.
+ */
+export async function setCaisseCapital(input: {
+  caisse: CaisseKey;
+  user: SessionUser;
+  soldeInitial: number;
+  /** Date d'effet du nouveau capital (défaut : aujourd'hui). */
+  date?: string;
+  motif?: string | null;
+}): Promise<CaisseSession> {
+  if (!isZoneCaisse(input.caisse)) {
+    throw new Error(
+      "La caisse centrale est désactivée : Zogbo et Gbégamey sont indépendantes.",
+    );
+  }
+  assertAcces(input.user, input.caisse);
+
+  const date = input.date || todayIsoDate();
+  if (!isValidDate(date)) throw new Error("Date invalide");
+
+  const soldeInitial = Math.max(0, Math.round(Number(input.soldeInitial) || 0));
+  const existing = await getActiveCaisse(input.caisse);
+
+  if (!existing) {
+    return openCaisse({
+      date,
+      caisse: input.caisse,
+      user: input.user,
+      soldeInitial,
+    });
+  }
+
+  if (existing.statut === "en_comptage") {
+    throw new Error(
+      "Caisse en comptage : terminez ou annulez le comptage avant de modifier le capital.",
+    );
+  }
+
+  const now = new Date().toISOString();
+  const motif = (input.motif ?? "").trim();
+  const db = await getDb();
+  const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+    {
+      _id: new ObjectId(existing.id),
+      statut: "ouverte" satisfies CaisseStatut,
+    },
+    {
+      $set: {
+        soldeInitial,
+        date,
+        updatedAt: now,
+        ...(motif
+          ? {
+              commentaire: existing.commentaire
+                ? `${existing.commentaire}\n[Capital ${date}] ${motif}`
+                : `[Capital ${date}] ${motif}`,
+            }
+          : {}),
+      },
+    },
+  );
+  if (result.modifiedCount !== 1) {
+    throw new Error("Impossible de modifier le capital de cette caisse.");
+  }
+
+  const updated = await getCaisseById(existing.id);
+  if (!updated) throw new Error("Caisse introuvable");
+  return updated;
 }
 
 /**
@@ -728,7 +927,10 @@ export async function listMouvements(
 export async function addCaisseMouvement(input: {
   caisseId: string;
   user: SessionUser;
-  kind: Extract<CaisseMouvementKind, "depense" | "recette">;
+  kind: Extract<
+    CaisseMouvementKind,
+    "depense" | "recette" | "versement-entree"
+  >;
   nature: string;
   beneficiaire: string;
   montant: number;
@@ -750,16 +952,12 @@ export async function addCaisseMouvement(input: {
   if (nature.length < 2) throw new Error("Nature trop courte");
   const montant = Math.round(Number(input.montant) || 0);
   if (montant <= 0) throw new Error("Montant invalide");
-  // Un tiroir physique ne peut pas passer en négatif : même règle que pour
-  // les versements entre caisses.
+  // Un tiroir ne peut pas passer en négatif (pas de découvert par défaut).
+  const soldeAvant = calcSoldeTheorique(session);
   if (input.kind === "depense") {
-    const disponible = calcSoldeTheorique(session);
-    if (montant > disponible) {
-      throw new Error(
-        `Dépense supérieure au solde de la caisse (${disponible} FCFA).`,
-      );
-    }
+    assertSortieDansSolde(soldeAvant, montant);
   }
+  const soldeApres = soldeApresMouvement(soldeAvant, input.kind, montant);
 
   const now = new Date().toISOString();
   const mDoc: MouvementDoc = {
@@ -770,6 +968,8 @@ export async function addCaisseMouvement(input: {
     beneficiaire: input.beneficiaire.trim() || "—",
     montant,
     at: now,
+    soldeAvant,
+    soldeApres,
     actorId: input.user.id,
     actorName: input.user.name,
     transfertId: null,
@@ -781,11 +981,16 @@ export async function addCaisseMouvement(input: {
   const db = await getDb();
   await db.collection<MouvementDoc>("caisse_mouvements").insertOne(mDoc);
 
-  const field = input.kind === "depense" ? "totalDepense" : "totalRecette";
+  const field =
+    input.kind === "depense"
+      ? "totalDepense"
+      : input.kind === "versement-entree"
+        ? "totalVersementRecu"
+        : "totalRecette";
+
   if (input.kind === "depense") {
-    // Contrôle + incrément dans la même écriture : deux dépenses concurrentes
-    // ne peuvent pas passer toutes les deux sur le même solde théorique lu
-    // avant l'écriture (même faille que corrigée sur versementCaisse).
+    // Contrôle + incrément atomiques : solde = initial + versements − sorties
+    // (sans ventes POS).
     const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
       {
         _id: new ObjectId(input.caisseId),
@@ -797,7 +1002,6 @@ export async function addCaisseMouvement(input: {
                 {
                   $add: [
                     "$soldeInitial",
-                    "$totalVente",
                     "$totalRecette",
                     "$totalVersementRecu",
                   ],
@@ -829,11 +1033,10 @@ export async function addCaisseMouvement(input: {
 }
 
 /**
- * Annule une dépense ou une recette : le mouvement reste au journal, barré,
- * et le total de la session (théorique) reprend le montant, comme les
- * annulations de vente ou de perte ailleurs dans l'app. Réservée aux
- * dépenses/recettes — un versement se corrige par un versement en sens
- * inverse, jamais par annulation (il touche deux caisses).
+ * Annule une dépense, une recette ou un versement d'entrée : le mouvement
+ * reste au journal, barré, et le total de session reprend le montant.
+ * Les versements inter-caisses historiques (sortie + entrée liées) ne
+ * s'annulent pas ici.
  */
 export async function cancelCaisseMouvement(input: {
   mouvementId: string;
@@ -847,8 +1050,14 @@ export async function cancelCaisseMouvement(input: {
     .collection<MouvementDoc>("caisse_mouvements")
     .findOne({ _id: new ObjectId(input.mouvementId), cancelledAt: null });
   if (!mDoc) throw new Error("Mouvement introuvable ou déjà annulé");
-  if (mDoc.kind !== "depense" && mDoc.kind !== "recette") {
-    throw new Error("Seules les dépenses et recettes peuvent être annulées.");
+  if (
+    mDoc.kind !== "depense" &&
+    mDoc.kind !== "recette" &&
+    mDoc.kind !== "versement-entree"
+  ) {
+    throw new Error(
+      "Seules les dépenses, recettes et versements d'entrée peuvent être annulés.",
+    );
   }
 
   const session = await getCaisseById(mDoc.caisseId);
@@ -875,7 +1084,12 @@ export async function cancelCaisseMouvement(input: {
     },
   );
 
-  const field = mDoc.kind === "depense" ? "totalDepense" : "totalRecette";
+  const field =
+    mDoc.kind === "depense"
+      ? "totalDepense"
+      : mDoc.kind === "versement-entree"
+        ? "totalVersementRecu"
+        : "totalRecette";
   await db.collection<CaisseDoc>("caisses_sessions").updateOne(
     { _id: new ObjectId(mDoc.caisseId) },
     { $inc: { [field]: -mDoc.montant }, $set: { updatedAt: now } },
@@ -966,23 +1180,25 @@ export async function getCaisseDetail(id: string): Promise<{
   session: CaisseSession;
   mouvements: CaisseMouvement[];
   soldeTheorique: number;
+  totaux: CaisseSoldeTotaux;
   ecart: number | null;
 }> {
   const session = await getCaisseById(id);
   if (!session) throw new Error("Caisse introuvable");
   const mouvements = await listMouvements(id);
+  const totaux = soldeTotaux(session);
   const theo =
     session.statut === "fermee" &&
     typeof session.soldeTheoriqueCloture === "number"
       ? Math.round(session.soldeTheoriqueCloture)
-      : calcSoldeTheorique(session);
+      : totaux.soldeCourant;
   const ecart =
     typeof session.ecart === "number" && Number.isFinite(session.ecart)
       ? Math.round(session.ecart)
       : session.soldePhysique === null
         ? null
         : session.soldePhysique - theo;
-  return { session, mouvements, soldeTheorique: theo, ecart };
+  return { session, mouvements, soldeTheorique: theo, totaux, ecart };
 }
 
 /** Génère un id de mouvement client-side si besoin */
