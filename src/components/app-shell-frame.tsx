@@ -79,6 +79,12 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
+    href: "/kwater",
+    label: "Kwater",
+    key: "kwater",
+    group: "ops",
+  },
+  {
     href: "/immobilisations",
     label: "Immobilisations",
     key: "immobilisations",

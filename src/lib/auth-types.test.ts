@@ -25,6 +25,7 @@ describe("rôle Comptable", () => {
       "gbegamey",
       "appro",
       "versements",
+      "kwater",
       "stock",
       "immobilisations",
       "journal-ventes",
@@ -37,6 +38,7 @@ describe("rôle Comptable", () => {
     expect(canAccessPath("comptable", "/compte-resultat", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/comptabilite", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/versements", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/kwater", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/zogbo", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/gbegamey", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/stock-gbegamey", "tous")).toBe(true);
@@ -127,6 +129,8 @@ describe("étanchéité des zones", () => {
     expect(menu).toContain("journal-ventes");
     expect(menu).not.toContain("historique-ventes");
     expect(menu).toContain("versements");
+    expect(menu).toContain("kwater");
+    expect(canAccessPath("gerant", "/kwater", "zogbo")).toBe(true);
     expect(navForUser("gerant", "zogbo")).not.toContain("gbegamey");
   });
 });
@@ -251,6 +255,7 @@ describe("l'API suit les droits de l'écran", () => {
       "synthese",
       "analyse",
       "versements",
+      "kwater",
       "journal-ventes",
       "quantites-vendues",
       "historique",
@@ -265,6 +270,7 @@ describe("l'API suit les droits de l'écran", () => {
     );
     expect(canAccessPath("admin", "/comptabilite", "tous", "marc")).toBe(false);
     expect(canAccessPath("admin", "/versements", "tous", "marc")).toBe(true);
+    expect(canAccessPath("admin", "/kwater", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/journal-ventes", "tous", "marc")).toBe(
       true,
     );
@@ -375,6 +381,7 @@ describe("l'API suit les droits de l'écran", () => {
     expect(menu).toContain("zogbo");
     expect(menu).toContain("gbegamey");
     expect(menu).toContain("versements");
+    expect(menu).toContain("kwater");
     expect(canAccessPath("daf", "/admin", "tous", "daff")).toBe(false);
     expect(canAccessPath("daf", "/vente", "tous", "daff")).toBe(false);
     expect(canAccessPath("daf", "/pertes", "tous", "daff")).toBe(false);

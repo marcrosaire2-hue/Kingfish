@@ -62,6 +62,7 @@ const KIND_OPTIONS: { value: KindFilter; label: string }[] = [
   { value: "immobilisations", label: "Immobilisations" },
   { value: "pertes", label: "Pertes" },
   { value: "versements", label: "Versements" },
+  { value: "kwater", label: "Kwater" },
   { value: "reprise", label: "Reprise d’historique" },
   { value: "connexion", label: "Connexions" },
 ];

@@ -118,3 +118,36 @@ export async function uploadVersementPreuve(input: {
     mime: input.mime,
   };
 }
+
+/**
+ * Envoie une capture de relevé Kwater sur Cloudinary (dossier kingfish/kwater).
+ */
+export async function uploadKwaterPreuve(input: {
+  bytes: Buffer;
+  mime: string;
+  releveId: string;
+  date: string;
+  site: string;
+  periode: string;
+}): Promise<CloudinaryUploadResult> {
+  const cloudinary = await getCloudinary();
+
+  const dataUri = `data:${input.mime};base64,${input.bytes.toString("base64")}`;
+  const result = await cloudinary.uploader.upload(dataUri, {
+    folder: "kingfish/kwater",
+    public_id: `${input.date}_${input.site}_${input.periode}_${input.releveId}`,
+    resource_type: "image",
+    overwrite: true,
+    unique_filename: false,
+  });
+
+  if (!result.secure_url || !result.public_id) {
+    throw new Error("Échec de l’envoi de la capture vers Cloudinary.");
+  }
+
+  return {
+    url: result.secure_url,
+    publicId: result.public_id,
+    mime: input.mime,
+  };
+}

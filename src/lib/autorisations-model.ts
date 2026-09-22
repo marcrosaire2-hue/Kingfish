@@ -169,6 +169,16 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "create", "update"],
   },
   {
+    id: "kwater",
+    navKey: "kwater",
+    label: "Kwater",
+    path: "/kwater",
+    category: "quotidien",
+    description:
+      "Relevé quotidien de quantité restante (matin / soir) avec capture. Gérants : saisie ; lecture pour les autres rôles.",
+    actions: ["access", "view", "create", "update"],
+  },
+  {
     id: "stock",
     navKey: "stock",
     label: "Stock final",

@@ -171,6 +171,7 @@ const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "synthese",
   "analyse",
   "versements",
+  "kwater",
   "journal-ventes",
   "quantites-vendues",
   "historique",
@@ -274,6 +275,7 @@ export type NavKey =
   | "matieres"
   | "pertes"
   | "versements"
+  | "kwater"
   | "reglages"
   | "parametres"
   | "zogbo"
@@ -302,6 +304,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "appro",
     "pertes",
     "versements",
+    "kwater",
     "stock",
     "parametres",
     // Journal des ventes de sa zone (tickets, détail, export).
@@ -323,6 +326,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "gbegamey",
     "appro",
     "versements",
+    "kwater",
     "stock",
     "immobilisations",
     "journal-ventes",
@@ -342,6 +346,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "gbegamey",
     "appro",
     "versements",
+    "kwater",
     "journal-ventes",
     "quantites-vendues",
     "stock",
@@ -360,6 +365,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "appro",
     "pertes",
     "versements",
+    "kwater",
     "reglages",
     "journal-ventes",
     "quantites-vendues",
@@ -548,6 +554,7 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/matieres")) return allowed.includes("matieres");
   if (pathname.startsWith("/pertes")) return allowed.includes("pertes");
   if (pathname.startsWith("/versements")) return allowed.includes("versements");
+  if (pathname.startsWith("/kwater")) return allowed.includes("kwater");
   if (pathname.startsWith("/reglages")) return allowed.includes("reglages");
   if (pathname.startsWith("/parametres")) return allowed.includes("parametres");
   if (pathname.startsWith("/stock-zogbo")) return allowed.includes("zogbo");

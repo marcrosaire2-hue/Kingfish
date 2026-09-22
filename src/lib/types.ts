@@ -1061,3 +1061,33 @@ export const VERSEMENT_STATUT_LABELS: Record<VersementStatut, string> = {
   confirmee: "Confirmée",
   annulee: "Annulée",
 };
+
+/**
+ * Relevé quotidien Kwater (quantité restante + capture) — matin et soir,
+ * un enregistrement par site et par période.
+ */
+export type KwaterPeriode = "matin" | "soir";
+
+export const KWATER_PERIODE_LABELS: Record<KwaterPeriode, string> = {
+  matin: "Matin",
+  soir: "Soir",
+};
+
+export type KwaterReleve = {
+  id: string;
+  date: string;
+  site: VenteSite;
+  periode: KwaterPeriode;
+  /** Quantité de Kwater restante au moment du relevé. */
+  quantite: number;
+  preuveMime: string;
+  preuveUrl: string;
+  preuvePublicId: string;
+  createdAt: string;
+  actorId: string;
+  actorName: string;
+  actorUsername: string;
+  updatedAt?: string | null;
+  updatedById?: string | null;
+  updatedByName?: string | null;
+};

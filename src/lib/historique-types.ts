@@ -16,6 +16,7 @@ export type HistoriqueKind =
   | "immobilisations"
   | "pertes"
   | "versements"
+  | "kwater"
   | "reprise"
   | "connexion";
 
@@ -57,6 +58,7 @@ export const HISTORIQUE_KIND_LABELS: Record<HistoriqueKind, string> = {
   immobilisations: "Immobilisations",
   pertes: "Pertes",
   versements: "Versements",
+  kwater: "Kwater",
   reprise: "Reprise d’historique",
   connexion: "Connexion",
 };
