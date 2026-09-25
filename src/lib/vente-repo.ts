@@ -13,6 +13,7 @@ import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import { computeZogboLine, shiftIsoDate } from "@/lib/zogbo-calc";
 import { isLegalAccompanimentPrice } from "@/lib/catalog-zogbo";
 import { assertGbegameyPlanningSale } from "@/lib/gbegamey-planning-comptes";
+import { assertGbegameyEmployeeVentePlanning } from "@/lib/gbegamey-employee-planning";
 import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import { parseFiniteAmount } from "@/lib/security-policy";
@@ -1237,6 +1238,7 @@ export async function recordVente(input: {
       username: input.actor.username,
       serviceDate: input.date,
     });
+    assertGbegameyEmployeeVentePlanning({ username: input.actor.username });
   }
 
   await assertDayNotClosed(input.date, input.site, input.kind, {
