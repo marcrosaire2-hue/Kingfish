@@ -54,18 +54,21 @@ describe("ventes sans stock", () => {
 });
 
 describe("stockTracked produit × site", () => {
-  it("n’enforce que le produit suivi quand la journée est libre", () => {
+  it("journée libre : jamais bloqué, même pour un produit suivi (comptage périmé)", () => {
     expect(
       shouldEnforceProductStock({ dayFreeSale: true, productTracked: false }),
     ).toBe(false);
     expect(
       shouldEnforceProductStock({ dayFreeSale: true, productTracked: true }),
-    ).toBe(true);
+    ).toBe(false);
   });
 
-  it("enforce tout si forçage admin journée", () => {
+  it("enforce tout si forçage admin journée, suivi ou non", () => {
     expect(
       shouldEnforceProductStock({ dayFreeSale: false, productTracked: false }),
+    ).toBe(true);
+    expect(
+      shouldEnforceProductStock({ dayFreeSale: false, productTracked: true }),
     ).toBe(true);
   });
 
