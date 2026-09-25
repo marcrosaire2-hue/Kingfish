@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { DashboardShell } from "@/components/dashboard/dashboard-layout";
 import { ExportExcelButton } from "@/components/export-excel-button";
+import { RegistreDrawer } from "@/components/registre-drawer";
 import { formatFcfa } from "@/lib/format";
 import {
   exportAllHistoriqueVentesExcel,
@@ -54,6 +62,35 @@ type TicketGroup = {
 };
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+type CatalogItem = { id: string; name: string };
+type VenteCatalog = {
+  plat: CatalogItem[];
+  local: CatalogItem[];
+  boisson: CatalogItem[];
+};
+
+type EditForm = {
+  date: string;
+  time: string;
+  productId: string;
+  qty: string;
+  unitPrice: string;
+  description: string;
+  reason: string;
+};
+
+function isoToLocalParts(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en-CA", { timeZone: "Africa/Porto-Novo" });
+  const time = d.toLocaleTimeString("fr-FR", {
+    timeZone: "Africa/Porto-Novo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return { date, time };
+}
 
 function monthStartIso(d = todayIsoDate()): string {
   return `${d.slice(0, 7)}-01`;
@@ -269,9 +306,15 @@ export function JournalVentesPage({
   const [busyLineId, setBusyLineId] = useState<string | null>(null);
   const [canManagePast, setCanManagePast] = useState(false);
   const [canPurge, setCanPurge] = useState(false);
+  const [canEditFull, setCanEditFull] = useState(false);
+  const [catalog, setCatalog] = useState<VenteCatalog | null>(null);
   const [sitePolicies, setSitePolicies] = useState<SiteRolesConfig | null>(
     null,
   );
+  const [editing, setEditing] = useState<JournalVenteLine | null>(null);
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const period = inferPeriod(from, to);
 
@@ -332,6 +375,8 @@ export function JournalVentesPage({
       }
       setCanManagePast(!!body.canManagePast);
       setCanPurge(!!body.canPurge);
+      setCanEditFull(!!body.canEditFull);
+      if (body.catalog) setCatalog(body.catalog as VenteCatalog);
       if (body.sitePolicies) {
         setSitePolicies(body.sitePolicies as SiteRolesConfig);
       }
@@ -488,6 +533,80 @@ export function JournalVentesPage({
     }
   }
 
+  function ouvrirEdition(l: JournalVenteLine) {
+    if (!l.venteLogId) return;
+    const { time } = isoToLocalParts(l.at);
+    setEditError(null);
+    setEditing(l);
+    setEditForm({
+      date: l.date,
+      time,
+      productId: l.productId || "",
+      qty: String(Math.abs(l.qty)),
+      unitPrice: String(l.unitPrice),
+      description: l.produit,
+      reason: "",
+    });
+  }
+
+  function fermerEdition() {
+    setEditing(null);
+    setEditForm(null);
+    setEditError(null);
+  }
+
+  async function enregistrerEdition(e: FormEvent) {
+    e.preventDefault();
+    if (!editing || !editForm || !editing.venteLogId) return;
+    const qty = Number(editForm.qty);
+    if (!Number.isFinite(qty) || qty < 1) {
+      setEditError("Quantité invalide (minimum 1).");
+      return;
+    }
+    if (editForm.reason.trim().length < 8) {
+      setEditError("Motif d'audit requis (8 caractères minimum).");
+      return;
+    }
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        action: "edit-full",
+        id: editing.venteLogId,
+        date: editing.date,
+        site: editing.site,
+        newDate: editForm.date,
+        newTime: editForm.time,
+        qty,
+        reason: editForm.reason.trim(),
+      };
+      if (editing.kind === "extra") {
+        payload.description = editForm.description;
+        payload.unitPrice = Number(editForm.unitPrice) || 0;
+      } else if (editForm.productId) {
+        payload.productId = editForm.productId;
+      }
+      const res = await fetch("/api/vente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Modification impossible");
+      setFlash(
+        `Vente « ${body.entry?.name ?? editing.produit} » modifiée avec précision`,
+      );
+      fermerEdition();
+      await load();
+    } catch (err) {
+      setEditError(
+        err instanceof Error ? err.message : "Modification impossible",
+      );
+    } finally {
+      setEditBusy(false);
+    }
+  }
+
   async function supprimerLigne(l: JournalVenteLine) {
     if (!l.venteLogId) {
       setError("Cette ligne n’a pas de journal lié.");
@@ -558,6 +677,23 @@ export function JournalVentesPage({
       setBusyTicketId(null);
     }
   }
+
+  const editCatalogOptions = useMemo<CatalogItem[]>(() => {
+    if (!editing || !editForm || !catalog) return [];
+    const kind = editing.kind;
+    if (kind !== "plat" && kind !== "local" && kind !== "boisson") return [];
+    const list = catalog[kind] ?? [];
+    if (
+      editForm.productId &&
+      !list.some((p) => p.id === editForm.productId)
+    ) {
+      return [
+        { id: editForm.productId, name: `${editing.produit} (actuel)` },
+        ...list,
+      ];
+    }
+    return list;
+  }, [editing, editForm, catalog]);
 
   const periodHint =
     from === to
@@ -895,16 +1031,148 @@ export function JournalVentesPage({
               busyLineId={busyLineId}
               canManagePast={canManagePast}
               canPurge={canPurge}
+              canEditFull={canEditFull}
               sitePolicies={sitePolicies}
               userRole={sessionUser?.role}
               onCancel={(l) => void annulerTicket(l)}
               onEdit={(l) => void modifierLigne(l)}
+              onEditFull={ouvrirEdition}
               onDeleteLine={(l) => void supprimerLigne(l)}
               onDeleteTicket={(l) => void supprimerTicket(l)}
             />
           ))}
         </div>
       </DashboardShell>
+
+      <RegistreDrawer
+        open={!!editing}
+        onClose={fermerEdition}
+        title="Modifier une vente"
+        subtitle={
+          editing
+            ? `${editing.produit} · ${siteLabel(editing.site)} · ${editing.numero}`
+            : undefined
+        }
+        closeLabel="Fermer la modification de vente"
+      >
+        {editing && editForm ? (
+          <form className="admin-form" onSubmit={enregistrerEdition}>
+            {editError ? (
+              <p className="error-banner" role="alert">
+                {editError}
+              </p>
+            ) : null}
+            <div className="admin-form-grid admin-form-grid-compact">
+              <label className="admin-field">
+                <span>Jour</span>
+                <input
+                  type="date"
+                  value={editForm.date}
+                  onChange={(e) =>
+                    setEditForm((f) => (f ? { ...f, date: e.target.value } : f))
+                  }
+                  required
+                />
+              </label>
+              <label className="admin-field">
+                <span>Heure précise</span>
+                <input
+                  type="time"
+                  value={editForm.time}
+                  onChange={(e) =>
+                    setEditForm((f) => (f ? { ...f, time: e.target.value } : f))
+                  }
+                  required
+                />
+              </label>
+              {editing.kind && editing.kind !== "extra" ? (
+                <label className="admin-field admin-field-full">
+                  <span>Produit</span>
+                  <select
+                    className="select-input"
+                    value={editForm.productId}
+                    onChange={(e) =>
+                      setEditForm((f) =>
+                        f ? { ...f, productId: e.target.value } : f,
+                      )
+                    }
+                  >
+                    {editCatalogOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <>
+                  <label className="admin-field admin-field-full">
+                    <span>Libellé</span>
+                    <input
+                      value={editForm.description}
+                      onChange={(e) =>
+                        setEditForm((f) =>
+                          f ? { ...f, description: e.target.value } : f,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>Prix unitaire (FCFA)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={editForm.unitPrice}
+                      onChange={(e) =>
+                        setEditForm((f) =>
+                          f ? { ...f, unitPrice: e.target.value } : f,
+                        )
+                      }
+                    />
+                  </label>
+                </>
+              )}
+              <label className="admin-field">
+                <span>Quantité</span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={editForm.qty}
+                  onChange={(e) =>
+                    setEditForm((f) => (f ? { ...f, qty: e.target.value } : f))
+                  }
+                  required
+                />
+              </label>
+              <label className="admin-field admin-field-full">
+                <span>Motif de la correction</span>
+                <input
+                  value={editForm.reason}
+                  onChange={(e) =>
+                    setEditForm((f) => (f ? { ...f, reason: e.target.value } : f))
+                  }
+                  placeholder="ex. Erreur de saisie caisse, corrigé à la demande de…"
+                  minLength={8}
+                  required
+                />
+              </label>
+            </div>
+            <p className="muted">
+              Correction admin : stock, montant et journal sont recalculés.
+              Si le jour ou le produit changent, le ticket POS d&apos;origine
+              n&apos;est plus lié à cette ligne — la vente reste tracée dans
+              le journal, comme les ventes carnet et AquaPro.
+            </p>
+            <div className="equipe-create-actions">
+              <button type="submit" className="btn btn-primary" disabled={editBusy}>
+                {editBusy ? "Enregistrement…" : "Enregistrer la correction"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </RegistreDrawer>
     </AppShell>
   );
 }
@@ -919,10 +1187,12 @@ function JournalDayBlock({
   busyLineId,
   canManagePast,
   canPurge,
+  canEditFull,
   sitePolicies,
   userRole,
   onCancel,
   onEdit,
+  onEditFull,
   onDeleteLine,
   onDeleteTicket,
 }: {
@@ -935,10 +1205,12 @@ function JournalDayBlock({
   busyLineId: string | null;
   canManagePast: boolean;
   canPurge: boolean;
+  canEditFull: boolean;
   sitePolicies: SiteRolesConfig | null;
   userRole?: UserRole;
   onCancel: (line: JournalVenteLine) => void;
   onEdit: (line: JournalVenteLine) => void;
+  onEditFull: (line: JournalVenteLine) => void;
   onDeleteLine: (line: JournalVenteLine) => void;
   onDeleteTicket: (line: JournalVenteLine) => void;
 }) {
@@ -999,10 +1271,12 @@ function JournalDayBlock({
               busyLineId={busyLineId}
               canManagePast={canManagePast}
               canPurge={canPurge}
+              canEditFull={canEditFull}
               sitePolicies={sitePolicies}
               userRole={userRole}
               onCancel={onCancel}
               onEdit={onEdit}
+              onEditFull={onEditFull}
               onDeleteLine={onDeleteLine}
               onDeleteTicket={onDeleteTicket}
             />
@@ -1021,10 +1295,12 @@ function JournalDayBlock({
               busyLineId={busyLineId}
               canManagePast={canManagePast}
               canPurge={canPurge}
+              canEditFull={canEditFull}
               sitePolicies={sitePolicies}
               userRole={userRole}
               onCancel={onCancel}
               onEdit={onEdit}
+              onEditFull={onEditFull}
               onDeleteLine={onDeleteLine}
               onDeleteTicket={onDeleteTicket}
             />
@@ -1042,10 +1318,12 @@ function JournalTicketCard({
   busyLineId,
   canManagePast,
   canPurge,
+  canEditFull,
   sitePolicies,
   userRole,
   onCancel,
   onEdit,
+  onEditFull,
   onDeleteLine,
   onDeleteTicket,
 }: {
@@ -1055,10 +1333,12 @@ function JournalTicketCard({
   busyLineId: string | null;
   canManagePast: boolean;
   canPurge: boolean;
+  canEditFull: boolean;
   sitePolicies: SiteRolesConfig | null;
   userRole?: UserRole;
   onCancel: (line: JournalVenteLine) => void;
   onEdit: (line: JournalVenteLine) => void;
+  onEditFull: (line: JournalVenteLine) => void;
   onDeleteLine: (line: JournalVenteLine) => void;
   onDeleteTicket: (line: JournalVenteLine) => void;
 }) {
@@ -1131,6 +1411,15 @@ function JournalTicketCard({
                     onClick={() => onEdit(l)}
                   >
                     {busyLineId === l.venteLogId ? "…" : "Qté"}
+                  </button>
+                ) : null}
+                {canEditFull && l.venteLogId && l.statut === "valide" ? (
+                  <button
+                    type="button"
+                    className="btn-link"
+                    onClick={() => onEditFull(l)}
+                  >
+                    Modifier
                   </button>
                 ) : null}
                 {canPurge &&
@@ -1206,10 +1495,12 @@ function JournalLinesTable({
   busyLineId,
   canManagePast,
   canPurge,
+  canEditFull,
   sitePolicies,
   userRole,
   onCancel,
   onEdit,
+  onEditFull,
   onDeleteLine,
   onDeleteTicket,
 }: {
@@ -1221,10 +1512,12 @@ function JournalLinesTable({
   busyLineId: string | null;
   canManagePast: boolean;
   canPurge: boolean;
+  canEditFull: boolean;
   sitePolicies: SiteRolesConfig | null;
   userRole?: UserRole;
   onCancel: (line: JournalVenteLine) => void;
   onEdit: (line: JournalVenteLine) => void;
+  onEditFull: (line: JournalVenteLine) => void;
   onDeleteLine: (line: JournalVenteLine) => void;
   onDeleteTicket: (line: JournalVenteLine) => void;
 }) {
@@ -1305,6 +1598,15 @@ function JournalLinesTable({
                         onClick={() => onEdit(l)}
                       >
                         {busyLineId === l.venteLogId ? "…" : "Qté"}
+                      </button>
+                    ) : null}
+                    {canEditFull && l.venteLogId && l.statut === "valide" ? (
+                      <button
+                        type="button"
+                        className="btn-link"
+                        onClick={() => onEditFull(l)}
+                      >
+                        Modifier
                       </button>
                     ) : null}
                     {canPurge &&

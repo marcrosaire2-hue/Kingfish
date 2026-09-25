@@ -14,6 +14,7 @@ import {
 } from "@/lib/site-roles-model";
 import type { VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import { getParametres } from "@/lib/parametres-repo";
 
 export const runtime = "nodejs";
 
@@ -45,7 +46,7 @@ export async function GET(request: Request) {
     const paiement = searchParams.get("paiement") || "";
     const q = searchParams.get("q") || "";
 
-    const [result, siteRoles] = await Promise.all([
+    const [result, siteRoles, parametres] = await Promise.all([
       listJournalVentes({
         from,
         to,
@@ -57,6 +58,7 @@ export async function GET(request: Request) {
         q,
       }),
       getSiteRolesConfig(),
+      user.role === "admin" ? getParametres() : Promise.resolve(null),
     ]);
 
     const rolePerms = permissionsForRole(siteRoles, user.role);
@@ -73,8 +75,16 @@ export async function GET(request: Request) {
       allowedSites: siteDecision.allowedSites,
       canManagePast: canManagePastVentes(user.role) && rolePerms.modify,
       canPurge: rolePerms.delete,
+      canEditFull: user.role === "admin",
       sitePolicies: siteRoles,
       ventePermissions: ventePerms,
+      catalog: parametres
+        ? {
+            plat: parametres.baseDishes.map((d) => ({ id: d.id, name: d.name })),
+            local: parametres.localDishes.map((d) => ({ id: d.id, name: d.name })),
+            boisson: parametres.drinks.map((d) => ({ id: d.id, name: d.name })),
+          }
+        : null,
     });
   } catch (error) {
     return authErrorResponse(error);
