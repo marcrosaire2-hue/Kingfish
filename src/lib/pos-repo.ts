@@ -30,6 +30,7 @@ import {
   restorePlatUnitAfterSaleCancel,
 } from "@/lib/stock-unit-repo";
 import { assertGbegameyPlanningSale } from "@/lib/gbegamey-planning-comptes";
+import { assertGbegameyEmployeeVentePlanning } from "@/lib/gbegamey-employee-planning";
 import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import type {
@@ -216,6 +217,7 @@ export async function validatePosTicket(input: {
     username: input.user.username,
     serviceDate,
   });
+  assertGbegameyEmployeeVentePlanning({ username: input.user.username });
 
   // Vente rejouée après une coupure : si elle a déjà abouti, on renvoie le
   // ticket existant au lieu d'en créer un second. La déduplication se fait
