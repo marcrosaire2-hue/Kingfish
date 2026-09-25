@@ -16,6 +16,8 @@ export type VenteHistoryLine = {
   kind?: VenteKind;
   /** id ventes_log — présent sur les tickets King Fish pour correction. */
   venteLogId?: string | null;
+  /** id produit catalogue — pour proposer un autre produit lors d'une correction. */
+  productId?: string | null;
 };
 
 export type VenteHistoryTicket = {
@@ -103,6 +105,7 @@ type VentesLogRow = {
   actorName?: string | null;
   ticketId?: string | null;
   posTicketId?: string | null;
+  productId?: string;
 };
 
 function journalSourceLabel(source: string | null | undefined): string {
@@ -164,6 +167,7 @@ function ticketsFromVentesLog(
       amount: Number(r.amount) || 0,
       kind: r.kind,
       venteLogId: r._id.toHexString(),
+      productId: r.productId ?? null,
     }));
     const montant = lines.reduce((s, l) => s + l.amount, 0);
     const serveur = first.actorName || null;
@@ -282,6 +286,7 @@ export async function listVentesHistory(
           unitPrice?: number;
           amount?: number;
           venteLogId?: string | null;
+          productId?: string | null;
         }) => ({
           name: String(l.name || ""),
           qty: Number(l.qty) || 0,
@@ -289,6 +294,7 @@ export async function listVentesHistory(
           amount: Number(l.amount) || 0,
           kind: l.kind,
           venteLogId: l.venteLogId ? String(l.venteLogId) : null,
+          productId: l.productId ? String(l.productId) : null,
         }),
       );
 
@@ -510,6 +516,7 @@ export type JournalVenteLine = {
   table: string | null;
   produit: string;
   kind?: VenteKind;
+  productId?: string | null;
   qty: number;
   unitPrice: number;
   montant: number;
@@ -580,6 +587,7 @@ export async function listJournalVentes(
         table: t.table,
         produit: l.name,
         kind: l.kind,
+        productId: l.productId ?? null,
         qty: l.qty,
         unitPrice: l.unitPrice,
         montant: l.amount,

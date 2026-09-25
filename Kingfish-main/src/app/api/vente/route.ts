@@ -10,6 +10,7 @@ import {
   authorizeRequestedSite,
   canCorrectClosedFinancialData,
   containsMongoOperator,
+  isValidAuditReason,
   parseFiniteAmount,
 } from "@/lib/security-policy";
 import { ventePermissionsFor } from "@/lib/site-roles-model";
@@ -22,6 +23,7 @@ import { logActivity, logCriticalActivity } from "@/lib/log-activity";
 import { reportError } from "@/lib/report-error";
 import { resolveOperatingDate, ensureActiveCaisseForSite } from "@/lib/caisse-repo";
 import {
+  editVenteFull,
   editVenteQty,
   getVenteBoard,
   recordVente,
@@ -139,7 +141,15 @@ export async function POST(request: Request) {
     const actor = actorOf(user);
     const manager = canManagePastVentes(user.role);
     const body = (await request.json()) as {
-      action?: "sell" | "undo" | "extra" | "edit" | "delete" | "purge" | "scan-qr";
+      action?:
+        | "sell"
+        | "undo"
+        | "extra"
+        | "edit"
+        | "edit-full"
+        | "delete"
+        | "purge"
+        | "scan-qr";
       date?: string;
       site?: VenteSite;
       kind?: VenteKind;
@@ -153,6 +163,8 @@ export async function POST(request: Request) {
       to?: string;
       reason?: string;
       confirm?: boolean;
+      newDate?: string;
+      newTime?: string;
     };
 
     if (containsMongoOperator(body)) {
@@ -269,6 +281,59 @@ export async function POST(request: Request) {
         bypassClosedDay: closedBypass,
         bypassTeam: canBypassTeamIsolation(user.role),
         bypassStock: true,
+      });
+      return NextResponse.json(result);
+    }
+
+    if (body.action === "edit-full") {
+      // Correction complète (date, heure, produit, quantité) — réservée à
+      // l'administrateur, quel que soit le site ou le jour, y compris
+      // clôturé.
+      if (user.role !== "admin") {
+        return NextResponse.json(
+          { error: "Réservé à l'administrateur." },
+          { status: 403 },
+        );
+      }
+      if (!isValidAuditReason(body.reason)) {
+        return NextResponse.json(
+          { error: "Motif d'audit requis (au moins 8 caractères)." },
+          { status: 400 },
+        );
+      }
+      if (!body.id || !body.newDate || !body.newTime || body.qty === undefined) {
+        return NextResponse.json(
+          { error: "id, newDate, newTime et qty requis." },
+          { status: 400 },
+        );
+      }
+      const limited = await tooMany(
+        `vente-edit-full:${user.id}`,
+        40,
+        60 * 60 * 1000,
+        true,
+      );
+      if (limited) return limited;
+      const result = await editVenteFull({
+        id: body.id,
+        site,
+        date: body.date || todayIsoDate(),
+        newDate: body.newDate,
+        newTime: body.newTime,
+        productId: body.productId,
+        qty: body.qty,
+        unitPrice: body.unitPrice,
+        description: body.description,
+        actor,
+      });
+      await logCriticalActivity({
+        user,
+        kind: "pos",
+        title: `Modification vente · ${result.entry.name}`,
+        detail: `Motif : ${String(body.reason).trim()} · ${body.date || "?"} → ${result.entry.date} (${result.entry.at}) · qté ${result.entry.qty} · site ${site === "zogbo" ? "Zogbo" : "Gbégamey"}`,
+        date: result.entry.date,
+        site,
+        amount: result.entry.amount,
       });
       return NextResponse.json(result);
     }

@@ -15,6 +15,7 @@ import { isLegalAccompanimentPrice } from "@/lib/catalog-zogbo";
 import { assertGbegameyPlanningSale } from "@/lib/gbegamey-planning-comptes";
 import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
+import { parseFiniteAmount } from "@/lib/security-policy";
 import type {
   GbegameyLocalLine,
   VenteKind,
@@ -1860,6 +1861,263 @@ export async function editVenteQty(input: {
       unitPrice: doc.unitPrice,
       amount: oldQty < 0 ? -Math.abs(amount) : Math.abs(amount),
       at: doc.at,
+    },
+  };
+}
+
+/** Combine une date (YYYY-MM-DD) et une heure (HH:MM) en horodatage précis,
+ *  au fuseau d'exploitation (Afrique de l'Ouest, UTC+1 fixe, sans heure d'été). */
+function buildVenteAtIso(date: string, time: string): string {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    throw new Error("Heure invalide (format HH:MM).");
+  }
+  const instant = new Date(`${date}T${time}:00+01:00`);
+  if (Number.isNaN(instant.getTime())) throw new Error("Date ou heure invalide.");
+  return instant.toISOString();
+}
+
+/**
+ * Correction complète d'une vente (admin) : date, heure, produit et
+ * quantité — sur n'importe quel site, n'importe quel jour (passé ou déjà
+ * clôturé), à l'heure près.
+ *
+ * Si le jour et le produit restent inchangés, la ligne et son ticket POS
+ * sont corrigés en place (réutilise `editVenteQty`). Si le jour ou le
+ * produit changent, la ligne d'origine est supprimée définitivement
+ * (`deleteVentePermanently`, qui reprend stock/ticket/caisse) puis une
+ * nouvelle ligne est écrite à la date/produit demandés — un ticket POS ne
+ * peut pas « suivre » une vente vers un autre jour, la nouvelle ligne reste
+ * donc au journal, comme les ventes carnet/AquaPro déjà sans ticket.
+ */
+export async function editVenteFull(input: {
+  id: string;
+  site: VenteSite;
+  date: string;
+  newDate: string;
+  newTime: string;
+  /** Nouveau produit (plats/accompagnements/boissons uniquement). */
+  productId?: string;
+  qty: number;
+  /** Prix ou libellé — uniquement pour les ventes hors catalogue (« extra »). */
+  unitPrice?: number;
+  description?: string;
+  actor?: VenteActor | null;
+}): Promise<{
+  board: Awaited<ReturnType<typeof getVenteBoard>>;
+  entry: VenteLogEntry;
+}> {
+  if (!ObjectId.isValid(input.id)) throw new Error("Vente invalide");
+  if (!isValidDate(input.newDate)) throw new Error("Date invalide");
+  const at = buildVenteAtIso(input.newDate, input.newTime);
+
+  const qty = Math.round(Number(input.qty) || 0);
+  if (!Number.isFinite(qty) || qty < 1) {
+    throw new Error("Quantité invalide (minimum 1). Pour supprimer, annulez la vente.");
+  }
+
+  const db = await getDb();
+  const doc = await db.collection<VenteLogDoc>("ventes_log").findOne({
+    _id: new ObjectId(input.id),
+    site: input.site,
+    ...ACTIVE,
+  });
+  if (!doc) throw new Error("Vente introuvable ou déjà annulée");
+  if (input.date && input.date !== doc.date) {
+    throw new Error("Date incohérente avec la vente.");
+  }
+
+  const isExtra = doc.kind === "extra";
+  const productId = isExtra ? doc.productId : input.productId || doc.productId;
+  const signedQty = doc.qty < 0 ? -qty : qty;
+  const dateChanged = input.newDate !== doc.date;
+  const productChanged = productId !== doc.productId;
+
+  let name = doc.name;
+  let unitPrice = doc.unitPrice;
+  let costPrice = doc.costPrice;
+  if (isExtra) {
+    const trimmed = (input.description ?? "").trim();
+    if (trimmed) name = trimmed;
+    const priceOverride = parseFiniteAmount(input.unitPrice, {
+      min: 0,
+      max: 10_000_000,
+    });
+    if (priceOverride !== null) unitPrice = Math.round(priceOverride);
+  } else if (dateChanged || productChanged) {
+    const target = await resolveSoldTarget({
+      date: input.newDate,
+      site: doc.site,
+      kind: doc.kind,
+      productId,
+    });
+    name = target.name;
+    unitPrice = target.unitPrice;
+    costPrice = target.costPrice;
+  }
+
+  const amount = Math.abs(signedQty) * unitPrice;
+  const signedAmount = signedQty > 0 ? amount : -amount;
+
+  if (!dateChanged && !productChanged) {
+    // Correction légère : même jour, même produit — la ligne et son ticket
+    // POS lié restent en place, seuls stock/quantité/heure/libellé bougent.
+    await editVenteQty({
+      id: input.id,
+      date: doc.date,
+      site: doc.site,
+      qty,
+      actor: input.actor,
+      bypassClosedDay: true,
+      bypassTeam: true,
+      bypassStock: true,
+    });
+
+    const extraChanged = isExtra && (unitPrice !== doc.unitPrice || name !== doc.name);
+    const setFields: Record<string, unknown> = { at };
+    if (extraChanged) {
+      setFields.name = name;
+      setFields.unitPrice = unitPrice;
+      setFields.amount = signedAmount;
+    }
+    await db
+      .collection<VenteLogDoc>("ventes_log")
+      .updateOne({ _id: doc._id }, { $set: setFields });
+
+    if (extraChanged) {
+      const ticket = (await db.collection("pos_tickets").findOne({
+        site: doc.site,
+        date: doc.date,
+        "lines.venteLogId": input.id,
+        statut: "valide",
+      })) as PosTicketSnapshot | null;
+      if (ticket) {
+        const lines = (ticket.lines ?? []).map((l) =>
+          l.venteLogId !== input.id
+            ? l
+            : { ...l, name, unitPrice, amount: Math.abs(signedAmount) },
+        );
+        const montantBrut = lines.reduce((s, l) => s + l.amount, 0);
+        const reduction = Math.min(
+          montantBrut,
+          Math.max(0, Number(ticket.reduction) || 0),
+        );
+        const montant = montantBrut - reduction;
+        const deltaTicket = montant - (Number(ticket.montant) || 0);
+        await db
+          .collection("pos_tickets")
+          .updateOne({ _id: ticket._id }, { $set: { lines, montantBrut, reduction, montant } });
+        if (ticket.caisseId && deltaTicket) {
+          await adjustCaisseVenteAmount(String(ticket.caisseId), deltaTicket);
+        }
+      }
+    }
+
+    const board = await getVenteBoard(doc.date, doc.site);
+    return {
+      board,
+      entry: {
+        id: doc._id.toHexString(),
+        date: doc.date,
+        site: doc.site,
+        kind: doc.kind,
+        productId: doc.productId,
+        name,
+        qty: signedQty,
+        unitPrice,
+        amount: signedAmount,
+        at,
+        source: doc.source ?? null,
+      },
+    };
+  }
+
+  // Déplacement de jour et/ou de produit. On réserve d'abord le stock à la
+  // nouvelle date/produit (échoue avant toute suppression si le catalogue
+  // ou le stock refusent), puis on retire l'ancienne ligne (primitive déjà
+  // éprouvée : stock, ticket, caisse repris), et enfin on écrit la nouvelle
+  // ligne — dans cet ordre, un échec tardif laisse l'ancienne ligne intacte.
+  if (!isExtra) {
+    await applySoldDelta({
+      date: input.newDate,
+      site: doc.site,
+      kind: doc.kind,
+      productId,
+      delta: signedQty,
+      maxSold: null,
+    });
+  }
+
+  try {
+    await deleteVentePermanently({
+      id: input.id,
+      date: doc.date,
+      site: doc.site,
+      bypassClosedDay: true,
+    });
+  } catch (error) {
+    if (!isExtra) {
+      await applySoldDelta({
+        date: input.newDate,
+        site: doc.site,
+        kind: doc.kind,
+        productId,
+        delta: -signedQty,
+      }).catch(() => {});
+    }
+    throw error;
+  }
+
+  let insert;
+  try {
+    insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
+      _id: new ObjectId(),
+      date: input.newDate,
+      site: doc.site,
+      kind: doc.kind,
+      productId,
+      name,
+      qty: signedQty,
+      unitPrice,
+      costPrice,
+      amount: signedAmount,
+      at,
+      cancelledAt: null,
+      baseProductId: null,
+      actorId: doc.actorId ?? null,
+      actorName: doc.actorName ?? null,
+      actorUsername: doc.actorUsername ?? null,
+      shift: doc.shift ?? null,
+      source: doc.source ?? null,
+      qrId: productChanged ? null : (doc.qrId ?? null),
+    });
+  } catch (error) {
+    if (!isExtra) {
+      await applySoldDelta({
+        date: input.newDate,
+        site: doc.site,
+        kind: doc.kind,
+        productId,
+        delta: -signedQty,
+      }).catch(() => {});
+    }
+    throw error;
+  }
+
+  const board = await getVenteBoard(input.newDate, doc.site);
+  return {
+    board,
+    entry: {
+      id: insert.insertedId.toHexString(),
+      date: input.newDate,
+      site: doc.site,
+      kind: doc.kind,
+      productId,
+      name,
+      qty: signedQty,
+      unitPrice,
+      amount: signedAmount,
+      at,
+      source: doc.source ?? null,
     },
   };
 }

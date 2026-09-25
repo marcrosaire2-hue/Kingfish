@@ -1,15 +1,45 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { BrandLoader } from "@/components/brand-loader";
+import { RegistreDrawer } from "@/components/registre-drawer";
 import { formatFcfa } from "@/lib/format";
 import { SITE_LABELS } from "@/lib/auth-types";
 import {
   venteActionEnabled,
   type SiteRolesConfig,
 } from "@/lib/site-roles-model";
-import type { JournalVenteDay } from "@/lib/ventes-history-repo";
+import type { JournalVenteDay, JournalVenteLine } from "@/lib/ventes-history-repo";
 import type { UserRole } from "@/lib/auth-types";
+
+type CatalogItem = { id: string; name: string };
+type VenteCatalog = {
+  plat: CatalogItem[];
+  local: CatalogItem[];
+  boisson: CatalogItem[];
+};
+
+type EditForm = {
+  date: string;
+  time: string;
+  productId: string;
+  qty: string;
+  unitPrice: string;
+  description: string;
+  reason: string;
+};
+
+function isoToLocalParts(iso: string): { date: string; time: string } {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("en-CA", { timeZone: "Africa/Porto-Novo" });
+  const time = d.toLocaleTimeString("fr-FR", {
+    timeZone: "Africa/Porto-Novo",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return { date, time };
+}
 
 type SiteFilter = "all" | "zogbo" | "gbegamey";
 
@@ -104,6 +134,12 @@ export function VentesAdminPanel({
   const [flash, setFlash] = useState<string | null>(null);
   const [busyLineId, setBusyLineId] = useState<string | null>(null);
   const [busyTicketId, setBusyTicketId] = useState<string | null>(null);
+  const [canEditFull, setCanEditFull] = useState(false);
+  const [catalog, setCatalog] = useState<VenteCatalog | null>(null);
+  const [editing, setEditing] = useState<JournalVenteLine | null>(null);
+  const [editForm, setEditForm] = useState<EditForm | null>(null);
+  const [editBusy, setEditBusy] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const load = useCallback(async (query: Draft) => {
     setLoading(true);
@@ -126,6 +162,8 @@ export function VentesAdminPanel({
       setDays((body.days ?? []) as JournalVenteDay[]);
       setTotals(body.totals ?? null);
       if (body.sitePolicies) setSitePolicies(body.sitePolicies as SiteRolesConfig);
+      setCanEditFull(!!body.canEditFull);
+      if (body.catalog) setCatalog(body.catalog as VenteCatalog);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Chargement impossible");
     } finally {
@@ -230,6 +268,97 @@ export function VentesAdminPanel({
       setError(e instanceof Error ? e.message : "Suppression impossible");
     } finally {
       setBusyTicketId(null);
+    }
+  }
+
+  function ouvrirEdition(l: JournalVenteLine) {
+    if (!l.venteLogId) return;
+    const { time } = isoToLocalParts(l.at);
+    setEditError(null);
+    setEditing(l);
+    setEditForm({
+      date: l.date,
+      time,
+      productId: l.productId || "",
+      qty: String(Math.abs(l.qty)),
+      unitPrice: String(l.unitPrice),
+      description: l.produit,
+      reason: "",
+    });
+  }
+
+  function fermerEdition() {
+    setEditing(null);
+    setEditForm(null);
+    setEditError(null);
+  }
+
+  const editCatalogOptions = useMemo<CatalogItem[]>(() => {
+    if (!editing || !editForm || !catalog) return [];
+    const kind = editing.kind;
+    if (kind !== "plat" && kind !== "local" && kind !== "boisson") return [];
+    const list = catalog[kind] ?? [];
+    if (
+      editForm.productId &&
+      !list.some((p) => p.id === editForm.productId)
+    ) {
+      return [
+        { id: editForm.productId, name: `${editing.produit} (actuel)` },
+        ...list,
+      ];
+    }
+    return list;
+  }, [editing, editForm, catalog]);
+
+  async function enregistrerEdition(e: FormEvent) {
+    e.preventDefault();
+    if (!editing || !editForm || !editing.venteLogId) return;
+    const qty = Number(editForm.qty);
+    if (!Number.isFinite(qty) || qty < 1) {
+      setEditError("Quantité invalide (minimum 1).");
+      return;
+    }
+    if (editForm.reason.trim().length < 8) {
+      setEditError("Motif d'audit requis (8 caractères minimum).");
+      return;
+    }
+    setEditBusy(true);
+    setEditError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        action: "edit-full",
+        id: editing.venteLogId,
+        date: editing.date,
+        site: editing.site,
+        newDate: editForm.date,
+        newTime: editForm.time,
+        qty,
+        reason: editForm.reason.trim(),
+      };
+      if (editing.kind === "extra") {
+        payload.description = editForm.description;
+        payload.unitPrice = Number(editForm.unitPrice) || 0;
+      } else if (editForm.productId) {
+        payload.productId = editForm.productId;
+      }
+      const res = await fetch("/api/vente", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Modification impossible");
+      setFlash(
+        `Vente « ${body.entry?.name ?? editing.produit} » modifiée avec précision`,
+      );
+      fermerEdition();
+      await load(applied);
+    } catch (err) {
+      setEditError(
+        err instanceof Error ? err.message : "Modification impossible",
+      );
+    } finally {
+      setEditBusy(false);
     }
   }
 
@@ -444,6 +573,17 @@ export function VentesAdminPanel({
                             </td>
                             <td>
                               <span className="reg-actions">
+                                {canEditFull &&
+                                l.venteLogId &&
+                                l.statut === "valide" ? (
+                                  <button
+                                    type="button"
+                                    className="btn-link"
+                                    onClick={() => ouvrirEdition(l)}
+                                  >
+                                    Modifier
+                                  </button>
+                                ) : null}
                                 {suppressionOk ? (
                                   <>
                                     {l.venteLogId ? (
@@ -495,6 +635,136 @@ export function VentesAdminPanel({
           })}
         </div>
       )}
+
+      <RegistreDrawer
+        open={!!editing}
+        onClose={fermerEdition}
+        title="Modifier une vente"
+        subtitle={
+          editing
+            ? `${editing.produit} · ${siteLabel(editing.site)} · ${editing.numero}`
+            : undefined
+        }
+        closeLabel="Fermer la modification de vente"
+      >
+        {editing && editForm ? (
+          <form className="admin-form" onSubmit={enregistrerEdition}>
+            {editError ? (
+              <p className="error-banner" role="alert">
+                {editError}
+              </p>
+            ) : null}
+            <div className="admin-form-grid admin-form-grid-compact">
+              <label className="admin-field">
+                <span>Jour</span>
+                <input
+                  type="date"
+                  value={editForm.date}
+                  onChange={(e) =>
+                    setEditForm((f) => (f ? { ...f, date: e.target.value } : f))
+                  }
+                  required
+                />
+              </label>
+              <label className="admin-field">
+                <span>Heure précise</span>
+                <input
+                  type="time"
+                  value={editForm.time}
+                  onChange={(e) =>
+                    setEditForm((f) => (f ? { ...f, time: e.target.value } : f))
+                  }
+                  required
+                />
+              </label>
+              {editing.kind && editing.kind !== "extra" ? (
+                <label className="admin-field admin-field-full">
+                  <span>Produit</span>
+                  <select
+                    className="select-input"
+                    value={editForm.productId}
+                    onChange={(e) =>
+                      setEditForm((f) =>
+                        f ? { ...f, productId: e.target.value } : f,
+                      )
+                    }
+                  >
+                    {editCatalogOptions.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <>
+                  <label className="admin-field admin-field-full">
+                    <span>Libellé</span>
+                    <input
+                      value={editForm.description}
+                      onChange={(e) =>
+                        setEditForm((f) =>
+                          f ? { ...f, description: e.target.value } : f,
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="admin-field">
+                    <span>Prix unitaire (FCFA)</span>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={editForm.unitPrice}
+                      onChange={(e) =>
+                        setEditForm((f) =>
+                          f ? { ...f, unitPrice: e.target.value } : f,
+                        )
+                      }
+                    />
+                  </label>
+                </>
+              )}
+              <label className="admin-field">
+                <span>Quantité</span>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={editForm.qty}
+                  onChange={(e) =>
+                    setEditForm((f) => (f ? { ...f, qty: e.target.value } : f))
+                  }
+                  required
+                />
+              </label>
+              <label className="admin-field admin-field-full">
+                <span>Motif de la correction</span>
+                <input
+                  value={editForm.reason}
+                  onChange={(e) =>
+                    setEditForm((f) => (f ? { ...f, reason: e.target.value } : f))
+                  }
+                  placeholder="ex. Erreur de saisie caisse, corrigé à la demande de…"
+                  minLength={8}
+                  required
+                />
+              </label>
+            </div>
+            <p className="muted">
+              Correction admin : stock, montant et journal sont recalculés.
+              Si le jour ou le produit changent, le ticket POS d&apos;origine
+              n&apos;est plus lié à cette ligne — la vente reste tracée dans
+              le journal, comme les ventes carnet et AquaPro.
+            </p>
+            <div className="equipe-create-actions">
+              <button type="submit" className="btn btn-primary" disabled={editBusy}>
+                {editBusy ? "Enregistrement…" : "Enregistrer la correction"}
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </RegistreDrawer>
     </div>
   );
 }
