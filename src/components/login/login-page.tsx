@@ -135,7 +135,12 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
           <div className="login-form-wrap">
             <header className="login-form-head">
               <div className="login-form-mark-slot">
-                <BrandLogoMark size="md" className="login-form-mark" alt="" />
+                <BrandLogoMark
+                  size="md"
+                  className="login-form-mark"
+                  alt=""
+                  bare
+                />
               </div>
               <h1 className="login-title">Welcome To KINGFISH</h1>
               <p className="login-form-tag">{APP_TAGLINE}</p>

@@ -10,11 +10,14 @@ const SIZE_PX = { sm: 40, md: 72, lg: 88 } as const;
 export function BrandLogoMark({
   size = "md",
   animated = true,
+  /** Juste le logo — sans halo, orbites ni couronne (ni animés, ni statiques). */
+  bare = false,
   alt = "",
   className = "",
 }: {
   size?: "sm" | "md" | "lg";
   animated?: boolean;
+  bare?: boolean;
   alt?: string;
   className?: string;
 }) {
@@ -22,7 +25,7 @@ export function BrandLogoMark({
   const classes = [
     "kf-mark",
     `kf-mark-${size}`,
-    animated ? "is-animated" : "",
+    animated && !bare ? "is-animated" : "",
     className,
   ]
     .filter(Boolean)
@@ -30,21 +33,25 @@ export function BrandLogoMark({
 
   return (
     <span className={classes} aria-hidden={alt ? undefined : true}>
-      <span className="kf-mark-glow" />
-      <span className="kf-mark-ripple" />
-      <span className="kf-mark-orbit kf-mark-orbit-a" />
-      <span className="kf-mark-orbit kf-mark-orbit-b" />
-      <span className="kf-mark-crown">
-        <span className="kf-mark-spark">
-          <span />
-        </span>
-        <span className="kf-mark-spark">
-          <span />
-        </span>
-        <span className="kf-mark-spark">
-          <span />
-        </span>
-      </span>
+      {bare ? null : (
+        <>
+          <span className="kf-mark-glow" />
+          <span className="kf-mark-ripple" />
+          <span className="kf-mark-orbit kf-mark-orbit-a" />
+          <span className="kf-mark-orbit kf-mark-orbit-b" />
+          <span className="kf-mark-crown">
+            <span className="kf-mark-spark">
+              <span />
+            </span>
+            <span className="kf-mark-spark">
+              <span />
+            </span>
+            <span className="kf-mark-spark">
+              <span />
+            </span>
+          </span>
+        </>
+      )}
       <span className="kf-mark-plate">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
