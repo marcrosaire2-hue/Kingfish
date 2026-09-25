@@ -105,8 +105,15 @@ export function isVenteActionAllowed(
   site: VenteSite,
   action: VentePolicyAction,
 ): boolean {
-  // Règle métier définitive : seule l’admin peut annuler une vente / ticket.
-  if (action === "cancel" && role !== "admin") return false;
+  // Règle métier définitive : seule l’admin peut modifier, supprimer ou
+  // annuler une vente / ticket — même si la config Mongo autorise encore
+  // un autre rôle.
+  if (
+    (action === "cancel" || action === "modify" || action === "delete") &&
+    role !== "admin"
+  ) {
+    return false;
+  }
   return (
     permissionsForSite(config, site)[action] &&
     permissionsForRole(config, role)[action]
@@ -120,12 +127,13 @@ export function ventePermissionsFor(
 ): VentePolicyPermissions {
   const sitePerms = permissionsForSite(config, site);
   const rolePerms = permissionsForRole(config, role);
+  const isAdmin = role === "admin";
   return {
     sell: sitePerms.sell && rolePerms.sell,
-    modify: sitePerms.modify && rolePerms.modify,
-    delete: sitePerms.delete && rolePerms.delete,
-    // Hard gate : même si la config Mongo autorise encore le gérant.
-    cancel: role === "admin" && sitePerms.cancel && rolePerms.cancel,
+    // Hard gate : même si la config Mongo autorise encore un autre rôle.
+    modify: isAdmin && sitePerms.modify && rolePerms.modify,
+    delete: isAdmin && sitePerms.delete && rolePerms.delete,
+    cancel: isAdmin && sitePerms.cancel && rolePerms.cancel,
   };
 }
 

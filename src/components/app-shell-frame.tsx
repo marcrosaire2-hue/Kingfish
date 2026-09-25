@@ -118,12 +118,6 @@ const NAV_ITEMS: {
     groupLabel: "Pilotage",
   },
   {
-    href: "/regularisation",
-    label: "Régularisation",
-    key: "regularisation",
-    group: "pilot",
-  },
-  {
     href: "/historique",
     label: "Registre",
     key: "historique",

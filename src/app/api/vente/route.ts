@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import {
   canBypassTeamIsolation,
-  canManagePastVentes,
+  canManagePastVentesSales,
   canUseSite,
   type UserShift,
 } from "@/lib/auth-types";
@@ -102,7 +102,7 @@ export async function GET(request: Request) {
       );
     }
     const site = siteDecision.site;
-    const allowBackdate = canManagePastVentes(user.role);
+    const allowBackdate = canManagePastVentesSales(user.role);
     const today = todayIsoDate();
     // Jour courant : ouvre la caisse du site automatiquement (Zogbo et
     // Gbégamey indépendantes — chacune à la demande).
@@ -139,7 +139,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const actor = actorOf(user);
-    const manager = canManagePastVentes(user.role);
+    const manager = canManagePastVentesSales(user.role);
     const body = (await request.json()) as {
       action?:
         | "sell"
@@ -180,8 +180,8 @@ export async function POST(request: Request) {
     }
     const site = siteDecision.site;
     const siteRoles = await getSiteRolesConfig();
-    // Gérant / DAF / admin / comptable : corriger un jour passé (ouvert ou
-    // clôturé). La suppression définitive et la purge restent admin-only.
+    // Corriger un jour de vente passé (ouvert ou clôturé), modifier,
+    // supprimer ou purger une vente : admin uniquement.
     const closedBypass = manager;
 
     if (body.action === "scan-qr") {

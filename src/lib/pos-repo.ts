@@ -2,6 +2,7 @@ import { ObjectId } from "mongodb";
 import {
   canBypassTeamIsolation,
   canManagePastVentes,
+  canManagePastVentesSales,
   effectiveShift,
   type SessionUser,
 } from "@/lib/auth-types";
@@ -203,7 +204,8 @@ export async function validatePosTicket(input: {
   if (!input.lines.length) throw new Error("Panier vide");
 
   const today = todayIsoDate();
-  const manager = canManagePastVentes(input.user.role);
+  // Enregistrer une vente à une date passée : admin uniquement.
+  const manager = canManagePastVentesSales(input.user.role);
   const isBackdate = manager && Boolean(input.date) && input.date < today;
   const serviceDate = isBackdate && input.date ? input.date : today;
   assertZogboPlanningSale({

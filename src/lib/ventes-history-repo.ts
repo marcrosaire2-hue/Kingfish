@@ -602,9 +602,10 @@ export async function listJournalVentes(
     a.date < b.date ? 1 : a.date > b.date ? -1 : 0,
   );
 
+  // Heure la plus récente en premier, au sein de chaque jour.
   for (const d of days) {
     d.lines.sort((a, b) =>
-      a.at === b.at ? a.produit.localeCompare(b.produit) : a.at < b.at ? -1 : 1,
+      a.at === b.at ? a.produit.localeCompare(b.produit) : a.at < b.at ? 1 : -1,
     );
   }
 
