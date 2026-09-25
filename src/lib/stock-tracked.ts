@@ -26,13 +26,17 @@ export function isDrinkStockTracked(
 
 /**
  * Faut-il plaquer les ventes au stock ?
- * - forçage admin journée (`dayFreeSale === false`) → tous les produits
- * - sinon → seulement les produits marqués suivis
+ * Décision purement journalière (`dayFreeSale`, réglage « Vente selon le
+ * stock » côté admin) — un produit individuellement marqué suivi ne plaque
+ * plus les ventes tant que la journée est en vente libre. Un comptage
+ * périmé (même 0, saisi à une ouverture) ne doit jamais, à lui seul,
+ * bloquer une vente : seul le forçage explicite du jour (`dayFreeSale ===
+ * false`) réactive le plafond, pour tous les produits.
  */
 export function shouldEnforceProductStock(input: {
   dayFreeSale: boolean;
   productTracked: boolean;
 }): boolean {
-  if (!input.dayFreeSale) return true;
-  return input.productTracked;
+  void input.productTracked;
+  return !input.dayFreeSale;
 }
