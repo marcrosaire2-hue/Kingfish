@@ -83,7 +83,30 @@ describe("site-roles-model", () => {
       "zogbo",
     );
     expect(perms.sell).toBe(false);
-    expect(perms.modify).toBe(true);
+    // Modifier une vente est réservé à l'admin, même si la matrice de rôle
+    // autorise encore "modify" pour ce rôle.
+    expect(perms.modify).toBe(false);
+  });
+
+  it("réserve modifier/supprimer une vente à l'admin, même si la config l'autorise pour un autre rôle", () => {
+    const config = {
+      ...DEFAULT_SITE_ROLES_CONFIG,
+      roles: {
+        ...DEFAULT_SITE_ROLES_CONFIG.roles,
+        gerant: { sell: true, modify: true, delete: true, cancel: true },
+      },
+    };
+    expect(isVenteActionAllowed(config, "gerant", "zogbo", "modify")).toBe(
+      false,
+    );
+    expect(isVenteActionAllowed(config, "gerant", "zogbo", "delete")).toBe(
+      false,
+    );
+    expect(isVenteActionAllowed(config, "admin", "zogbo", "modify")).toBe(
+      true,
+    );
+    expect(ventePermissionsFor(config, "gerant", "zogbo").modify).toBe(false);
+    expect(ventePermissionsFor(config, "gerant", "zogbo").delete).toBe(false);
   });
 });
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canManagePastVentes, canUseSite } from "@/lib/auth-types";
+import { canManagePastVentesSales, canUseSite } from "@/lib/auth-types";
 import {
   authorizeRequestedSite,
   canCorrectClosedFinancialData,
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
       getPosContext({
         date: requested,
         site,
-        allowBackdate: canManagePastVentes(user.role),
+        allowBackdate: canManagePastVentesSales(user.role),
         user,
       }),
       getSiteRolesConfig(),
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
     const ventePerms = ventePermissionsFor(siteRoles, user.role, site);
     return NextResponse.json({
       ...ctx,
-      canManagePast: canManagePastVentes(user.role) && ventePerms.modify,
+      canManagePast: canManagePastVentesSales(user.role) && ventePerms.modify,
       canPurge: ventePerms.delete,
       lockedSite: user.site !== "tous",
       allowedSites:

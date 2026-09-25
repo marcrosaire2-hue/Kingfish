@@ -236,8 +236,9 @@ function groupByTicket(lines: JournalVenteLine[]): TicketGroup[] {
     g.lines.push(l);
     g.montant += l.montant;
   }
+  // Heure la plus récente en premier.
   return [...map.values()].sort((a, b) =>
-    a.at === b.at ? a.numero.localeCompare(b.numero) : a.at < b.at ? -1 : 1,
+    a.at === b.at ? a.numero.localeCompare(b.numero) : a.at < b.at ? 1 : -1,
   );
 }
 

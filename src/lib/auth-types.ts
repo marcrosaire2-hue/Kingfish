@@ -290,7 +290,6 @@ export type NavKey =
   | "historique"
   | "journal-ventes"
   | "quantites-vendues"
-  | "regularisation"
   | "immobilisations"
   | "stock"
   | "admin"
@@ -315,8 +314,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "journal-ventes",
     // Volumes vendus par article (période).
     "quantites-vendues",
-    // Saisie / correction / annulation des ventes d'un jour passé.
-    "regularisation",
     "rapport-quotidien",
     "controle",
   ],
@@ -376,7 +373,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "reglages",
     "journal-ventes",
     "quantites-vendues",
-    "regularisation",
     "stock",
     "immobilisations",
     "historique",
@@ -434,7 +430,6 @@ export function roleNavUnscoped(
 const DAF_DENIED_NAV: readonly NavKey[] = [
   "vente",
   "pertes",
-  "regularisation",
   "historique",
   "reglages",
   "comptabilite",
@@ -610,9 +605,6 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/quantites-vendues")) {
     return allowed.includes("quantites-vendues");
   }
-  if (pathname.startsWith("/regularisation")) {
-    return allowed.includes("regularisation");
-  }
   if (pathname.startsWith("/immobilisations")) {
     return allowed.includes("immobilisations");
   }
@@ -674,8 +666,9 @@ export function canUseSite(
 
 /**
  * Gérant, DAF, admin et comptable : saisir / corriger un jour *ouvert* passé
- * (ventes, stock, achats, pertes). Ne contourne pas une clôture :
- * voir canCorrectClosedFinancialData.
+ * (stock, achats, pertes). Ne couvre plus les ventes — voir
+ * canManagePastVentesSales — et ne contourne pas une clôture : voir
+ * canCorrectClosedFinancialData.
  */
 export function canManagePastVentes(role: UserRole): boolean {
   return (
@@ -683,6 +676,15 @@ export function canManagePastVentes(role: UserRole): boolean {
     role === "comptable" ||
     hasDirectionAccess(role)
   );
+}
+
+/**
+ * Ventes : enregistrer, modifier ou supprimer un jour passé — admin
+ * uniquement. Le gérant ne peut plus régulariser une vente après coup, ni
+ * la page Régularisation (retirée) ne le permettait.
+ */
+export function canManagePastVentesSales(role: UserRole): boolean {
+  return role === "admin";
 }
 
 /** Seuls admin / DAF contournent l’isolation entre équipes de vente. */

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canManagePastVentes } from "@/lib/auth-types";
+import { canManagePastVentesSales } from "@/lib/auth-types";
 import { resolveVentesHistorySite } from "@/lib/security-policy";
 import {
   listJournalVentes,
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
       site: siteDecision.site,
       lockedSite: siteDecision.lockedSite,
       allowedSites: siteDecision.allowedSites,
-      canManagePast: canManagePastVentes(user.role) && rolePerms.modify,
+      canManagePast: canManagePastVentesSales(user.role) && rolePerms.modify,
       canPurge: rolePerms.delete,
       canEditFull: user.role === "admin",
       sitePolicies: siteRoles,

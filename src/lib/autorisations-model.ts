@@ -236,16 +236,6 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view"],
   },
   {
-    id: "regularisation",
-    navKey: "regularisation",
-    label: "Régularisation",
-    path: "/regularisation",
-    category: "pilotage",
-    description: "Saisie / correction de jours passés.",
-    actions: ["access", "create", "update", "delete"],
-    sensitive: true,
-  },
-  {
     id: "historique",
     navKey: "historique",
     label: "Registre d’activité",

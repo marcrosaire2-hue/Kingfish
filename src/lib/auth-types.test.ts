@@ -3,6 +3,7 @@ import {
   assertAdminCanManageTarget,
   canAccessPath,
   canManagePastVentes,
+  canManagePastVentesSales,
   canWriteStock,
   defaultSiteForRole,
   effectiveSite,
@@ -191,13 +192,20 @@ describe("l'API suit les droits de l'écran", () => {
     expect(canAccessPath("admin", "/comptabilite", "tous")).toBe(false);
   });
 
-  it("réserve la correction des ventes passées au gérant et à l'admin", () => {
+  it("réserve la correction des jours passés (stock, achats, pertes) au gérant et à l'admin", () => {
     expect(canManagePastVentes("gerant")).toBe(true);
     expect(canManagePastVentes("admin")).toBe(true);
     expect(canManagePastVentes("comptable")).toBe(true);
-    expect(canAccessPath("gerant", "/regularisation", "zogbo")).toBe(true);
-    expect(canAccessPath("comptable", "/regularisation", "tous")).toBe(false);
-    expect(navForUser("gerant", "zogbo")).toContain("regularisation");
+  });
+
+  it("réserve la régularisation des ventes passées à l'admin seul", () => {
+    expect(canManagePastVentesSales("gerant")).toBe(false);
+    expect(canManagePastVentesSales("comptable")).toBe(false);
+    expect(canManagePastVentesSales("daf")).toBe(false);
+    expect(canManagePastVentesSales("admin")).toBe(true);
+    expect(canAccessPath("gerant", "/regularisation", "zogbo")).toBe(false);
+    expect(navForUser("gerant", "zogbo")).not.toContain("regularisation");
+    expect(navForUser("admin", "zogbo")).not.toContain("regularisation");
   });
 
   it("ouvre Paramètres au gérant (catalogue et prix)", () => {
@@ -409,7 +417,6 @@ describe("l'API suit les droits de l'écran", () => {
     const navAvecOps = [
       "vente",
       "pertes",
-      "regularisation",
       "historique",
       "reglages",
       "comptabilite",
