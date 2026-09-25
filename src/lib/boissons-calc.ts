@@ -187,9 +187,16 @@ export function normalizeBoissonsLine(line: LegacyBoissonsLine): BoissonsLine {
     pertesGbegamey,
     countedGbegamey,
     observations: String(line.observations ?? ""),
-    ...(line.stockTrackedZogbo === true ? { stockTrackedZogbo: true } : {}),
-    ...(line.stockTrackedGbegamey === true
-      ? { stockTrackedGbegamey: true }
+    // Tri-état préservé (true/false explicites) — seul un champ jamais
+    // renseigné (undefined) retombe sur l'inférence historique par
+    // comptage. Un `false` explicite ne doit pas disparaître : c'est la
+    // seule façon de « dé-suivre » un produit après un comptage périmé.
+    ...(line.stockTrackedZogbo === true || line.stockTrackedZogbo === false
+      ? { stockTrackedZogbo: line.stockTrackedZogbo }
+      : {}),
+    ...(line.stockTrackedGbegamey === true ||
+    line.stockTrackedGbegamey === false
+      ? { stockTrackedGbegamey: line.stockTrackedGbegamey }
       : {}),
   };
 }

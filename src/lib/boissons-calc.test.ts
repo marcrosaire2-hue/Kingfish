@@ -262,6 +262,28 @@ describe("normalizeBoissonsLine", () => {
     expect(l.soldZogbo).toBe(2);
     expect(l.soldGbegamey).toBe(1);
   });
+
+  it("préserve un stockTracked explicitement à false, pas seulement à true", () => {
+    // Un comptage périmé (ex. 0 saisi à l'ouverture) plaque sinon la vente
+    // au stock même en mode vente libre : la seule échappatoire est de
+    // dé-suivre le produit explicitement, et ce `false` ne doit pas
+    // disparaître à la relecture.
+    expect(
+      normalizeBoissonsLine(ligne({ stockTrackedGbegamey: true }))
+        .stockTrackedGbegamey,
+    ).toBe(true);
+    expect(
+      normalizeBoissonsLine(ligne({ stockTrackedGbegamey: false }))
+        .stockTrackedGbegamey,
+    ).toBe(false);
+    expect(
+      normalizeBoissonsLine(ligne({})).stockTrackedGbegamey,
+    ).toBeUndefined();
+    expect(
+      normalizeBoissonsLine(ligne({ stockTrackedZogbo: false }))
+        .stockTrackedZogbo,
+    ).toBe(false);
+  });
 });
 
 describe("formatCasiers", () => {
