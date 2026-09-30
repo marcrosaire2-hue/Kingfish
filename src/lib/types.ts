@@ -1106,3 +1106,20 @@ export type CompteurReleve = {
   updatedById?: string | null;
   updatedByName?: string | null;
 };
+
+export type FondsCaisse = {
+  id: string;
+  date: string;
+  caisse: CaisseKey;
+  site: VenteSite | null;
+  soldePrevision: number;
+  soldeReel: number;
+  ecart: number;
+  justificationEcart?: string | null;
+  actorId: string;
+  actorName: string;
+  createdAt: string;
+  updatedAt?: string | null;
+  updatedById?: string | null;
+  updatedByName?: string | null;
+};

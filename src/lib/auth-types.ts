@@ -272,6 +272,7 @@ export function userVisibleToAdmin(
 export type NavKey =
   | "vente"
   | "caisse"
+  | "fonds-caisse"
   | "mouvements-caisse"
   | "depenses"
   | "appro"
@@ -303,6 +304,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "zogbo",
     "gbegamey",
     "caisse",
+    "fonds-caisse",
     "depenses",
     "versements",
     "appro",
@@ -546,6 +548,9 @@ function canAccessPathWithAllowed(
   }
   if (pathname.startsWith("/vente")) return allowed.includes("vente");
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");
+  if (pathname.startsWith("/fonds-caisse")) {
+    return allowed.includes("fonds-caisse");
+  }
   if (pathname.startsWith("/mouvements-caisse")) {
     return allowed.includes("mouvements-caisse");
   }

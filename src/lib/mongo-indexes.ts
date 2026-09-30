@@ -112,4 +112,20 @@ export const MONGO_INDEXES: MongoIndexDef[] = [
     index: { username: 1, at: -1 },
     name: "user_recent",
   },
+  {
+    collection: "fonds_caisse",
+    index: { date: -1, caisse: 1 },
+    name: "jour_caisse",
+  },
+  {
+    collection: "fonds_caisse",
+    index: { date: 1, caisse: 1 },
+    name: "date_caisse_unique",
+    unique: true,
+  },
+  {
+    collection: "fonds_caisse",
+    index: { site: 1, date: -1 },
+    name: "site_jour",
+  },
 ];

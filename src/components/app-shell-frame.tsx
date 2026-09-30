@@ -68,6 +68,12 @@ const NAV_ITEMS: {
     groupLabel: "Trésorerie",
   },
   {
+    href: "/fonds-caisse",
+    label: "Fonds de Caisse",
+    key: "fonds-caisse",
+    group: "cash",
+  },
+  {
     href: "/depenses",
     label: "Dépenses",
     key: "depenses",
