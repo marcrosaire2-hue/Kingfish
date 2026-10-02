@@ -670,8 +670,8 @@ export function DonutChart({
                 className="chart-swatch chart-swatch-round"
                 style={{ background: sl.color }}
               />
-              <span className="chart-legend-label">
-                {sl.label}
+              <span className="chart-legend-label" title={sl.label}>
+                <span className="chart-legend-name">{sl.label}</span>
                 <em>{pct}%</em>
               </span>
               <strong className="mono">{formatFcfa(sl.value)}</strong>

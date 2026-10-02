@@ -6810,6 +6810,7 @@ select {
 }
 
 .chart-legend-stack li strong {
+  min-width: 0;
   white-space: nowrap;
   font-size: clamp(0.78rem, 2.2vw, 0.88rem);
   color: var(--ink);
@@ -6824,7 +6825,15 @@ select {
   font-weight: 650;
 }
 
+.chart-legend-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chart-legend-label em {
+  flex-shrink: 0;
   font-style: normal;
   font-size: 0.72rem;
   font-weight: 800;
