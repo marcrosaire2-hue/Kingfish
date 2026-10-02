@@ -141,6 +141,16 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "create", "update", "admin"],
   },
   {
+    id: "fonds-caisse",
+    navKey: "fonds-caisse",
+    label: "Fonds de caisse",
+    path: "/fonds-caisse",
+    category: "quotidien",
+    description:
+      "Saisie du solde prévisionnel et réel par site. Admin : suivi en lecture seule et export.",
+    actions: ["access", "view", "create", "update"],
+  },
+  {
     id: "depenses",
     navKey: "depenses",
     label: "Dépenses",

@@ -130,3 +130,20 @@ export async function listFondsCaisseForSite(
     .toArray();
   return docs.map((doc) => toFondsCaisse(doc as FondsCaisseDoc));
 }
+
+export async function listFondsCaisseAll(dateFrom?: string, dateTo?: string) {
+  const db = await getDb();
+  const filter: Record<string, unknown> = {};
+  if (dateFrom || dateTo) {
+    const range: Record<string, string> = {};
+    if (dateFrom) range.$gte = dateFrom;
+    if (dateTo) range.$lte = dateTo;
+    filter.date = range;
+  }
+  const docs = await db
+    .collection("fonds_caisse")
+    .find(filter)
+    .sort({ date: -1, createdAt: -1 })
+    .toArray();
+  return docs.map((doc) => toFondsCaisse(doc as FondsCaisseDoc));
+}
