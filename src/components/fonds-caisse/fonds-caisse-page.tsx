@@ -16,9 +16,17 @@ import { formatFcfa } from "@/lib/format";
 import type { CaisseKey, FondsCaisse } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import { useSession } from "@/components/session-provider";
+import { FondsCaisseSuivi } from "@/components/fonds-caisse/fonds-caisse-suivi";
 import "@/components/achats/achats-page.css";
 
 export function FondsCaissePage() {
+  const session = useSession();
+  if (!session?.user) return <BrandLoader />;
+  if (session.user.role === "admin") return <FondsCaisseSuivi />;
+  return <FondsCaisseSaisie />;
+}
+
+function FondsCaisseSaisie() {
   const session = useSession();
   const [selectedCaisse, setSelectedCaisse] = useState<CaisseKey>(
     session?.user ? defaultCaisse(session.user) : "gbegamey",

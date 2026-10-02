@@ -39,7 +39,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url);
     const dateFrom =
-      searchParams.get("dateFrom") || todayIsoDate().slice(0, 8) + "01";
+      searchParams.get("dateFrom") || "2000-01-01";
     const dateTo = searchParams.get("dateTo") || todayIsoDate();
     const sites = sitesAutorises(user);
 

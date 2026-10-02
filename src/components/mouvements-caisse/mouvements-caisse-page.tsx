@@ -51,10 +51,6 @@ const KIND_LABELS: Record<CaisseMouvement["kind"], string> = {
 type KindFilter = "tous" | "depense" | "versement-entree" | "recette";
 type SiteFilter = "tous" | "zogbo" | "gbegamey";
 
-function monthStart(d = todayIsoDate()) {
-  return `${d.slice(0, 7)}-01`;
-}
-
 function formatAt(iso: string) {
   try {
     return new Intl.DateTimeFormat("fr-FR", {
@@ -75,7 +71,7 @@ export function MouvementsCaissePage() {
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
-  const [dateFrom, setDateFrom] = useState(monthStart);
+  const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState(todayIsoDate);
   const [siteFilter, setSiteFilter] = useState<SiteFilter>("tous");
   const [kindFilter, setKindFilter] = useState<KindFilter>("tous");
