@@ -10,7 +10,6 @@ import {
   type FormEvent,
 } from "react";
 import { AppShell } from "@/components/app-shell";
-import { BrandLoader } from "@/components/brand-loader";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { CataloguePaginationBar } from "@/components/parametres/catalogue-view";
 import { useSession } from "@/components/session-provider";
@@ -691,8 +690,34 @@ export function VersementsPage() {
             : "Vérifiez la preuve puis confirmez la transaction."
       }
       mainClassName="main-versements"
-      actions={
-        <>
+    >
+      <div className="versements-page">
+        <header className="vs-banner">
+          <span className="vs-banner-ico" aria-hidden>
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 7h16v12H4V7Zm0 3h16M15 15h2M7 4h10" />
+            </svg>
+          </span>
+          <div className="vs-banner-copy">
+            <h2>Versements</h2>
+            <p>
+              {isReaderOnly
+            ? "Consultation des déclarations et confirmations."
+            : canDeclare
+              ? "Déclarez, modifiez ou annulez un versement en attente, puis suivez les confirmations."
+              : "Vérifiez la preuve puis confirmez la transaction."}
+            </p>
+          </div>
+          <div className="vs-banner-side">
+            {isReaderOnly ? (
+              <span className="vs-readonly">
+                <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+                  <path d="M6 11h12v9H6v-9Zm2 0V8a4 4 0 0 1 8 0v3" />
+                </svg>
+                Lecture seule
+              </span>
+            ) : null}
+            <div className="vs-banner-actions">
           <ExportExcelButton
             disabled={loading || filtered.length === 0}
             className="btn btn-ghost"
@@ -739,182 +764,30 @@ export function VersementsPage() {
               {totals.pending} à confirmer
             </button>
           ) : null}
-        </>
-      }
-    >
-      <div className="versements-page">
-        <section className="vs-hero" aria-label="Synthèse des versements">
-          <div className="vs-hero-ca">
-            <span className="vs-kicker">
-              Total période
-              {followAll && filterSite !== "all" ? (
-                <i className="vs-hero-site">{SITE_LABELS[filterSite]}</i>
-              ) : null}
-            </span>
-            <strong className="vs-hero-value mono">
-              {loading ? "…" : formatFcfa(totals.totalAmount)}
-            </strong>
-            <p className="vs-hero-hint">{periodHint}</p>
-            <p className="vs-hero-meta">
-              {loading
-                ? "Chargement…"
-                : `${totals.totalCount} versement${totals.totalCount > 1 ? "s" : ""}`}
-            </p>
-          </div>
-          <div className="vs-hero-side">
-            <div className="vs-kpis">
-              <button
-                type="button"
-                className={`vs-kpi is-pending${statutFilter === "en_attente" ? " is-on" : ""}`}
-                onClick={() =>
-                  setStatutFilter(
-                    statutFilter === "en_attente" ? "all" : "en_attente",
-                  )
-                }
-              >
-                <span>À confirmer</span>
-                <strong className="mono">
-                  {loading ? "…" : formatFcfa(totals.pendingAmount)}
-                </strong>
-                <em>
-                  {loading
-                    ? "…"
-                    : `${totals.pending} en attente`}
-                </em>
-              </button>
-              <button
-                type="button"
-                className={`vs-kpi is-ok${statutFilter === "confirmee" ? " is-on" : ""}`}
-                onClick={() =>
-                  setStatutFilter(
-                    statutFilter === "confirmee" ? "all" : "confirmee",
-                  )
-                }
-              >
-                <span>Confirmés</span>
-                <strong className="mono">
-                  {loading ? "…" : formatFcfa(totals.confirmedAmount)}
-                </strong>
-                <em>
-                  {loading
-                    ? "…"
-                    : `${totals.confirmed} verrouillé${totals.confirmed > 1 ? "s" : ""}`}
-                </em>
-              </button>
-            </div>
-            <div className="vs-mix" aria-hidden={mixTotal === 0}>
-              <div className="vs-mix-bar">
-                {mixTotal > 0 ? (
-                  <>
-                    <span
-                      className="vs-mix-seg is-pending"
-                      style={{
-                        width: `${(totals.pendingAmount / mixTotal) * 100}%`,
-                      }}
-                    />
-                    <span
-                      className="vs-mix-seg is-ok"
-                      style={{
-                        width: `${(totals.confirmedAmount / mixTotal) * 100}%`,
-                      }}
-                    />
-                  </>
-                ) : null}
-              </div>
-              <p className="vs-mix-legend">
-                En attente vs confirmé — cliquez un indicateur pour filtrer
-              </p>
             </div>
           </div>
-        </section>
-
-        <section className="panel vs-compare" aria-label="Ventes du jour vs versements">
-          <div className="vs-compare-head">
-            <h2>Ventes vs versements</h2>
-            <p className="vs-compare-hint">
-              Total encaissé au point de vente (matin / soir / nuit) face aux
-              versements déclarés sur la même tranche, pour repérer un écart.
-            </p>
-          </div>
-          {ventesTotalsLoading || loading ? (
-            <BrandLoader label="Chargement du comparatif…" />
-          ) : comparisonDays.length === 0 ? (
-            <p className="vs-compare-empty">Aucune vente ni versement sur cette période.</p>
-          ) : (
-            <div className="table-scroll vs-compare-table-wrap">
-              <table className="data-table vs-compare-table">
-                <thead>
-                  <tr>
-                    <th rowSpan={2}>Jour</th>
-                    {followAll ? <th rowSpan={2}>Zone</th> : null}
-                    <th className="vs-compare-group" colSpan={2}>
-                      Matin
-                    </th>
-                    <th className="vs-compare-group" colSpan={2}>
-                      Soir
-                    </th>
-                    <th className="vs-compare-group" colSpan={2}>
-                      Nuit
-                    </th>
-                    <th className="vs-compare-group" colSpan={2}>
-                      Total
-                    </th>
-                  </tr>
-                  <tr>
-                    <th className="num">Ventes</th>
-                    <th className="num">Versé</th>
-                    <th className="num">Ventes</th>
-                    <th className="num">Versé</th>
-                    <th className="num">Ventes</th>
-                    <th className="num">Versé</th>
-                    <th className="num">Ventes</th>
-                    <th className="num">Versé</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {comparisonDays.map((row) => (
-                    <tr key={`${row.date}|${row.site}`}>
-                      <td className="vs-td-date">{formatDateFr(row.date)}</td>
-                      {followAll ? <td>{SITE_LABELS[row.site]}</td> : null}
-                      <td className="num mono">{formatFcfa(row.ventes.matin)}</td>
-                      <td className="num mono">{formatFcfa(row.verse.matin)}</td>
-                      <td className="num mono">{formatFcfa(row.ventes.soir)}</td>
-                      <td className="num mono">{formatFcfa(row.verse.soir)}</td>
-                      <td className="num mono">{formatFcfa(row.ventes.nuit)}</td>
-                      <td className="num mono">{formatFcfa(row.verse.nuit)}</td>
-                      <td className="num mono vs-td-amount">
-                        {formatFcfa(row.ventes.total)}
-                      </td>
-                      <td className="num mono vs-td-amount">
-                        {formatFcfa(row.verse.total)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-
-        {error ? (
-          <p className="error-banner" role="alert">
-            {error}
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={() => void charger()}
-            >
-              Réessayer
-            </button>
-          </p>
-        ) : null}
-        {flash ? (
-          <p className="vs-flash" role="status">
-            {flash}
-          </p>
-        ) : null}
+          <svg className="vs-banner-art" viewBox="0 0 220 120" aria-hidden focusable="false">
+            <ellipse cx="120" cy="110" rx="90" ry="10" fill="#d7e8f8" />
+            <rect x="92" y="14" width="64" height="86" rx="8" fill="#fff" stroke="#bcd6ee" />
+            <path d="M104 34h40M104 48h40M104 62h28" stroke="#bcd6ee" strokeWidth="5" strokeLinecap="round" />
+            <rect x="46" y="38" width="62" height="74" rx="10" fill="#1d6fd6" />
+            <rect x="56" y="48" width="42" height="16" rx="4" fill="#cfe4fb" />
+            <g fill="#8dbcf0">
+              <circle cx="62" cy="78" r="5" /><circle cx="77" cy="78" r="5" /><circle cx="92" cy="78" r="5" />
+              <circle cx="62" cy="94" r="5" /><circle cx="77" cy="94" r="5" /><circle cx="92" cy="94" r="5" />
+            </g>
+            <ellipse cx="146" cy="104" rx="20" ry="7" fill="#f5b400" />
+            <ellipse cx="146" cy="99" rx="20" ry="7" fill="#ffd45a" />
+          </svg>
+        </header>
 
         <section className="panel vs-toolbar" aria-label="Filtres du registre">
+          <h2 className="vs-toolbar-title">
+            <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+              <path d="M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4" />
+            </svg>
+            Période de consultation
+          </h2>
           <div className="vs-toolbar-top">
             {followAll ? (
               <div className="vs-periods" role="tablist" aria-label="Période">
@@ -994,6 +867,9 @@ export function VersementsPage() {
             </div>
             <label className="vs-search">
               <span className="sr-only">Recherche</span>
+              <svg className="vs-search-ico" viewBox="0 0 24 24" aria-hidden focusable="false">
+                <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm9 16-4-4" />
+              </svg>
               <input
                 type="search"
                 placeholder="N°, nom, site…"
@@ -1001,6 +877,20 @@ export function VersementsPage() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </label>
+            <button
+              type="button"
+              className="vs-refresh"
+              disabled={loading}
+              onClick={() => {
+                void charger();
+                void chargerVentes();
+              }}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+                <path d="M20 12a8 8 0 1 1-2.3-5.6M20 4v6h-6" />
+              </svg>
+              Actualiser
+            </button>
           </div>
           <div className="vs-toolbar-row">
             {followAll ? (
@@ -1071,6 +961,192 @@ export function VersementsPage() {
             ) : null}
           </div>
         </section>
+
+        <section className="vs-hero" aria-label="Synthèse des versements">
+          <div className="vs-hero-ca">
+            <i className="vs-card-ico" aria-hidden>
+              <svg viewBox="0 0 24 24" focusable="false"><path d="M5 5h14v14H5V5Zm3 4h8M8 13h3m2 0h3M8 16h3m2 0h3" /></svg>
+            </i>
+            <span className="vs-kicker">
+              Total période
+              {followAll && filterSite !== "all" ? (
+                <i className="vs-hero-site">{SITE_LABELS[filterSite]}</i>
+              ) : null}
+            </span>
+            <strong className="vs-hero-value mono">
+              {loading ? "…" : formatFcfa(totals.totalAmount)}
+            </strong>
+            <p className="vs-hero-hint">{periodHint}</p>
+            <p className="vs-hero-meta">
+              {loading
+                ? "Chargement…"
+                : `${totals.totalCount} versement${totals.totalCount > 1 ? "s" : ""}`}
+            </p>
+          </div>
+          <div className="vs-hero-side">
+            <div className="vs-kpis">
+              <button
+                type="button"
+                className={`vs-kpi is-pending${statutFilter === "en_attente" ? " is-on" : ""}`}
+                onClick={() =>
+                  setStatutFilter(
+                    statutFilter === "en_attente" ? "all" : "en_attente",
+                  )
+                }
+              >
+                <i className="vs-card-ico" aria-hidden>
+                  <svg viewBox="0 0 24 24" focusable="false"><path d="M12 7v5l3 2M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
+                </i>
+                <span>À confirmer</span>
+                <strong className="mono">
+                  {loading ? "…" : formatFcfa(totals.pendingAmount)}
+                </strong>
+                <em>
+                  {loading
+                    ? "…"
+                    : `${totals.pending} en attente`}
+                </em>
+              </button>
+              <button
+                type="button"
+                className={`vs-kpi is-ok${statutFilter === "confirmee" ? " is-on" : ""}`}
+                onClick={() =>
+                  setStatutFilter(
+                    statutFilter === "confirmee" ? "all" : "confirmee",
+                  )
+                }
+              >
+                <i className="vs-card-ico" aria-hidden>
+                  <svg viewBox="0 0 24 24" focusable="false"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-4-9 3 3 5-6" /></svg>
+                </i>
+                <span>Confirmés</span>
+                <strong className="mono">
+                  {loading ? "…" : formatFcfa(totals.confirmedAmount)}
+                </strong>
+                <em>
+                  {loading
+                    ? "…"
+                    : `${totals.confirmed} verrouillé${totals.confirmed > 1 ? "s" : ""}`}
+                </em>
+              </button>
+            </div>
+            <div className="vs-mix" aria-hidden={mixTotal === 0}>
+              <div className="vs-mix-bar">
+                {mixTotal > 0 ? (
+                  <>
+                    <span
+                      className="vs-mix-seg is-pending"
+                      style={{
+                        width: `${(totals.pendingAmount / mixTotal) * 100}%`,
+                      }}
+                    />
+                    <span
+                      className="vs-mix-seg is-ok"
+                      style={{
+                        width: `${(totals.confirmedAmount / mixTotal) * 100}%`,
+                      }}
+                    />
+                  </>
+                ) : null}
+              </div>
+              <p className="vs-mix-legend">
+                En attente vs confirmé — cliquez un indicateur pour filtrer
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel vs-compare" aria-label="Ventes du jour vs versements">
+          <div className="vs-compare-head">
+            <i className="vs-card-ico" aria-hidden>
+              <svg viewBox="0 0 24 24" focusable="false"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
+            </i>
+            <h2>Ventes vs versements</h2>
+            <p className="vs-compare-hint">
+              Total encaissé au point de vente (matin / soir / nuit) face aux
+              versements déclarés sur la même tranche, pour repérer un écart.
+            </p>
+          </div>
+          {ventesTotalsLoading || loading ? (
+            <div className="vs-skeleton" aria-busy="true" aria-label="Chargement du comparatif">
+              <span /><span /><span />
+            </div>
+          ) : comparisonDays.length === 0 ? (
+            <p className="vs-compare-empty">Aucune vente ni versement sur cette période.</p>
+          ) : (
+            <div className="table-scroll vs-compare-table-wrap">
+              <table className="data-table vs-compare-table">
+                <thead>
+                  <tr>
+                    <th rowSpan={2}>Jour</th>
+                    {followAll ? <th rowSpan={2}>Zone</th> : null}
+                    <th className="vs-compare-group" colSpan={2}>
+                      Matin
+                    </th>
+                    <th className="vs-compare-group" colSpan={2}>
+                      Soir
+                    </th>
+                    <th className="vs-compare-group" colSpan={2}>
+                      Nuit
+                    </th>
+                    <th className="vs-compare-group" colSpan={2}>
+                      Total
+                    </th>
+                  </tr>
+                  <tr>
+                    <th className="num">Ventes</th>
+                    <th className="num">Versé</th>
+                    <th className="num">Ventes</th>
+                    <th className="num">Versé</th>
+                    <th className="num">Ventes</th>
+                    <th className="num">Versé</th>
+                    <th className="num">Ventes</th>
+                    <th className="num">Versé</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparisonDays.map((row) => (
+                    <tr key={`${row.date}|${row.site}`}>
+                      <td className="vs-td-date">{formatDateFr(row.date)}</td>
+                      {followAll ? <td>{SITE_LABELS[row.site]}</td> : null}
+                      <td className="num mono">{formatFcfa(row.ventes.matin)}</td>
+                      <td className="num mono">{formatFcfa(row.verse.matin)}</td>
+                      <td className="num mono">{formatFcfa(row.ventes.soir)}</td>
+                      <td className="num mono">{formatFcfa(row.verse.soir)}</td>
+                      <td className="num mono">{formatFcfa(row.ventes.nuit)}</td>
+                      <td className="num mono">{formatFcfa(row.verse.nuit)}</td>
+                      <td className="num mono vs-td-amount">
+                        {formatFcfa(row.ventes.total)}
+                      </td>
+                      <td className="num mono vs-td-amount">
+                        {formatFcfa(row.verse.total)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {error ? (
+          <p className="error-banner" role="alert">
+            {error}
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => void charger()}
+            >
+              Réessayer
+            </button>
+          </p>
+        ) : null}
+        {flash ? (
+          <p className="vs-flash" role="status">
+            {flash}
+          </p>
+        ) : null}
+
 
         {(canDeclare || (canEditPending && isEditing)) && composerOpen ? (
           <section
@@ -1406,9 +1482,16 @@ export function VersementsPage() {
           </div>
 
           {loading || !scope ? (
-            <BrandLoader label="Chargement du registre…" />
+            <div className="vs-skeleton" aria-busy="true" aria-label="Chargement du registre">
+              <span /><span /><span /><span />
+            </div>
           ) : filtered.length === 0 ? (
             <div className="vs-empty">
+              <span className="vs-empty-ico" aria-hidden>
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M7 3h8l4 4v14H7V3Zm7 0v5h5M10 13h6M10 17h4" />
+                </svg>
+              </span>
               <strong>
                 {versements.length === 0
                   ? "Aucun versement sur cette période"

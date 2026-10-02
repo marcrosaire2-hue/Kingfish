@@ -18,6 +18,7 @@ import type {
   CaisseSoldeTotaux,
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
+import "@/components/versements/versements-page.css";
 import "./mouvements-caisse-page.css";
 
 type SiteDetail = {
@@ -286,8 +287,37 @@ export function MouvementsCaissePage() {
     <AppShell
       title="Mouvements de fonds"
       subtitle="Capital des sites · consultation des flux opérationnels"
+      mainClassName="main-versements main-mcaisse"
     >
       <div className="mcaisse-page">
+        <header className="vs-banner">
+          <span className="vs-banner-ico" aria-hidden>
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 8h13l-3-3M20 16H7l3 3" />
+            </svg>
+          </span>
+          <div className="vs-banner-copy">
+            <h2>Mouvements de fonds</h2>
+            <p>
+              Ajoutez ou corrigez le capital de chaque site. Les versements,
+              achats et dépenses restent saisis par les équipes en Caisse /
+              Dépenses.
+            </p>
+          </div>
+          <div className="vs-banner-side">
+            <span className="vs-readonly">Pilotage · multi-sites</span>
+          </div>
+          <svg className="vs-banner-art" viewBox="0 0 220 120" aria-hidden focusable="false">
+            <ellipse cx="120" cy="110" rx="90" ry="10" fill="#d7e8f8" />
+            <rect x="92" y="14" width="64" height="86" rx="8" fill="#fff" stroke="#bcd6ee" />
+            <path d="M104 34h40M104 48h40M104 62h28" stroke="#bcd6ee" strokeWidth="5" strokeLinecap="round" />
+            <rect x="46" y="38" width="62" height="74" rx="10" fill="#1d6fd6" />
+            <rect x="56" y="48" width="42" height="16" rx="4" fill="#cfe4fb" />
+            <ellipse cx="146" cy="104" rx="20" ry="7" fill="#f5b400" />
+            <ellipse cx="146" cy="99" rx="20" ry="7" fill="#ffd45a" />
+          </svg>
+        </header>
+
         {error ? (
           <p className="error-banner" role="alert">
             {error}
@@ -308,15 +338,6 @@ export function MouvementsCaissePage() {
 
         {board ? (
           <>
-            <section className="mcaisse-stage">
-              <p className="mcaisse-stage-kicker">Pilotage · multi-sites</p>
-              <h2>Fonds &amp; capital</h2>
-              <p>
-                Ajoutez ou corrigez le capital de chaque site. Les versements,
-                achats et dépenses restent saisis par les équipes en Caisse /
-                Dépenses.
-              </p>
-            </section>
 
             <section className="mcaisse-kpis" aria-label="Soldes par site">
               {board.sitesDetail.map((d) => (
@@ -325,6 +346,9 @@ export function MouvementsCaissePage() {
                   className="mcaisse-kpi"
                   data-site={d.caisse}
                 >
+                  <i className="vs-card-ico" aria-hidden>
+                    <svg viewBox="0 0 24 24" focusable="false"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Zm0-8.5a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8Z" /></svg>
+                  </i>
                   <header>
                     <h2>{CAISSE_LABELS[d.caisse]}</h2>
                     <span
@@ -373,6 +397,9 @@ export function MouvementsCaissePage() {
                 </article>
               ))}
               <article className="mcaisse-kpi mcaisse-kpi-global">
+                <i className="vs-card-ico" aria-hidden>
+                  <svg viewBox="0 0 24 24" focusable="false"><path d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Zm0 0v5c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5" /></svg>
+                </i>
                 <header>
                   <h2>Solde global</h2>
                 </header>
@@ -637,9 +664,13 @@ export function MouvementsCaissePage() {
               </div>
 
               {!journal.length ? (
-                <p className="mcaisse-empty">
-                  Aucun mouvement sur cette période.
-                </p>
+                <div className="vs-empty mcaisse-empty">
+                  <span className="vs-empty-ico" aria-hidden>
+                    <svg viewBox="0 0 24 24" focusable="false"><path d="M7 3h8l4 4v14H7V3Zm7 0v5h5M10 13h6M10 17h4" /></svg>
+                  </span>
+                  <strong>Aucun mouvement sur cette période</strong>
+                  <span>Modifiez la période, le site ou le type pour voir les résultats.</span>
+                </div>
               ) : (
                 <div className="mcaisse-table-wrap">
                   <table className="data-table mcaisse-table">

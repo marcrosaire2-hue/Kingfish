@@ -1,0 +1,163 @@
+/* Cadre applicatif desktop : barre supérieure + barre latérale + panneau */
+
+.topbar {
+  display: none;
+}
+
+@media (min-width: 981px) {
+  .app-shell {
+    --topbar-h: 4.75rem;
+    display: grid;
+    grid-template-columns: var(--shell-sidebar-w) minmax(0, 1fr);
+    grid-template-rows: var(--topbar-h) minmax(0, 1fr);
+    background: #063b68;
+  }
+
+  .topbar {
+    grid-column: 1 / -1;
+    position: sticky;
+    top: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    height: var(--topbar-h);
+    padding: 0 1.5rem 0 1.15rem;
+    overflow: hidden;
+    color: #fff;
+    background: linear-gradient(100deg, #052f55 0%, #063b68 55%, #0a4d85 100%);
+  }
+
+  .topbar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex: none;
+  }
+
+  .topbar-logo {
+    display: grid;
+    place-items: center;
+    width: 3.1rem;
+    height: 3.1rem;
+    border-radius: 0.9rem;
+    background: #fff;
+    box-shadow: 0 6px 16px rgb(0 15 40 / 0.35);
+  }
+
+  .topbar-logo img {
+    width: 2.7rem;
+    height: 2.7rem;
+    object-fit: contain;
+  }
+
+  .topbar-name {
+    display: flex;
+    flex-direction: column;
+    line-height: 1;
+  }
+
+  .topbar-name strong {
+    font-size: 1.55rem;
+    font-weight: 800;
+    letter-spacing: 0.01em;
+  }
+
+  .topbar-name span {
+    margin-top: 0.15rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    opacity: 0.85;
+  }
+
+  .topbar-slogan {
+    flex: none;
+    margin: 0;
+    padding-left: 1.25rem;
+    border-left: 2px solid #f5b400;
+    font-size: 0.82rem;
+    line-height: 1.4;
+    color: rgb(255 255 255 / 0.88);
+  }
+
+  .topbar-wave {
+    position: absolute;
+    top: 0;
+    right: 14rem;
+    width: min(34rem, 38vw);
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .topbar-user {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-left: auto;
+  }
+
+  .topbar-user-meta {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+
+  .topbar-user-meta strong {
+    font-size: 0.95rem;
+    font-weight: 700;
+  }
+
+  .topbar-user-meta span {
+    font-size: 0.75rem;
+    opacity: 0.8;
+  }
+
+  /* Sous la barre : la sidebar ne couvre plus la hauteur totale */
+  .sidebar {
+    grid-row: 2;
+    top: var(--topbar-h);
+    height: calc(100vh - var(--topbar-h));
+    height: calc(100dvh - var(--topbar-h));
+    background: #063b68;
+    overflow: hidden;
+  }
+
+  .sidebar::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0 0;
+    height: 7rem;
+    pointer-events: none;
+    background:
+      radial-gradient(120% 90% at 10% 120%, #0b78b7 0 38%, transparent 39%),
+      radial-gradient(90% 60% at 60% 125%, #f5b400 0 30%, transparent 31%);
+    opacity: 0.6;
+  }
+
+  .sidebar .sidebar-brand {
+    display: none;
+  }
+
+  .sidebar-footer,
+  .side-nav {
+    position: relative;
+    z-index: 1;
+  }
+
+  .user-chip-sidebar {
+    background: rgb(255 255 255 / 0.07);
+  }
+
+  .main {
+    grid-row: 2;
+    grid-column: 2;
+    border-top-left-radius: 1.5rem;
+    background: #f4f8fc;
+    overflow: clip;
+  }
+
+  .sidebar-backdrop {
+    display: none;
+  }
+}

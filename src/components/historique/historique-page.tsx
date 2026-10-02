@@ -360,24 +360,34 @@ export function HistoriquePage({
       title="Registre"
       subtitle={pageSubtitle}
       mainClassName="main-historique"
-      actions={
-        <>
-          <ExportExcelButton
-            onExport={() => exportHistoriqueExcel(events, from, to, site)}
-            disabled={loading || events.length === 0}
-          />
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            Actualiser
-          </button>
-        </>
-      }
     >
       <DashboardShell className="rg-page">
+        <header className="rg-banner">
+          <span className="rg-banner-ico" aria-hidden>
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M12 7v5l3 2M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" />
+            </svg>
+          </span>
+          <div className="rg-banner-copy">
+            <h2>Registre</h2>
+            <p>{pageSubtitle}</p>
+          </div>
+          <div className="rg-banner-side">
+            <span className="rg-readonly">
+              <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+                <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+              </svg>
+              Lecture seule
+            </span>
+          </div>
+          <svg className="rg-banner-art" viewBox="0 0 120 80" aria-hidden focusable="false">
+            <rect x="14" y="48" width="16" height="26" rx="3" fill="#1d6fd6" />
+            <rect x="40" y="34" width="16" height="40" rx="3" fill="#2a7ec8" />
+            <rect x="66" y="20" width="16" height="54" rx="3" fill="#075ea8" />
+            <path d="M12 38 44 20l22 8 36-22" fill="none" stroke="#f5b400" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </header>
+
         <section className="panel rg-toolbar" aria-label="Filtres du registre">
           <div className="rg-toolbar-top">
             <div className="rg-periods" role="tablist" aria-label="Période">
@@ -428,6 +438,9 @@ export function HistoriquePage({
             </div>
             <label className="rg-search">
               <span className="sr-only">Recherche</span>
+              <svg className="rg-search-ico" viewBox="0 0 24 24" aria-hidden focusable="false">
+                <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm9 16-4-4" />
+              </svg>
               <input
                 type="search"
                 placeholder="Nom, détail, @identifiant…"
@@ -438,6 +451,20 @@ export function HistoriquePage({
           </div>
 
           <div className="rg-toolbar-row">
+            <div className="rg-toolbar-actions">
+          <ExportExcelButton
+            onExport={() => exportHistoriqueExcel(events, from, to, site)}
+            disabled={loading || events.length === 0}
+          />
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            Actualiser
+          </button>
+            </div>
             {lockedSite ? (
               <span className="rg-lock-pill">{siteLabel(site)}</span>
             ) : (
@@ -475,6 +502,9 @@ export function HistoriquePage({
             </div>
             <details className="rg-more">
               <summary>
+                <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+                  <path d="M4 5h16l-6 8v6l-4-2v-4L4 5Z" />
+                </svg>
                 Plus de filtres
                 {extraFilterCount > 0 ? (
                   <span className="rg-more-count">{extraFilterCount}</span>
@@ -520,29 +550,57 @@ export function HistoriquePage({
 
         <section className="rg-hero" aria-label="Synthèse de la période">
           <div className="rg-hero-ca">
-            <span className="rg-kicker">Événements filtrés</span>
+            <div className="rg-hero-top">
+              <i className="rg-ico rg-ico-blue" aria-hidden>
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M7 3h10v18H7V3Zm3 5h4M10 12h4M10 16h2" /></svg>
+              </i>
+              <span className="rg-kicker">Événements filtrés</span>
+            </div>
             <strong className="rg-hero-value mono">
               {focusedEvents.length}
             </strong>
-            <p className="rg-hero-hint">{periodHint}</p>
-            <p className="rg-hero-meta">
-              {days.length} jour{days.length > 1 ? "s" : ""}
-              {amountCount > 0
-                ? ` · ${amountCount} avec montant · ${formatFcfa(totalAmount)}`
-                : ""}
-            </p>
+            <ul className="rg-hero-facts">
+              <li>
+                <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4" /></svg>
+                {periodHint}
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M4 6h16M4 12h16M4 18h10" /></svg>
+                {days.length} jour{days.length > 1 ? "s" : ""}
+              </li>
+              {amountCount > 0 ? (
+                <li>
+                  <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M4 7h16v12H4V7Zm0 3h16" /></svg>
+                  {amountCount} avec montant · {formatFcfa(totalAmount)}
+                </li>
+              ) : null}
+            </ul>
+            <svg className="rg-hero-art" viewBox="0 0 90 60" aria-hidden focusable="false">
+              <rect x="6" y="38" width="14" height="20" rx="3" fill="#bcd6ee" />
+              <rect x="28" y="26" width="14" height="32" rx="3" fill="#8dbcf0" />
+              <rect x="50" y="12" width="14" height="46" rx="3" fill="#5a9be0" />
+            </svg>
           </div>
           <div className="rg-hero-side">
             <div className="rg-kpis">
-              <div>
+              <div className="rg-kpi is-blue">
+                <i className="rg-ico" aria-hidden>
+                  <svg viewBox="0 0 24 24" focusable="false"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+                </i>
                 <span>Types</span>
                 <strong className="mono">{kindTotals.length}</strong>
               </div>
-              <div>
+              <div className="rg-kpi is-gold">
+                <i className="rg-ico" aria-hidden>
+                  <svg viewBox="0 0 24 24" focusable="false"><path d="M4 7h16v12H4V7Zm0 3h16" /></svg>
+                </i>
                 <span>Avec montant</span>
                 <strong className="mono">{amountCount}</strong>
               </div>
-              <div>
+              <div className="rg-kpi is-green">
+                <i className="rg-ico" aria-hidden>
+                  <svg viewBox="0 0 24 24" focusable="false"><path d="M5 5h14v14H5V5Zm3 4h8M8 13h3m2 0h3" /></svg>
+                </i>
                 <span>Total</span>
                 <strong className="mono">
                   {amountCount > 0 ? formatFcfa(totalAmount) : "—"}
@@ -728,6 +786,9 @@ function RegistreDayBlock({
       }}
     >
       <summary className="rg-day-summary">
+        <i className="rg-ico" aria-hidden>
+          <svg viewBox="0 0 24 24" focusable="false"><path d="M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4" /></svg>
+        </i>
         <span className="rg-day-title">
           <strong>{formatDateLong(day.date)}</strong>
           <span>
@@ -740,6 +801,14 @@ function RegistreDayBlock({
       </summary>
 
       <div className="rg-events">
+        <div className="rg-event-head" aria-hidden>
+          <span>Heure</span>
+          <span>Type</span>
+          <span>Événement</span>
+          <span>Site · auteur</span>
+          <span className="is-num">Montant</span>
+          <span />
+        </div>
         {day.events.map((ev) => (
           <RegistreEventCard key={ev.id} event={ev} hideSite={hideSite} />
         ))}
@@ -766,19 +835,22 @@ function RegistreEventCard({
     <details className={`rg-event rg-event-${event.kind}`}>
       <summary className="rg-event-summary">
         <span className="rg-event-time">{formatHeureOnly(event.at)}</span>
-        <span className="rg-event-id">
-          <strong>{event.title}</strong>
-          <span className="rg-event-preview">{event.detail || "—"}</span>
-          {meta ? <span className="rg-event-meta">{meta}</span> : null}
-        </span>
         <span className={`hist-badge hist-badge-${event.kind}`}>
           {HISTORIQUE_KIND_LABELS[event.kind]}
         </span>
+        <span className="rg-event-id">
+          <strong>{event.title}</strong>
+          <span className="rg-event-preview">{event.detail || "—"}</span>
+        </span>
+        <span className="rg-event-meta">{meta || "—"}</span>
         <strong className="rg-event-amount mono">
           {event.amount === null || event.amount === undefined
             ? "—"
             : formatFcfa(event.amount)}
         </strong>
+        <span className="rg-event-more" aria-hidden>
+          ⋮
+        </span>
       </summary>
       <div className="rg-event-body">
         <dl className="rg-event-facts">

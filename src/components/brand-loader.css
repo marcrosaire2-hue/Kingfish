@@ -1,0 +1,198 @@
+/* Écran de chargement global — logo, anneau or, barre indéterminée */
+
+.brand-loader-voile {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      ellipse 40% 35% at 50% 40%,
+      rgb(245 180 0 / 0.1),
+      transparent 70%
+    ),
+    #f4f8fc;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+
+.brand-loader-voile.is-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.kfl-waves {
+  position: absolute;
+  inset: auto 0 0 0;
+  width: 100%;
+  height: clamp(5rem, 22vh, 14rem);
+  pointer-events: none;
+}
+
+.brand-loader-inner {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.kfl-mark {
+  position: relative;
+  width: clamp(9.5rem, 24vw, 11.5rem);
+  aspect-ratio: 1;
+  margin-bottom: 1.2rem;
+  display: grid;
+  place-items: center;
+}
+
+.kfl-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  animation: kfl-spin 2.4s linear infinite;
+}
+
+.kfl-plate {
+  display: grid;
+  place-items: center;
+  width: 76%;
+  aspect-ratio: 1;
+  border: 1px solid #dce8f3;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 10px 35px rgb(6 59 104 / 0.1);
+  animation: kfl-breathe 3.2s ease-in-out infinite;
+}
+
+.kfl-plate img {
+  width: 72%;
+  height: 72%;
+  object-fit: contain;
+}
+
+.kfl-dot {
+  position: absolute;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #f5b400;
+  animation: kfl-blink 2.2s ease-in-out infinite;
+}
+
+.kfl-dot-a {
+  top: 14%;
+  left: 6%;
+}
+
+.kfl-dot-b {
+  top: 4%;
+  left: 24%;
+  animation-delay: 0.3s;
+}
+
+.kfl-dot-c {
+  top: 0;
+  left: 42%;
+  animation-delay: 0.6s;
+}
+
+.kfl-title {
+  margin: 0;
+  font-size: clamp(1.05rem, 2.4vw, 1.35rem);
+  font-weight: 800;
+  color: #075ea8;
+}
+
+.kfl-sub {
+  margin: 0;
+  max-width: 24rem;
+  font-size: clamp(0.82rem, 1.8vw, 0.98rem);
+  font-weight: 500;
+  color: #5a7a9a;
+}
+
+.kfl-bar {
+  position: relative;
+  width: min(17rem, 70vw);
+  height: 0.4rem;
+  margin-top: 0.7rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #dce8f3;
+}
+
+.kfl-bar span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 42%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #075ea8 70%, #f5b400);
+  animation: kfl-slide 1.6s ease-in-out infinite;
+}
+
+@keyframes kfl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes kfl-breathe {
+  0%,
+  100% {
+    transform: scale(0.98);
+  }
+  50% {
+    transform: scale(1);
+  }
+}
+
+@keyframes kfl-blink {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes kfl-slide {
+  0% {
+    left: -42%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .kfl-waves {
+    height: 4rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-loader-voile {
+    transition: none;
+  }
+
+  .kfl-ring,
+  .kfl-plate,
+  .kfl-dot,
+  .kfl-bar span {
+    animation: none;
+  }
+
+  .kfl-bar span {
+    left: 0;
+    width: 40%;
+  }
+}

@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
-import { BrandLoader } from "@/components/brand-loader";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { CAISSE_LABELS, CAISSE_SHORT_LABELS } from "@/lib/caisse-model";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
 import type { FondsCaisse } from "@/lib/types";
-import "@/components/achats/achats-page.css";
+import "./fonds-caisse-suivi.css";
 
 type SiteFilter = "tous" | "zogbo" | "gbegamey";
 
@@ -93,28 +92,90 @@ export function FondsCaisseSuivi() {
     );
   }
 
+  const stateBody = loading ? (
+    <div className="fcs-skeleton" aria-busy="true" aria-label="Chargement">
+      <span className="fcs-skel-row" />
+      <span className="fcs-skel-row" />
+      <span className="fcs-skel-row" />
+    </div>
+  ) : error ? (
+    <div className="fcs-state is-error" role="alert">
+      <span className="fcs-state-ico">
+        <InfoIcon />
+      </span>
+      <strong>Impossible de charger les fonds de caisse</strong>
+      <p>{error}</p>
+      <button type="button" className="fcs-btn" onClick={() => void load()}>
+        Réessayer
+      </button>
+    </div>
+  ) : rows.length === 0 ? (
+    <div className="fcs-state">
+      <span className="fcs-state-ico">
+        <DocIcon />
+      </span>
+      <strong>Aucun fonds de caisse enregistré</strong>
+      <p>Modifiez la période ou le site pour voir les résultats.</p>
+    </div>
+  ) : (
+    <div className="table-scroll">
+      <table className="data-table fcs-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Caisse</th>
+            <th className="num">Prévisionnel</th>
+            <th className="num">Réel</th>
+            <th className="num">Écart</th>
+            <th>Justification</th>
+            <th>Saisi par</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((f) => (
+            <tr key={f.id}>
+              <td>{formatDateFr(f.date)}</td>
+              <td>{CAISSE_SHORT_LABELS[f.caisse]}</td>
+              <td className="num">{formatFcfa(f.soldePrevision)}</td>
+              <td className="num">{formatFcfa(f.soldeReel)}</td>
+              <td className={`num ${tone(f.ecart)}`}>{formatFcfa(f.ecart)}</td>
+              <td>{f.justificationEcart || "—"}</td>
+              <td>{f.actorName}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
   return (
     <AppShell
       title="Fonds de Caisse"
       subtitle="Suivi des deux sites · lecture seule"
-      mainClassName="main-achats"
-      actions={
-        <ExportExcelButton
-          onExport={exporter}
-          disabled={loading || rows.length === 0}
-        />
-      }
+      mainClassName="main-fonds-suivi"
     >
-      <div className="achats-page">
-        {error ? (
-          <p className="error-banner" role="alert">
-            {error}
-          </p>
-        ) : null}
+      <div className="fcs-page">
+        <header className="fcs-hero">
+          <div>
+            <h2 className="fcs-title">Fonds de Caisse</h2>
+            <p className="fcs-sub">
+              Suivi des deux sites · lecture seule{" "}
+              <span className="fcs-badge">Lecture seule</span>
+            </p>
+          </div>
+          <ExportExcelButton
+            onExport={exporter}
+            disabled={loading || rows.length === 0}
+            className="fcs-btn"
+          />
+        </header>
 
-        <section className="achats-composer" aria-label="Filtres">
-          <div className="achats-composer-grid">
-            <label className="achats-field">
+        <section className="fcs-card" aria-label="Période de consultation">
+          <h3 className="fcs-card-title">
+            <CalendarIcon /> Période de consultation
+          </h3>
+          <div className="fcs-filters">
+            <label className="fcs-field">
               <span>Du</span>
               <input
                 type="date"
@@ -122,7 +183,7 @@ export function FondsCaisseSuivi() {
                 onChange={(e) => setDateFrom(e.target.value)}
               />
             </label>
-            <label className="achats-field">
+            <label className="fcs-field">
               <span>Au</span>
               <input
                 type="date"
@@ -130,7 +191,7 @@ export function FondsCaisseSuivi() {
                 onChange={(e) => setDateTo(e.target.value)}
               />
             </label>
-            <label className="achats-field">
+            <label className="fcs-field">
               <span>Site</span>
               <select
                 value={site}
@@ -141,72 +202,88 @@ export function FondsCaisseSuivi() {
                 <option value="gbegamey">{CAISSE_SHORT_LABELS.gbegamey}</option>
               </select>
             </label>
+            <button
+              type="button"
+              className="fcs-btn fcs-refresh"
+              onClick={() => void load()}
+              disabled={loading}
+            >
+              <RefreshIcon /> Actualiser
+            </button>
           </div>
         </section>
 
-        <div className="achats-stats" aria-label="Totaux">
-          <article className="achats-stat">
-            <span>Solde prévisionnel</span>
-            <strong>{formatFcfa(totaux.prevision)}</strong>
+        <div className="fcs-stats" aria-label="Totaux">
+          <article className="fcs-stat is-blue">
+            <span className="fcs-stat-ico">
+              <SafeIcon />
+            </span>
+            <div>
+              <span className="fcs-stat-label">Solde prévisionnel</span>
+              <strong>{formatFcfa(totaux.prevision)}</strong>
+              <small>Montant estimé pour la période</small>
+            </div>
           </article>
-          <article className="achats-stat">
-            <span>Solde réel</span>
-            <strong>{formatFcfa(totaux.reel)}</strong>
+          <article className="fcs-stat is-gold">
+            <span className="fcs-stat-ico">
+              <CoinsIcon />
+            </span>
+            <div>
+              <span className="fcs-stat-label">Solde réel</span>
+              <strong>{formatFcfa(totaux.reel)}</strong>
+              <small>Montant effectivement disponible</small>
+            </div>
           </article>
-          <article
-            className={`achats-stat ${totaux.ecart === 0 ? "is-gold" : totaux.ecart > 0 ? "is-blue" : ""}`}
-          >
-            <span>Écart cumulé</span>
-            <strong>{formatFcfa(totaux.ecart)}</strong>
+          <article className={`fcs-stat ${tone(totaux.ecart) || "is-neutral"}`}>
+            <span className="fcs-stat-ico">
+              <ScaleIcon />
+            </span>
+            <div>
+              <span className="fcs-stat-label">Écart cumulé</span>
+              <strong>{formatFcfa(totaux.ecart)}</strong>
+              <small>Différence prévisionnel / réel</small>
+            </div>
           </article>
         </div>
 
-        <section className="achats-ledger" aria-label="Historique des fonds">
-          <div className="achats-ledger-head">
-            <h2>Historique</h2>
+        <section className="fcs-card fcs-history" aria-label="Historique">
+          <header className="fcs-history-head">
+            <h3 className="fcs-card-title">Historique</h3>
             <p>
               {rows.length} enregistrement{rows.length > 1 ? "s" : ""}
             </p>
-          </div>
-          {loading ? (
-            <BrandLoader />
-          ) : rows.length === 0 ? (
-            <div className="achats-empty">
-              <strong>Aucun fonds de caisse enregistré</strong>
-              <span>Modifiez la période ou le site.</span>
-            </div>
-          ) : (
-            <div className="table-scroll">
-              <table className="data-table achats-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Caisse</th>
-                    <th className="num">Prévisionnel</th>
-                    <th className="num">Réel</th>
-                    <th className="num">Écart</th>
-                    <th>Justification</th>
-                    <th>Saisi par</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((f) => (
-                    <tr key={f.id}>
-                      <td>{formatDateFr(f.date)}</td>
-                      <td>{CAISSE_SHORT_LABELS[f.caisse]}</td>
-                      <td className="num">{formatFcfa(f.soldePrevision)}</td>
-                      <td className="num">{formatFcfa(f.soldeReel)}</td>
-                      <td className="num">{formatFcfa(f.ecart)}</td>
-                      <td>{f.justificationEcart || "—"}</td>
-                      <td>{f.actorName}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          </header>
+          {stateBody}
         </section>
       </div>
     </AppShell>
   );
 }
+
+function tone(n: number) {
+  return n > 0 ? "is-pos" : n < 0 ? "is-neg" : "";
+}
+
+function Ico({ d }: { d: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      focusable="false"
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+const CalendarIcon = () => <Ico d="M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4" />;
+const RefreshIcon = () => <Ico d="M20 12a8 8 0 1 1-2.3-5.6M20 4v6h-6" />;
+const SafeIcon = () => <Ico d="M4 5h16v12H4V5Zm0 12v2m16-2v2M12 11a2 2 0 1 0 0 .01" />;
+const CoinsIcon = () => <Ico d="M4 7c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3Zm0 0v5c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5" />;
+const ScaleIcon = () => <Ico d="M12 4v16M6 20h12M5 8h14M5 8l-3 6a3 3 0 0 0 6 0L5 8Zm14 0-3 6a3 3 0 0 0 6 0l-3-6Z" />;
+const DocIcon = () => <Ico d="M7 3h8l4 4v14H7V3Zm7 0v5h5M10 13h6M10 17h4" />;
+const InfoIcon = () => <Ico d="M12 8v5m0 3.5h.01M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z" />;

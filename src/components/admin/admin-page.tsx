@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import "./equipe-redesign.css";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { RegistreDrawer } from "@/components/registre-drawer";
 import {
@@ -435,16 +436,41 @@ export function AdminPage() {
           : "Gestion des comptes et des droits."
       }
       mainClassName="equipe-page"
-      actions={
-        section === "comptes" ? (
-          <ExportExcelButton
-            onExport={() => exportAdminUsersExcel(users)}
-            disabled={loading || users.length === 0}
-          />
-        ) : null
-      }
     >
       <div className="equipe-canvas">
+        <header className="eq-banner">
+          <span className="eq-banner-ico" aria-hidden>
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M17 11a3 3 0 1 0 0-6m1 9.5c2 .5 3.5 2.1 3.5 4.5" />
+            </svg>
+          </span>
+          <div className="eq-banner-copy">
+            <h2>Équipe</h2>
+            <p>
+              {actor
+              ? actorIsGlobal
+                ? "Comptes, présence, politiques de vente et autorisations."
+                : `${adminKindLabel(actor.site)} — périmètre ${SITE_LABELS[actor.site]}.`
+              : "Gestion des comptes et des droits."}
+            </p>
+          </div>
+          <div className="eq-banner-side">
+            {section === "comptes" ? (
+              <ExportExcelButton
+                onExport={() => exportAdminUsersExcel(users)}
+                disabled={loading || users.length === 0}
+              />
+            ) : null}
+          </div>
+          <svg className="eq-banner-art" viewBox="0 0 120 80" aria-hidden focusable="false">
+            <circle cx="36" cy="30" r="12" fill="#1d6fd6" />
+            <path d="M14 70c0-14 10-22 22-22s22 8 22 22Z" fill="#1d6fd6" />
+            <circle cx="78" cy="26" r="10" fill="#8dbcf0" />
+            <path d="M60 70c0-12 8-19 18-19s18 7 18 19Z" fill="#8dbcf0" />
+            <path d="M12 44 44 28l24 8 38-26" fill="none" stroke="#f5b400" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </header>
+
         <div className="section-tabs equipe-section-tabs" role="tablist" aria-label="Sections Équipe">
           {navItems.map((item) => (
             <button
@@ -482,35 +508,42 @@ export function AdminPage() {
             <div className="equipe-section">
               <div className="equipe-kpis" aria-label="Synthèse des comptes">
                 <article className="equipe-kpi">
+                  <i className="eq-ico" aria-hidden><svg viewBox="0 0 24 24" focusable="false"><path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" /></svg></i>
                   <span>Comptes</span>
                   <strong>{loading ? "—" : stats.total}</strong>
                 </article>
                 <article className="equipe-kpi is-ok">
+                  <i className="eq-ico" aria-hidden><svg viewBox="0 0 24 24" focusable="false"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-4-9 3 3 5-6" /></svg></i>
                   <span>Actifs</span>
                   <strong>{loading ? "—" : stats.active}</strong>
                 </article>
                 <article className="equipe-kpi">
+                  <i className="eq-ico" aria-hidden><svg viewBox="0 0 24 24" focusable="false"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-4-9h8" /></svg></i>
                   <span>Inactifs</span>
                   <strong>{loading ? "—" : stats.inactive}</strong>
                 </article>
                 {actorIsGlobal ? (
                   <>
                     <article className="equipe-kpi">
-                      <span>Gbégamey</span>
+                      <i className="eq-ico" aria-hidden><svg viewBox="0 0 24 24" focusable="false"><path d="M4 19V7l8-3 8 3v12M4 19h16M9 19v-5h6v5" /></svg></i>
+                  <span>Gbégamey</span>
                       <strong>{loading ? "—" : stats.gbegamey}</strong>
                     </article>
                     <article className="equipe-kpi">
-                      <span>Zogbo</span>
+                      <i className="eq-ico" aria-hidden><svg viewBox="0 0 24 24" focusable="false"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Zm0-8.5a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8Z" /></svg></i>
+                  <span>Zogbo</span>
                       <strong>{loading ? "—" : stats.zogbo}</strong>
                     </article>
                     <article className="equipe-kpi">
-                      <span>Global</span>
+                      <i className="eq-ico" aria-hidden><svg viewBox="0 0 24 24" focusable="false"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm-9-9h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" /></svg></i>
+                  <span>Global</span>
                       <strong>{loading ? "—" : stats.tous}</strong>
                     </article>
                   </>
                 ) : (
                   <article className="equipe-kpi is-accent">
-                    <span>Périmètre</span>
+                    <i className="eq-ico" aria-hidden><svg viewBox="0 0 24 24" focusable="false"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z" /></svg></i>
+                  <span>Périmètre</span>
                     <strong>
                       {actor ? SITE_LABELS[actor.site] : "—"}
                     </strong>
@@ -521,6 +554,9 @@ export function AdminPage() {
               <div className="equipe-toolbar">
                 <label className="equipe-search">
                   <span className="sr-only">Rechercher un compte</span>
+                  <svg className="eq-search-ico" viewBox="0 0 24 24" aria-hidden focusable="false">
+                    <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm9 16-4-4" />
+                  </svg>
                   <input
                     type="search"
                     value={query}
@@ -830,6 +866,15 @@ export function AdminPage() {
 
           {section === "ventes" ? (
             <div className="equipe-section">
+            <header className="eq-intro">
+              <i className="eq-ico eq-ico-lg" aria-hidden>
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Zm-3 9 2 2 4-4" /></svg>
+              </i>
+              <div>
+                <h3>Politiques de vente</h3>
+                <p>Règles de vente selon le stock, droits par rôle et restrictions par point de vente.</p>
+              </div>
+            </header>
               <div className="equipe-ventes-stack">
                 <StockEnforcementPanel />
                 <SiteRolesEditor />
@@ -839,12 +884,30 @@ export function AdminPage() {
 
           {section === "autorisations" && showAutorisations ? (
             <div className="equipe-section">
+            <header className="eq-intro">
+              <i className="eq-ico eq-ico-lg" aria-hidden>
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M6 11h12v9H6v-9Zm2 0V8a4 4 0 0 1 8 0v3" /></svg>
+              </i>
+              <div>
+                <h3>Autorisations</h3>
+                <p>Choisissez un rôle ou une personne, puis activez les pages auxquelles elle a accès.</p>
+              </div>
+            </header>
               <AutorisationsEditor embedded />
             </div>
           ) : null}
 
         {section === "mails" && showAutorisations ? (
           <div className="equipe-section">
+            <header className="eq-intro">
+              <i className="eq-ico eq-ico-lg" aria-hidden>
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M4 6h16v12H4V6Zm0 1 8 6 8-6" /></svg>
+              </i>
+              <div>
+                <h3>Alertes mail</h3>
+                <p>Destinataires du point journalier des ventes et envois manuels.</p>
+              </div>
+            </header>
             <MailAlertsPanel />
           </div>
         ) : null}
