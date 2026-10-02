@@ -162,13 +162,6 @@
   }
 }
 
-/* Poste de vente : hauteur d'écran moins la barre supérieure */
-@media (min-width: 981px) {
-  .main.main-vente {
-    height: calc(100vh - var(--topbar-h));
-    height: calc(100dvh - var(--topbar-h));
-  }
-}
 
 /* ——— En-tête de page en bandeau (pages sans bandeau dédié) ——— */
 
@@ -337,4 +330,12 @@
 
 .main-dash .page-header-ico {
   display: none;
+}
+
+/* Poste de vente : la page défile ; le panier reste collant sous la barre */
+@media (min-width: 981px) {
+  .main-vente .pos-cart {
+    top: calc(var(--topbar-h) + 0.75rem);
+    max-height: calc(100dvh - var(--topbar-h) - 1.5rem);
+  }
 }
