@@ -273,3 +273,25 @@ export function SubmitArrowIcon() {
     </svg>
   );
 }
+
+export function FishIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+      <path
+        d="M2.5 12c2.6-4.2 6.2-6 9.6-6 3.4 0 6.2 2.2 8.4 6-2.2 3.8-5 6-8.4 6-3.4 0-7-1.8-9.6-6Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="m2.5 12-.8-3.4M2.5 12l-.8 3.4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+      />
+      <circle cx="16.2" cy="11" r="1" fill="currentColor" />
+    </svg>
+  );
+}
