@@ -705,3 +705,249 @@
     min-height: var(--touch-min, 2.75rem);
   }
 }
+
+/* ——— Refonte : direction artistique King Fish Manager ——— */
+
+.vente-banner {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .main-vente .page-header {
+    display: none;
+  }
+
+  .vente-banner {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    flex-shrink: 0;
+    padding: 0.7rem 1.2rem;
+    overflow: hidden;
+    border: 1px solid #dce8f3;
+    border-radius: 16px;
+    background: linear-gradient(100deg, #eaf3fc 0%, #f6fafe 70%);
+    box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
+  }
+
+  .vente-banner-ico {
+    display: grid;
+    place-items: center;
+    width: 2.9rem;
+    height: 2.9rem;
+    border-radius: 50%;
+    background: #075ea8;
+    color: #fff;
+    box-shadow: 0 6px 16px rgb(7 94 168 / 0.3);
+  }
+
+  .vente-banner-ico svg {
+    width: 1.4rem;
+    height: 1.4rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .vente-banner-copy h2 {
+    margin: 0;
+    font-size: 1.5rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #063b68;
+  }
+
+  .vente-banner-copy p {
+    margin: 0;
+    font-size: 0.86rem;
+    color: var(--ink-soft);
+  }
+
+  .vente-banner-art {
+    position: absolute;
+    right: 1.2rem;
+    bottom: 0.2rem;
+    width: 4.2rem;
+    height: auto;
+    opacity: 0.9;
+    pointer-events: none;
+  }
+}
+
+/* Barre de date */
+.vente-context-wrap .context-bar {
+  border: 1px solid #dce8f3;
+  background: #fff;
+  box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
+}
+
+.vente-context-wrap .btn-ghost {
+  border: 1px solid #dce8f3;
+  border-radius: 12px;
+  background: #fff;
+  color: #075ea8;
+  font-weight: 700;
+}
+
+.vente-context-wrap .date-field-pill input {
+  color: #063b68;
+}
+
+/* Carte de caisse : bleu profond de la charte, badge or */
+.vente-cash-card {
+  background: linear-gradient(135deg, #075ea8 0%, #063b68 100%);
+  box-shadow: 0 12px 30px rgb(6 59 104 / 0.28);
+}
+
+.vente-cash-badge {
+  background: #f5b400;
+  color: #063b68;
+}
+
+.vente-cash-card .site-btn.is-active {
+  background: #f5b400;
+  border-color: #f5b400;
+  color: #063b68;
+}
+
+.vente-cash-amount {
+  font-family: var(--font-mono);
+}
+
+/* Catégories */
+.vente-cat-pill {
+  border: 1px solid #dce8f3;
+  box-shadow: 0 4px 20px rgb(6 59 104 / 0.05);
+}
+
+.vente-cat-pill.is-active {
+  border-color: #075ea8;
+  background: #e4effa;
+  box-shadow: 0 0 0 2px rgb(7 94 168 / 0.15);
+}
+
+.vente-cat-pill.is-active .vente-cat-pill-icon {
+  background: #075ea8;
+  color: #fff;
+}
+
+.vente-cat-pill.is-active .vente-cat-pill-label,
+.vente-cat-pill.is-active .vente-cat-pill-count {
+  color: #063b68;
+}
+
+.vente-cat-pill:focus-visible {
+  outline: 3px solid #f5b400;
+  outline-offset: 2px;
+}
+
+/* Produits, composition, panier */
+.vente-grid .vente-card,
+.vente-sale-card.vente-panel,
+.vente-meal-composer.vente-panel,
+.pos-cart.vente-panel {
+  border: 1px solid #dce8f3;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
+}
+
+.vente-sale-card .vente-panel-head h2,
+.vente-meal-composer .vente-panel-head h2,
+.vente-cart-head h2 {
+  color: #063b68;
+}
+
+.vente-grid .vente-plus {
+  background: #075ea8;
+  border-color: #075ea8;
+  color: #fff;
+}
+
+.vente-meal-composer .btn-primary,
+.pos-cart-foot .btn-primary,
+.vente-mobile-cart-validate {
+  background: linear-gradient(180deg, #1a7bd0, #075ea8) !important;
+  border-color: #075ea8 !important;
+  color: #fff !important;
+  font-weight: 800;
+  border-radius: 12px;
+  box-shadow: 0 6px 16px rgb(7 94 168 / 0.3);
+}
+
+.vente-meal-composer .btn-primary:disabled,
+.pos-cart-foot .btn-primary:disabled {
+  opacity: 0.55;
+  box-shadow: none;
+}
+
+.pos-cart-foot .btn-primary:focus-visible,
+.vente-meal-composer .btn-primary:focus-visible {
+  outline: 3px solid #f5b400;
+  outline-offset: 2px;
+}
+
+.pos-total strong {
+  color: #063b68;
+}
+
+.pos-meta .vente-field input,
+.pos-meta .vente-field select {
+  min-height: 2.75rem;
+  border: 1.5px solid #dce8f3;
+  border-radius: 12px;
+  background: #f8fbfe;
+}
+
+.pos-meta .vente-field input:focus,
+.pos-meta .vente-field select:focus {
+  outline: none;
+  border-color: #075ea8;
+  box-shadow: 0 0 0 3px rgb(7 94 168 / 0.12);
+}
+
+/* Panier vide */
+.vente-cart-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1rem 0.5rem;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.vente-cart-empty-state strong {
+  color: #063b68;
+  font-size: 0.95rem;
+}
+
+.vente-cart-empty-ico {
+  display: grid;
+  place-items: center;
+  width: 3rem;
+  height: 3rem;
+  margin-bottom: 0.3rem;
+  border-radius: 50%;
+  background: #e4effa;
+  color: #075ea8;
+}
+
+.vente-cart-empty-ico svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vente-cat-pill {
+    transition: none;
+  }
+}
