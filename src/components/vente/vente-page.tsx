@@ -1830,6 +1830,24 @@ export function VentePage({
           cartSheetOpen ? " is-cart-open" : ""
         }`}
       >
+        <header className="vente-banner">
+          <span className="vente-banner-ico" aria-hidden>
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 5h2l2 10h9l2-7H7M10 19.5h.01M16 19.5h.01" />
+            </svg>
+          </span>
+          <div className="vente-banner-copy">
+            <h2>Vente</h2>
+            <p>{`${siteLabel} · panier multi-articles · ticket`}</p>
+          </div>
+          <svg className="vente-banner-art" viewBox="0 0 120 80" aria-hidden focusable="false">
+            <rect x="14" y="48" width="16" height="26" rx="3" fill="#1d6fd6" />
+            <rect x="40" y="34" width="16" height="40" rx="3" fill="#2a7ec8" />
+            <rect x="66" y="20" width="16" height="54" rx="3" fill="#075ea8" />
+            <path d="M12 38 44 20l22 8 36-22" fill="none" stroke="#f5b400" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </header>
+
         <div className="vente-context-wrap">
           <ContextBar
             date={date}
@@ -2268,9 +2286,15 @@ export function VentePage({
               </header>
 
               {!cart.length ? (
-                <p className="muted vente-cart-empty">
-                  Le panier apparaîtra ici.
-                </p>
+                <div className="vente-cart-empty-state">
+                  <span className="vente-cart-empty-ico" aria-hidden>
+                    <svg viewBox="0 0 24 24" focusable="false">
+                      <path d="M4 5h2l2 10h9l2-7H7M10 19.5h.01M16 19.5h.01" />
+                    </svg>
+                  </span>
+                  <strong>Votre panier est vide</strong>
+                  <span>Le panier apparaîtra ici.</span>
+                </div>
               ) : (
                 <CartLines cart={cart} onChangeQty={changeCartQty} />
               )}

@@ -161,3 +161,180 @@
     display: none;
   }
 }
+
+/* Poste de vente : hauteur d'écran moins la barre supérieure */
+@media (min-width: 981px) {
+  .main.main-vente {
+    height: calc(100vh - var(--topbar-h));
+    height: calc(100dvh - var(--topbar-h));
+  }
+}
+
+/* ——— En-tête de page en bandeau (pages sans bandeau dédié) ——— */
+
+:where(.main:not(.main-dash)) .page-header {
+  align-items: center;
+  gap: 0.9rem 1.2rem;
+  width: calc(100% - 2 * var(--shell-pad-x));
+  max-width: calc(var(--shell-max) - 2 * var(--shell-pad-x));
+  margin: var(--shell-pad-top) auto 0;
+  padding: 1rem 1.3rem;
+  border: 1px solid #dce8f3;
+  border-radius: 16px;
+  background: linear-gradient(100deg, #eaf3fc 0%, #f6fafe 75%);
+  box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
+}
+
+:where(.main:not(.main-dash)) .page-header .page-header-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 50%;
+  background: #075ea8;
+  color: #fff;
+  box-shadow: 0 6px 16px rgb(7 94 168 / 0.3);
+}
+
+:where(.main:not(.main-dash)) .page-header .page-header-ico svg {
+  width: 1.7rem;
+  height: 1.7rem;
+}
+
+:where(.main:not(.main-dash)) .page-header .page-header-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+:where(.main:not(.main-dash)) .page-header h1 {
+  font-size: clamp(1.5rem, 2.6vw, 2.15rem);
+  letter-spacing: -0.03em;
+  color: #063b68;
+}
+
+:where(.main:not(.main-dash)) .page-header .page-subtitle {
+  margin-top: 0.2rem;
+  max-width: 40rem;
+  font-size: 0.92rem;
+}
+
+:where(.main:not(.main-dash)) .page-header .page-actions .btn {
+  border-radius: 12px;
+  font-weight: 700;
+}
+
+:where(.main:not(.main-dash)) .page-header .page-actions .btn-ghost {
+  border: 1px solid #dce8f3;
+  background: #fff;
+  color: #075ea8;
+}
+
+/* ——— Contenu : cartes, tableaux, champs, boutons ——— */
+
+:where(.main:not(.main-dash)) .panel,
+:where(.main:not(.main-dash)) .achats-composer,
+:where(.main:not(.main-dash)) .achats-ledger,
+:where(.main:not(.main-dash)) .achats-stat {
+  border: 1px solid #dce8f3;
+  border-radius: 16px;
+  box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
+}
+
+:where(.main:not(.main-dash)) .data-table th {
+  background: #eef4fa;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #075ea8;
+}
+
+:where(.main:not(.main-dash)) .panel-title,
+:where(.main:not(.main-dash)) .achats-composer-head h2,
+:where(.main:not(.main-dash)) .achats-ledger-head h2 {
+  color: #063b68;
+  font-weight: 800;
+}
+
+:where(.main:not(.main-dash)) .btn-primary {
+  border-color: #075ea8;
+  background: linear-gradient(180deg, #1a7bd0, #075ea8);
+  box-shadow: 0 6px 16px rgb(7 94 168 / 0.25);
+  color: #fff;
+}
+
+:where(.main:not(.main-dash)) .btn-ghost {
+  border-color: #dce8f3;
+  color: #075ea8;
+}
+
+:where(.main:not(.main-dash)) input:focus-visible,
+:where(.main:not(.main-dash)) select:focus-visible,
+:where(.main:not(.main-dash)) textarea:focus-visible {
+  outline: none;
+  border-color: #075ea8;
+  box-shadow: 0 0 0 3px rgb(7 94 168 / 0.12);
+}
+
+@media (max-width: 640px) {
+  :where(.main:not(.main-dash)) .page-header {
+    padding: 0.85rem 1rem;
+  }
+
+  :where(.main:not(.main-dash)) .page-header .page-header-ico {
+    width: 2.7rem;
+    height: 2.7rem;
+  }
+}
+
+/* Disposition du bandeau : pastille · texte · actions (sur toutes largeurs) */
+.main:not(.main-dash):not(.main-vente):not(.main-versements):not(.main-journal-ventes):not(.main-historique):not(.main-fonds-suivi):not(.main-compteur):not(.equipe-page) .page-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  justify-content: stretch;
+}
+
+.main:not(.main-dash):not(.main-vente):not(.main-versements):not(.main-journal-ventes):not(.main-historique):not(.main-fonds-suivi):not(.main-compteur):not(.equipe-page) .page-header .page-actions {
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .main:not(.main-dash):not(.main-vente):not(.main-versements):not(.main-journal-ventes):not(.main-historique):not(.main-fonds-suivi):not(.main-compteur):not(.equipe-page) .page-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .main:not(.main-dash):not(.main-vente):not(.main-versements):not(.main-journal-ventes):not(.main-historique):not(.main-fonds-suivi):not(.main-compteur):not(.equipe-page) .page-header .page-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+/* Cartes de chiffres des pages Achats / Dépenses / Pertes / Compteur */
+.main-achats .achats-stat {
+  border-left-width: 1px;
+  background: linear-gradient(135deg, #fff 45%, #eaf3fb);
+}
+
+.main-achats .achats-stat.is-gold {
+  background: linear-gradient(135deg, #fff 45%, #fff4d6);
+  border-color: #f3d98a;
+}
+
+.main-achats .achats-stat.is-blue {
+  background: linear-gradient(135deg, #fff 45%, #e4effa);
+}
+
+.main-achats .achats-stat strong {
+  color: #063b68;
+}
+
+.main-achats .achats-filter-chip.is-active {
+  border-color: #075ea8;
+  background: #075ea8;
+  color: #fff;
+}
+
+.main-dash .page-header-ico {
+  display: none;
+}

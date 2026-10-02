@@ -20,7 +20,6 @@ import { PriceInput } from "@/components/parametres/price-input";
 import { formatFcfa } from "@/lib/format";
 import { exportSyntheseExcel } from "@/lib/page-exports";
 import { chargesTotal, emptyCharges } from "@/lib/synthese-calc";
-import type { EpuiseRow } from "@/lib/stock-repo";
 import type {
   DayCharges,
   DayPoint,
@@ -407,9 +406,6 @@ export function SynthesePage() {
   ]);
   const [lockedSite, setLockedSite] = useState(false);
 
-  /** Produits épuisés du jour (vue journalière uniquement). */
-  const [epuises, setEpuises] = useState<EpuiseRow[]>([]);
-
   const [day, setDay] = useState<DayPoint | null>(null);
   const [monthData, setMonthData] = useState<MonthPoint | null>(null);
   const [yearData, setYearData] = useState<YearPoint | null>(null);
@@ -541,19 +537,16 @@ export function SynthesePage() {
           setDay(body.day as DayPoint);
           setChargesDraft((body.day as DayPoint).charges);
           setDirtyCharges(false);
-          setEpuises((body.epuises as EpuiseRow[] | undefined) ?? []);
           setMonthData(null);
           setYearData(null);
         } else if (viewMode === "month") {
           setMonthData(body.month as MonthPoint);
           setDay(null);
           setYearData(null);
-          setEpuises([]);
         } else {
           setYearData(body.year as YearPoint);
           setDay(null);
           setMonthData(null);
-          setEpuises([]);
         }
       } catch (e) {
         if (!cancelled) {
@@ -584,7 +577,6 @@ export function SynthesePage() {
           const body = await res.json();
           if (!res.ok || !body.day) return;
           setDay(body.day as DayPoint);
-          setEpuises((body.epuises as EpuiseRow[] | undefined) ?? []);
         } catch {
           // Silencieux : le prochain passage retentera.
         }
@@ -942,7 +934,6 @@ export function SynthesePage() {
           day={day}
           ranking={ranking}
           shiftTotals={shiftTotals}
-          epuises={epuises}
         />
       ) : null}
 
@@ -952,7 +943,6 @@ export function SynthesePage() {
           ranking={ranking}
           chargesDraft={chargesDraft}
           dayResultat={dayResultat}
-          epuises={epuises}
           onChargeChange={(key, value) => {
             setChargesDraft((prev) => ({ ...prev, [key]: value ?? 0 }));
             setDirtyCharges(true);
@@ -985,12 +975,10 @@ function GeneralDayDashboard({
   day,
   ranking,
   shiftTotals,
-  epuises,
 }: {
   day: DayPoint;
   ranking: ProductRankingData;
   shiftTotals: { jour: number; soir: number; nuit: number; aucune: number } | null;
-  epuises: EpuiseRow[];
 }) {
   const mixSlices = mixFromDay(day);
   const mixTotal = mixSlices.reduce((s, x) => s + x.value, 0);
@@ -1044,7 +1032,6 @@ function GeneralDayDashboard({
         ]}
       />
 
-      <EpuisesPanel epuises={epuises} />
 
       <div className="dash-bento">
         <section className="panel dash-card">
@@ -1125,42 +1112,17 @@ function GeneralDayDashboard({
   );
 }
 
-function EpuisesPanel({ epuises }: { epuises: EpuiseRow[] }) {
-  if (!epuises.length) return null;
-  return (
-    <section
-      className="panel dash-card dash-card-wide dash-epuises-panel"
-      aria-label="Produits épuisés"
-    >
-      <h2 className="panel-title">Produits épuisés</h2>
-      <p className="muted">
-        Plus rien à vendre en fin de journée — à préparer / réapprovisionner.
-      </p>
-      <div className="dash-epuises">
-        {epuises.map((e) => (
-          <span key={`${e.zone}:${e.productId}`} className="dash-epuise">
-            <strong>{e.name}</strong>
-            <em>{e.zoneLabel}</em>
-          </span>
-        ))}
-      </div>
-    </section>
-  );
-}
-
 function DayDashboard({
   day,
   ranking,
   chargesDraft,
   dayResultat,
-  epuises,
   onChargeChange,
 }: {
   day: DayPoint;
   ranking: ProductRankingData;
   chargesDraft: DayCharges;
   dayResultat: { chargesTotal: number; resultat: number } | null;
-  epuises: EpuiseRow[];
   onChargeChange: (
     key: keyof Omit<
       DayCharges,
@@ -1223,7 +1185,6 @@ function DayDashboard({
 
   return (
     <div className="dash">
-      <EpuisesPanel epuises={epuises} />
 
       <DashKpiGrid
         className="dash-kpi-grid-day is-wide"

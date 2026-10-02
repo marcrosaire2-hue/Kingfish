@@ -193,6 +193,14 @@ function NavIcon({ name }: { name: NavKey }) {
   );
 }
 
+/** Pages hors menu latéral : pictogramme du bandeau d'en-tête. */
+const EXTRA_ROUTE_ICONS: Record<string, NavKey> = {
+  "/parametres": "parametres",
+  "/quantites-vendues": "journal-ventes",
+  "/rapport-quotidien": "rapport-quotidien",
+  "/controle": "controle",
+};
+
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -267,6 +275,13 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
     : "·";
 
   const mainClass = meta.mainClassName ? ` ${meta.mainClassName}` : "";
+  const currentNav = NAV_ITEMS.find((item) => isActive(pathname, item.href));
+  const headerIcon: NavKey | null =
+    currentNav?.key ??
+    (Object.entries(EXTRA_ROUTE_ICONS).find(([prefix]) =>
+      isActive(pathname, prefix),
+    )?.[1] as NavKey | undefined) ??
+    null;
 
   return (
     <div className={`app-shell${menuOpen ? " is-nav-open" : ""}`}>
@@ -418,6 +433,11 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
         </div>
 
         <header className="page-header">
+          {headerIcon ? (
+            <span className="page-header-ico" aria-hidden>
+              <NavIcon name={headerIcon} />
+            </span>
+          ) : null}
           <div className="page-header-copy">
             {pathname === "/" && user ? (
               <p className="page-greeting">
