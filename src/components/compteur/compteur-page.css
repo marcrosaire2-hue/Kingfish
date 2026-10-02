@@ -86,3 +86,132 @@
   top: 1rem;
   right: 1rem;
 }
+
+/* ——— Même direction artistique que « Fonds de caisse » ——— */
+
+.main-compteur .page-header {
+  display: none;
+}
+
+.main-compteur .fcs-btn-primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, #1a7bd0, #075ea8);
+  box-shadow: 0 6px 16px rgb(7 94 168 / 0.3);
+  color: #fff;
+}
+
+.main-compteur .fcs-btn-primary:hover:not(:disabled) {
+  border-color: transparent;
+  filter: brightness(1.08);
+}
+
+.cpt-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+  margin-top: 0.85rem;
+}
+
+.cpt-search {
+  flex: 1 1 14rem;
+}
+
+.cpt-seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border-radius: 12px;
+  background: #eef4fa;
+}
+
+.cpt-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.3rem;
+  padding: 0.3rem 0.9rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.cpt-seg-btn:hover:not(.is-active) {
+  color: #063b68;
+}
+
+.cpt-seg-btn:focus-visible {
+  outline: 2px solid #075ea8;
+  outline-offset: 1px;
+}
+
+.cpt-seg-btn.is-active {
+  background: #075ea8;
+  color: #fff;
+}
+
+.cpt-seg-btn i {
+  min-width: 1.35rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: rgb(7 94 168 / 0.12);
+  font-style: normal;
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.cpt-seg-btn.is-active i {
+  background: rgb(255 255 255 / 0.25);
+}
+
+.main-compteur .achats-composer {
+  border: 1px solid #dce8f3;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
+}
+
+.main-compteur .achats-composer-head h2 {
+  color: #063b68;
+  font-weight: 800;
+}
+
+.main-compteur .fcs-table th {
+  background: #eef4fa;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #075ea8;
+}
+
+.main-compteur .fcs-table .btn-ghost {
+  border: 1px solid #dce8f3;
+  border-radius: 10px;
+  background: #fff;
+  color: #075ea8;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cpt-seg-btn {
+    transition: none;
+  }
+}
+
+.main-compteur .fcs-stat-ico svg,
+.main-compteur .fcs-card-title svg,
+.main-compteur .fcs-state-ico svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

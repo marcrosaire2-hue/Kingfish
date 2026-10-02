@@ -1805,3 +1805,624 @@
     transition: none;
   }
 }
+
+/* ——— Refonte : direction artistique cartes claires ——— */
+
+.main-versements {
+  --vs-blue: #075ea8;
+  --vs-deep: #063b68;
+  --vs-line: #dce8f3;
+  --vs-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
+}
+
+.main-versements .page-header h1 {
+  font-size: clamp(1.9rem, 3vw, 2.5rem);
+  color: var(--vs-deep);
+}
+
+.main-versements .page-actions .btn-ghost {
+  border: 1px solid var(--vs-line);
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(6 59 104 / 0.06);
+  font-weight: 700;
+  color: var(--vs-blue);
+}
+
+.main-versements .panel,
+.main-versements .vs-ledger,
+.main-versements .vs-hero-ca,
+.main-versements .vs-kpi {
+  border: 1px solid var(--vs-line);
+  box-shadow: var(--vs-shadow);
+}
+
+.main-versements .vs-ledger {
+  padding: 1.1rem 1.25rem 1.25rem;
+  border-radius: 16px;
+  background: #fff;
+}
+
+/* Cartes de synthèse */
+.main-versements .vs-hero-ca {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--vs-line));
+  background: linear-gradient(135deg, #fff8e1 0%, #fffdf6 70%);
+}
+
+.main-versements .vs-hero-value {
+  color: var(--vs-deep);
+}
+
+.main-versements .vs-kpi.is-pending {
+  background: linear-gradient(135deg, #fff 40%, #fff4d6);
+}
+
+.main-versements .vs-kpi.is-ok {
+  background: linear-gradient(135deg, #fff 40%, #e5f7ec);
+}
+
+.main-versements .vs-mix-bar {
+  height: 0.55rem;
+  border-radius: 999px;
+}
+
+/* Ventes vs versements */
+.main-versements .vs-compare {
+  padding: 1.1rem 1.25rem 1.2rem;
+  border-radius: 16px;
+}
+
+.main-versements .vs-compare-head h2,
+.main-versements .vs-ledger-title h2,
+.main-versements .vs-toolbar-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--vs-deep);
+}
+
+.main-versements .vs-compare-table th {
+  background: #eef4fa;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vs-blue);
+}
+
+.main-versements .vs-compare-table th,
+.main-versements .vs-compare-table td {
+  border: 1px solid #e6eef6;
+}
+
+.main-versements .vs-compare-table td.num {
+  white-space: nowrap;
+}
+
+.main-versements .vs-compare-table .vs-td-amount {
+  font-weight: 800;
+  color: var(--vs-deep);
+}
+
+/* Filtres : carte « Période de consultation » */
+.main-versements .vs-toolbar {
+  padding: 1.1rem 1.25rem 1.2rem;
+  border-radius: 16px;
+}
+
+.main-versements .vs-toolbar-title {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin-bottom: 0.85rem;
+}
+
+.main-versements .vs-toolbar-title svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  fill: none;
+  stroke: var(--vs-blue);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.main-versements .vs-periods,
+.main-versements .vs-seg {
+  background: #eef4fa;
+  border: 1px solid transparent;
+  border-radius: 12px;
+}
+
+.main-versements .vs-chip.is-active {
+  background: #fff;
+  color: var(--vs-blue);
+  box-shadow: 0 1px 4px rgb(6 59 104 / 0.16);
+}
+
+.main-versements .vs-seg-btn.is-active {
+  background: var(--vs-blue);
+  color: #fff;
+}
+
+.main-versements .vs-seg-btn i {
+  font-style: normal;
+}
+
+.main-versements .vs-field input,
+.main-versements .vs-search input {
+  border: 1.5px solid var(--vs-line);
+  border-radius: 12px;
+  background: #f8fbfe;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.main-versements .vs-field input:focus,
+.main-versements .vs-search input:focus {
+  outline: none;
+  border-color: var(--vs-blue);
+  box-shadow: 0 0 0 3px rgb(7 94 168 / 0.12);
+}
+
+.main-versements .vs-search {
+  position: relative;
+}
+
+.main-versements .vs-search-ico {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  transform: translateY(-50%);
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.main-versements .vs-search input {
+  padding-left: 2.5rem;
+}
+
+/* Registre */
+.main-versements .vs-ledger-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.main-versements .vs-ledger-title {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.2rem 1rem;
+}
+
+.main-versements .vs-ledger-meta {
+  margin: 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.main-versements .vs-table th {
+  background: #eef4fa;
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vs-blue);
+}
+
+.main-versements .vs-table .vs-td-amount {
+  font-weight: 800;
+  color: var(--vs-deep);
+}
+
+.main-versements .vs-table .btn-ghost {
+  border: 1px solid var(--vs-line);
+  border-radius: 10px;
+  background: #fff;
+  color: var(--vs-blue);
+  font-weight: 700;
+}
+
+/* États : vide, chargement, erreur */
+.main-versements .vs-empty {
+  border: 0;
+  background: transparent;
+  padding-block: 2.2rem;
+}
+
+.main-versements .vs-empty .vs-empty-ico {
+  display: grid;
+  place-items: center;
+  width: 4.2rem;
+  height: 4.2rem;
+  margin-bottom: 0.3rem;
+  border-radius: 50%;
+  background: #e4effa;
+  color: var(--vs-blue);
+}
+
+.main-versements .vs-empty-ico svg {
+  width: 2rem;
+  height: 2rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.main-versements .vs-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.main-versements .vs-skeleton span {
+  display: block;
+  height: 2.6rem;
+  border-radius: 10px;
+  background: linear-gradient(90deg, #eef4fa 25%, #f8fbfe 50%, #eef4fa 75%);
+  background-size: 200% 100%;
+  animation: vs-shimmer 1.3s linear infinite;
+}
+
+@keyframes vs-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.main-versements .error-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #f3b9b9;
+  border-radius: 14px;
+  background: #fff1f1;
+  color: #a02323;
+  font-weight: 600;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-versements .vs-skeleton span {
+    animation: none;
+  }
+
+  .main-versements .vs-field input,
+  .main-versements .vs-search input {
+    transition: none;
+  }
+}
+
+.main-versements .vs-compare-table th,
+.main-versements .vs-compare-table td {
+  padding: 0.55rem 0.5rem;
+}
+
+.main-versements .vs-compare-table td.num {
+  font-size: 0.8rem;
+}
+
+/* ——— Maquette : bandeau, filtres en haut, cartes à pastille ——— */
+
+.main-versements .page-header {
+  display: none;
+}
+
+.vs-banner {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem 1.4rem;
+  padding: 1.3rem 1.5rem;
+  overflow: hidden;
+  border: 1px solid var(--vs-line);
+  border-radius: 18px;
+  background: linear-gradient(100deg, #eaf3fc 0%, #f6fafe 70%);
+  box-shadow: var(--vs-shadow);
+}
+
+.vs-banner > * {
+  position: relative;
+  z-index: 1;
+}
+
+.vs-banner-ico {
+  display: grid;
+  place-items: center;
+  width: 5.6rem;
+  height: 5.6rem;
+  border-radius: 22px;
+  background: #fff;
+  color: var(--vs-blue);
+  box-shadow: 0 8px 22px rgb(6 59 104 / 0.12);
+}
+
+.vs-banner-ico svg {
+  width: 2.8rem;
+  height: 2.8rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vs-banner-copy h2 {
+  margin: 0;
+  font-size: clamp(2rem, 3.4vw, 2.7rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--vs-deep);
+}
+
+.vs-banner-copy p {
+  margin: 0.3rem 0 0;
+  max-width: 42rem;
+  font-size: 1rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+.vs-banner-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.6rem;
+  align-self: start;
+}
+
+.vs-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.vs-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--vs-line);
+  border-radius: 999px;
+  background: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--vs-deep);
+}
+
+.vs-readonly svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.vs-banner-art {
+  position: absolute !important;
+  right: 9rem;
+  bottom: 0;
+  width: 15rem;
+  height: auto;
+  opacity: 0.95;
+  pointer-events: none;
+}
+
+.main-versements .vs-banner-actions .btn-ghost {
+  border: 1px solid var(--vs-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* Filtres : Actualiser bleu plein */
+.vs-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 2.8rem;
+  padding: 0.5rem 1.4rem;
+  border: 0;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #1a7bd0, var(--vs-blue));
+  box-shadow: 0 6px 16px rgb(7 94 168 / 0.3);
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition:
+    filter 0.15s ease,
+    transform 0.15s ease;
+}
+
+.vs-refresh:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+.vs-refresh:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.vs-refresh:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.vs-refresh svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.main-versements .vs-toolbar-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem 1rem;
+}
+
+.main-versements .vs-toolbar-top .vs-search {
+  flex: 1 1 14rem;
+}
+
+/* Cartes de synthèse : trois colonnes + pastille d'icône */
+.main-versements .vs-hero {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.main-versements .vs-hero-side,
+.main-versements .vs-kpis {
+  display: contents;
+}
+
+.main-versements .vs-mix {
+  grid-column: 1 / -1;
+}
+
+.main-versements .vs-hero-ca,
+.main-versements .vs-kpi {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-auto-rows: min-content;
+  align-content: center;
+  column-gap: 0.95rem;
+  row-gap: 0.1rem;
+  padding: 1.05rem 1.2rem;
+  border-radius: 16px;
+  text-align: left;
+}
+
+.main-versements .vs-card-ico {
+  grid-row: 1 / span 4;
+  display: grid;
+  place-items: center;
+  width: 3.4rem;
+  height: 3.4rem;
+  border-radius: 16px;
+  background: #e4effa;
+  color: var(--vs-blue);
+}
+
+.main-versements .vs-card-ico svg {
+  width: 1.6rem;
+  height: 1.6rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.main-versements .vs-hero-ca .vs-card-ico {
+  background: #fff1c2;
+  color: #b37d00;
+}
+
+.main-versements .vs-kpi.is-pending .vs-card-ico {
+  background: #ffe9c7;
+  color: #c27200;
+}
+
+.main-versements .vs-kpi.is-ok .vs-card-ico {
+  background: #d9f3e4;
+  color: #15803d;
+}
+
+/* Comparatif : pastille + titre */
+.main-versements .vs-compare-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.9rem;
+  row-gap: 0.15rem;
+  align-items: center;
+  margin-bottom: 0.9rem;
+}
+
+.main-versements .vs-compare-head .vs-card-ico {
+  grid-row: 1 / span 2;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 14px;
+}
+
+.main-versements .vs-compare-head .vs-compare-hint {
+  margin: 0;
+}
+
+.main-versements .vs-compare-table-wrap {
+  border: 1px solid #e6eef6;
+  border-radius: 12px;
+}
+
+@media (max-width: 1023px) {
+  .main-versements .vs-hero {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .vs-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .vs-banner-side {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    align-self: auto;
+  }
+
+  .vs-banner-art {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .main-versements .vs-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vs-banner {
+    padding: 1rem;
+  }
+
+  .vs-banner-ico {
+    width: 4rem;
+    height: 4rem;
+    border-radius: 16px;
+  }
+
+  .vs-banner-ico svg {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vs-refresh {
+    transition: none;
+  }
+}

@@ -783,3 +783,1105 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ——— Refonte : bandeau, cartes de synthèse, journal en tableau ——— */
+
+.main-journal-ventes {
+  --jv-blue: #075ea8;
+  --jv-deep: #063b68;
+  --jv-line: #dce8f3;
+  --jv-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
+}
+
+.main-journal-ventes .page-header {
+  display: none;
+}
+
+.jv-ico {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 50%;
+  background: #e4effa;
+  color: var(--jv-blue);
+  font-style: normal;
+}
+
+.jv-ico svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.jv-ico-blue {
+  width: 3rem;
+  height: 3rem;
+  background: var(--jv-blue);
+  color: #fff;
+}
+
+.jv-banner {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.9rem 1.2rem;
+  padding: 1.1rem 1.4rem;
+  overflow: hidden;
+  border: 1px solid var(--jv-line);
+  border-radius: 16px;
+  background: linear-gradient(100deg, #eaf3fc 0%, #f6fafe 70%);
+  box-shadow: var(--jv-shadow);
+}
+
+.jv-banner > * {
+  position: relative;
+  z-index: 1;
+}
+
+.jv-banner-ico {
+  display: grid;
+  place-items: center;
+  width: 4.2rem;
+  height: 4.2rem;
+  border-radius: 50%;
+  background: var(--jv-blue);
+  color: #fff;
+  box-shadow: 0 8px 20px rgb(7 94 168 / 0.3);
+}
+
+.jv-banner-ico svg {
+  width: 2rem;
+  height: 2rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.jv-banner-copy h2 {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--jv-deep);
+}
+
+.jv-banner-copy p {
+  margin: 0.2rem 0 0;
+  max-width: 34rem;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+.jv-banner-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.55rem;
+  align-self: start;
+}
+
+.jv-banner-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.jv-banner-actions .btn {
+  border: 1px solid var(--jv-line);
+  border-radius: 12px;
+  background: #fff;
+  color: var(--jv-blue);
+  font-weight: 700;
+  box-shadow: 0 2px 8px rgb(6 59 104 / 0.06);
+}
+
+.jv-readonly {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.8rem;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid var(--jv-line);
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--jv-blue);
+}
+
+.jv-readonly svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.jv-banner-art {
+  position: absolute !important;
+  right: 12rem;
+  bottom: 0.2rem;
+  width: 6rem;
+  height: auto;
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* Filtres */
+.main-journal-ventes .jv-toolbar,
+.main-journal-ventes .jv-day,
+.main-journal-ventes .jv-empty {
+  border: 1px solid var(--jv-line);
+  border-radius: 16px;
+  box-shadow: var(--jv-shadow);
+}
+
+.main-journal-ventes .jv-chip.is-active,
+.main-journal-ventes .jv-seg-btn.is-active {
+  background: var(--jv-blue);
+  color: #fff;
+}
+
+.main-journal-ventes .jv-chip,
+.main-journal-ventes .jv-seg-btn {
+  border-radius: 10px;
+}
+
+.main-journal-ventes .jv-search {
+  position: relative;
+}
+
+.jv-search-ico {
+  position: absolute;
+  right: 0.9rem;
+  top: 50%;
+  width: 1.1rem;
+  height: 1.1rem;
+  transform: translateY(-50%);
+  fill: none;
+  stroke: var(--ink-soft);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+
+.main-journal-ventes .jv-search input {
+  padding-right: 2.6rem;
+  border-radius: 12px;
+}
+
+/* CA + statuts + catégories */
+.main-journal-ventes .jv-hero {
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.4fr);
+  gap: 0.85rem;
+}
+
+.main-journal-ventes .jv-hero-ca {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 1.1rem 1.3rem;
+  border: 1px solid var(--jv-line);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff 40%, #e8f1fb);
+  box-shadow: var(--jv-shadow);
+}
+
+.main-journal-ventes .jv-hero-ca .jv-ico-blue {
+  position: absolute;
+  top: 1.05rem;
+  left: 1.2rem;
+}
+
+.main-journal-ventes .jv-hero-ca .jv-kicker {
+  padding-left: 3.7rem;
+  margin-top: 0.55rem;
+}
+
+.main-journal-ventes .jv-hero-value {
+  margin-top: 0.4rem;
+  font-size: clamp(2rem, 3.2vw, 2.7rem);
+  color: var(--jv-deep);
+}
+
+.main-journal-ventes .jv-hero-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.main-journal-ventes .jv-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.main-journal-ventes .jv-kpi {
+  --tone: #15803d;
+  --tint: #e5f7ec;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "ico label label"
+    "ico num pct"
+    "bar bar bar";
+  align-items: center;
+  column-gap: 0.7rem;
+  row-gap: 0.15rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--jv-line);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff 40%, var(--tint));
+  box-shadow: var(--jv-shadow);
+}
+
+.main-journal-ventes .jv-kpi.is-annule {
+  --tone: #c62828;
+  --tint: #fde8e8;
+}
+
+.main-journal-ventes .jv-kpi.is-encours {
+  --tone: #c27200;
+  --tint: #ffe9c7;
+}
+
+.main-journal-ventes .jv-kpi .jv-ico {
+  grid-area: ico;
+  background: var(--tone);
+  color: #fff;
+}
+
+.main-journal-ventes .jv-kpi > span {
+  grid-area: label;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tone);
+}
+
+.main-journal-ventes .jv-kpi > strong {
+  grid-area: num;
+  font-size: 1.7rem;
+  color: var(--jv-deep);
+}
+
+.main-journal-ventes .jv-kpi > em {
+  grid-area: pct;
+  font-style: normal;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--tone);
+}
+
+.main-journal-ventes .jv-kpi-bar {
+  grid-area: bar;
+  display: block;
+  height: 0.45rem;
+  margin-top: 0.4rem;
+  border-radius: 999px;
+  background: rgb(6 59 104 / 0.08);
+  overflow: hidden;
+}
+
+.main-journal-ventes .jv-kpi-bar u {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--tone);
+  text-decoration: none;
+}
+
+.main-journal-ventes .jv-mix-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.main-journal-ventes .jv-mix-chip {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  grid-template-areas:
+    "ico label"
+    "ico val";
+  column-gap: 0.65rem;
+  align-items: center;
+  flex: 1 1 8.5rem;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--jv-line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--jv-shadow);
+  text-align: left;
+}
+
+.main-journal-ventes .jv-mix-chip .jv-ico {
+  grid-area: ico;
+}
+
+.main-journal-ventes .jv-mix-chip span {
+  grid-area: label;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.main-journal-ventes .jv-mix-chip strong {
+  grid-area: val;
+  color: var(--jv-deep);
+}
+
+.main-journal-ventes .jv-mix-chip-all {
+  flex: 0 0 auto;
+  display: inline-flex;
+  min-width: 4.2rem;
+  justify-content: center;
+  font-weight: 800;
+}
+
+.main-journal-ventes .jv-mix-chip.is-active {
+  border-color: var(--jv-blue);
+  box-shadow: 0 0 0 2px rgb(7 94 168 / 0.18);
+}
+
+.main-journal-ventes .jv-mix-chip-all.is-active {
+  background: var(--jv-blue);
+  color: #fff;
+}
+
+.main-journal-ventes .jv-mix-bar {
+  display: none;
+}
+
+/* Journal par jour */
+.main-journal-ventes .jv-day-summary {
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  background: #fff;
+}
+
+.main-journal-ventes .jv-day-summary::before {
+  order: 5;
+}
+
+.main-journal-ventes .jv-day-title strong {
+  font-size: 1.1rem;
+  color: var(--jv-deep);
+}
+
+.main-journal-ventes .jv-day-total {
+  font-size: 1.15rem;
+  color: var(--jv-deep);
+}
+
+.jv-ticket-head,
+.main-journal-ventes .jv-ticket-summary {
+  display: grid;
+  grid-template-columns: 4.2rem 8.2rem minmax(0, 1.3fr) minmax(0, 1.2fr) 7.5rem 7rem 1.4rem;
+  align-items: center;
+  gap: 0.5rem 0.9rem;
+}
+
+.jv-ticket-head {
+  margin: 0 0.9rem 0.2rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 10px;
+  background: #eef4fa;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--jv-blue);
+}
+
+.jv-ticket-head .is-num {
+  text-align: right;
+}
+
+.main-journal-ventes .jv-tickets {
+  padding-top: 0.7rem;
+}
+
+.main-journal-ventes .jv-ticket-summary {
+  align-items: center;
+  padding: 0.7rem 1.8rem 0.7rem 1.8rem;
+}
+
+.main-journal-ventes .jv-ticket-time {
+  justify-self: start;
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  background: #eef4fa;
+  color: var(--jv-deep);
+  font-size: 0.82rem;
+}
+
+.main-journal-ventes .jv-ticket-num {
+  font-size: 0.85rem;
+  color: var(--jv-deep);
+}
+
+.main-journal-ventes .jv-ticket-id strong {
+  font-size: 0.86rem;
+  color: var(--jv-deep);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main-journal-ventes .jv-ticket-preview {
+  color: var(--jv-deep);
+  font-weight: 600;
+}
+
+.main-journal-ventes .jv-ticket-amount {
+  text-align: right;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--jv-deep);
+  padding-top: 0;
+}
+
+.main-journal-ventes .jv-ticket-more {
+  font-size: 1.2rem;
+  line-height: 1;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.main-journal-ventes .jv-ticket[open] .jv-ticket-summary {
+  background: #f4f8fc;
+}
+
+.main-journal-ventes .jv-ticket-body {
+  padding-left: 1.8rem;
+  padding-right: 1.8rem;
+}
+
+.main-journal-ventes .hist-statut {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.main-journal-ventes .hist-statut::before {
+  content: "";
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.main-journal-ventes .hist-statut-valide {
+  background: #e5f7ec;
+  color: #15803d;
+}
+
+.main-journal-ventes .hist-statut-annule {
+  background: #fde8e8;
+  color: #c62828;
+}
+
+.main-journal-ventes .hist-statut-encours {
+  background: #ffe9c7;
+  color: #c27200;
+}
+
+.main-journal-ventes .jv-table th {
+  background: #eef4fa;
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--jv-blue);
+}
+
+.main-journal-ventes .jv-viewbar .jv-seg {
+  background: transparent;
+  gap: 0.5rem;
+}
+
+.main-journal-ventes .jv-viewbar .jv-seg-btn {
+  min-height: 2.5rem;
+  padding-inline: 1.4rem;
+  background: #eef4fa;
+  border: 1px solid var(--jv-line);
+}
+
+.main-journal-ventes .jv-viewbar .jv-seg-btn.is-active {
+  background: var(--jv-blue);
+  border-color: var(--jv-blue);
+}
+
+@media (max-width: 1100px) {
+  .main-journal-ventes .jv-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jv-banner {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .jv-banner-side {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .jv-banner-art {
+    display: none;
+  }
+}
+
+@media (max-width: 860px) {
+  .jv-ticket-head {
+    display: none;
+  }
+
+  .main-journal-ventes .jv-ticket-summary {
+    grid-template-columns: 4rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "time num amount"
+      "id id status"
+      "prev prev prev";
+    padding-inline: 1rem;
+  }
+
+  .main-journal-ventes .jv-ticket-time {
+    grid-area: time;
+  }
+
+  .main-journal-ventes .jv-ticket-num {
+    grid-area: num;
+  }
+
+  .main-journal-ventes .jv-ticket-id {
+    grid-area: id;
+  }
+
+  .main-journal-ventes .jv-ticket-preview {
+    grid-area: prev;
+    white-space: normal;
+  }
+
+  .main-journal-ventes .jv-ticket-amount {
+    grid-area: amount;
+  }
+
+  .main-journal-ventes .hist-statut {
+    grid-area: status;
+    justify-self: end;
+  }
+
+  .main-journal-ventes .jv-ticket-more {
+    display: none;
+  }
+
+  .main-journal-ventes .jv-ticket-body {
+    padding-inline: 1rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .main-journal-ventes .jv-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .jv-banner {
+    padding: 1rem;
+  }
+
+  .jv-banner-ico {
+    width: 3.4rem;
+    height: 3.4rem;
+  }
+}
+
+/* ——— Ajustements fidèles à la maquette ——— */
+
+.jv-banner {
+  padding: 1.2rem 1.6rem;
+}
+
+.jv-banner-ico {
+  width: 4.6rem;
+  height: 4.6rem;
+}
+
+.jv-banner-art {
+  right: 3rem;
+  bottom: 0.6rem;
+  width: 7rem;
+}
+
+/* Filtres : pastilles séparées, statuts colorés */
+.main-journal-ventes .jv-toolbar {
+  padding: 1rem 1.2rem;
+}
+
+.main-journal-ventes .jv-periods,
+.main-journal-ventes .jv-seg {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  gap: 0.5rem;
+}
+
+.main-journal-ventes .jv-chip,
+.main-journal-ventes .jv-seg-btn {
+  min-height: 2.6rem;
+  padding: 0.4rem 1.1rem;
+  border: 1px solid var(--jv-line);
+  border-radius: 12px;
+  background: #fff;
+  font-weight: 700;
+  color: var(--jv-deep);
+}
+
+.main-journal-ventes .jv-statut-valide {
+  background: #e5f7ec;
+  border-color: #cdeedb;
+  color: #15803d;
+}
+
+.main-journal-ventes .jv-statut-annule {
+  background: #fde8e8;
+  border-color: #f8d0d0;
+  color: #c62828;
+}
+
+.main-journal-ventes .jv-statut-encours {
+  background: #ffe9c7;
+  border-color: #fbd9a0;
+  color: #c27200;
+}
+
+.main-journal-ventes .jv-statut-valide.is-active {
+  background: #15803d;
+  color: #fff;
+}
+
+.main-journal-ventes .jv-statut-annule.is-active {
+  background: #c62828;
+  color: #fff;
+}
+
+.main-journal-ventes .jv-statut-encours.is-active {
+  background: #c27200;
+  color: #fff;
+}
+
+.main-journal-ventes .jv-toolbar .date-field {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 2.6rem;
+  padding: 0 0.8rem;
+  border: 1px solid var(--jv-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.main-journal-ventes .jv-toolbar .date-field input {
+  border: 0;
+  background: transparent;
+  font-weight: 700;
+  color: var(--jv-deep);
+}
+
+.main-journal-ventes .jv-toolbar-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.main-journal-ventes .jv-search {
+  flex: 1 1 16rem;
+}
+
+.main-journal-ventes .jv-search input {
+  width: 100%;
+  min-height: 2.6rem;
+  border: 1px solid var(--jv-line);
+}
+
+.main-journal-ventes .jv-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  margin-top: 0.7rem;
+}
+
+.jv-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-left: auto;
+}
+
+.jv-toolbar-actions .btn,
+.main-journal-ventes .jv-more summary {
+  min-height: 2.6rem;
+  padding: 0.4rem 1rem;
+  border: 1px solid var(--jv-line);
+  border-radius: 12px;
+  background: #fff;
+  font-weight: 700;
+  color: var(--jv-blue);
+  box-shadow: 0 2px 8px rgb(6 59 104 / 0.05);
+}
+
+.main-journal-ventes .jv-more summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.main-journal-ventes .jv-more summary svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Carte CA */
+.main-journal-ventes .jv-hero-ca {
+  overflow: hidden;
+  gap: 0.35rem;
+  padding: 1.15rem 1.4rem 1.1rem;
+}
+
+.main-journal-ventes .jv-hero-ca .jv-ico-blue {
+  position: static;
+}
+
+.main-journal-ventes .jv-hero-ca .jv-kicker {
+  margin: 0;
+  padding: 0;
+}
+
+.jv-hero-top {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.main-journal-ventes .jv-hero-value {
+  margin: 0.2rem 0 0.4rem;
+}
+
+.jv-hero-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.1rem;
+  margin: 0.4rem 0 0;
+  padding: 0.75rem 0 0;
+  border-top: 1px solid var(--jv-line);
+  list-style: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--jv-deep);
+}
+
+.jv-hero-facts li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.jv-hero-facts svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: none;
+  stroke: var(--jv-blue);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.jv-hero-art {
+  position: absolute;
+  top: 1.2rem;
+  right: 1.4rem;
+  width: 4.5rem;
+  height: auto;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* Statuts : icône + libellé en ligne, % à droite, barre dessous */
+.main-journal-ventes .jv-kpi {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "ico label label"
+    "num num pct"
+    "bar bar bar";
+  padding: 0.9rem 1.1rem;
+}
+
+.main-journal-ventes .jv-kpi > strong {
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+.main-journal-ventes .jv-kpi > em {
+  align-self: end;
+  padding-bottom: 0.3rem;
+}
+
+/* Catégories : « Tout » en bouton plein, cartes à grosse icône */
+.main-journal-ventes .jv-mix-chips {
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+
+.main-journal-ventes .jv-mix-chip {
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0.7rem 0.9rem;
+}
+
+.main-journal-ventes .jv-mix-chip .jv-ico {
+  width: 2.8rem;
+  height: 2.8rem;
+  border-radius: 12px;
+}
+
+.main-journal-ventes .jv-mix-chip-plat .jv-ico {
+  background: #e4effa;
+  color: var(--jv-blue);
+}
+
+.main-journal-ventes .jv-mix-chip-accompagnement .jv-ico {
+  background: #e4effa;
+  color: #0b78b7;
+}
+
+.main-journal-ventes .jv-mix-chip-boisson .jv-ico {
+  background: #d9f3e4;
+  color: #15803d;
+}
+
+.main-journal-ventes .jv-mix-chip-autre .jv-ico {
+  background: #eef2f6;
+  color: #5a7a9a;
+}
+
+.main-journal-ventes .jv-mix-chip-all {
+  flex: 0 0 5.2rem;
+  display: grid;
+  place-items: center;
+  border: 0;
+  background: #fff;
+  color: var(--jv-blue);
+}
+
+.main-journal-ventes .jv-mix-chip-all.is-active {
+  background: var(--jv-blue);
+  color: #fff;
+  box-shadow: 0 6px 16px rgb(7 94 168 / 0.3);
+}
+
+/* Journal : colonnes de la maquette */
+.jv-ticket-head,
+.main-journal-ventes .jv-ticket-summary {
+  grid-template-columns: 4.4rem 8.4rem minmax(0, 1.5fr) minmax(0, 1.3fr) 3rem 7.5rem 7.2rem 1.2rem;
+}
+
+.jv-ticket-client {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  min-width: 0;
+}
+
+.jv-ticket-avatar {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  color: var(--jv-blue);
+}
+
+.jv-ticket-avatar svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+
+.jv-ticket-products {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.jv-ticket-products strong {
+  font-size: 0.86rem;
+  color: var(--jv-deep);
+}
+
+.jv-ticket-products span {
+  font-size: 0.76rem;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jv-ticket-qty {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.main-journal-ventes .hist-statut::before {
+  display: grid;
+  place-items: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+}
+
+.main-journal-ventes .hist-statut-valide::before {
+  content: "✓";
+}
+
+.main-journal-ventes .hist-statut-annule::before {
+  content: "✕";
+}
+
+.main-journal-ventes .hist-statut-encours::before {
+  content: "…";
+}
+
+.main-journal-ventes .jv-viewbar .jv-seg-btn.is-active {
+  box-shadow: 0 6px 16px rgb(7 94 168 / 0.25);
+}
+
+@media (max-width: 1280px) {
+  .main-journal-ventes .jv-mix-chips {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 860px) {
+  .main-journal-ventes .jv-ticket-summary {
+    grid-template-columns: 4rem minmax(0, 1fr) auto;
+    grid-template-areas:
+      "time num amount"
+      "id id status"
+      "prev prev prev";
+  }
+
+  .main-journal-ventes .jv-ticket-client {
+    grid-area: id;
+  }
+
+  .main-journal-ventes .jv-ticket-products {
+    grid-area: prev;
+  }
+
+  .main-journal-ventes .jv-ticket-qty {
+    display: none;
+  }
+
+  .jv-toolbar-actions {
+    margin-left: 0;
+  }
+}
+
+.main-journal-ventes .jv-mix-chips {
+  flex-wrap: wrap;
+}
+
+.main-journal-ventes .jv-mix-chip {
+  flex: 1 1 9.5rem;
+}
+
+.main-journal-ventes .jv-mix-chip:disabled {
+  opacity: 0.75;
+}
+
+.main-journal-ventes .jv-day-summary {
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+}
+
+/* Textes contenus dans leur carte */
+.main-journal-ventes .jv-mix-chip {
+  grid-template-columns: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.main-journal-ventes .jv-mix-chip span,
+.main-journal-ventes .jv-mix-chip strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.main-journal-ventes .jv-mix-chip span {
+  font-size: 0.66rem;
+}
+
+.main-journal-ventes .jv-kpi > span,
+.main-journal-ventes .jv-kicker,
+.main-journal-ventes .jv-readonly,
+.main-journal-ventes .jv-hero-facts li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.main-journal-ventes .jv-hero-value,
+.main-journal-ventes .jv-day-total,
+.main-journal-ventes .jv-ticket-amount {
+  overflow-wrap: anywhere;
+}
+
+.main-journal-ventes .jv-ticket-num {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .main-journal-ventes .jv-ticket-num {
+    font-size: 0.78rem;
+  }
+}

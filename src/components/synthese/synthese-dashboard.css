@@ -925,3 +925,666 @@
     font-size: 0.8rem;
   }
 }
+
+/* ——— Refonte SaaS : cartes compactes, grille desktop 2/3 + 1/3 ——— */
+
+.main-dash {
+  --dash-radius: 16px;
+  --dash-border: color-mix(in srgb, var(--line) 80%, transparent);
+  --dash-shadow: 0 4px 20px color-mix(in srgb, #063b68 7%, transparent);
+}
+
+.main-dash .page-header {
+  padding-bottom: 0.35rem;
+}
+
+.main-dash .page-header h1 {
+  color: #063b68;
+}
+
+.main-dash .page-body {
+  --shell-gap: 0.85rem;
+}
+
+.main-dash .dash-page {
+  gap: 0.85rem;
+}
+
+.main-dash .dash {
+  gap: 0.85rem;
+}
+
+/* Cartes : un seul langage visuel */
+.main-dash .panel,
+.main-dash .dash-card,
+.main-dash .dash-kpi {
+  border: 1px solid var(--dash-border);
+  border-radius: var(--dash-radius);
+  box-shadow: var(--dash-shadow);
+}
+
+.main-dash .panel:hover {
+  border-color: var(--dash-border);
+  box-shadow: var(--dash-shadow);
+}
+
+.main-dash .dash-card {
+  padding: 1rem 1.1rem 1.05rem;
+}
+
+.main-dash .dash-card .panel-head {
+  margin-bottom: 0.7rem;
+}
+
+.main-dash .dash-card .panel-head .panel-title {
+  font-size: 1rem;
+  color: #063b68;
+}
+
+/* Barre de commande : contrôles segmentés */
+.main-dash .dash-command {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem 1rem;
+  padding: 0.6rem 0.8rem;
+}
+
+.main-dash .dash-command-row {
+  gap: 0.5rem 0.75rem;
+}
+
+.main-dash .dash-periods,
+.main-dash .dash-sites {
+  background: #eef4fa;
+  border-color: transparent;
+}
+
+.main-dash .dash-chip {
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.main-dash .dash-chip:hover:not(.is-active):not(.is-static) {
+  color: #063b68;
+}
+
+.main-dash .dash-chip:focus-visible {
+  outline: 2px solid var(--sidebar);
+  outline-offset: 1px;
+}
+
+.main-dash .dash-chip.is-active {
+  background: #fff;
+  color: #063b68;
+  box-shadow: 0 1px 4px color-mix(in srgb, #063b68 18%, transparent);
+}
+
+/* Hero CA : plus compact */
+.main-dash .dash-spotlight {
+  padding: 1rem 1.25rem 0.95rem;
+  border-radius: var(--dash-radius);
+  gap: 0.8rem 1.25rem;
+}
+
+.main-dash .dash-spotlight-value {
+  font-size: clamp(1.8rem, 3.4vw, 2.5rem);
+}
+
+/* KPI : 4 colonnes desktop, 2 tablette, 1 mobile */
+.main-dash .dash-kpi-grid-day,
+.main-dash .dash-kpi-grid-month,
+.main-dash .dash-kpi-grid-year {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem;
+}
+
+.main-dash .dash-kpi {
+  padding: 0.9rem 1rem;
+  align-items: center;
+}
+
+.main-dash .dash-kpi.has-icon {
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.main-dash .dash-kpi-ico {
+  width: 2.7rem;
+  height: 2.7rem;
+  border-radius: 14px;
+}
+
+.main-dash .dash-kpi-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.main-dash .dash-kpi.has-icon .dash-kpi-value {
+  font-size: clamp(1.1rem, 1.9vw, 1.45rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #063b68;
+  overflow-wrap: anywhere;
+}
+
+/* Année : graphique 2/3 · répartition + points de vente 1/3 */
+.dash-year-top {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+.dash-year-side {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.dash-year-side > .dash-card {
+  flex: 0 0 auto;
+}
+
+.dash-year-side > .dash-card:last-child {
+  flex: 1 1 auto;
+}
+
+.main-dash .dash-card {
+  overflow: visible;
+}
+
+.dash-year-chart {
+  min-width: 0;
+}
+
+/* Donut compact dans les colonnes étroites */
+.main-dash .chart-donut {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+.main-dash .chart-donut-ring {
+  width: min(160px, 100%);
+  margin: 0 auto;
+}
+
+.main-dash .chart-legend-stack li {
+  padding: 0.32rem 0.5rem;
+}
+
+@media (min-width: 1500px) {
+  .main-dash .chart-donut {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .main-dash .chart-donut-ring {
+    margin: 0;
+  }
+}
+
+@media (max-width: 1100px) {
+  .dash-year-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dash-year-side {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .dash-year-side {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .main-dash .dash-command {
+    padding: 0.55rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-dash .dash-chip {
+    transition: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .main-dash .dash-spotlight-side {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+
+  .main-dash .dash-spotlight-side > div {
+    padding: 0.55rem 0.5rem;
+  }
+
+  .main-dash .dash-spotlight-side strong {
+    font-size: 0.8rem;
+  }
+}
+
+/* ——— Direction artistique « maquette » ——— */
+
+.main-dash {
+  background: #f4f8fc;
+}
+
+/* En-tête : salutation, grand titre, vague dorée à droite */
+.main-dash .page-header {
+  position: relative;
+  align-items: center;
+  padding-top: 1.35rem;
+  padding-bottom: 0.9rem;
+}
+
+.main-dash .page-header::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(26rem, 34%);
+  height: 100%;
+  pointer-events: none;
+  background:
+    radial-gradient(90% 70% at 100% 0%, rgb(11 120 183 / 0.22) 0 45%, transparent 46%),
+    radial-gradient(70% 45% at 100% 8%, rgb(245 180 0 / 0.55) 0 38%, transparent 39%);
+}
+
+.main-dash .page-header > * {
+  position: relative;
+  z-index: 1;
+}
+
+.main-dash .page-greeting {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #063b68;
+}
+
+.main-dash .page-header h1 {
+  font-size: clamp(1.9rem, 2.8vw, 2.5rem);
+  letter-spacing: -0.03em;
+}
+
+.main-dash .page-subtitle {
+  margin-top: 0.2rem;
+}
+
+.main-dash .page-actions .btn,
+.main-dash .dash-header-date,
+.main-dash .dash-refresh-btn {
+  border: 1px solid #e0e9f2;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgb(6 59 104 / 0.06);
+}
+
+/* Barre de filtres : à plat, sans cadre */
+.main-dash .dash-command {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.main-dash .dash-command:hover {
+  box-shadow: none;
+}
+
+.main-dash .dash-periods,
+.main-dash .dash-sites {
+  background: #fff;
+  border: 1px solid #e0e9f2;
+  box-shadow: 0 2px 8px rgb(6 59 104 / 0.05);
+}
+
+.main-dash .dash-chip.is-active {
+  background: #e4effa;
+  color: #075ea8;
+  box-shadow: none;
+}
+
+.main-dash .dash-sites .dash-chip.is-active {
+  background: var(--accent);
+  color: #063b68;
+}
+
+/* CA : bandeau fin, le détail vit dans les cartes dessous */
+.main-dash .dash-spotlight {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding: 0.75rem 1.2rem;
+  background: linear-gradient(100deg, #063b68, #075ea8);
+  box-shadow: 0 6px 18px rgb(6 59 104 / 0.2);
+}
+
+.main-dash .dash-spotlight-main {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.2rem 1rem;
+}
+
+.main-dash .dash-spotlight-value {
+  font-size: clamp(1.4rem, 2.2vw, 1.9rem);
+}
+
+.main-dash .dash-spotlight-side {
+  grid-template-columns: repeat(3, 9.5rem);
+}
+
+.main-dash .dash-spotlight-side > div {
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.4rem 0.7rem;
+}
+
+.main-dash .dash-spotlight-mix {
+  display: none;
+}
+
+/* Cartes KPI : dégradé pastel, pastille ronde, vague */
+.main-dash .dash-kpi {
+  position: relative;
+  overflow: hidden;
+  padding: 1rem 1.15rem;
+  background: #fff;
+  border: 1px solid #dce8f3;
+  border-left-width: 1px;
+}
+
+.main-dash .dash-kpi::before {
+  display: none;
+}
+
+.main-dash .dash-kpi::after {
+  content: "";
+  position: absolute;
+  right: -1.2rem;
+  bottom: -1.6rem;
+  width: 8rem;
+  height: 4.2rem;
+  border-radius: 50%;
+  background: var(--kpi-tint, #e4effa);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.main-dash .dash-kpi-tone-sky {
+  --kpi-tint: #cfe3f6;
+  background: linear-gradient(135deg, #fff 40%, #eaf3fb);
+}
+
+.main-dash .dash-kpi-tone-orange {
+  --kpi-tint: #fde7c0;
+  background: linear-gradient(135deg, #fff 40%, #fff5e1);
+}
+
+.main-dash .dash-kpi-tone-gold {
+  --kpi-tint: #cdeede;
+  background: linear-gradient(135deg, #fff 40%, #e9f8f1);
+}
+
+.main-dash .dash-kpi-tone-green {
+  --kpi-tint: #ddd3f7;
+  background: linear-gradient(135deg, #fff 40%, #f1ecfd);
+}
+
+.main-dash .dash-kpi-ico {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  box-shadow: 0 4px 12px rgb(6 59 104 / 0.12);
+}
+
+.main-dash .dash-kpi-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.main-dash .dash-kpi.has-icon .dash-kpi-value {
+  font-size: clamp(1.25rem, 1.9vw, 1.65rem);
+}
+
+/* Grille année : graphique large + colonne de droite */
+.dash-year-top {
+  grid-template-columns: minmax(0, 1fr) clamp(21rem, 31%, 28rem);
+}
+
+.dash-year-bottom {
+  display: grid;
+  grid-template-columns: clamp(21rem, 31%, 28rem) minmax(0, 1fr);
+  gap: 0.85rem;
+  align-items: stretch;
+}
+
+.dash-year-bottom > .dash-card {
+  min-width: 0;
+}
+
+/* Donut : anneau à gauche, légende à droite */
+.main-dash .dash-year-side .chart-donut,
+.main-dash .dash-mix-card .chart-donut {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.main-dash .dash-year-side .chart-donut-ring,
+.main-dash .dash-mix-card .chart-donut-ring {
+  width: 8.2rem;
+  margin: 0;
+  flex: none;
+}
+
+.main-dash .chart-donut .chart-legend-stack {
+  flex: 1;
+  min-width: 0;
+  gap: 0.3rem;
+}
+
+.main-dash .chart-donut .chart-legend-stack li {
+  grid-template-columns: auto minmax(0, 1fr);
+  row-gap: 0;
+  padding: 0.3rem 0.5rem;
+  background: #f4f8fc;
+}
+
+.main-dash .chart-donut .chart-legend-stack li strong {
+  grid-column: 2;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+/* Carte d'information marine */
+.dash-promo {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 0.3rem;
+  min-height: 9.5rem;
+  padding: 1.1rem 1.2rem;
+  border-radius: var(--dash-radius);
+  color: #fff;
+  background:
+    linear-gradient(100deg, rgb(6 59 104 / 0.92) 25%, rgb(6 59 104 / 0.35)),
+    url("/login-bg.png") center / cover no-repeat;
+  box-shadow: var(--dash-shadow);
+}
+
+.dash-promo strong {
+  font-size: 1.1rem;
+  line-height: 1.25;
+  max-width: 16rem;
+}
+
+.dash-promo p {
+  margin: 0;
+  font-size: 0.82rem;
+  max-width: 16rem;
+  color: rgb(255 255 255 / 0.85);
+}
+
+@media (max-width: 1280px) {
+  .dash-year-top,
+  .dash-year-bottom {
+    grid-template-columns: minmax(0, 1fr) clamp(18rem, 34%, 24rem);
+  }
+
+  .dash-year-bottom {
+    grid-template-columns: clamp(18rem, 34%, 24rem) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 1100px) {
+  .dash-year-top,
+  .dash-year-bottom {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .main-dash .dash-spotlight {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .main-dash .dash-spotlight-side {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    justify-content: stretch;
+  }
+
+  .main-dash .page-header::after {
+    display: none;
+  }
+}
+
+@media (max-width: 720px) {
+  .main-dash .dash-year-side .chart-donut,
+  .main-dash .dash-mix-card .chart-donut {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .main-dash .dash-year-side .chart-donut-ring,
+  .main-dash .dash-mix-card .chart-donut-ring {
+    margin: 0 auto;
+  }
+
+  .main-dash .dash-spotlight-side > div {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* ——— Tableau de bord tenant sur un écran (desktop) ——— */
+@media (min-width: 981px) {
+  .main-dash .page-header {
+    padding-top: 0.85rem;
+    padding-bottom: 0.4rem;
+  }
+
+  .main-dash .page-header h1 {
+    font-size: 1.9rem;
+  }
+
+  .main-dash .page-greeting {
+    margin-bottom: 0;
+    font-size: 0.9rem;
+  }
+
+  .main-dash .page-subtitle {
+    margin-top: 0.1rem;
+    font-size: 0.85rem;
+  }
+
+  .main-dash .page-body {
+    --shell-gap: 0.65rem;
+    padding-top: 0.1rem;
+    padding-bottom: 0.6rem;
+  }
+
+  .main-dash .dash-page,
+  .main-dash .dash {
+    gap: 0.65rem;
+  }
+
+  .main-dash .dash-chip {
+    min-height: 1.85rem;
+    padding-block: 0.25rem;
+  }
+
+  .main-dash .dash-command .date-field-pill input {
+    min-height: 2rem;
+  }
+
+  .main-dash .dash-spotlight {
+    padding: 0.5rem 1rem;
+  }
+
+  .main-dash .dash-spotlight-value {
+    font-size: 1.5rem;
+  }
+
+  .main-dash .dash-spotlight-side > div {
+    padding: 0.3rem 0.6rem;
+  }
+
+  .main-dash .dash-kpi {
+    padding: 0.55rem 1rem;
+  }
+
+  .main-dash .dash-kpi-ico {
+    width: 2.5rem;
+    height: 2.5rem;
+  }
+
+  .main-dash .dash-kpi.has-icon .dash-kpi-value {
+    font-size: 1.4rem;
+  }
+
+  .dash-year-top .dash-card {
+    padding: 0.8rem 1rem 0.85rem;
+  }
+
+  .dash-year-top .panel-head {
+    margin-bottom: 0.4rem;
+  }
+
+  .dash-year-top .panel-head .muted {
+    display: none;
+  }
+
+  .main-dash .dash-year-side .chart-donut-ring {
+    width: 6.8rem;
+  }
+
+  .main-dash .dash-year-side .chart-legend-stack li {
+    padding-block: 0.2rem;
+  }
+
+  .main-dash .dash-year-side .hbar-list {
+    gap: 0.5rem;
+  }
+}
+
+.main-dash .dash-kpi-copy,
+.main-dash .dash-kpi-ico {
+  position: relative;
+  z-index: 1;
+}
+
+@media (min-width: 981px) {
+  .main-dash .page-body {
+    padding-bottom: 0.35rem;
+  }
+}

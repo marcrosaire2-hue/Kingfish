@@ -913,7 +913,10 @@ export function SynthesePage() {
         </p>
       ) : null}
 
-      {!loading && cancelNotice && cancelNotice.caAnnule > 0 ? (
+      {!loading &&
+      viewMode !== "year" &&
+      cancelNotice &&
+      cancelNotice.caAnnule > 0 ? (
         <div className="ui-info" role="status">
           <span className="ui-info-mark" aria-hidden>
             i
@@ -969,14 +972,7 @@ export function SynthesePage() {
       ) : null}
 
       {!loading && !isGeneral && viewMode === "year" && yearData ? (
-        <YearDashboard
-          data={yearData}
-          ranking={ranking}
-          onOpenMonth={(m) => {
-            setMonth(`${yearData.year}-${String(m).padStart(2, "0")}`);
-            setView("month");
-          }}
-        />
+<YearDashboard data={yearData} />
       ) : null}
       </DashboardShell>
     </AppShell>
@@ -1655,33 +1651,25 @@ function MonthDashboard({
   );
 }
 
-function YearDashboard({
-  data,
-  ranking,
-  onOpenMonth,
-}: {
-  data: YearPoint;
-  ranking: ProductRankingData;
-  onOpenMonth: (month: number) => void;
-}) {
+function YearDashboard({ data }: { data: YearPoint }) {
   const labels = data.months.map((m) => MONTH_NAMES[m.month - 1]!.slice(0, 3));
   const series = [
     {
       key: "ca",
       label: "CA",
-      color: CHART_COLORS.accent,
+      color: "#075ea8",
       values: data.months.map((m) => m.caTotal),
     },
     {
       key: "charges",
       label: "Charges",
-      color: CHART_COLORS.charges,
+      color: "#f5b400",
       values: data.months.map((m) => m.chargesTotal),
     },
     {
       key: "resultat",
       label: "Résultat",
-      color: CHART_COLORS.resultat,
+      color: "#1fb99a",
       values: data.months.map((m) => Math.max(0, m.resultat)),
     },
   ];
@@ -1736,117 +1724,43 @@ function YearDashboard({
         ]}
       />
 
-      <section className="panel dash-card dash-card-wide">
-        <div className="panel-head">
-          <h2 className="panel-title">CA · Charges · Résultat</h2>
-          <p className="muted">Par mois sur l’année {data.year}</p>
+      <div className="dash-year-top">
+        <section className="panel dash-card dash-year-chart">
+          <div className="panel-head">
+            <h2 className="panel-title">CA · Charges · Résultat</h2>
+            <p className="muted">Par mois sur l’année {data.year}</p>
+          </div>
+          <GroupedBarChart labels={labels} series={series} height={300} />
+        </section>
+        <div className="dash-year-side">
+          <section className="panel dash-card">
+            <div className="panel-head">
+              <h2 className="panel-title">Répartition du CA</h2>
+              <p className="muted">Par catégorie · Année {data.year}</p>
+            </div>
+            {mixTotal > 0 ? (
+              <DonutChart
+                slices={mixSlices.filter((s) => s.value > 0)}
+                centerLabel="CA"
+                centerValue={formatFcfa(data.totals.caTotal)}
+              />
+            ) : (
+              <p className="muted">Pas encore de CA cette année.</p>
+            )}
+          </section>
+          <section className="panel dash-card">
+            <div className="panel-head">
+              <h2 className="panel-title">Points de vente</h2>
+              <p className="muted">Zogbo et Gbégamey</p>
+            </div>
+            {sites.some((s) => s.value > 0) ? (
+              <HorizontalBars rows={sites} />
+            ) : (
+              <p className="muted">Pas encore de CA cette année.</p>
+            )}
+          </section>
         </div>
-        <GroupedBarChart labels={labels} series={series} height={280} />
-      </section>
-
-      <div className="dash-bento">
-        <section className="panel dash-card">
-          <div className="panel-head">
-            <h2 className="panel-title">Mix de l’année</h2>
-            <p className="muted">Répartition du CA</p>
-          </div>
-          {mixTotal > 0 ? (
-            <DonutChart
-              slices={mixSlices.filter((s) => s.value > 0)}
-              centerLabel="CA"
-              centerValue={formatFcfa(data.totals.caTotal)}
-            />
-          ) : (
-            <p className="muted">Pas encore de CA cette année.</p>
-          )}
-        </section>
-        <section className="panel dash-card">
-          <div className="panel-head">
-            <h2 className="panel-title">Points de vente</h2>
-            <p className="muted">Zogbo et Gbégamey</p>
-          </div>
-          {sites.some((s) => s.value > 0) ? (
-            <HorizontalBars rows={sites} />
-          ) : (
-            <p className="muted">Pas encore de CA cette année.</p>
-          )}
-        </section>
       </div>
-
-      <section className="panel dash-card dash-card-wide dash-rank-panel">
-        <div className="panel-head">
-          <h2 className="panel-title">Classements</h2>
-          <p className="muted">Zones et produits sur l’année</p>
-        </div>
-        <ProductRanking
-          best={ranking.best}
-          worst={ranking.worst}
-          sites={ranking.sites}
-          plats={ranking.plats}
-          accompagnements={ranking.accompagnements}
-          boissons={ranking.boissons}
-        />
-      </section>
-
-      <section className="panel dash-card dash-card-wide dash-months-panel">
-        <div className="panel-head">
-          <h2 className="panel-title">Mois de l’année</h2>
-          <p className="muted">CA, charges et résultat</p>
-        </div>
-        <div className="dash-period-scroll">
-          <table className="dash-period-table">
-            <thead>
-              <tr>
-                <th scope="col">Mois</th>
-                <th scope="col" className="col-num">
-                  CA
-                </th>
-                <th scope="col" className="col-num">
-                  Charges
-                </th>
-                <th scope="col" className="col-num">
-                  Résultat
-                </th>
-                <th scope="col" className="col-num">
-                  Jours
-                </th>
-                <th scope="col" className="col-act">
-                  <span className="sr-only">Ouvrir</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {data.months.map((m) => (
-                <tr
-                  key={m.month}
-                  className={m.daysWithData ? undefined : "is-empty"}
-                >
-                  <th scope="row">{MONTH_NAMES[m.month - 1]}</th>
-                  <td className="mono col-num">{formatFcfa(m.caTotal)}</td>
-                  <td className="mono col-num">
-                    {formatFcfa(m.chargesTotal)}
-                  </td>
-                  <td
-                    className={`mono col-num${m.resultat < 0 ? " is-neg" : m.resultat > 0 ? " is-pos" : ""}`}
-                  >
-                    {formatFcfa(m.resultat)}
-                  </td>
-                  <td className="mono col-num">{m.daysWithData}</td>
-                  <td className="col-act">
-                    <button
-                      type="button"
-                      className="btn-link"
-                      onClick={() => onOpenMonth(m.month)}
-                    >
-                      Voir
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
     </div>
   );
 }

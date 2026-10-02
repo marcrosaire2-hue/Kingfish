@@ -450,3 +450,157 @@
     transform: none;
   }
 }
+
+/* ——— Même direction artistique que « Versements » ——— */
+
+.main-mcaisse .mcaisse-page {
+  gap: clamp(0.75rem, 2vw, 1.1rem);
+  animation: none;
+}
+
+.main-mcaisse .mcaisse-kpis {
+  gap: 0.85rem;
+}
+
+.main-mcaisse .mcaisse-kpi {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: center;
+  column-gap: 0.95rem;
+  row-gap: 0.15rem;
+  padding: 1.05rem 1.2rem;
+  border: 1px solid var(--vs-line);
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff 45%, #eaf3fb);
+  box-shadow: var(--vs-shadow);
+  animation: none;
+}
+
+.main-mcaisse .mcaisse-kpi[data-site="gbegamey"] {
+  background: linear-gradient(135deg, #fff 45%, #fff5e1);
+}
+
+.main-mcaisse .mcaisse-kpi-global {
+  background: linear-gradient(135deg, #fff8e1 0%, #fffdf6 70%);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--vs-line));
+}
+
+.main-mcaisse .mcaisse-kpi::before {
+  display: none;
+}
+
+.main-mcaisse .mcaisse-kpi:hover {
+  transform: none;
+  border-color: var(--vs-line);
+  box-shadow: var(--vs-shadow);
+}
+
+.main-mcaisse .mcaisse-kpi .vs-card-ico {
+  grid-row: 1 / span 4;
+}
+
+.main-mcaisse .mcaisse-kpi[data-site="gbegamey"] .vs-card-ico {
+  background: #ffe9c7;
+  color: #c27200;
+}
+
+.main-mcaisse .mcaisse-kpi-global .vs-card-ico {
+  background: #fff1c2;
+  color: #b37d00;
+}
+
+.main-mcaisse .mcaisse-kpi > :not(.vs-card-ico) {
+  grid-column: 2;
+}
+
+.main-mcaisse .mcaisse-kpi > strong {
+  padding-left: 0;
+  color: var(--vs-deep);
+}
+
+.main-mcaisse .mcaisse-kpi header {
+  padding-left: 0;
+}
+
+.main-mcaisse .mcaisse-kpi dl {
+  background: #f4f8fc;
+}
+
+.main-mcaisse .mcaisse-panel {
+  padding: 1.1rem 1.25rem 1.25rem;
+  border: 1px solid var(--vs-line);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: var(--vs-shadow);
+  animation: none;
+}
+
+.main-mcaisse .mcaisse-step {
+  background: #e4effa;
+  box-shadow: none;
+  color: var(--vs-blue);
+}
+
+.main-mcaisse .mcaisse-panel-head h2 {
+  color: var(--vs-deep);
+}
+
+.main-mcaisse .mcaisse-field input,
+.main-mcaisse .mcaisse-field select {
+  min-height: 2.8rem;
+  border: 1.5px solid var(--vs-line);
+  border-radius: 12px;
+  background: #f8fbfe;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.main-mcaisse .mcaisse-field input:focus,
+.main-mcaisse .mcaisse-field select:focus {
+  outline: none;
+  border-color: var(--vs-blue);
+  box-shadow: 0 0 0 3px rgb(7 94 168 / 0.12);
+}
+
+.main-mcaisse .mcaisse-table th {
+  background: #eef4fa;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vs-blue);
+}
+
+.main-mcaisse .mcaisse-table-wrap {
+  border: 1px solid #e6eef6;
+  border-radius: 12px;
+}
+
+.main-mcaisse .mcaisse-empty {
+  border: 0;
+  background: transparent;
+}
+
+@media (max-width: 1023px) {
+  .main-mcaisse .mcaisse-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .main-mcaisse .mcaisse-kpis {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main-mcaisse .mcaisse-field input,
+  .main-mcaisse .mcaisse-field select {
+    transition: none;
+  }
+}
+
+.main-mcaisse .vs-banner-copy p {
+  max-width: 32rem;
+}

@@ -10,7 +10,6 @@ import {
   type FormEvent,
 } from "react";
 import { AppShell } from "@/components/app-shell";
-import { BrandLoader } from "@/components/brand-loader";
 import { CataloguePaginationBar } from "@/components/parametres/catalogue-view";
 import { useSession } from "@/components/session-provider";
 import { formatDateFr } from "@/components/achats/achats-shared";
@@ -24,6 +23,7 @@ import {
 } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import "@/components/achats/achats-page.css";
+import "@/components/fonds-caisse/fonds-caisse-suivi.css";
 import "./compteur-page.css";
 
 const RANGE_FROM = "2020-01-01";
@@ -342,35 +342,25 @@ export function CompteurPage() {
           ? "Consultation des relevés de courant restant (matin et soir)."
           : "Courant restant + capture d’écran, matin et soir."
       }
-      mainClassName="main-achats"
-      actions={
-        <>
-          {followAll ? (
-            <div className="site-switch" role="tablist" aria-label="Site">
-              {(
-                [
-                  ["all", "Les deux"],
-                  ["zogbo", SITE_LABELS.zogbo],
-                  ["gbegamey", SITE_LABELS.gbegamey],
-                ] as const
-              ).map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={filterSite === key}
-                  className={`site-btn${filterSite === key ? " is-active" : ""}`}
-                  onClick={() => setFilterSite(key)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          ) : null}
+      mainClassName="main-achats main-compteur"
+    >
+      <div className="achats-page fcs-page">
+        <header className="fcs-hero">
+          <div>
+            <h2 className="fcs-title">Compteur électrique</h2>
+            <p className="fcs-sub">
+              {isReaderOnly
+          ? "Consultation des relevés de courant restant (matin et soir)."
+          : "Courant restant + capture d’écran, matin et soir."}
+              {isReaderOnly ? (
+                <span className="fcs-badge">Lecture seule</span>
+              ) : null}
+            </p>
+          </div>
           {canWrite ? (
             <button
               type="button"
-              className="btn btn-primary"
+              className="fcs-btn fcs-btn-primary"
               onClick={focusComposer}
             >
               + Nouveau relevé
@@ -378,43 +368,130 @@ export function CompteurPage() {
           ) : (
             <button
               type="button"
-              className="btn btn-ghost"
+              className="fcs-btn"
               disabled={loading}
               onClick={() => void charger()}
             >
               Actualiser
             </button>
           )}
-        </>
-      }
-    >
-      <div className="achats-page">
-        <div className="achats-stats" aria-label="État du jour">
-          <article className="achats-stat is-gold">
-            <span>Matin · {formatDateFr(today)}</span>
-            <strong>
-              {loading
-                ? "…"
-                : statusToday.matin
-                  ? `${formatQuantite(statusToday.matin.quantite)} KW`
-                  : "—"}
-            </strong>
+        </header>
+
+        <section className="fcs-card" aria-label="Filtres">
+          <h3 className="fcs-card-title">
+            <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+              <path d="M4 6h16M7 12h10M10 18h4" />
+            </svg>
+            Filtres
+          </h3>
+          <div className="cpt-filters">
+            {followAll ? (
+              <div className="cpt-seg" role="tablist" aria-label="Site">
+                {(
+                  [
+                    ["all", "Les deux"],
+                    ["zogbo", SITE_LABELS.zogbo],
+                    ["gbegamey", SITE_LABELS.gbegamey],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={filterSite === key}
+                    className={`cpt-seg-btn${filterSite === key ? " is-active" : ""}`}
+                    onClick={() => setFilterSite(key)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className="cpt-seg" role="group" aria-label="Filtre période">
+              {(
+                [
+                  ["all", "Tous", counts.all],
+                  ["matin", "Matin", counts.matin],
+                  ["soir", "Soir", counts.soir],
+                ] as const
+              ).map(([key, label, count]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`cpt-seg-btn${periodeFilter === key ? " is-active" : ""}`}
+                  onClick={() => setPeriodeFilter(key)}
+                >
+                  {label}
+                  <i>{count}</i>
+                </button>
+              ))}
+            </div>
+            <label className="fcs-field cpt-search">
+              <span>Recherche</span>
+              <input
+                type="search"
+                placeholder="Rechercher un relevé…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </label>
+          </div>
+        </section>
+
+        <div className="fcs-stats" aria-label="État du jour">
+          <article className="fcs-stat is-gold">
+            <span className="fcs-stat-ico">
+              <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+                <path d="M12 3v2m0 14v2M5 12H3m18 0h-2M6.3 6.3 5 5m14 14-1.3-1.3M17.7 6.3 19 5M6.3 17.7 5 19M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z" />
+              </svg>
+            </span>
+            <div>
+              <span className="fcs-stat-label">
+                Matin · {formatDateFr(today)}
+              </span>
+              <strong>
+                {loading
+                  ? "…"
+                  : statusToday.matin
+                    ? `${formatQuantite(statusToday.matin.quantite)} KW`
+                    : "—"}
+              </strong>
+              <small>Courant restant relevé le matin</small>
+            </div>
           </article>
-          <article className="achats-stat is-blue">
-            <span>Soir · {formatDateFr(today)}</span>
-            <strong>
-              {loading
-                ? "…"
-                : statusToday.soir
-                  ? `${formatQuantite(statusToday.soir.quantite)} KW`
-                  : "—"}
-            </strong>
+          <article className="fcs-stat is-blue">
+            <span className="fcs-stat-ico">
+              <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+                <path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z" />
+              </svg>
+            </span>
+            <div>
+              <span className="fcs-stat-label">
+                Soir · {formatDateFr(today)}
+              </span>
+              <strong>
+                {loading
+                  ? "…"
+                  : statusToday.soir
+                    ? `${formatQuantite(statusToday.soir.quantite)} KW`
+                    : "—"}
+              </strong>
+              <small>Courant restant relevé le soir</small>
+            </div>
           </article>
-          <article className="achats-stat">
-            <span>Dernier relevé</span>
-            <strong>
-              {loading ? "…" : lastDate ? formatDateFr(lastDate) : "—"}
-            </strong>
+          <article className="fcs-stat is-neutral">
+            <span className="fcs-stat-ico">
+              <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+                <path d="M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4" />
+              </svg>
+            </span>
+            <div>
+              <span className="fcs-stat-label">Dernier relevé</span>
+              <strong>
+                {loading ? "…" : lastDate ? formatDateFr(lastDate) : "—"}
+              </strong>
+              <small>Date du dernier enregistrement</small>
+            </div>
           </article>
         </div>
 
@@ -587,60 +664,39 @@ export function CompteurPage() {
           </section>
         ) : null}
 
-        <section className="achats-ledger" aria-label="Registre des relevés">
-          <div className="achats-ledger-head">
-            <h2>Registre</h2>
-            <div className="achats-toolbar">
-              <input
-                type="search"
-                className="achats-search"
-                placeholder="Rechercher un relevé…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                aria-label="Rechercher un relevé"
-              />
-              <div
-                className="achats-status-filters"
-                role="group"
-                aria-label="Filtre période"
-              >
-                {(
-                  [
-                    ["all", "Tous", counts.all],
-                    ["matin", "Matin", counts.matin],
-                    ["soir", "Soir", counts.soir],
-                  ] as const
-                ).map(([key, label, count]) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`achats-filter-chip${periodeFilter === key ? " is-active" : ""}`}
-                    onClick={() => setPeriodeFilter(key)}
-                  >
-                    {label}
-                    <i>{count}</i>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
+        <section className="fcs-card cpt-ledger" aria-label="Registre des relevés">
+          <header className="fcs-history-head">
+            <h3 className="fcs-card-title">Registre</h3>
+            <p>
+              {filtered.length} relevé{filtered.length > 1 ? "s" : ""}
+            </p>
+          </header>
 
           {loading ? (
-            <BrandLoader label="Chargement des relevés…" />
+            <div className="fcs-skeleton" aria-busy="true" aria-label="Chargement des relevés">
+              <span className="fcs-skel-row" />
+              <span className="fcs-skel-row" />
+              <span className="fcs-skel-row" />
+            </div>
           ) : filtered.length === 0 ? (
-            <div className="achats-empty">
+            <div className="fcs-state">
+              <span className="fcs-state-ico" aria-hidden>
+                <svg viewBox="0 0 24 24" focusable="false">
+                  <path d="M13 3 5 14h6l-1 7 8-11h-6l1-7Z" />
+                </svg>
+              </span>
               <strong>
                 {sorted.length === 0
                   ? "Aucun relevé enregistré"
                   : "Aucun relevé trouvé"}
               </strong>
-              <span>
+              <p>
                 {sorted.length === 0
                   ? canWrite
-                    ? "Saisissez le premier relevé dans la barre du haut."
+                    ? "Saisissez le premier relevé avec le bouton « Nouveau relevé »."
                     : "Aucun relevé pour ce filtre."
                   : "Modifiez votre recherche ou vos filtres."}
-              </span>
+              </p>
               {sorted.length === 0 && canWrite ? (
                 <button
                   type="button"
@@ -654,7 +710,7 @@ export function CompteurPage() {
           ) : (
             <>
               <div className="table-scroll">
-                <table className="data-table achats-table">
+                <table className="data-table achats-table fcs-table">
                   <thead>
                     <tr>
                       <th>Date</th>

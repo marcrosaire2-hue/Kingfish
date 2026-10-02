@@ -721,33 +721,37 @@ export function JournalVentesPage({
       title="Journal des ventes"
       subtitle={pageSubtitle}
       mainClassName="main-journal-ventes"
-      actions={
-        <>
-          <ExportExcelButton
-            label="Excel (par jour)"
-            onExport={() => void exportJournal()}
-            disabled={loading || exporting || result.totals.count === 0}
-          />
-          <ExportExcelButton
-            label="Excel (articles)"
-            onExport={() => void exportTickets()}
-            disabled={loading || exporting}
-          />
-          <Link href="/vente" className="btn btn-ghost">
-            ← Vente
-          </Link>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={() => void load()}
-            disabled={loading}
-          >
-            Actualiser
-          </button>
-        </>
-      }
     >
       <DashboardShell className="jv-page">
+        <header className="jv-banner">
+          <span className="jv-banner-ico" aria-hidden>
+            <svg viewBox="0 0 24 24" focusable="false">
+              <path d="M4 5h2l2 10h9l2-7H7M10 19.5h.01M16 19.5h.01" />
+            </svg>
+          </span>
+          <div className="jv-banner-copy">
+            <h2>Journal des ventes</h2>
+            <p>{pageSubtitle}</p>
+          </div>
+          <div className="jv-banner-side">
+            {!canManagePast && !canPurge && !canEditFull ? (
+              <span className="jv-readonly">
+                <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+                  <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+                </svg>
+                Lecture seule
+              </span>
+            ) : null}
+          </div>
+          <svg className="jv-banner-art" viewBox="0 0 120 80" aria-hidden focusable="false">
+            <rect x="14" y="48" width="16" height="26" rx="3" fill="#1d6fd6" />
+            <rect x="40" y="34" width="16" height="40" rx="3" fill="#2a7ec8" />
+            <rect x="66" y="20" width="16" height="54" rx="3" fill="#075ea8" />
+            <path d="M12 38 44 20l22 8 36-22" fill="none" stroke="#f5b400" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="m92 4 12 2-4 11" fill="none" stroke="#f5b400" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </header>
+
         <section className="panel jv-toolbar" aria-label="Filtres du journal">
           <div className="jv-toolbar-top">
             <div className="jv-periods" role="tablist" aria-label="Période">
@@ -798,6 +802,9 @@ export function JournalVentesPage({
             </div>
             <label className="jv-search">
               <span className="sr-only">Recherche</span>
+              <svg className="jv-search-ico" viewBox="0 0 24 24" aria-hidden focusable="false">
+                <path d="M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14Zm9 16-4-4" />
+              </svg>
               <input
                 type="search"
                 placeholder="N° ticket, produit, client…"
@@ -840,15 +847,41 @@ export function JournalVentesPage({
                   type="button"
                   role="tab"
                   aria-selected={statut === value}
-                  className={`jv-seg-btn${statut === value ? " is-active" : ""}`}
+                  className={`jv-seg-btn jv-statut-${value}${statut === value ? " is-active" : ""}`}
                   onClick={() => setStatut(value)}
                 >
                   {label}
                 </button>
               ))}
             </div>
+            <div className="jv-toolbar-actions">
+          <ExportExcelButton
+            label="Excel (par jour)"
+            onExport={() => void exportJournal()}
+            disabled={loading || exporting || result.totals.count === 0}
+          />
+          <ExportExcelButton
+            label="Excel (articles)"
+            onExport={() => void exportTickets()}
+            disabled={loading || exporting}
+          />
+          <Link href="/vente" className="btn btn-ghost">
+            ← Vente
+          </Link>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => void load()}
+            disabled={loading}
+          >
+            Actualiser
+          </button>
+            </div>
             <details className="jv-more">
               <summary>
+                <svg viewBox="0 0 24 24" aria-hidden focusable="false">
+                  <path d="M4 5h16l-6 8v6l-4-2v-4L4 5Z" />
+                </svg>
                 Plus de filtres
                 {extraFilterCount > 0 ? (
                   <span className="jv-more-count">{extraFilterCount}</span>
@@ -906,32 +939,69 @@ export function JournalVentesPage({
 
         <section className="jv-hero" aria-label="Synthèse de la période">
           <div className="jv-hero-ca">
-            <span className="jv-kicker">CA filtré (validé)</span>
+            <div className="jv-hero-top">
+              <i className="jv-ico jv-ico-blue" aria-hidden>
+                <svg viewBox="0 0 24 24" focusable="false"><path d="M5 5h14v14H5V5Zm3 4h8M8 13h3m2 0h3M8 16h3m2 0h3" /></svg>
+              </i>
+              <span className="jv-kicker">CA filtré (validé)</span>
+            </div>
             <strong className="jv-hero-value mono">
               {formatFcfa(result.totals.montant)}
             </strong>
-            <p className="jv-hero-hint">{periodHint}</p>
-            <p className="jv-hero-meta">
-              {result.totals.count} ticket
-              {result.totals.count > 1 ? "s" : ""} · {result.days.length} jour
-              {result.days.length > 1 ? "s" : ""}
-              {panierMoyen > 0 ? ` · panier ${formatFcfa(panierMoyen)}` : ""}
-            </p>
+            <ul className="jv-hero-facts">
+              <li>
+                <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4" /></svg>
+                {periodHint}
+              </li>
+              <li>
+                <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M4 8h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4V8Zm10 0v10" /></svg>
+                {result.totals.count} ticket{result.totals.count > 1 ? "s" : ""} · {result.days.length} jour{result.days.length > 1 ? "s" : ""}
+              </li>
+              {panierMoyen > 0 ? (
+                <li>
+                  <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M12 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-7 9c0-3.3 3-5.5 7-5.5s7 2.2 7 5.5" /></svg>
+                  Panier moyen {formatFcfa(panierMoyen)}
+                </li>
+              ) : null}
+            </ul>
+            <svg className="jv-hero-art" viewBox="0 0 90 60" aria-hidden focusable="false">
+              <rect x="6" y="38" width="14" height="20" rx="3" fill="#bcd6ee" />
+              <rect x="28" y="26" width="14" height="32" rx="3" fill="#8dbcf0" />
+              <rect x="50" y="12" width="14" height="46" rx="3" fill="#5a9be0" />
+            </svg>
           </div>
           <div className="jv-hero-side">
             <div className="jv-kpis">
-              <div>
-                <span>Validé</span>
-                <strong className="mono">{result.totals.valide}</strong>
-              </div>
-              <div>
-                <span>Annulé</span>
-                <strong className="mono">{result.totals.annule}</strong>
-              </div>
-              <div>
-                <span>En cours</span>
-                <strong className="mono">{result.totals.encours}</strong>
-              </div>
+              {(
+                [
+                  ["valide", "Validé", result.totals.valide],
+                  ["annule", "Annulé", result.totals.annule],
+                  ["encours", "En cours", result.totals.encours],
+                ] as const
+              ).map(([tone, label, n]) => {
+                const pct = (result.totals.valide + result.totals.annule + result.totals.encours) > 0 ? Math.round((n / (result.totals.valide + result.totals.annule + result.totals.encours)) * 100) : 0;
+                return (
+                  <div key={tone} className={`jv-kpi is-${tone}`}>
+                    <i className="jv-ico" aria-hidden>
+                      <svg viewBox="0 0 24 24" focusable="false">
+                        {tone === "valide" ? (
+                          <path d="m5 12.5 4.5 4.5L19 7.5" />
+                        ) : tone === "annule" ? (
+                          <path d="m6 6 12 12M18 6 6 18" />
+                        ) : (
+                          <path d="M12 7v5l3 2" />
+                        )}
+                      </svg>
+                    </i>
+                    <span>{label}</span>
+                    <strong className="mono">{n}</strong>
+                    <em>{pct}%</em>
+                    <b className="jv-kpi-bar" aria-hidden>
+                      <u style={{ width: `${pct}%` }} />
+                    </b>
+                  </div>
+                );
+              })}
             </div>
             <div className="jv-mix" aria-label="Répartition par catégorie">
               <div className="jv-mix-bar" aria-hidden>
@@ -963,6 +1033,9 @@ export function JournalVentesPage({
                     }
                     disabled={c.lignes === 0}
                   >
+                    <i className="jv-ico" aria-hidden>
+                      <CatIcon cat={c.cat} />
+                    </i>
                     <span>{c.label}</span>
                     <strong className="mono">{formatFcfa(c.montant)}</strong>
                   </button>
@@ -1178,6 +1251,22 @@ export function JournalVentesPage({
   );
 }
 
+function CatIcon({ cat }: { cat: VenteCategory }) {
+  const d =
+    cat === "plat"
+      ? "M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-2.5 5-2.5 8h2.5v10"
+      : cat === "accompagnement"
+        ? "M4 12h16a8 8 0 0 1-16 0Zm4-4c0-2 2-2 2-4m4 4c0-2 2-2 2-4"
+        : cat === "boisson"
+          ? "M6 6h12l-1.5 14h-9L6 6Zm2-3h8M7 11h10"
+          : "M6 12h.01M12 12h.01M18 12h.01";
+  return (
+    <svg viewBox="0 0 24 24" focusable="false">
+      <path d={d} />
+    </svg>
+  );
+}
+
 function JournalDayBlock({
   day,
   defaultOpen,
@@ -1251,6 +1340,9 @@ function JournalDayBlock({
       }}
     >
       <summary className="jv-day-summary">
+        <i className="jv-ico" aria-hidden>
+          <svg viewBox="0 0 24 24" focusable="false"><path d="M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4" /></svg>
+        </i>
         <span className="jv-day-title">
           <strong>{formatDateLong(day.date)}</strong>
           <span>
@@ -1263,6 +1355,16 @@ function JournalDayBlock({
 
       {view === "tickets" ? (
         <div className="jv-tickets">
+          <div className="jv-ticket-head" aria-hidden>
+            <span>Heure</span>
+            <span>N° ticket</span>
+            <span>Client</span>
+            <span>Produits / détails</span>
+            <span />
+            <span className="is-num">Montant</span>
+            <span>Statut</span>
+            <span />
+          </div>
           {tickets.map((ticket) => (
             <JournalTicketCard
               key={ticket.key}
@@ -1344,9 +1446,6 @@ function JournalTicketCard({
   onDeleteTicket: (line: JournalVenteLine) => void;
 }) {
   const first = ticket.lines[0];
-  const preview = ticket.lines
-    .map((l) => (l.qty > 1 ? `${l.produit} ×${l.qty}` : l.produit))
-    .join(" · ");
   const enregistrePar = ticket.caissier || ticket.serveur || null;
   const serveurDistinct =
     ticket.serveur &&
@@ -1354,10 +1453,10 @@ function JournalTicketCard({
     ticket.serveur !== ticket.caissier
       ? ticket.serveur
       : null;
-  const meta = [
+
+  const metaRest = [
     hideSite ? null : siteLabel(ticket.site),
     ticket.table ? `Table ${ticket.table}` : null,
-    ticket.client,
     serveurDistinct,
     enregistrePar ? `Enregistré par ${enregistrePar}` : null,
     ticket.paiement,
@@ -1371,17 +1470,39 @@ function JournalTicketCard({
     <details className={`jv-ticket jv-ticket-${ticket.statut}`}>
       <summary className="jv-ticket-summary">
         <span className="jv-ticket-time">{formatHeureOnly(ticket.at)}</span>
-        <span className="jv-ticket-id">
-          <strong>{ticket.numero}</strong>
-          <span className="jv-ticket-preview">{preview}</span>
-          {meta ? <span className="jv-ticket-meta">{meta}</span> : null}
+        <strong className="jv-ticket-num mono">{ticket.numero}</strong>
+        <span className="jv-ticket-client">
+          <i className="jv-ticket-avatar" aria-hidden>
+            <svg viewBox="0 0 24 24" focusable="false"><path d="M12 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-7 9c0-3.3 3-5.5 7-5.5s7 2.2 7 5.5" /></svg>
+          </i>
+          <span className="jv-ticket-id">
+            <strong>{ticket.client || siteLabel(ticket.site)}</strong>
+            {metaRest ? <span className="jv-ticket-meta">{metaRest}</span> : null}
+          </span>
         </span>
-        <span className={`hist-statut hist-statut-${ticket.statut}`}>
-          {ticket.statutLabel}
+        <span className="jv-ticket-products">
+          <strong>{first.produit}</strong>
+          {ticket.lines.length > 1 ? (
+            <span>
+              {ticket.lines
+                .slice(1)
+                .map((l) => `+ ${l.produit}`)
+                .join(" ")}
+            </span>
+          ) : null}
+        </span>
+        <span className="jv-ticket-qty mono">
+          x {ticket.lines.reduce((n, l) => n + l.qty, 0)}
         </span>
         <strong className="jv-ticket-amount mono">
           {formatFcfa(ticket.montant)}
         </strong>
+        <span className={`hist-statut hist-statut-${ticket.statut}`}>
+          {ticket.statutLabel}
+        </span>
+        <span className="jv-ticket-more" aria-hidden>
+          ⋮
+        </span>
       </summary>
       <div className="jv-ticket-body">
         <ul className="jv-ticket-lines">
