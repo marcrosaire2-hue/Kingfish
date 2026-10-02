@@ -8,7 +8,18 @@ import {
   APP_TAGLINE,
 } from "@/lib/brand";
 import { BrandIntro, BrandLogoMark } from "@/components/brand-logo-mark";
-import { EyeIcon } from "./login-icons";
+import {
+  CartIcon,
+  ChartIcon,
+  EyeIcon,
+  FishIcon,
+  LockIcon,
+  ShieldIcon,
+  StockIcon,
+  SubmitArrowIcon,
+  UserIcon,
+} from "./login-icons";
+import "./login-page.css";
 import { useSession } from "@/components/session-provider";
 
 const REMEMBER_KEY = "kingfish-remember-user";
@@ -110,57 +121,123 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
 
   return (
     <div className="login-screen">
-      {/* Scène mobile uniquement — masquée dès 861px */}
-      <div className="login-mobile-hero" aria-hidden>
-        <span className="login-mobile-brand">KINGFISH</span>
-        <span className="login-mobile-sites">{APP_SITES_LABEL}</span>
-      </div>
+      <aside className="login-visual">
+        <div className="login-visual-media" aria-hidden />
+        <div className="login-visual-shade" aria-hidden />
 
-      <div className="login-card" role="presentation">
-        <aside className="login-visual">
-          <div className="login-visual-media" aria-hidden />
-          <div className="login-visual-shade" aria-hidden />
-          <header className="login-visual-top">
-            <span className="login-brand">KINGFISH</span>
-          </header>
-          <footer className="login-visual-foot">
-            <div className="login-visual-credit">
-              <strong>{APP_NAME}</strong>
-              <span>{APP_SITES_LABEL}</span>
+        <header className="login-visual-top">
+          <span className="login-visual-logo" aria-hidden>
+            <BrandLogoMark size="sm" bare alt="" />
+          </span>
+          <span className="login-brand">KINGFISH</span>
+          <p className="login-visual-slogan">
+            Pilotez vos activités,
+            <br />
+            en toute clarté
+          </p>
+        </header>
+
+        <ul className="login-values">
+          <li>
+            <span className="login-value-icon">
+              <CartIcon />
+            </span>
+            <span>
+              <strong>Ventes &amp; caisse</strong>
+              <small>Suivi en temps réel</small>
+            </span>
+          </li>
+          <li>
+            <span className="login-value-icon">
+              <StockIcon />
+            </span>
+            <span>
+              <strong>Stock &amp; approvisionnement</strong>
+              <small>Toujours maîtrisés</small>
+            </span>
+          </li>
+          <li>
+            <span className="login-value-icon">
+              <ChartIcon />
+            </span>
+            <span>
+              <strong>Pilotage multi-sites</strong>
+              <small>Zogbo &amp; Gbégamey</small>
+            </span>
+          </li>
+        </ul>
+
+        <footer className="login-visual-foot">
+          <svg viewBox="0 0 48 24" aria-hidden focusable="false">
+            <path
+              d="M2 9c5-6 9-6 14 0s9 6 14 0 9-6 16 0M2 20c5-6 9-6 14 0s9 6 14 0 9-6 16 0"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.4"
+              strokeLinecap="round"
+            />
+          </svg>
+          <div className="login-visual-credit">
+            <strong>{APP_NAME}</strong>
+            <span>{APP_SITES_LABEL}</span>
+          </div>
+        </footer>
+      </aside>
+
+      <section className="login-panel-form" aria-label="Connexion">
+        <svg
+          className="login-edge"
+          viewBox="0 0 100 1000"
+          preserveAspectRatio="none"
+          aria-hidden
+          focusable="false"
+        >
+          <path d="M100 0H70C30 150 0 300 40 460s70 240 20 380c-14 60-10 110 10 160h30Z" />
+        </svg>
+        <span className="login-deco login-deco-fish" aria-hidden>
+          <FishIcon />
+        </span>
+        <span className="login-deco login-deco-dots" aria-hidden />
+
+        <div className="login-form-wrap">
+          <header className="login-form-head">
+            <div className="login-form-mark-slot">
+              <BrandLogoMark
+                size="md"
+                className="login-form-mark"
+                alt=""
+                bare
+              />
             </div>
-          </footer>
-        </aside>
+            <h1 className="login-title">
+              <span>Bienvenue sur</span>
+              <strong>KINGFISH</strong>
+            </h1>
+            <p className="login-form-tag">
+              <i aria-hidden />
+              {APP_TAGLINE}
+              <i aria-hidden />
+            </p>
+          </header>
 
-        <section className="login-panel-form" aria-label="Connexion">
-          <div className="login-form-wrap">
-            <header className="login-form-head">
-              <div className="login-form-mark-slot">
-                <BrandLogoMark
-                  size="md"
-                  className="login-form-mark"
-                  alt=""
-                  bare
-                />
-              </div>
-              <h1 className="login-title">Welcome To KINGFISH</h1>
-              <p className="login-form-tag">{APP_TAGLINE}</p>
-            </header>
+          <form className="login-form" onSubmit={onSubmit} noValidate>
+            {error ? (
+              <p className="login-error" role="alert" id="login-error">
+                <span className="login-error-mark" aria-hidden>
+                  !
+                </span>
+                {error}
+              </p>
+            ) : null}
 
-            <form className="login-form" onSubmit={onSubmit} noValidate>
-              {error ? (
-                <p className="login-error" role="alert" id="login-error">
-                  <span className="login-error-mark" aria-hidden>
-                    !
-                  </span>
-                  {error}
-                </p>
-              ) : null}
-
-              <label className="login-field login-field-user">
-                <span className="sr-only">Identifiant</span>
+            <label className="login-field login-field-user">
+              <span className="login-field-icon">
+                <UserIcon />
+              </span>
+              <span className="login-field-body">
+                <span className="login-field-label">Nom d’utilisateur</span>
                 <input
                   name="username"
-                  placeholder="Identifiant"
                   autoComplete="username"
                   autoCapitalize="none"
                   autoCorrect="off"
@@ -174,53 +251,67 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
                   aria-invalid={error ? true : undefined}
                   aria-describedby={error ? "login-error" : undefined}
                 />
-              </label>
+              </span>
+            </label>
 
-              <label className="login-field login-password login-field-pass">
-                <span className="sr-only">Mot de passe</span>
-                <input
-                  name="password"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Mot de passe"
-                  autoComplete="current-password"
-                  autoCapitalize="none"
-                  autoCorrect="off"
-                  spellCheck={false}
-                  enterKeyHint="go"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  disabled={loading}
-                  aria-invalid={error ? true : undefined}
-                  aria-describedby={error ? "login-error" : undefined}
-                />
-                <button
-                  type="button"
-                  className="login-reveal"
-                  onClick={() => setShowPassword((v) => !v)}
-                  disabled={loading}
-                  aria-label={
-                    showPassword
-                      ? "Masquer le mot de passe"
-                      : "Afficher le mot de passe"
-                  }
-                  aria-pressed={showPassword}
-                >
-                  <EyeIcon open={showPassword} />
-                </button>
+            <div className="login-field login-password login-field-pass">
+              <label className="login-field-main">
+                <span className="login-field-icon">
+                  <LockIcon />
+                </span>
+                <span className="login-field-body">
+                  <span className="login-field-label">Mot de passe</span>
+                  <input
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    enterKeyHint="go"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                    aria-invalid={error ? true : undefined}
+                    aria-describedby={error ? "login-error" : undefined}
+                  />
+                </span>
               </label>
-
               <button
-                type="submit"
-                className="btn login-submit"
+                type="button"
+                className="login-reveal"
+                onClick={() => setShowPassword((v) => !v)}
                 disabled={loading}
+                aria-label={
+                  showPassword
+                    ? "Masquer le mot de passe"
+                    : "Afficher le mot de passe"
+                }
+                aria-pressed={showPassword}
               >
-                {loading ? "Connexion…" : "Connexion"}
+                <EyeIcon open={showPassword} />
               </button>
-            </form>
-          </div>
-        </section>
-      </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn login-submit"
+              disabled={loading}
+            >
+              {loading ? "Connexion…" : "Connexion"}
+              <SubmitArrowIcon />
+            </button>
+          </form>
+
+          <p className="login-help">
+            <span className="login-help-icon">
+              <ShieldIcon />
+            </span>
+            Mot de passe oublié ? Contactez votre administrateur.
+          </p>
+        </div>
+      </section>
     </div>
   );
 }

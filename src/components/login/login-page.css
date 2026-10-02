@@ -1,0 +1,643 @@
+/* Page de connexion — plein écran, univers maritime KINGFISH */
+.login-screen {
+  --lg-deep: #063b68;
+  --lg-blue: #075ea8;
+  --lg-ocean: #0b78b7;
+  --lg-gold: var(--accent, #f5b400);
+  --lg-soft: #f3f8fc;
+  --lg-ink: #0d2a45;
+  --lg-muted: #5d7590;
+  --lg-icon-fill: #0b3a6b;
+
+  position: relative;
+  display: grid;
+  grid-template-columns: 48fr 52fr;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+  background: #fff;
+  color: var(--lg-ink);
+}
+
+.login-screen svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ---------- Partie gauche : l'océan ---------- */
+.login-visual {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2rem;
+  min-width: 0;
+  padding: clamp(1.5rem, 3.4vw, 3.2rem);
+  padding-bottom: clamp(1.25rem, 2.4vw, 2rem);
+  color: #fff;
+  background: var(--lg-deep);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.login-visual-media {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: url("/login-bg.png") center 38% / cover no-repeat;
+}
+
+.login-visual-shade {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    linear-gradient(
+      180deg,
+      rgb(6 59 104 / 0.78) 0%,
+      rgb(6 59 104 / 0.3) 38%,
+      rgb(6 59 104 / 0.55) 70%,
+      rgb(6 59 104 / 0.94) 100%
+    ),
+    linear-gradient(90deg, rgb(7 94 168 / 0.35), transparent 70%);
+}
+
+.login-visual-top {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
+  gap: 0.35rem 0.9rem;
+}
+
+.login-visual-logo {
+  width: 2.7rem;
+  height: 2.7rem;
+  padding: 0.22rem;
+  border-radius: 0.8rem;
+  background: #fff;
+  box-shadow: 0 6px 18px rgb(0 20 50 / 0.3);
+}
+
+.login-visual-logo .kf-mark {
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0;
+}
+
+.login-visual-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.login-brand {
+  font-size: clamp(1.5rem, 2.6vw, 2.35rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+.login-visual-slogan {
+  grid-column: 3;
+  margin: 0;
+  padding-left: 0.9rem;
+  border-left: 2px solid var(--lg-gold);
+  font-size: clamp(0.78rem, 1.15vw, 0.98rem);
+  line-height: 1.35;
+  color: rgb(255 255 255 / 0.88);
+}
+
+.login-values {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 2.4vh, 1.7rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.login-values li {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.login-value-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3.1rem;
+  height: 3.1rem;
+  padding: 0.8rem;
+  border: 2px solid var(--lg-gold);
+  border-radius: 50%;
+  background: rgb(6 59 104 / 0.55);
+  backdrop-filter: blur(4px);
+  color: #fff;
+}
+
+.login-values strong {
+  display: block;
+  font-size: clamp(0.92rem, 1.2vw, 1.05rem);
+  font-weight: 700;
+}
+
+.login-values small {
+  display: block;
+  font-size: 0.82rem;
+  color: rgb(255 255 255 / 0.78);
+}
+
+.login-visual-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.login-visual-foot svg {
+  width: 2.6rem;
+  height: auto;
+  color: var(--lg-gold);
+}
+
+.login-visual-credit strong {
+  display: block;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.login-visual-credit span {
+  font-size: 0.85rem;
+  color: rgb(255 255 255 / 0.78);
+}
+
+/* ---------- Partie droite : connexion ---------- */
+.login-panel-form {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: clamp(1.5rem, 4vw, 3.5rem) clamp(1.25rem, 4vw, 4rem);
+  background:
+    radial-gradient(
+      ellipse 70% 45% at 85% 12%,
+      rgb(11 120 183 / 0.08),
+      transparent 70%
+    ),
+    linear-gradient(180deg, #fff 30%, var(--lg-soft) 100%);
+}
+
+/* Courbe marine qui mord sur l'image */
+.login-edge {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: clamp(4.5rem, 10vw, 10rem) !important;
+  height: 100% !important;
+  transform: translateX(-99%);
+  fill: #fff;
+  pointer-events: none;
+}
+
+.login-deco {
+  position: absolute;
+  pointer-events: none;
+  color: var(--lg-ocean);
+}
+
+.login-deco-fish {
+  top: 12%;
+  right: -4rem;
+  width: clamp(12rem, 22vw, 20rem);
+  height: auto;
+  opacity: 0.07;
+}
+
+.login-deco-dots {
+  bottom: 9%;
+  left: 7%;
+  width: 7rem;
+  height: 4rem;
+  opacity: 0.5;
+  background-image: radial-gradient(
+    circle,
+    rgb(11 120 183 / 0.35) 1.5px,
+    transparent 2px
+  );
+  background-size: 14px 14px;
+}
+
+.login-form-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 34rem;
+  animation: login-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.login-form-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.login-form-mark-slot {
+  display: grid;
+  place-items: center;
+  width: clamp(4.6rem, 7vw, 5.6rem);
+  height: clamp(4.6rem, 7vw, 5.6rem);
+  padding: 0.3rem;
+  border: 1px solid rgb(7 94 168 / 0.1);
+  border-radius: 1.2rem;
+  background: #fff;
+  box-shadow: 0 10px 28px rgb(6 59 104 / 0.12);
+}
+
+.login-form-mark-slot .kf-mark {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.login-form-mark-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.login-title {
+  display: flex;
+  flex-direction: column;
+  margin: 1.2rem 0 0;
+  line-height: 1.05;
+  color: var(--lg-deep);
+}
+
+.login-title span {
+  font-size: clamp(1.1rem, 2vw, 1.5rem);
+  font-weight: 500;
+}
+
+.login-title strong {
+  font-size: clamp(2.3rem, 5vw, 3.8rem);
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--lg-blue);
+}
+
+.login-form-tag {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  margin: 0.7rem 0 0;
+  font-size: clamp(0.88rem, 1.4vw, 1.05rem);
+  font-weight: 600;
+  color: var(--lg-deep);
+}
+
+.login-form-tag i {
+  width: clamp(1.4rem, 4vw, 2.8rem);
+  height: 2px;
+  background: var(--lg-gold);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: clamp(1.4rem, 3.4vh, 2.2rem);
+}
+
+.login-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  min-height: 4.1rem;
+  padding: 0.55rem 1.1rem;
+  border: 1.5px solid rgb(7 94 168 / 0.12);
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 2px 10px rgb(6 59 104 / 0.05);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+}
+
+.login-field:hover {
+  border-color: rgb(7 94 168 / 0.3);
+}
+
+.login-field:focus-within {
+  border-color: var(--lg-blue);
+  box-shadow: 0 0 0 4px rgb(7 94 168 / 0.12);
+}
+
+.login-field-main {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.85rem;
+  min-width: 0;
+  cursor: text;
+}
+
+.login-field-icon {
+  flex: none;
+  width: 1.45rem;
+  height: 1.45rem;
+  color: var(--lg-blue);
+}
+
+.login-field-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.login-field-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--lg-muted);
+}
+
+.login-field input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.1rem 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--lg-ink);
+}
+
+.login-field input:disabled {
+  opacity: 0.6;
+}
+
+.login-reveal {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-right: -0.5rem;
+  padding: 0.6rem;
+  border: 0;
+  border-radius: 0.7rem;
+  background: transparent;
+  color: var(--lg-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.login-reveal:hover {
+  color: var(--lg-blue);
+  background: rgb(7 94 168 / 0.08);
+}
+
+.login-reveal:focus-visible,
+.login-submit:focus-visible {
+  outline: 3px solid var(--lg-gold);
+  outline-offset: 2px;
+}
+
+.login-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.7rem;
+  width: 100%;
+  min-height: 3.6rem;
+  margin-top: 0.4rem;
+  border: 0;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, var(--lg-blue), var(--lg-deep));
+  box-shadow: 0 12px 26px rgb(6 59 104 / 0.3);
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease;
+}
+
+.login-submit svg {
+  width: 1.3rem;
+  height: 1.3rem;
+  transition: transform 0.18s ease;
+}
+
+.login-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.1);
+  box-shadow: 0 16px 30px rgb(6 59 104 / 0.34);
+}
+
+.login-submit:hover:not(:disabled) svg {
+  transform: translateX(4px);
+}
+
+.login-submit:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.login-submit:disabled {
+  opacity: 0.75;
+  cursor: progress;
+}
+
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #f3b9b9;
+  border-radius: 0.8rem;
+  background: #fff1f1;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: #a02323;
+}
+
+.login-error-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 50%;
+  background: #c93a3a;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.login-help {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1.6rem 0 0;
+  padding-top: 1.3rem;
+  border-top: 1px solid rgb(7 94 168 / 0.12);
+  font-size: 0.88rem;
+  text-align: center;
+  color: var(--lg-muted);
+}
+
+.login-help-icon {
+  flex: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  color: var(--lg-blue);
+}
+
+.login-spinner {
+  animation: login-spin 0.85s linear infinite;
+}
+
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes login-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Tablette ---------- */
+@media (max-width: 1023px) and (min-width: 768px) {
+  .login-screen {
+    grid-template-columns: 42fr 58fr;
+  }
+
+  .login-visual-top {
+    grid-template-columns: auto 1fr;
+  }
+
+  .login-visual-slogan {
+    grid-column: 1 / -1;
+    padding-left: 0.7rem;
+  }
+
+  .login-value-icon {
+    width: 2.6rem;
+    height: 2.6rem;
+    padding: 0.65rem;
+  }
+
+  .login-values small {
+    font-size: 0.76rem;
+  }
+}
+
+/* ---------- Mobile : bannière + formulaire prioritaire ---------- */
+@media (max-width: 767px) {
+  .login-screen {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .login-visual {
+    flex: none;
+    gap: 0;
+    padding: calc(1.25rem + env(safe-area-inset-top, 0px)) 1.25rem 3.25rem;
+  }
+
+  .login-visual-top {
+    grid-template-columns: auto 1fr;
+  }
+
+  .login-visual-slogan {
+    grid-column: 1 / -1;
+    margin-top: 0.4rem;
+    padding-left: 0.7rem;
+    font-size: 0.82rem;
+  }
+
+  .login-values,
+  .login-visual-foot,
+  .login-edge,
+  .login-deco-fish {
+    display: none;
+  }
+
+  .login-panel-form {
+    flex: 1;
+    align-items: flex-start;
+    margin-top: -1.75rem;
+    padding: 1.75rem 1.25rem
+      calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    border-radius: 1.75rem 1.75rem 0 0;
+    box-shadow: 0 -10px 30px rgb(6 59 104 / 0.14);
+  }
+
+  .login-form-mark-slot {
+    width: 4.2rem;
+    height: 4.2rem;
+  }
+
+  .login-field {
+    min-height: 3.9rem;
+  }
+
+  .login-field input {
+    font-size: 1rem;
+  }
+}
+
+@media (max-height: 640px) and (min-width: 768px) {
+  .login-values {
+    gap: 0.7rem;
+  }
+
+  .login-form-mark-slot {
+    width: 3.8rem;
+    height: 3.8rem;
+  }
+
+  .login-form {
+    margin-top: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-form-wrap {
+    animation: none;
+  }
+
+  .login-field,
+  .login-submit,
+  .login-submit svg,
+  .login-reveal {
+    transition: none;
+  }
+
+  .login-submit:hover:not(:disabled),
+  .login-submit:hover:not(:disabled) svg {
+    transform: none;
+  }
+}
