@@ -896,6 +896,30 @@ export type CaisseSession = {
   closedById: string | null;
   closedByName: string | null;
   updatedAt: string | null;
+  /**
+   * Période de suivi de la caisse : démarre quand l'admin fixe un nouveau
+   * capital, se transmet aux sessions des jours suivants.
+   */
+  periodeId?: string | null;
+};
+
+/** Résumé d'une période de caisse (entre deux changements de capital). */
+export type CaissePeriode = {
+  id: string;
+  caisse: CaisseKey;
+  /** Première journée de la période. */
+  debut: string;
+  /** Dernière journée de la période (null tant qu'elle est en cours). */
+  fin: string | null;
+  courante: boolean;
+  /** Avant le suivi par période : tout l'historique antérieur. */
+  historique: boolean;
+  capital: number;
+  entrees: number;
+  sorties: number;
+  /** capital + entrées − sorties. */
+  solde: number;
+  sessions: number;
 };
 
 /** Vue d'ensemble des caisses de zone — bandeau multi-sites. */

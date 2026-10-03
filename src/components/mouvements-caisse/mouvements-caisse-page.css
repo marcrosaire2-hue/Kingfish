@@ -604,3 +604,32 @@
 .main-mcaisse .vs-banner-copy p {
   max-width: 32rem;
 }
+
+.main-mcaisse .mcaisse-period-note {
+  margin: -0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+}
+
+.main-mcaisse .mcaisse-periode select {
+  width: 100%;
+  min-height: 2.4rem;
+  margin-top: 0.15rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--vs-line);
+  border-radius: 10px;
+  background: #f8fbfe;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--vs-deep);
+}
+
+.main-mcaisse .mcaisse-periode select:focus {
+  outline: none;
+  border-color: var(--vs-blue);
+  box-shadow: 0 0 0 3px rgb(7 94 168 / 0.12);
+}
+
+.main-mcaisse .mcaisse-kpi > .mcaisse-periode {
+  grid-column: 2;
+}

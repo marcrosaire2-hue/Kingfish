@@ -13,6 +13,7 @@ import {
   addFondsCaisse,
   getActiveCaisse,
   getCaissesOverview,
+  listPeriodesCaisse,
   listMouvementsReseau,
   openCaisse,
   setCaisseCapital,
@@ -71,10 +72,17 @@ export async function GET(request: Request) {
       }),
     );
 
+    const periodes = Object.fromEntries(
+      await Promise.all(
+        sites.map(async (caisse) => [caisse, await listPeriodesCaisse(caisse)]),
+      ),
+    );
+
     return NextResponse.json({
       dateFrom,
       dateTo,
       sites,
+      periodes,
       overview: filteredOverview,
       soldeGlobal: soldeGlobalSites(filteredOverview),
       sitesDetail,
@@ -82,6 +90,7 @@ export async function GET(request: Request) {
         ...row.mouvement,
         caisse: row.caisse,
         sessionDate: row.date,
+        periodeId: row.periodeId,
       })),
     });
   } catch (error) {
@@ -124,6 +133,7 @@ export async function POST(request: Request) {
         caisse: body.caisse,
         user,
         soldeInitial: Number(body.soldeInitial) || 0,
+        nouvellePeriode: true,
       });
       await logActivity({
         user,
@@ -162,6 +172,7 @@ export async function POST(request: Request) {
             caisse,
             user,
             soldeInitial: montant,
+            nouvellePeriode: true,
           });
           opened.push(session);
           await logActivity({
@@ -216,10 +227,10 @@ export async function POST(request: Request) {
       await logActivity({
         user,
         kind: "caisse",
-        title: `Fonds ajoutés · ${CAISSE_LABELS[body.caisse]}`,
+        title: `Apport de fonds · ${CAISSE_LABELS[body.caisse]}`,
         detail: [
           `+${montant} FCFA`,
-          `${result.capitalAvant} → ${result.capitalApres} FCFA`,
+          `solde ${result.capitalAvant} → ${result.capitalApres} FCFA`,
           `effet au ${date}`,
           body.motif?.trim() || null,
         ]
@@ -255,7 +266,7 @@ export async function POST(request: Request) {
       await logActivity({
         user,
         kind: "caisse",
-        title: `Capital modifié · ${CAISSE_LABELS[body.caisse]}`,
+        title: `Nouveau capital (nouvelle période) · ${CAISSE_LABELS[body.caisse]}`,
         detail: [
           avant
             ? `${avant.soldeInitial} → ${soldeInitial} FCFA`
