@@ -22,6 +22,13 @@ import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
+/** Consultation : administrateur, DAF et comptable. */
+function assertLecteur(user: { role: string }) {
+  if (!["admin", "daf", "comptable"].includes(user.role)) {
+    throw new Error("Accès réservé à l'administration et à la comptabilité.");
+  }
+}
+
 function assertAdmin(user: { role: string }) {
   if (user.role !== "admin") {
     throw new Error("Accès réservé à l'administrateur.");
@@ -35,7 +42,7 @@ function sitesAutorises(user: Parameters<typeof allowedCaisses>[0]) {
 export async function GET(request: Request) {
   try {
     const user = await requireUser();
-    assertAdmin(user);
+    assertLecteur(user);
 
     const { searchParams } = new URL(request.url);
     const dateFrom =

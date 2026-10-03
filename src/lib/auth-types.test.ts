@@ -25,6 +25,7 @@ describe("rôle Comptable", () => {
       "gbegamey",
       "caisse",
       "fonds-caisse",
+      "mouvements-caisse",
       "depenses",
       "versements",
       "appro",
@@ -48,6 +49,10 @@ describe("rôle Comptable", () => {
     expect(canAccessPath("comptable", "/achats", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/stock", "tous")).toBe(true);
     expect(canAccessPath("comptable", "/immobilisations", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/mouvements-caisse", "tous")).toBe(true);
+    expect(canAccessPath("comptable", "/fonds-caisse", "tous")).toBe(true);
+    expect(canAccessPath("daf", "/mouvements-caisse", "tous", "daff")).toBe(true);
+    expect(canAccessPath("daf", "/fonds-caisse", "tous", "daff")).toBe(true);
     expect(canAccessPath("comptable", "/analyse", "tous")).toBe(false);
     expect(canAccessPath("comptable", "/historique", "tous")).toBe(false);
     expect(canAccessPath("comptable", "/admin", "tous")).toBe(false);

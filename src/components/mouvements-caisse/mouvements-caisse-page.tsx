@@ -49,6 +49,9 @@ const KIND_LABELS: Record<CaisseMouvement["kind"], string> = {
   "versement-entree": "Versement",
 };
 
+/** Consultation : administrateur, DAF, comptable. Seul l'admin modifie le capital. */
+const LECTEURS = ["admin", "daf", "comptable"];
+
 type KindFilter = "tous" | "depense" | "versement-entree" | "recette";
 type SiteFilter = "tous" | "zogbo" | "gbegamey";
 
@@ -66,6 +69,7 @@ function formatAt(iso: string) {
 
 export function MouvementsCaissePage() {
   const { user, ready } = useSession();
+  const canEdit = user?.role === "admin";
   const [board, setBoard] = useState<Board | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -109,9 +113,9 @@ export function MouvementsCaissePage() {
 
   useEffect(() => {
     if (!ready) return;
-    if (user?.role !== "admin") {
+    if (!user || !LECTEURS.includes(user.role)) {
       setLoading(false);
-      setError("Accès réservé à l'administrateur.");
+      setError("Accès réservé à l'administration et à la comptabilité.");
       return;
     }
     void load();
@@ -273,11 +277,11 @@ export function MouvementsCaissePage() {
     return [...rows].reverse();
   }, [board?.mouvements, siteFilter, kindFilter, query]);
 
-  if (ready && user && user.role !== "admin") {
+  if (ready && user && !LECTEURS.includes(user.role)) {
     return (
       <AppShell title="Mouvements de fonds" subtitle="Accès restreint">
         <p className="error-banner" role="alert">
-          Accès réservé à l&apos;administrateur.
+          Accès réservé à l&apos;administration et à la comptabilité.
         </p>
       </AppShell>
     );
@@ -299,13 +303,15 @@ export function MouvementsCaissePage() {
           <div className="vs-banner-copy">
             <h2>Mouvements de fonds</h2>
             <p>
-              Ajoutez ou corrigez le capital de chaque site. Les versements,
-              achats et dépenses restent saisis par les équipes en Caisse /
-              Dépenses.
+              {canEdit
+                ? "Ajoutez ou corrigez le capital de chaque site. Les versements, achats et dépenses restent saisis par les équipes en Caisse / Dépenses."
+                : "Soldes de chaque site et journal de tous les mouvements : versements confirmés, achats et dépenses."}
             </p>
           </div>
           <div className="vs-banner-side">
-            <span className="vs-readonly">Pilotage · multi-sites</span>
+            <span className="vs-readonly">
+              {canEdit ? "Pilotage · multi-sites" : "Lecture seule"}
+            </span>
           </div>
           <svg className="vs-banner-art" viewBox="0 0 220 120" aria-hidden focusable="false">
             <ellipse cx="120" cy="110" rx="90" ry="10" fill="#d7e8f8" />
@@ -410,7 +416,7 @@ export function MouvementsCaissePage() {
               </article>
             </section>
 
-            {aOuvrir.length > 0 ? (
+            {canEdit && aOuvrir.length > 0 ? (
               <section className="mcaisse-panel">
                 <header className="mcaisse-panel-head">
                   <span className="mcaisse-step" aria-hidden>
@@ -470,6 +476,7 @@ export function MouvementsCaissePage() {
               </section>
             ) : null}
 
+            {canEdit ? (
             <section className="mcaisse-panel">
               <header className="mcaisse-panel-head">
                 <span className="mcaisse-step" aria-hidden>
@@ -591,11 +598,12 @@ export function MouvementsCaissePage() {
                 </button>
               </div>
             </section>
+            ) : null}
 
             <section className="mcaisse-panel">
               <header className="mcaisse-panel-head">
                 <span className="mcaisse-step" aria-hidden>
-                  {aOuvrir.length > 0 ? "3" : "2"}
+                  {canEdit ? (aOuvrir.length > 0 ? "3" : "2") : "1"}
                 </span>
                 <div>
                   <h2>Journal des deux sites</h2>
