@@ -581,7 +581,7 @@ export function CaissePage() {
                     <h2>Mouvement</h2>
                     <p>
                       {peutMouvements
-                        ? "Dépense / achat ou versement d'entrée (hors ventes POS)"
+                        ? "Dépense / achat (hors ventes POS). Les versements entrent en caisse à leur confirmation."
                         : "Suspendu pendant le comptage"}
                     </p>
                   </header>
@@ -598,13 +598,6 @@ export function CaissePage() {
                       onClick={() => setMKind("depense")}
                     >
                       Dépense / achat
-                    </button>
-                    <button
-                      type="button"
-                      className={`caisse-kind-btn${mKind === "versement-entree" ? " is-active is-recette" : ""}`}
-                      onClick={() => setMKind("versement-entree")}
-                    >
-                      Versement
                     </button>
                   </div>
                   <div className="caisse-form-grid">
@@ -877,9 +870,7 @@ export function CaissePage() {
                           </span>
                           {!m.cancelledAt &&
                           peutMouvements &&
-                          (m.kind === "depense" ||
-                            m.kind === "recette" ||
-                            m.kind === "versement-entree") ? (
+                          (m.kind === "depense" || m.kind === "recette") ? (
                             <button
                               type="button"
                               className="btn btn-ghost"

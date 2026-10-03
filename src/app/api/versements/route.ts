@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite, effectiveSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
+import {
+  addCaisseMouvement,
+  resolveCaisseForDepense,
+} from "@/lib/caisse-repo";
+import { canCorrectClosedFinancialData } from "@/lib/security-policy";
 import { reportError } from "@/lib/report-error";
 import type { VersementStatut, VenteSite } from "@/lib/types";
 import {
@@ -13,7 +18,9 @@ import {
   confirmVersement,
   declareVersement,
   getVersement,
+  getVersementCaisseMouvement,
   listVersements,
+  setVersementCaisseMouvement,
   updateVersement,
 } from "@/lib/versements-repo";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -158,10 +165,51 @@ export async function POST(request: Request) {
         return NextResponse.json({ entry });
       }
 
+      // Un versement confirmé est une entrée d'argent : il doit être tracé dans
+      // la caisse du site. Sans caisse ouverte, on refuse AVANT de verrouiller.
+      const bypassPast =
+        canCorrectClosedFinancialData(user.role) &&
+        existing.date < todayIsoDate();
+      const { session: caisseSession, allowClosed } =
+        await resolveCaisseForDepense({
+          site: existing.site,
+          date: existing.date,
+          allowPastClosed: bypassPast,
+        });
+      if (existing.statut === "en_attente" && !caisseSession) {
+        return NextResponse.json(
+          {
+            error: `Aucune caisse ouverte pour ${existing.site === "gbegamey" ? "Gbégamey" : "Zogbo"} : ouvrez la caisse avant de confirmer ce versement, sinon l'entrée d'argent ne serait pas tracée.`,
+          },
+          { status: 409 },
+        );
+      }
+
       const entry = await confirmVersement({
         id: body.id,
         actor: actorFrom(user),
       });
+      let caisseWarning: string | null = null;
+      if (caisseSession && !(await getVersementCaisseMouvement(entry.id))) {
+        try {
+          const res = await addCaisseMouvement({
+            caisseId: caisseSession.id,
+            user,
+            kind: "versement-entree",
+            nature: `Versement confirmé · n° ${entry.numeroTransaction}`,
+            beneficiaire: entry.actorName,
+            montant: entry.montant,
+            allowClosed,
+          });
+          await setVersementCaisseMouvement(entry.id, res.mouvement.id);
+        } catch (e) {
+          reportError("versements.confirm.caisse", e, { versementId: entry.id });
+          caisseWarning =
+            e instanceof Error
+              ? e.message
+              : "Entrée de caisse non enregistrée.";
+        }
+      }
       await logActivity({
         user,
         kind: "versements",
@@ -171,7 +219,7 @@ export async function POST(request: Request) {
         site: entry.site,
         amount: entry.montant,
       });
-      return NextResponse.json({ entry });
+      return NextResponse.json({ entry, caisseWarning });
     }
 
     const form = await request.formData();

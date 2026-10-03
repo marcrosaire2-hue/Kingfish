@@ -631,9 +631,16 @@ export function VersementsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "confirm", id }),
       });
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as {
+        error?: string;
+        caisseWarning?: string | null;
+      };
       if (!res.ok) throw new Error(body.error || "Confirmation impossible.");
-      setFlash("Versement confirmé et verrouillé.");
+      setFlash(
+        body.caisseWarning
+          ? `Versement confirmé, mais entrée de caisse non enregistrée : ${body.caisseWarning}`
+          : "Versement confirmé et verrouillé — entrée enregistrée en caisse.",
+      );
       setSelected(null);
       await charger();
     } catch (err) {
