@@ -270,6 +270,7 @@ describe("l'API suit les droits de l'écran", () => {
       "synthese",
       "analyse",
       "mouvements-caisse",
+      "rattrapage-ventes",
       "fonds-caisse",
       "versements",
       "compteur",
@@ -280,6 +281,9 @@ describe("l'API suit les droits de l'écran", () => {
       "controle",
       "admin",
     ]);
+    expect(canAccessPath("admin", "/rattrapage-ventes", "tous", "marc")).toBe(true);
+    expect(canAccessPath("gerant", "/rattrapage-ventes", "tous")).toBe(false);
+    expect(canAccessPath("daf", "/rattrapage-ventes", "tous", "daff")).toBe(false);
     expect(canAccessPath("admin", "/analyse", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/", "tous", "marc")).toBe(true);
     expect(canAccessPath("admin", "/compte-resultat", "tous", "marc")).toBe(

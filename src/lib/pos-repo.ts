@@ -331,6 +331,7 @@ export async function validatePosTicket(input: {
             line.kind === "local" ||
             line.kind === "boisson") &&
           !qrId &&
+          !isBackdate &&
           qrRequiredIds.has(line.productId)
         ) {
           throw new Error(
