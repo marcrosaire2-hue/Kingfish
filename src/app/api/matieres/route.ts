@@ -41,7 +41,7 @@ async function attachDepense(input: {
   fournisseurNom: string | null;
   montant: number;
   bypassPast: boolean;
-}): Promise<{ id: string; montant: number } | null> {
+}): Promise<{ id: string; montant: number } | { error: string } | null> {
   if (input.montant <= 0) return null;
   try {
     const { session, allowClosed } = await resolveCaisseForDepense({
@@ -65,8 +65,12 @@ async function attachDepense(input: {
       depenseId: res.mouvement.id,
     });
     return { id: res.mouvement.id, montant: input.montant };
-  } catch {
-    return null;
+  } catch (e) {
+    // Plus de silence : l'appelant prévient l'utilisateur et le journal.
+    return {
+      error:
+        e instanceof Error ? e.message : "Sortie de caisse non enregistrée.",
+    };
   }
 }
 
@@ -183,6 +187,22 @@ export async function POST(request: Request) {
           (f) => f.id === body.fournisseurId,
         )
       : null;
+    // Un achat sort de l'argent : sans caisse ouverte il ne serait tracé nulle
+    // part. On refuse AVANT d'enregistrer l'achat (qui n'est plus annulable).
+    const { session: caisseDuJour } = await resolveCaisseForDepense({
+      site: siteOf(user),
+      date: body.date,
+      allowPastClosed: bypass,
+    });
+    if (!caisseDuJour) {
+      return NextResponse.json(
+        {
+          error:
+            "Aucune caisse ouverte : ouvrez la caisse du site avant d'enregistrer cet achat, sinon la sortie d'argent ne serait pas tracée.",
+        },
+        { status: 409 },
+      );
+    }
     const payload =
       body.productId === "autre"
         ? await applyMatieresOtherPurchase({
@@ -230,7 +250,26 @@ export async function POST(request: Request) {
       site: "zogbo",
       amount: montant > 0 ? montant : null,
     });
-    return NextResponse.json({ ...payload, depense });
+    const depenseError =
+      depense && "error" in depense
+        ? `Achat enregistré mais sortie de caisse refusée : ${depense.error}`
+        : null;
+    if (depenseError) {
+      await logActivity({
+        user,
+        kind: "matieres",
+        title: "Achat sans écriture de caisse",
+        detail: depenseError,
+        date: body.date,
+        site: siteOf(user),
+        amount: montant > 0 ? montant : null,
+      });
+    }
+    return NextResponse.json({
+      ...payload,
+      depense: depense && "id" in depense ? depense : null,
+      depenseError,
+    });
   } catch (error) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

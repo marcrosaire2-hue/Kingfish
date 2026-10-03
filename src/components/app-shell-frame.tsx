@@ -296,9 +296,9 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
         <p className="topbar-slogan">
-          La mer nous unit,
+          Pilotez vos activités,
           <br />
-          la qualité nous distingue
+          en toute clarté
         </p>
         <svg
           className="topbar-wave"

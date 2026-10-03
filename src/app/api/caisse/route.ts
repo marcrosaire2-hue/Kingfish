@@ -276,11 +276,16 @@ export async function POST(request: Request) {
           { status: 400 },
         );
       }
-      if (
-        body.kind !== "depense" &&
-        body.kind !== "recette" &&
-        body.kind !== "versement-entree"
-      ) {
+      if ((body.kind as string) === "versement-entree") {
+        return NextResponse.json(
+          {
+            error:
+              "Les versements ne se saisissent plus ici : ils entrent en caisse quand le comptable les confirme (page Versements).",
+          },
+          { status: 400 },
+        );
+      }
+      if (body.kind !== "depense" && body.kind !== "recette") {
         return NextResponse.json({ error: "kind invalide" }, { status: 400 });
       }
       const result = await addCaisseMouvement({
@@ -292,12 +297,7 @@ export async function POST(request: Request) {
         montant: Number(body.montant) || 0,
       });
       const montant = Number(body.montant) || 0;
-      const titreKind =
-        body.kind === "depense"
-          ? "Dépense"
-          : body.kind === "versement-entree"
-            ? "Versement"
-            : "Recette";
+      const titreKind = body.kind === "depense" ? "Dépense" : "Recette";
       await logActivity({
         user,
         kind: "caisse",

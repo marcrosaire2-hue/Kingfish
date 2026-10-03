@@ -1050,6 +1050,11 @@ export async function cancelCaisseMouvement(input: {
     .collection<MouvementDoc>("caisse_mouvements")
     .findOne({ _id: new ObjectId(input.mouvementId), cancelledAt: null });
   if (!mDoc) throw new Error("Mouvement introuvable ou déjà annulé");
+  if ((mDoc.kind as string) === "versement-entree") {
+    throw new Error(
+      "Cette entrée vient d'un versement confirmé et verrouillé : elle ne peut pas être annulée.",
+    );
+  }
   if (
     mDoc.kind !== "depense" &&
     mDoc.kind !== "recette" &&

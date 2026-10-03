@@ -214,10 +214,15 @@ export function AchatsPage() {
           fournisseurId: row.fournisseurId || undefined,
         }),
       });
-      const body = (await res.json()) as StockPayload & { error?: string };
+      const body = (await res.json()) as StockPayload & {
+        error?: string;
+        depenseError?: string | null;
+      };
       if (!res.ok) throw new Error(body.error || "Erreur");
       setDraftLibre(emptyDraftLibre());
-      if (body.depense) {
+      if (body.depenseError) {
+        setError(body.depenseError);
+      } else if (body.depense) {
         setFlash(
           `Achat enregistré — dépense de ${formatFcfa(body.depense.montant)} créée à la caisse.`,
         );

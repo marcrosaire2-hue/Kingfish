@@ -68,6 +68,8 @@ type VersementDoc = Omit<Versement, "id" | "preuves"> & {
   preuves?: StoredPreuve[];
   /** Ancienne preuve unique (rétrocompat). */
   preuveData?: Binary;
+  /** Mouvement « versement-entree » créé dans la caisse à la confirmation. */
+  caisseMouvementId?: string | null;
 };
 
 export type VersementActor = {
@@ -628,4 +630,30 @@ export async function getVersementPreuveBytes(
     mime: item.mime || "image/jpeg",
     bytes: bufferFromBinary(item.data),
   };
+}
+
+/**
+ * Garde la trace du mouvement de caisse créé à la confirmation : un versement
+ * confirmé ne doit alimenter la caisse qu'une seule fois.
+ */
+export async function setVersementCaisseMouvement(
+  id: string,
+  mouvementId: string,
+): Promise<void> {
+  if (!ObjectId.isValid(id)) return;
+  const db = await getDb();
+  await db
+    .collection<VersementDoc>(COLLECTION)
+    .updateOne({ _id: new ObjectId(id) }, { $set: { caisseMouvementId: mouvementId } });
+}
+
+export async function getVersementCaisseMouvement(
+  id: string,
+): Promise<string | null> {
+  if (!ObjectId.isValid(id)) return null;
+  const db = await getDb();
+  const doc = await db
+    .collection<VersementDoc>(COLLECTION)
+    .findOne({ _id: new ObjectId(id) });
+  return doc?.caisseMouvementId ?? null;
 }
