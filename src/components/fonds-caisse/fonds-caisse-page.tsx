@@ -22,7 +22,9 @@ import "@/components/achats/achats-page.css";
 export function FondsCaissePage() {
   const session = useSession();
   if (!session?.user) return <BrandLoader />;
-  if (session.user.role === "admin") return <FondsCaisseSuivi />;
+  if (["admin", "daf", "comptable"].includes(session.user.role)) {
+    return <FondsCaisseSuivi />;
+  }
   return <FondsCaisseSaisie />;
 }
 

@@ -147,7 +147,7 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     path: "/fonds-caisse",
     category: "quotidien",
     description:
-      "Saisie du solde prévisionnel et réel par site. Admin : suivi en lecture seule et export.",
+      "Saisie du solde prévisionnel et réel par site. Admin, DAF et comptable : suivi en lecture seule et export.",
     actions: ["access", "view", "create", "update"],
   },
   {
@@ -177,7 +177,7 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     path: "/mouvements-caisse",
     category: "quotidien",
     description:
-      "Capital initial, ajout ou modification du capital, consultation des mouvements (admin).",
+      "Capital initial, ajout ou modification du capital, consultation des mouvements (admin). DAF et comptable : lecture seule.",
     actions: ["access", "view", "create", "update", "admin"],
     sensitive: true,
   },

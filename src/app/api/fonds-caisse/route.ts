@@ -17,11 +17,13 @@ import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
-/** L'admin suit les fonds en lecture seule : la saisie revient aux équipes. */
+/** Admin, DAF et comptable suivent les fonds en lecture seule : la saisie revient aux équipes. */
+const LECTEURS_FONDS = ["admin", "daf", "comptable"];
+
 function ecritureInterdite(user: { role: string }) {
-  if (user.role === "admin") {
+  if (LECTEURS_FONDS.includes(user.role)) {
     return NextResponse.json(
-      { error: "L'administrateur consulte les fonds de caisse en lecture seule." },
+      { error: "Vous consultez les fonds de caisse en lecture seule." },
       { status: 403 },
     );
   }
@@ -45,9 +47,9 @@ export async function GET(request: Request) {
     const id = searchParams.get("id");
 
     if (action === "all") {
-      if (user.role !== "admin") {
+      if (!LECTEURS_FONDS.includes(user.role)) {
         return NextResponse.json(
-          { error: "Accès réservé à l'administrateur." },
+          { error: "Accès réservé à l'administration et à la comptabilité." },
           { status: 403 },
         );
       }
