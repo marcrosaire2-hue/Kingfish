@@ -19,6 +19,7 @@ import {
 } from "@/lib/caisse-model";
 import type { SessionUser } from "@/lib/auth-types";
 import type {
+  CaissePeriode,
   CaisseKey,
   CaisseMouvement,
   CaisseMouvementKind,
@@ -81,6 +82,7 @@ function toSession(doc: CaisseDoc): CaisseSession {
     closedById: doc.closedById ?? null,
     closedByName: doc.closedByName ?? null,
     updatedAt: doc.updatedAt ?? null,
+    periodeId: doc.periodeId ?? null,
   };
 }
 
@@ -203,6 +205,7 @@ async function rolloverStaleCaisse(
     closedById: null,
     closedByName: null,
     updatedAt: now,
+    periodeId: session.periodeId ?? null,
   };
   await db.collection<CaisseDoc>("caisses_sessions").insertOne(newDoc);
   return toSession(newDoc);
@@ -491,6 +494,8 @@ export type MouvementAvecCaisse = {
   mouvement: CaisseMouvement;
   caisse: CaisseKey;
   date: string;
+  /** Période de suivi de la session du mouvement. */
+  periodeId: string;
 };
 
 /**
@@ -527,7 +532,12 @@ export async function listMouvementsByDateRange(input: {
   const sessionById = new Map(
     sessions.map((s) => [
       s._id.toHexString(),
-      { caisse: (s.caisse ?? s.site ?? "zogbo") as CaisseKey, date: s.date },
+      {
+        caisse: (s.caisse ?? s.site ?? "zogbo") as CaisseKey,
+        date: s.date,
+        periodeId:
+          s.periodeId ?? `historique-${(s.caisse ?? s.site ?? "zogbo") as string}`,
+      },
     ]),
   );
   const ids = [...sessionById.keys()];
@@ -540,7 +550,14 @@ export async function listMouvementsByDateRange(input: {
   return mouvements.flatMap((m) => {
     const info = sessionById.get(m.caisseId);
     if (!info) return [];
-    return [{ mouvement: toMouvement(m), caisse: info.caisse, date: info.date }];
+    return [
+      {
+        mouvement: toMouvement(m),
+        caisse: info.caisse,
+        date: info.date,
+        periodeId: info.periodeId,
+      },
+    ];
   });
 }
 
@@ -578,11 +595,30 @@ export async function getCaisseById(id: string): Promise<CaisseSession | null> {
   return doc ? toSession(doc) : null;
 }
 
+/** Identifiant d'une nouvelle période de suivi pour une caisse. */
+function nouvellePeriodeId(caisse: CaisseKey): string {
+  return `p-${caisse}-${new ObjectId().toHexString()}`;
+}
+
+/** Période de la dernière session de la caisse (continuité entre les jours). */
+async function periodeHeritee(caisse: CaisseKey): Promise<string | null> {
+  const db = await getDb();
+  const last = await db
+    .collection<CaisseDoc>("caisses_sessions")
+    .find({ ...filtreCaisse(caisse), periodeId: { $type: "string" } })
+    .sort({ openedAt: -1 })
+    .limit(1)
+    .toArray();
+  return last[0]?.periodeId ?? null;
+}
+
 export async function openCaisse(input: {
   date: string;
   caisse: CaisseKey;
   user: SessionUser;
   soldeInitial: number;
+  /** Démarre une nouvelle période (nouveau capital) au lieu de prolonger la précédente. */
+  nouvellePeriode?: boolean;
 }): Promise<CaisseSession> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   if (!isZoneCaisse(input.caisse)) {
@@ -599,6 +635,9 @@ export async function openCaisse(input: {
     );
   }
   const now = new Date().toISOString();
+  const periodeId = input.nouvellePeriode
+    ? nouvellePeriodeId(input.caisse)
+    : ((await periodeHeritee(input.caisse)) ?? nouvellePeriodeId(input.caisse));
   const doc: CaisseDoc = {
     _id: new ObjectId(),
     caisse: input.caisse,
@@ -625,6 +664,7 @@ export async function openCaisse(input: {
     closedById: null,
     closedByName: null,
     updatedAt: now,
+    periodeId,
   };
   const db = await getDb();
   await db.collection<CaisseDoc>("caisses_sessions").insertOne(doc);
@@ -632,10 +672,10 @@ export async function openCaisse(input: {
 }
 
 /**
- * Admin : ajoute des fonds au capital d'un site.
- * Le capital initial augmente du montant saisi ; la date d'effet devient
- * la date de l'ajout. Les mouvements opérationnels (versements, dépenses,
- * achats) restent saisis ailleurs (caisse / achats), pas par l'admin.
+ * Admin : ajoute des fonds à la caisse d'un site.
+ * L'apport est un mouvement tracé dans la période en cours (entrée « recette »
+ * nommée « Apport de fonds ») : le capital de départ de la période ne change
+ * pas, c'est « Modifier le capital » qui ouvre une nouvelle période.
  */
 export async function addFondsCaisse(input: {
   caisse: CaisseKey;
@@ -666,6 +706,7 @@ export async function addFondsCaisse(input: {
       caisse: input.caisse,
       user: input.user,
       soldeInitial: montant,
+      nouvellePeriode: true,
     });
     return { session, capitalAvant: 0, capitalApres: montant };
   }
@@ -676,45 +717,29 @@ export async function addFondsCaisse(input: {
     );
   }
 
-  const capitalAvant = Math.round(Number(existing.soldeInitial) || 0);
-  const capitalApres = capitalAvant + montant;
-  const now = new Date().toISOString();
+  const avant = calcSoldeTheorique(existing);
   const motif = (input.motif ?? "").trim();
-  const db = await getDb();
-  const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
-    {
-      _id: new ObjectId(existing.id),
-      statut: "ouverte" satisfies CaisseStatut,
-    },
-    {
-      $set: {
-        soldeInitial: capitalApres,
-        date,
-        updatedAt: now,
-        ...(motif
-          ? {
-              commentaire: existing.commentaire
-                ? `${existing.commentaire}\n[Fonds +${montant} ${date}] ${motif}`
-                : `[Fonds +${montant} ${date}] ${motif}`,
-            }
-          : {}),
-      },
-    },
-  );
-  if (result.modifiedCount !== 1) {
-    throw new Error("Impossible d'ajouter des fonds à cette caisse.");
-  }
-
-  const updated = await getCaisseById(existing.id);
-  if (!updated) throw new Error("Caisse introuvable");
-  return { session: updated, capitalAvant, capitalApres };
+  const res = await addCaisseMouvement({
+    caisseId: existing.id,
+    user: input.user,
+    kind: "recette",
+    nature: motif ? `Apport de fonds · ${motif}` : "Apport de fonds",
+    beneficiaire: input.user.name,
+    montant,
+  });
+  return {
+    session: res.session,
+    capitalAvant: avant,
+    capitalApres: calcSoldeTheorique(res.session),
+  };
 }
 
 /**
- * Admin : fixe (ou corrige) le capital initial d'une caisse ouverte.
- * La nouvelle valeur devient le solde initial à la date de modification.
- * Les mouvements déjà saisis restent ; le solde courant se recalcule :
- * nouveau capital + versements − sorties.
+ * Admin : fixe un nouveau capital pour une caisse.
+ * La période en cours est terminée : la session ouverte est clôturée avec son
+ * solde théorique final, ses mouvements restent consultables dans la période
+ * précédente, et une nouvelle période démarre au nouveau capital, totaux à
+ * zéro.
  */
 export async function setCaisseCapital(input: {
   caisse: CaisseKey;
@@ -743,6 +768,7 @@ export async function setCaisseCapital(input: {
       caisse: input.caisse,
       user: input.user,
       soldeInitial,
+      nouvellePeriode: true,
     });
   }
 
@@ -754,40 +780,134 @@ export async function setCaisseCapital(input: {
 
   const now = new Date().toISOString();
   const motif = (input.motif ?? "").trim();
+  const theo = calcSoldeTheorique(existing);
   const db = await getDb();
-  const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+
+  // 1. Fin de période : la session ouverte est figée avec son solde final.
+  const closed = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
     {
       _id: new ObjectId(existing.id),
       statut: "ouverte" satisfies CaisseStatut,
     },
     {
       $set: {
-        soldeInitial,
-        date,
+        statut: "fermee" satisfies CaisseStatut,
+        soldePhysique: null,
+        soldeFermeture: theo,
+        soldeTheoriqueCloture: theo,
+        ecart: null,
+        justificationEcart: null,
+        commentaire: [
+          existing.commentaire,
+          `[Fin de période ${date}] Nouveau capital ${soldeInitial} FCFA${motif ? ` · ${motif}` : ""}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+        closedAt: now,
+        closedById: input.user.id,
+        closedByName: input.user.name,
         updatedAt: now,
-        ...(motif
-          ? {
-              commentaire: existing.commentaire
-                ? `${existing.commentaire}\n[Capital ${date}] ${motif}`
-                : `[Capital ${date}] ${motif}`,
-            }
-          : {}),
       },
     },
   );
-  if (result.modifiedCount !== 1) {
+  if (closed.modifiedCount !== 1) {
     throw new Error("Impossible de modifier le capital de cette caisse.");
   }
 
-  const updated = await getCaisseById(existing.id);
-  if (!updated) throw new Error("Caisse introuvable");
-  return updated;
+  // 2. Début de période au nouveau capital.
+  const doc: CaisseDoc = {
+    _id: new ObjectId(),
+    caisse: input.caisse,
+    date,
+    site: caisseZone(input.caisse),
+    userId: input.user.id,
+    userName: input.user.name,
+    statut: "ouverte",
+    soldeInitial,
+    totalVente: 0,
+    totalDepense: 0,
+    totalRecette: 0,
+    totalVersementSorti: 0,
+    totalVersementRecu: 0,
+    soldePhysique: null,
+    soldeFermeture: null,
+    soldeTheoriqueCloture: null,
+    ecart: null,
+    justificationEcart: null,
+    commentaire: motif ? `[Capital ${date}] ${motif}` : null,
+    comptageStartedAt: null,
+    openedAt: now,
+    closedAt: null,
+    closedById: null,
+    closedByName: null,
+    updatedAt: now,
+    periodeId: nouvellePeriodeId(input.caisse),
+  };
+  await db.collection<CaisseDoc>("caisses_sessions").insertOne(doc);
+  return toSession(doc);
 }
 
 /**
- * Passe la session en phase de comptage : plus d'encaissement POS ni de
- * mouvements jusqu'à clôture ou annulation du comptage.
+ * Périodes de suivi d'une caisse (entre deux changements de capital), de la
+ * plus récente à la plus ancienne. Les sessions sans période appartiennent à
+ * l'historique antérieur au suivi par période.
  */
+export async function listPeriodesCaisse(
+  caisse: CaisseKey,
+): Promise<CaissePeriode[]> {
+  const db = await getDb();
+  const docs = await db
+    .collection<CaisseDoc>("caisses_sessions")
+    .find(filtreCaisse(caisse))
+    .sort({ openedAt: 1 })
+    .toArray();
+  const groupes = new Map<string, CaisseDoc[]>();
+  for (const d of docs) {
+    const id = d.periodeId ?? `historique-${caisse}`;
+    const list = groupes.get(id) ?? [];
+    list.push(d);
+    groupes.set(id, list);
+  }
+  const n = (v: unknown) => Math.round(Number(v) || 0);
+  const periodes: CaissePeriode[] = [];
+  for (const [id, list] of groupes) {
+    const premiere = list[0]!;
+    const capital = n(premiere.soldeInitial);
+    const entrees = list.reduce(
+      (t, d) => t + n(d.totalVersementRecu) + n(d.totalRecette),
+      0,
+    );
+    const sorties = list.reduce(
+      (t, d) => t + n(d.totalDepense) + n(d.totalVersementSorti),
+      0,
+    );
+    const courante = list.some(
+      (d) => d.statut === "ouverte" || d.statut === "en_comptage",
+    );
+    const dates = list.map((d) => d.date).sort();
+    periodes.push({
+      id,
+      caisse,
+      debut: dates[0]!,
+      fin: courante ? null : dates[dates.length - 1]!,
+      courante,
+      historique: id.startsWith("historique-"),
+      capital,
+      entrees,
+      sorties,
+      solde: capital + entrees - sorties,
+      sessions: list.length,
+    });
+  }
+  return periodes.sort((a, b) =>
+    a.courante === b.courante
+      ? b.debut.localeCompare(a.debut)
+      : a.courante
+        ? -1
+        : 1,
+  );
+}
+
 export async function startComptageCaisse(input: {
   id: string;
   user: SessionUser;

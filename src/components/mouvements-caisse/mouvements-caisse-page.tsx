@@ -14,6 +14,7 @@ import { formatFcfa } from "@/lib/format";
 import type {
   CaisseKey,
   CaisseMouvement,
+  CaissePeriode,
   CaisseSession,
   CaisseSoldeTotaux,
 } from "@/lib/types";
@@ -31,6 +32,7 @@ type SiteDetail = {
 type JournalRow = CaisseMouvement & {
   caisse: CaisseKey;
   sessionDate: string;
+  periodeId: string;
 };
 
 type Board = {
@@ -39,6 +41,7 @@ type Board = {
   sites: Array<"zogbo" | "gbegamey">;
   soldeGlobal: number;
   sitesDetail: SiteDetail[];
+  periodes: Record<string, CaissePeriode[]>;
   mouvements: JournalRow[];
 };
 
@@ -48,6 +51,14 @@ const KIND_LABELS: Record<CaisseMouvement["kind"], string> = {
   "versement-sortie": "Versement sorti",
   "versement-entree": "Versement",
 };
+
+function libellePeriode(p: CaissePeriode): string {
+  if (p.historique) return "Historique avant le suivi par période";
+  const debut = p.debut.split("-").reverse().join("/");
+  if (p.courante) return `En cours · depuis le ${debut}`;
+  const fin = (p.fin ?? p.debut).split("-").reverse().join("/");
+  return `Terminée · ${debut} → ${fin}`;
+}
 
 /** Consultation : administrateur, DAF, comptable. Seul l'admin modifie le capital. */
 const LECTEURS = ["admin", "daf", "comptable"];
@@ -256,8 +267,25 @@ export function MouvementsCaissePage() {
     (c) => !detailByCaisse.get(c)?.session,
   );
 
+  /** Période choisie pour une zone (par défaut : la période en cours). */
+  const [periodeSel, setPeriodeSel] = useState<Record<string, string>>({});
+  const periodeDe = useCallback(
+    (caisse: string): CaissePeriode | null => {
+      const liste = board?.periodes?.[caisse] ?? [];
+      return (
+        liste.find((p) => p.id === periodeSel[caisse]) ??
+        liste.find((p) => p.courante) ??
+        liste[0] ??
+        null
+      );
+    },
+    [board?.periodes, periodeSel],
+  );
+
   const journal = useMemo(() => {
-    let rows = board?.mouvements ?? [];
+    let rows = (board?.mouvements ?? []).filter(
+      (m) => !periodeDe(m.caisse) || m.periodeId === periodeDe(m.caisse)?.id,
+    );
     if (siteFilter !== "tous") {
       rows = rows.filter((m) => m.caisse === siteFilter);
     }
@@ -275,7 +303,7 @@ export function MouvementsCaissePage() {
       );
     }
     return [...rows].reverse();
-  }, [board?.mouvements, siteFilter, kindFilter, query]);
+  }, [board?.mouvements, siteFilter, kindFilter, query, periodeDe]);
 
   if (ready && user && !LECTEURS.includes(user.role)) {
     return (
@@ -366,40 +394,67 @@ export function MouvementsCaissePage() {
                     </span>
                   </header>
                   <strong className="mono">
-                    {d.session ? formatFcfa(d.soldeCourant) : "—"}
+                    {(() => {
+                      const p = periodeDe(d.caisse);
+                      if (p?.historique) return "—";
+                      if (p && !p.courante) return formatFcfa(p.solde);
+                      return d.session ? formatFcfa(d.soldeCourant) : "—";
+                    })()}
                   </strong>
-                  <dl>
-                    <div>
-                      <dt>Capital</dt>
-                      <dd className="mono">
-                        {d.session
-                          ? formatFcfa(d.session.soldeInitial)
-                          : "—"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Depuis le</dt>
-                      <dd className="mono">
-                        {d.session ? d.session.date : "—"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Versements</dt>
-                      <dd className="mono text-ok">
-                        {d.totaux
-                          ? `+${formatFcfa(d.totaux.totalEntrees)}`
-                          : "—"}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Sorties</dt>
-                      <dd className="mono text-danger">
-                        {d.totaux
-                          ? `−${formatFcfa(d.totaux.totalSorties)}`
-                          : "—"}
-                      </dd>
-                    </div>
-                  </dl>
+                  {(board.periodes?.[d.caisse]?.length ?? 0) > 0 ? (
+                    <label className="mcaisse-periode">
+                      <span className="sr-only">
+                        Période {CAISSE_LABELS[d.caisse]}
+                      </span>
+                      <select
+                        value={periodeDe(d.caisse)?.id ?? ""}
+                        onChange={(e) =>
+                          setPeriodeSel((prev) => ({
+                            ...prev,
+                            [d.caisse]: e.target.value,
+                          }))
+                        }
+                      >
+                        {(board.periodes[d.caisse] ?? []).map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {libellePeriode(p)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  {(() => {
+                    const p = periodeDe(d.caisse);
+                    if (!p) return null;
+                    return (
+                      <dl>
+                        <div>
+                          <dt>Capital de départ</dt>
+                          <dd className="mono">{formatFcfa(p.capital)}</dd>
+                        </div>
+                        <div>
+                          <dt>{p.courante ? "Depuis le" : "Période"}</dt>
+                          <dd className="mono">
+                            {p.courante || !p.fin || p.fin === p.debut
+                              ? p.debut
+                              : `${p.debut} → ${p.fin}`}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Entrées</dt>
+                          <dd className="mono text-ok">
+                            {`+${formatFcfa(p.entrees)}`}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt>Sorties</dt>
+                          <dd className="mono text-danger">
+                            {`−${formatFcfa(p.sorties)}`}
+                          </dd>
+                        </div>
+                      </dl>
+                    );
+                  })()}
                 </article>
               ))}
               <article className="mcaisse-kpi mcaisse-kpi-global">
@@ -415,6 +470,11 @@ export function MouvementsCaissePage() {
                 </p>
               </article>
             </section>
+            <p className="mcaisse-period-note">
+              Chaque changement de capital termine la période de la zone et en
+              ouvre une nouvelle : les anciens mouvements restent consultables
+              dans leur période, sans se mélanger aux suivants.
+            </p>
 
             {canEdit && aOuvrir.length > 0 ? (
               <section className="mcaisse-panel">
