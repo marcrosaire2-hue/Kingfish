@@ -171,6 +171,7 @@ const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "synthese",
   "analyse",
   "mouvements-caisse",
+  "rattrapage-ventes",
   "fonds-caisse",
   "versements",
   "compteur",
@@ -274,6 +275,7 @@ export type NavKey =
   | "vente"
   | "caisse"
   | "fonds-caisse"
+  | "rattrapage-ventes"
   | "mouvements-caisse"
   | "depenses"
   | "appro"
@@ -373,6 +375,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "caisse",
     "fonds-caisse",
     "mouvements-caisse",
+    "rattrapage-ventes",
     "versements",
     "appro",
     "pertes",
@@ -554,6 +557,9 @@ function canAccessPathWithAllowed(
   }
   if (pathname.startsWith("/vente")) return allowed.includes("vente");
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");
+  if (pathname.startsWith("/rattrapage-ventes")) {
+    return allowed.includes("rattrapage-ventes");
+  }
   if (pathname.startsWith("/fonds-caisse")) {
     return allowed.includes("fonds-caisse");
   }
@@ -640,6 +646,10 @@ export function canAccessPath(
     role !== "admin" &&
     (pathname.startsWith("/admin") || pathname.startsWith("/autorisations"))
   ) {
+    return false;
+  }
+  // Ventes passées : administrateur uniquement, quoi que dise le JWT ou la matrice.
+  if (role !== "admin" && pathname.startsWith("/rattrapage-ventes")) {
     return false;
   }
   // Tous les administrateurs gardent Équipe (page + APIs), même si le JWT

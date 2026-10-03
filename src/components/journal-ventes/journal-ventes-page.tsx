@@ -620,6 +620,14 @@ export function JournalVentesPage({
     ) {
       return;
     }
+    const motif = window.prompt(
+      "Motif de la suppression (obligatoire, 8 caractères minimum) :",
+    );
+    if (motif === null) return;
+    if (motif.trim().length < 8) {
+      setError("Motif d'audit requis (au moins 8 caractères).");
+      return;
+    }
     setBusyLineId(l.venteLogId);
     setError(null);
     setFlash(null);
@@ -632,6 +640,7 @@ export function JournalVentesPage({
           id: l.venteLogId,
           date: l.date,
           site: l.site,
+          reason: motif.trim(),
         }),
       });
       const body = await res.json();
@@ -654,6 +663,14 @@ export function JournalVentesPage({
     ) {
       return;
     }
+    const motif = window.prompt(
+      "Motif de la suppression (obligatoire, 8 caractères minimum) :",
+    );
+    if (motif === null) return;
+    if (motif.trim().length < 8) {
+      setError("Motif d'audit requis (au moins 8 caractères).");
+      return;
+    }
     setBusyTicketId(l.ticketId);
     setError(null);
     setFlash(null);
@@ -666,6 +683,7 @@ export function JournalVentesPage({
           id: l.ticketId,
           date: l.date,
           site: l.site,
+          reason: motif.trim(),
         }),
       });
       const body = await res.json();

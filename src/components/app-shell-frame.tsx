@@ -137,6 +137,13 @@ const NAV_ITEMS: {
     group: "pilot",
   },
   {
+    href: "/rattrapage-ventes",
+    label: "Ventes passées",
+    key: "rattrapage-ventes",
+    group: "admin",
+    groupLabel: "Compte",
+  },
+  {
     href: "/admin",
     label: "Équipe",
     key: "admin",
@@ -171,6 +178,7 @@ const NAV_ICON_PATHS: Partial<Record<NavKey, string>> = {
   admin: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M17 11a3 3 0 1 0 0-6m1 9.5c2 .5 3.5 2.1 3.5 4.5",
   "rapport-quotidien": "M7 3h10v18H7V3Zm3 5h4M10 12h4M10 16h2",
   controle: "M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Zm-3 9 2 2 4-4",
+  "rattrapage-ventes": "M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4M9 15h6",
 };
 
 function NavIcon({ name }: { name: NavKey }) {

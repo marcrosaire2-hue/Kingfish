@@ -171,6 +171,17 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "create", "update"],
   },
   {
+    id: "rattrapage-ventes",
+    navKey: "rattrapage-ventes",
+    label: "Ventes passées",
+    path: "/rattrapage-ventes",
+    category: "quotidien",
+    description:
+      "Enregistrement des ventes d'un jour passé, pour Zogbo et Gbégamey (administrateur uniquement).",
+    actions: ["access", "view", "create"],
+    sensitive: true,
+  },
+  {
     id: "mouvements-caisse",
     navKey: "mouvements-caisse",
     label: "Mouvements de fonds",
