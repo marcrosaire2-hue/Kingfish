@@ -134,6 +134,16 @@ export async function middleware(request: NextRequest) {
       }
       return NextResponse.next();
     }
+    // Le panneau « ventes » de l'Équipe corrige/supprime des ventes passées via
+    // /api/vente. Un admin dont le menu n'a pas l'écran Vente (compte direction,
+    // matrice Mongo) y a droit ; les droits fins restent contrôlés par la route.
+    if (
+      user.role === "admin" &&
+      (pathname === "/api/vente" || pathname === "/api/pos") &&
+      canAccessPath(user.role, "/admin", site, user.username, user.nav)
+    ) {
+      return NextResponse.next();
+    }
     if (
       request.method !== "GET" &&
       request.method !== "HEAD" &&
