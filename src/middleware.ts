@@ -134,6 +134,17 @@ export async function middleware(request: NextRequest) {
       }
       return NextResponse.next();
     }
+    // « Ventes passées » et le panneau ventes de l'Équipe passent par
+    // /api/vente et /api/pos. Un admin dont le menu n'a pas l'écran Vente
+    // (compte direction, matrice Mongo) y a droit ; les droits fins restent
+    // contrôlés par les routes elles-mêmes.
+    if (
+      user.role === "admin" &&
+      (pathname === "/api/vente" || pathname === "/api/pos") &&
+      canAccessPath(user.role, "/admin", site, user.username, user.nav)
+    ) {
+      return NextResponse.next();
+    }
     if (
       request.method !== "GET" &&
       request.method !== "HEAD" &&
