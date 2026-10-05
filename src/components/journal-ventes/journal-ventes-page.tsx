@@ -1115,6 +1115,7 @@ export function JournalVentesPage({
             <JournalDayBlock
               key={day.date}
               day={day}
+              site={site}
               defaultOpen={index < 3}
               view={view}
               categoryFocus={categoryFocus}
@@ -1287,6 +1288,7 @@ function CatIcon({ cat }: { cat: VenteCategory }) {
 
 function JournalDayBlock({
   day,
+  site,
   defaultOpen,
   view,
   categoryFocus,
@@ -1305,6 +1307,7 @@ function JournalDayBlock({
   onDeleteTicket,
 }: {
   day: JournalVenteDay;
+  site: string;
   defaultOpen: boolean;
   view: JournalView;
   categoryFocus: VenteCategory | "all";
@@ -1369,6 +1372,34 @@ function JournalDayBlock({
           </span>
         </span>
         <strong className="jv-day-total mono">{formatFcfa(dayMontant)}</strong>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          title={`Exporter le ${day.date} en Excel`}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            try {
+              exportJournalVentesExcel({
+                days: [day],
+                totals: {
+                  count: day.nbTickets,
+                  montant: day.montant,
+                  valide: day.nbTickets,
+                  annule: 0,
+                  encours: 0,
+                },
+                from: day.date,
+                to: day.date,
+                site,
+              });
+            } catch {
+              /* export indisponible */
+            }
+          }}
+        >
+          Excel
+        </button>
       </summary>
 
       {view === "tickets" ? (
