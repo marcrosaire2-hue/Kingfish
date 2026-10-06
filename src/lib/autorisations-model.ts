@@ -202,6 +202,16 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "create", "update"],
   },
   {
+    id: "tests-plats",
+    navKey: "tests-plats",
+    label: "Tests de plats",
+    path: "/tests-plats",
+    category: "quotidien",
+    description:
+      "Enregistrement des tests de plats (dégustations, essais de recettes). Distinct des ventes : aucun encaissement, aucun CA.",
+    actions: ["access", "view", "create"],
+  },
+  {
     id: "pertes",
     navKey: "pertes",
     label: "Pertes",

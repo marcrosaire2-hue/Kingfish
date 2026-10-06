@@ -15,6 +15,7 @@ export type HistoriqueKind =
   | "matieres"
   | "immobilisations"
   | "pertes"
+  | "test_plat"
   | "versements"
   | "compteur"
   | "reprise"
@@ -57,6 +58,7 @@ export const HISTORIQUE_KIND_LABELS: Record<HistoriqueKind, string> = {
   matieres: "Matières",
   immobilisations: "Immobilisations",
   pertes: "Pertes",
+  test_plat: "Test de plat",
   versements: "Versements",
   compteur: "Compteur électrique",
   reprise: "Reprise d’historique",
