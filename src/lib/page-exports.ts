@@ -1,3 +1,4 @@
+import type { TestPlatEntry } from "@/lib/tests-plats-types";
 import { computeBoissonsDay } from "@/lib/boissons-calc";
 import {
   downloadExcel,
@@ -988,6 +989,35 @@ export function exportPertesExcel(input: {
   ];
 
   downloadExcel(excelFilename("pertes", input.date, input.site), sheets);
+}
+
+/** Tests de plats — journal du jour (hors ventes : aucun CA). */
+export function exportTestsPlatsExcel(input: {
+  date: string;
+  site: VenteSite | "tous";
+  tests: TestPlatEntry[];
+}): void {
+  const rows = sortChronologically(input.tests, (t) => t.at).map((t) => ({
+    Heure: heureLisible(t.at),
+    Numéro: t.numero,
+    Zone: siteLabel(t.site),
+    Articles: t.lines.map((l) => `${l.qty} × ${l.name}`).join(", "),
+    Objet: t.objet,
+    Testeur: t.testeur,
+    Observations: t.observations,
+    "Coût matière (FCFA)": t.cost,
+    Acteur: t.actorName ?? "",
+    Statut: t.cancelledAt ? `Annulé par ${t.cancelledByName ?? "—"}` : "Actif",
+  }));
+  const sheets: ExcelSheet[] = [
+    {
+      name: "Tests de plats",
+      subtitle: `${siteLabel(input.site)} · ${input.date}`,
+      totals: ["Coût matière (FCFA)"],
+      rows,
+    },
+  ];
+  downloadExcel(excelFilename("tests-plats", input.date, input.site), sheets);
 }
 
 /** Admin — utilisateurs (sans mots de passe) */

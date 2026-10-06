@@ -100,6 +100,12 @@ const NAV_ITEMS: {
     groupLabel: "Approvisionnement",
   },
   {
+    href: "/tests-plats",
+    label: "Tests de plats",
+    key: "tests-plats",
+    group: "supply",
+  },
+  {
     href: "/pertes",
     label: "Pertes",
     key: "pertes",
@@ -159,6 +165,7 @@ const NAV_ICON_PATHS: Partial<Record<NavKey, string>> = {
   "compte-resultat": "M6 3h9l4 4v14H6V3Zm8 0v5h5M9 13h7M9 17h5",
   comptabilite: "M5 4h14v16H5V4Zm3 4h8M8 12h3m2 0h3M8 16h3m2 0h3",
   vente: "M4 5h2l2 10h9l2-7H7M10 19.5h.01M16 19.5h.01",
+  "tests-plats": "M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M8 15h8",
   zogbo: "M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Zm0-8.5a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8Z",
   gbegamey: "M4 19V7l8-3 8 3v12M4 19h16M9 19v-5h6v5",
   caisse: "M4 9h16v10H4V9Zm2-4h12l2 4H4l2-4Zm6 7v3",
