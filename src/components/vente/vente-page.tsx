@@ -227,7 +227,7 @@ type ProductGridProps = {
   onAdd: (product: VenteProduct) => void;
 };
 
-const ProductGrid = memo(function ProductGrid({
+export const ProductGrid = memo(function ProductGrid({
   products,
   canSell,
   ignoreStock = false,
@@ -355,7 +355,7 @@ type MealComposerProps = {
   accPriceFor: (acc: VenteProduct) => number;
 };
 
-const MealComposer = memo(function MealComposer({
+export const MealComposer = memo(function MealComposer({
   plats,
   canSell,
   ignoreStock = false,
@@ -714,7 +714,7 @@ const StickerCodePrompt = memo(function StickerCodePrompt({
   );
 });
 
-const CartLines = memo(function CartLines({
+export const CartLines = memo(function CartLines({
   cart,
   onChangeQty,
 }: CartLinesProps) {

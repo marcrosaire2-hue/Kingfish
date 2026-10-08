@@ -6,6 +6,12 @@ import {
   homeForRole,
 } from "@/lib/auth-types";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
+import {
+  SIM_DB_HEADER,
+  SIM_REQUEST_HEADER,
+  estApiSimulable,
+  simulationDbName,
+} from "@/lib/simulation-shared";
 
 const PUBLIC = ["/login"];
 
@@ -86,6 +92,12 @@ function peutAccederSiteRoles(
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
+  // `x-sim-db` ne doit jamais venir du client : on le purge de toute requête,
+  // puis on ne le repose que pour une session autorisée (mode Simulation).
+  const forwarded = new Headers(request.headers);
+  forwarded.delete(SIM_DB_HEADER);
+  const passer = () => NextResponse.next({ request: { headers: forwarded } });
+
   if (
     pathname.startsWith("/api/auth/login") ||
     pathname.startsWith("/api/auth/logout") ||
@@ -99,7 +111,7 @@ export async function middleware(request: NextRequest) {
     // impossible à effacer → boucle login ↔ accueil).
     // /api/mail/cron : auth par Bearer MAIL_CRON_SECRET (ou session admin),
     // contrôlée dans la route — pas de cookie requis pour Render Cron.
-    return NextResponse.next();
+    return passer();
   }
 
   const token = request.cookies.get(SESSION_COOKIE)?.value;
@@ -116,10 +128,26 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/api/auth/") ||
       estLectureDeReference(pathname, request.method)
     ) {
-      return NextResponse.next();
+      return passer();
     }
 
     const site = effectiveSite(user.role, user.site);
+
+    // Mode Simulation (formation) : les routes listées s'exécutent sur une
+    // base jetable propre à l'utilisateur. Seuls les comptes qui ont la page
+    // Simulation y accèdent ; les droits fins des routes continuent de
+    // s'appliquer ensuite.
+    if (
+      request.headers.get(SIM_REQUEST_HEADER) === "1" &&
+      estApiSimulable(pathname) &&
+      canAccessPath(user.role, "/simulation", site, user.username, user.nav)
+    ) {
+      forwarded.set(
+        SIM_DB_HEADER,
+        simulationDbName(process.env.MONGODB_DB || "gestion_restaurant", user.username),
+      );
+      return passer();
+    }
     if (
       pathname === "/api/site-roles" ||
       pathname.startsWith("/api/site-roles/")
@@ -132,7 +160,7 @@ export async function middleware(request: NextRequest) {
           { status: 403 },
         );
       }
-      return NextResponse.next();
+      return passer();
     }
     // « Ventes passées » et le panneau ventes de l'Équipe passent par
     // /api/vente et /api/pos. Un admin dont le menu n'a pas l'écran Vente
@@ -170,14 +198,14 @@ export async function middleware(request: NextRequest) {
         { status: 403 },
       );
     }
-    return NextResponse.next();
+    return passer();
   }
 
   // Ne jamais renvoyer /login → accueil sur la seule signature JWT.
   // getSessionUser() (Mongo + tokenVersion + planning) peut refuser la même
   // session : sinon boucle redirect + BrandLoader (logo qui part et revient).
   if (PUBLIC.includes(pathname)) {
-    return NextResponse.next();
+    return passer();
   }
 
   if (!user) {
@@ -214,7 +242,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(homeForRole(user.role), request.url));
   }
 
-  return NextResponse.next();
+  return passer();
 }
 
 export const config = {

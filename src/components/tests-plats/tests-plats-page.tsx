@@ -7,6 +7,12 @@ import { BrandLoader } from "@/components/brand-loader";
 import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
+import { RegistreDrawer } from "@/components/registre-drawer";
+import {
+  CartLines,
+  MealComposer,
+  ProductGrid,
+} from "@/components/vente/vente-page";
 import { formatFcfa } from "@/lib/format";
 import { exportTestsPlatsExcel } from "@/lib/page-exports";
 import type {
@@ -14,10 +20,30 @@ import type {
   TestPlatKind,
   TestPlatProduct,
 } from "@/lib/tests-plats-types";
-import type { VenteSite } from "@/lib/types";
+import type { VenteProduct, VenteSite } from "@/lib/types";
 import { previousIsoDate, shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 
-type CartLine = { key: string; product: TestPlatProduct; qty: number };
+/** Même forme que les lignes du panier de la page Vente (unitPrice = coût matière). */
+type CartLine = {
+  key: string;
+  kind: TestPlatKind;
+  productId: string;
+  name: string;
+  unitPrice: number;
+  qty: number;
+};
+
+/** Un produit de test présenté comme un article de vente : le prix affiché est le prix de revient. */
+function enArticle(p: TestPlatProduct): VenteProduct {
+  return {
+    kind: p.kind,
+    productId: p.productId,
+    name: p.name,
+    unitPrice: p.unitCost,
+    soldToday: 0,
+    stockLeft: null,
+  };
+}
 
 const CATS: { key: TestPlatKind; label: string; short: string; icon: string }[] =
   [
@@ -60,6 +86,10 @@ export function TestsPlatsPage() {
   const [testeur, setTesteur] = useState("");
   const [observations, setObservations] = useState("");
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
+  const [journalOpen, setJournalOpen] = useState(false);
+  const [composerPlatId, setComposerPlatId] = useState("");
+  const [composerQty, setComposerQty] = useState(1);
+  const [composerAccQtys, setComposerAccQtys] = useState<Record<string, number>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,10 +123,6 @@ export function TestsPlatsPage() {
   const activeTests = visibleTests.filter((t) => !t.cancelledAt);
   const dayCost = activeTests.reduce((s, t) => s + t.cost, 0);
 
-  const catProducts = useMemo(
-    () => products.filter((p) => p.kind === cat),
-    [products, cat],
-  );
   const counts = useMemo(() => {
     const c: Record<TestPlatKind, number> = { plat: 0, local: 0, boisson: 0 };
     for (const p of products) c[p.kind] += 1;
@@ -104,24 +130,79 @@ export function TestsPlatsPage() {
   }, [products]);
 
   const cartCount = cart.reduce((s, l) => s + l.qty, 0);
-  const cartCost = cart.reduce((s, l) => s + l.qty * l.product.unitCost, 0);
+  const cartCost = cart.reduce((s, l) => s + l.qty * l.unitPrice, 0);
+
+  const articles = useMemo(() => products.map(enArticle), [products]);
+  const gridProducts = useMemo(
+    () => articles.filter((a) => a.kind === cat),
+    [articles, cat],
+  );
+  const plats = useMemo(
+    () => articles.filter((a) => a.kind === "plat"),
+    [articles],
+  );
+  const accompagnements = useMemo(
+    () => articles.filter((a) => a.kind === "local"),
+    [articles],
+  );
+  const composerPlat = useMemo(
+    () => plats.find((p) => p.productId === composerPlatId) ?? null,
+    [plats, composerPlatId],
+  );
+  const composerTotal = composerPlat
+    ? composerPlat.unitPrice * composerQty +
+      accompagnements.reduce(
+        (s, a) => s + a.unitPrice * (composerAccQtys[a.productId] ?? 0),
+        0,
+      )
+    : 0;
 
   function changeQty(key: string, delta: number) {
-    setCart((cur) =>
-      cur
-        .map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l))
-        .filter((l) => l.qty > 0),
-    );
+    const next = cart
+      .map((l) => (l.key === key ? { ...l, qty: l.qty + delta } : l))
+      .filter((l) => l.qty > 0);
+    setCart(next);
+    if (!next.length) setCartSheetOpen(false);
   }
 
-  function add(p: TestPlatProduct) {
-    const key = `${p.kind}-${p.productId}`;
+  function addToCart(a: VenteProduct, qty = 1) {
+    const key = `${a.kind}-${a.productId}`;
     setFlash(null);
     setCart((cur) =>
       cur.some((l) => l.key === key)
-        ? cur.map((l) => (l.key === key ? { ...l, qty: l.qty + 1 } : l))
-        : [...cur, { key, product: p, qty: 1 }],
+        ? cur.map((l) => (l.key === key ? { ...l, qty: l.qty + qty } : l))
+        : [
+            ...cur,
+            {
+              key,
+              kind: a.kind as TestPlatKind,
+              productId: a.productId,
+              name: a.name,
+              unitPrice: a.unitPrice,
+              qty,
+            },
+          ],
     );
+  }
+
+  function selectPlat(id: string) {
+    setComposerPlatId(id);
+    setComposerQty(1);
+    setComposerAccQtys({});
+  }
+
+  function commitMeal() {
+    if (!composerPlat) {
+      setError("Choisissez un plat.");
+      return;
+    }
+    addToCart(composerPlat, composerQty);
+    for (const a of accompagnements) {
+      const qty = composerAccQtys[a.productId] ?? 0;
+      if (qty > 0) addToCart(a, qty);
+    }
+    selectPlat("");
+    setError(null);
   }
 
   async function validate() {
@@ -137,8 +218,8 @@ export function TestsPlatsPage() {
           date,
           site,
           lines: cart.map((l) => ({
-            kind: l.product.kind,
-            productId: l.product.productId,
+            kind: l.kind,
+            productId: l.productId,
             qty: l.qty,
           })),
           objet,
@@ -203,8 +284,14 @@ export function TestsPlatsPage() {
           </span>
           <div className="vente-banner-copy">
             <h2>Tests de plats</h2>
-            <p>{`${siteLabel} · essais et dégustations · hors ventes`}</p>
+            <p>{`${siteLabel} · panier multi-articles · hors ventes`}</p>
           </div>
+          <svg className="vente-banner-art" viewBox="0 0 120 80" aria-hidden focusable="false">
+            <rect x="14" y="48" width="16" height="26" rx="3" fill="#1d6fd6" />
+            <rect x="40" y="34" width="16" height="40" rx="3" fill="#2a7ec8" />
+            <rect x="66" y="20" width="16" height="54" rx="3" fill="#075ea8" />
+            <path d="M12 38 44 20l22 8 36-22" fill="none" stroke="#f5b400" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
         </header>
 
         <div className="vente-context-wrap">
@@ -247,6 +334,13 @@ export function TestsPlatsPage() {
               }
               disabled={loading}
             />
+            <button
+              type="button"
+              className="btn btn-ghost vente-journal-btn"
+              onClick={() => setJournalOpen(true)}
+            >
+              Journal ({visibleTests.length})
+            </button>
           </ContextBar>
         </div>
 
@@ -321,35 +415,36 @@ export function TestsPlatsPage() {
 
             {loading && !products.length ? (
               <BrandLoader variant="ligne" label="Chargement du catalogue…" />
-            ) : catProducts.length === 0 ? (
-              <p className="muted vente-empty">Aucun produit.</p>
+            ) : cat === "plat" ? (
+              <MealComposer
+                plats={plats}
+                canSell
+                ignoreStock
+                busyKey={null}
+                composerPlatId={composerPlatId}
+                composerPlat={composerPlat}
+                composerQty={composerQty}
+                composerAccOptions={accompagnements}
+                composerAccQtys={composerAccQtys}
+                composerTotal={composerTotal}
+                onSelectPlat={selectPlat}
+                onQtyChange={(d) => setComposerQty((q) => Math.max(1, q + d))}
+                onAccQtyChange={(id, d) =>
+                  setComposerAccQtys((prev) => ({
+                    ...prev,
+                    [id]: Math.max(0, (prev[id] ?? 0) + d),
+                  }))
+                }
+                onCommit={commitMeal}
+                accPriceFor={(acc) => acc.unitPrice}
+              />
             ) : (
-              <div className="vente-grid">
-                {catProducts.map((p) => (
-                  <article key={`${p.kind}-${p.productId}`} className="vente-card">
-                    <div className="vente-card-media" aria-hidden>
-                      <ProductIcon kind={p.kind} name={p.name} size="lg" />
-                    </div>
-                    <div className="vente-card-body">
-                      <h3>{p.name}</h3>
-                      <span className="vente-price mono">
-                        {p.unitCost > 0 ? `Revient ${formatFcfa(p.unitCost)}` : "—"}
-                      </span>
-                      <p className="vente-stock-left is-free">Test</p>
-                    </div>
-                    <div className="vente-card-actions is-single">
-                      <button
-                        type="button"
-                        className="vente-plus"
-                        aria-label={`Ajouter ${p.name} au test`}
-                        onClick={() => add(p)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </article>
-                ))}
-              </div>
+              <ProductGrid
+                products={gridProducts}
+                canSell
+                ignoreStock
+                onAdd={(p) => addToCart(p)}
+              />
             )}
           </div>
 
@@ -379,41 +474,16 @@ export function TestsPlatsPage() {
 
             {!cart.length ? (
               <div className="vente-cart-empty-state">
-                <strong>Aucun article</strong>
+                <span className="vente-cart-empty-ico" aria-hidden>
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M8 15h8" />
+                  </svg>
+                </span>
+                <strong>Aucun article dans le test</strong>
                 <span>Les articles testés apparaîtront ici.</span>
               </div>
             ) : (
-              <ul className="pos-cart-list">
-                {cart.map((l) => (
-                  <li key={l.key}>
-                    <div>
-                      <strong>{l.product.name}</strong>
-                      <div className="muted mono">
-                        {l.product.unitCost > 0
-                          ? `Revient ${formatFcfa(l.product.unitCost)} × ${l.qty}`
-                          : `× ${l.qty}`}
-                      </div>
-                    </div>
-                    <div className="vente-card-actions">
-                      <button
-                        type="button"
-                        className="vente-minus"
-                        onClick={() => changeQty(l.key, -1)}
-                      >
-                        −
-                      </button>
-                      <span className="vente-qty mono">{l.qty}</span>
-                      <button
-                        type="button"
-                        className="vente-plus"
-                        onClick={() => changeQty(l.key, 1)}
-                      >
-                        +
-                      </button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <CartLines cart={cart} onChangeQty={changeQty} />
             )}
 
             <div className="pos-meta">
@@ -532,6 +602,13 @@ export function TestsPlatsPage() {
               </button>
               <button
                 type="button"
+                className="btn btn-ghost vente-mobile-cart-details"
+                onClick={() => setCartSheetOpen((open) => !open)}
+              >
+                {cartSheetOpen ? "Fermer" : "Détails"}
+              </button>
+              <button
+                type="button"
                 className="btn btn-primary vente-mobile-cart-validate"
                 disabled={busy}
                 onClick={() => void validate()}
@@ -542,6 +619,51 @@ export function TestsPlatsPage() {
           </>
         ) : null}
       </div>
+
+      {busy ? (
+        <BrandLoader variant="voile" label="Enregistrement du test…" />
+      ) : null}
+
+      <RegistreDrawer
+        open={journalOpen}
+        onClose={() => setJournalOpen(false)}
+        title="Derniers tests"
+        subtitle={`${siteLabel} · coût matière en FCFA`}
+      >
+        {visibleTests.length ? (
+          <ul className="vente-log">
+            {visibleTests.map((t) => (
+              <li key={t.id}>
+                <div>
+                  <strong>
+                    {t.numero} · {heure(t.at)}
+                  </strong>
+                  <span className="muted mono"> · {formatFcfa(t.cost)}</span>
+                  <div className="muted">
+                    {t.cancelledAt
+                      ? `Annulé par ${t.cancelledByName ?? "—"}`
+                      : t.lines.map((l) => `${l.qty} × ${l.name}`).join(", ")}
+                  </div>
+                </div>
+                <span className="reg-actions">
+                  {t.cancelledAt ? null : (
+                    <button
+                      type="button"
+                      className="btn-link"
+                      disabled={busy}
+                      onClick={() => void cancel(t)}
+                    >
+                      Annuler
+                    </button>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">Aucun test.</p>
+        )}
+      </RegistreDrawer>
     </AppShell>
   );
 }
