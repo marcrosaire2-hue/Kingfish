@@ -16,6 +16,12 @@ import {
 const PUBLIC = ["/login"];
 
 /**
+ * Blocage temporaire de l'enregistrement des ventes, jusqu'au 9 octobre 2026
+ * à 10 h (Bénin, UTC+1). À supprimer une fois la date passée.
+ */
+const VENTES_BLOQUEES_JUSQU_A = Date.parse("2026-10-09T10:00:00+01:00");
+
+/**
  * Ressources de l'installation PWA. Le navigateur les demande sans cookie de
  * session : redirigées vers /login, l'application ne serait ni installable ni
  * capable d'enregistrer son service worker. Aucune donnée métier n'y transite.
@@ -149,6 +155,20 @@ export async function middleware(request: NextRequest) {
       return passer();
     }
     if (
+      Date.now() < VENTES_BLOQUEES_JUSQU_A &&
+      request.method !== "GET" &&
+      request.method !== "HEAD" &&
+      (pathname === "/api/vente" ||
+        pathname.startsWith("/api/vente/") ||
+        pathname === "/api/pos" ||
+        pathname.startsWith("/api/pos/"))
+    ) {
+      return NextResponse.json(
+        { error: "Les ventes sont bloquées jusqu'à demain 10 h." },
+        { status: 423 },
+      );
+    }
+    if (
       pathname === "/api/site-roles" ||
       pathname.startsWith("/api/site-roles/")
     ) {
@@ -172,6 +192,16 @@ export async function middleware(request: NextRequest) {
         { error: "Consultation uniquement : saisie de stock non autorisée." },
         { status: 403 },
       );
+    }
+    // La page « Ventes passées » (administrateur) réutilise le catalogue et
+    // l'enregistrement des tickets sans ouvrir l'écran Vente : les routes
+    // appliquent ensuite leurs propres contrôles (jour passé = admin).
+    if (
+      request.headers.get("x-ventes-passees") === "1" &&
+      (pathname === "/api/vente" || pathname === "/api/pos") &&
+      canAccessPath(user.role, "/rattrapage-ventes", site, user.username, user.nav)
+    ) {
+      return passer();
     }
     if (
       !canAccessPath(
