@@ -1,6 +1,7 @@
 import { MongoClient, type Db } from "mongodb";
 import { MONGO_INDEXES } from "@/lib/mongo-indexes";
 import { reportError } from "@/lib/report-error";
+import { SIM_DB_HEADER, estNomBaseSimulation } from "@/lib/simulation-shared";
 
 declare global {
   // eslint-disable-next-line no-var
@@ -85,8 +86,27 @@ async function ensureMongoIndexes(db: Db): Promise<void> {
   }
 }
 
+/** Base bac à sable demandée par le middleware pour cette requête (mode Simulation). */
+export async function getSimulationDbName(): Promise<string | null> {
+  try {
+    const { headers } = await import("next/headers");
+    const name = (await headers()).get(SIM_DB_HEADER);
+    return name && estNomBaseSimulation(getDbName(), name) ? name : null;
+  } catch {
+    // Hors requête (scripts, tests) : jamais de simulation.
+    return null;
+  }
+}
+
+export function getRealDbName(): string {
+  return getDbName();
+}
+
 export async function getDb(): Promise<Db> {
   const client = await getMongoClient();
+  const simName = await getSimulationDbName();
+  // Bac à sable : base jetable, sans index ni copie de la vraie base.
+  if (simName) return client.db(simName);
   const db = client.db(getDbName());
   if (!global._mongoIndexesPromise) {
     global._mongoIndexesPromise = ensureMongoIndexes(db).catch((error) => {

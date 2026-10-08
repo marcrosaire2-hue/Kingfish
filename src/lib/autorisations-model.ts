@@ -212,6 +212,16 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "create"],
   },
   {
+    id: "simulation",
+    navKey: "simulation",
+    label: "Simulation (formation)",
+    path: "/simulation",
+    category: "quotidien",
+    description:
+      "Bac à sable de formation : mêmes écrans que Vente, Achats, Dépenses, Pertes, Compteur et Fonds de caisse, mais rien n'est enregistré dans les vraies données.",
+    actions: ["access", "view"],
+  },
+  {
     id: "pertes",
     navKey: "pertes",
     label: "Pertes",

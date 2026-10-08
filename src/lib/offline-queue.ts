@@ -32,6 +32,17 @@ export type VenteEnAttente = {
 
 let currentUserId: string | null = null;
 
+/**
+ * Page Simulation : la file hors ligne est neutralisée. Rien n'est écrit dans
+ * le localStorage (une vente fictive ne doit jamais être rejouée sur la vraie
+ * base) et les vraies ventes en attente ne sont pas envoyées vers le bac à sable.
+ */
+let simulationActive = false;
+
+export function setOfflineQueueSimulation(actif: boolean): void {
+  simulationActive = actif;
+}
+
 export function setOfflineQueueUser(userId: string | null): void {
   currentUserId = userId;
 }
@@ -93,7 +104,7 @@ export function ajouterEnAttente(
     tentatives: 0,
     userId: currentUserId ?? undefined,
   };
-  ecrire([...lire(), entree]);
+  if (!simulationActive) ecrire([...lire(), entree]);
   return entree;
 }
 
@@ -195,6 +206,7 @@ let synchroEnCours = false;
  * affiché en alerte à l'écran de vente.
  */
 export async function synchroniser(): Promise<ResultatSynchro> {
+  if (simulationActive) return { envoyees: 0, echecs: 0, restantes: nombreEnAttente() };
   if (synchroEnCours) {
     return { envoyees: 0, echecs: 0, restantes: nombreEnAttente() };
   }

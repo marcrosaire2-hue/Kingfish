@@ -14,7 +14,7 @@ import {
   parseCompteurPeriode,
   parseCompteurQuantite,
 } from "@/lib/compteur-model";
-import { getDb } from "@/lib/mongodb";
+import { getDb, getSimulationDbName } from "@/lib/mongodb";
 import type { CompteurPeriode, CompteurReleve, VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
@@ -116,7 +116,8 @@ async function storePreuve(input: {
     bytes: input.file.bytes,
   });
 
-  if (cloudinaryConfigured()) {
+  // Simulation (formation) : pas d'envoi vers Cloudinary, la capture reste en base jetable.
+  if (cloudinaryConfigured() && !(await getSimulationDbName())) {
     try {
       const uploaded = await uploadCompteurPreuve({
         bytes: input.file.bytes,

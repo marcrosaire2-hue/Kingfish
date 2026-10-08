@@ -274,6 +274,7 @@ export function userVisibleToAdmin(
 export type NavKey =
   | "vente"
   | "tests-plats"
+  | "simulation"
   | "caisse"
   | "fonds-caisse"
   | "rattrapage-ventes"
@@ -306,6 +307,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "synthese",
     "vente",
     "tests-plats",
+    "simulation",
     "zogbo",
     "gbegamey",
     "caisse",
@@ -373,6 +375,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "analyse",
     "vente",
     "tests-plats",
+    "simulation",
     "zogbo",
     "gbegamey",
     "caisse",
@@ -559,6 +562,7 @@ function canAccessPathWithAllowed(
     return allowed.includes("admin");
   }
   if (pathname.startsWith("/tests-plats")) return allowed.includes("tests-plats");
+  if (pathname.startsWith("/simulation")) return allowed.includes("simulation");
   if (pathname.startsWith("/vente")) return allowed.includes("vente");
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");
   if (pathname.startsWith("/rattrapage-ventes")) {
