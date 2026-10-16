@@ -666,10 +666,8 @@
     gap: 0.75rem;
   }
 
-  .vente-grid {
-    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  }
-
+  /* Colonnes : la règle !important de .vente-grid (globals.css, base)
+     l'emporte toujours ici, cette déclaration ne gagnait jamais. */
   .pos-cart.vente-panel {
     position: sticky;
     top: var(--sticky-offset, 0.55rem);
@@ -683,6 +681,19 @@
   .vente-meal-composer.vente-panel {
     padding: 0.85rem 0.9rem 0.95rem;
     border-radius: 14px;
+  }
+
+  /* Le Qté (label + stepper +/-) ne rentrait plus à côté du sélecteur de
+     plat sur téléphone et débordait hors de l'écran : on l'empile sous le
+     plat plutôt que de le faire cohabiter dans la même rangée. */
+  .vente-meal-plat-row {
+    grid-template-columns: 1fr;
+  }
+
+  .vente-meal-qty {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
   }
 
   .vente-sticker-actions {
