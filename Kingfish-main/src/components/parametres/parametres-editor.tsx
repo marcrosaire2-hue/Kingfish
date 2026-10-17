@@ -10,14 +10,16 @@ import { exportParametresExcel } from "@/lib/page-exports";
 import { cloneSeed } from "@/lib/storage";
 import type {
   BaseDish,
+  CategoryProduct,
   Drink,
   LocalDish,
   Parametres,
+  ProductCategory,
   RawMaterial,
   Recipe,
 } from "@/lib/types";
 
-type ZoneKey = "zogbo" | "gbegamey" | "cuisine";
+type ZoneKey = "zogbo" | "gbegamey" | "cuisine" | "categories";
 type ZogboSection = "base" | "accompagnements" | "drinks";
 type GbegameySection = "accompagnements" | "drinks";
 type CuisineSection = "matieres" | "composition";
@@ -29,6 +31,7 @@ const ZONE_TABS: { key: ZoneKey; label: string }[] = [
   { key: "zogbo", label: "Zogbo" },
   { key: "gbegamey", label: "Gbégamey" },
   { key: "cuisine", label: "Cuisine" },
+  { key: "categories", label: "Catégories" },
 ];
 
 const ZOGBO_SECTIONS: {
@@ -230,7 +233,9 @@ export function ParametresEditor({
       ? ZOGBO_SECTIONS.find((s) => s.key === zogboSection)?.hint
       : zone === "gbegamey"
         ? GBEGAMEY_SECTIONS.find((s) => s.key === gbegameySection)?.hint
-        : CUISINE_SECTIONS.find((s) => s.key === cuisineSection)?.hint;
+        : zone === "categories"
+          ? "Créez vos propres catégories de vente (ex. Dessert) puis ajoutez-y des articles. Chaque catégorie devient un onglet de la page Vente ; ses articles sont vendus sans stock, au prix indiqué."
+          : CUISINE_SECTIONS.find((s) => s.key === cuisineSection)?.hint;
 
   const rawMaterials = data.rawMaterials ?? [];
   const recipes = data.recipes ?? [];
@@ -398,7 +403,7 @@ export function ParametresEditor({
                 </button>
               ))}
             </div>
-          ) : (
+          ) : zone === "categories" ? null : (
             <div
               className="section-tabs"
               role="tablist"
@@ -465,6 +470,16 @@ export function ParametresEditor({
         <DrinksTable
           rows={data.drinks}
           onChange={(drinks) => update({ ...data, drinks })}
+        />
+      ) : null}
+
+      {zone === "categories" ? (
+        <CategoriesEditor
+          categories={data.categories ?? []}
+          products={data.categoryProducts ?? []}
+          onChange={(categories, categoryProducts) =>
+            update({ ...data, categories, categoryProducts })
+          }
         />
       ) : null}
 
@@ -889,6 +904,216 @@ function LocalDishesTable({
         + Ajouter un accompagnement
       </button>
     </section>
+  );
+}
+
+function CategoriesEditor({
+  categories,
+  products,
+  onChange,
+}: {
+  categories: ProductCategory[];
+  products: CategoryProduct[];
+  onChange: (
+    categories: ProductCategory[],
+    products: CategoryProduct[],
+  ) => void;
+}) {
+  const [newName, setNewName] = useState("");
+
+  function addCategory() {
+    const name = newName.trim().replace(/\s+/g, " ");
+    if (!name) return;
+    const exists = categories.some(
+      (c) => c.name.toLowerCase() === name.toLowerCase(),
+    );
+    if (exists) return;
+    onChange([...categories, { id: newId("cat"), name }], products);
+    setNewName("");
+  }
+
+  function removeCategory(cat: ProductCategory) {
+    const count = products.filter((p) => p.categoryId === cat.id).length;
+    const msg = count
+      ? `Supprimer la catégorie « ${cat.name} » et ses ${count} article(s) du catalogue ? Les ventes déjà enregistrées sont conservées.`
+      : `Supprimer la catégorie « ${cat.name} » ?`;
+    if (!window.confirm(msg)) return;
+    onChange(
+      categories.filter((c) => c.id !== cat.id),
+      products.filter((p) => p.categoryId !== cat.id),
+    );
+  }
+
+  return (
+    <>
+      <section className="panel">
+        <form
+          className="category-add"
+          onSubmit={(e) => {
+            e.preventDefault();
+            addCategory();
+          }}
+        >
+          <input
+            className="name-input"
+            value={newName}
+            maxLength={60}
+            placeholder="Nom de la nouvelle catégorie (ex. Dessert)"
+            aria-label="Nom de la nouvelle catégorie"
+            onChange={(e) => setNewName(e.target.value)}
+          />
+          <button
+            type="submit"
+            className="btn btn-add"
+            disabled={!newName.trim()}
+          >
+            + Ajouter une catégorie
+          </button>
+        </form>
+      </section>
+
+      {categories.length === 0 ? (
+        <p className="section-hint">Aucune catégorie personnalisée.</p>
+      ) : null}
+
+      {categories.map((cat) => {
+        const rows = products.filter((p) => p.categoryId === cat.id);
+        const setRows = (next: CategoryProduct[]) =>
+          onChange(categories, [
+            ...products.filter((p) => p.categoryId !== cat.id),
+            ...next,
+          ]);
+        return (
+          <section className="panel" key={cat.id}>
+            <h3 className="category-title">
+              <input
+                className="name-input"
+                value={cat.name}
+                maxLength={60}
+                aria-label={`Nom de la catégorie ${cat.name}`}
+                onChange={(e) =>
+                  onChange(
+                    categories.map((c) =>
+                      c.id === cat.id ? { ...c, name: e.target.value } : c,
+                    ),
+                    products,
+                  )
+                }
+              />
+              <button
+                type="button"
+                className="btn-icon"
+                aria-label={`Supprimer la catégorie ${cat.name}`}
+                onClick={() => removeCategory(cat)}
+              >
+                ×
+              </button>
+            </h3>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Désignation</th>
+                  <th scope="col" className="col-price">
+                    Prix unitaire
+                  </th>
+                  <th scope="col" className="col-price">
+                    Prix de revient
+                  </th>
+                  <th scope="col" className="col-actions">
+                    <span className="sr-only">Actions</span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr key={row.id}>
+                    <td>
+                      <NameCell
+                        value={row.name}
+                        ariaLabel={`Nom article ${cat.name} ${index + 1}`}
+                        onChange={(name) =>
+                          setRows(
+                            rows.map((r) =>
+                              r.id === row.id ? { ...r, name } : r,
+                            ),
+                          )
+                        }
+                      />
+                    </td>
+                    <td className="col-price">
+                      <PriceInput
+                        value={row.unitPrice}
+                        ariaLabel={`Prix ${row.name}`}
+                        onChange={(unitPrice) =>
+                          setRows(
+                            rows.map((r) =>
+                              r.id === row.id
+                                ? { ...r, unitPrice: unitPrice ?? 0 }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    </td>
+                    <td className="col-price">
+                      <PriceInput
+                        value={row.costPrice ?? null}
+                        allowEmpty
+                        ariaLabel={`Revient ${row.name}`}
+                        onChange={(costPrice) =>
+                          setRows(
+                            rows.map((r) =>
+                              r.id === row.id
+                                ? {
+                                    ...r,
+                                    costPrice:
+                                      costPrice === null
+                                        ? undefined
+                                        : costPrice,
+                                  }
+                                : r,
+                            ),
+                          )
+                        }
+                      />
+                    </td>
+                    <td className="col-actions">
+                      <button
+                        type="button"
+                        className="btn-icon"
+                        aria-label={`Supprimer ${row.name}`}
+                        onClick={() =>
+                          setRows(rows.filter((r) => r.id !== row.id))
+                        }
+                      >
+                        ×
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <button
+              type="button"
+              className="btn btn-add"
+              onClick={() =>
+                setRows([
+                  ...rows,
+                  {
+                    id: newId("cprod"),
+                    categoryId: cat.id,
+                    name: "Nouvel article",
+                    unitPrice: 0,
+                  },
+                ])
+              }
+            >
+              + Ajouter un article
+            </button>
+          </section>
+        );
+      })}
+    </>
   );
 }
 

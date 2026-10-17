@@ -11509,3 +11509,26 @@ html.nav-open body {
 
 .admin-ventes-panel .admin-field-actions { display: flex; align-items: flex-end; gap: 8px; }
 .admin-ventes-resume { margin: 6px 0 0; }
+
+.category-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.category-add .name-input {
+  flex: 1 1 220px;
+}
+
+.category-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+
+.category-title .name-input {
+  flex: 1;
+  font-weight: 600;
+}

@@ -33,6 +33,7 @@ import type {
   PosConfig,
   PosTicket,
   SaleType,
+  ProductCategory,
   VenteLogEntry,
   VenteProduct,
   VenteSite,
@@ -47,6 +48,8 @@ type Board = {
   recent: VenteLogEntry[];
   caToday: number;
   ventesSansStock?: boolean;
+  /** Catégories personnalisées créées dans Paramètres (ex. Dessert). */
+  categories?: ProductCategory[];
 };
 
 type CartLine = {
@@ -71,35 +74,43 @@ function venteKindFromUnit(kind: unknown): VenteProduct["kind"] {
   return "plat";
 }
 
-type CatKey = "plat" | "accompagnement" | "boisson";
+type BuiltinCatKey = "plat" | "accompagnement" | "boisson";
+/** Onglet UI : catégorie d'origine, ou `cat:<id>` pour une catégorie créée. */
+type CatKey = BuiltinCatKey | `cat:${string}`;
 
-/** Onglet UI → kind API. */
-const CAT_KIND: Record<CatKey, VenteProduct["kind"]> = {
+const BUILTIN_CATS: BuiltinCatKey[] = ["plat", "accompagnement", "boisson"];
+
+/** Onglet UI → kind API (catégories d'origine). */
+const CAT_KIND: Record<BuiltinCatKey, VenteProduct["kind"]> = {
   plat: "plat",
   accompagnement: "local",
   boisson: "boisson",
 };
 
-const CAT_LABELS: Record<CatKey, string> = {
+const CAT_LABELS: Record<BuiltinCatKey, string> = {
   plat: "Plats",
   accompagnement: "Accompagnements",
   boisson: "Boissons",
 };
 
-const CAT_SHORT_LABELS: Record<CatKey, string> = {
+const CAT_SHORT_LABELS: Record<BuiltinCatKey, string> = {
   plat: "Plats",
   accompagnement: "Acc.",
   boisson: "Boissons",
 };
 
 const CAT_ICON: Record<
-  CatKey,
+  BuiltinCatKey,
   { kind: VenteProduct["kind"]; name: string }
 > = {
   plat: { kind: "plat", name: "Plat" },
   accompagnement: { kind: "local", name: "Accompagnement" },
   boisson: { kind: "boisson", name: "Boisson" },
 };
+
+function isBuiltinCat(key: CatKey): key is BuiltinCatKey {
+  return !key.startsWith("cat:");
+}
 
 const SALE_TYPES: SaleType[] = ["Sur place", "Rapido"];
 
@@ -239,7 +250,8 @@ const ProductGrid = memo(function ProductGrid({
   return (
     <div className="vente-grid">
       {products.map((p) => {
-        const disabledPv = p.kind === "boisson" && p.unitPrice <= 0;
+        const disabledPv =
+          (p.kind === "boisson" || p.kind === "extra") && p.unitPrice <= 0;
         const stockBlocked =
           !ignoreStock &&
           p.stockLeft !== null &&
@@ -1159,15 +1171,22 @@ export function VentePage({
     if (!board) return [];
     if (cat === "plat") return plats;
     if (cat === "accompagnement") return accompagnements;
+    if (!isBuiltinCat(cat)) {
+      const categoryId = cat.slice(4);
+      return board.products.filter(
+        (p) => p.kind === "extra" && p.categoryId === categoryId,
+      );
+    }
     const kind = CAT_KIND[cat];
     return board.products.filter((p) => p.kind === kind);
   }, [board, cat, plats, accompagnements]);
 
   const categories = useMemo(() => {
-    const keys: CatKey[] = ["plat", "accompagnement", "boisson"];
-    return keys.map((key) => ({
-      key,
+    const builtin = BUILTIN_CATS.map((key) => ({
+      key: key as CatKey,
       label: CAT_LABELS[key],
+      shortLabel: CAT_SHORT_LABELS[key],
+      icon: CAT_ICON[key],
       count:
         key === "plat"
           ? plats.length
@@ -1176,6 +1195,17 @@ export function VentePage({
             : (board?.products.filter((p) => p.kind === CAT_KIND[key]).length ??
               0),
     }));
+    const custom = (board?.categories ?? []).map((c) => ({
+      key: `cat:${c.id}` as CatKey,
+      label: c.name,
+      shortLabel: c.name,
+      icon: { kind: "extra" as VenteProduct["kind"], name: c.name },
+      count:
+        board?.products.filter(
+          (p) => p.kind === "extra" && p.categoryId === c.id,
+        ).length ?? 0,
+    }));
+    return [...builtin, ...custom];
   }, [board, plats.length, accompagnements.length]);
 
   // Service worker + rejeu des ventes encaissées pendant une coupure.
@@ -1302,7 +1332,12 @@ export function VentePage({
 
   const addToCart = useCallback(
     (product: VenteProduct, unitPriceOverride?: number, qty = 1) => {
-      if (product.kind === "boisson" && product.unitPrice <= 0) return;
+      if (
+        (product.kind === "boisson" || product.kind === "extra") &&
+        product.unitPrice <= 0
+      ) {
+        return;
+      }
       if (
         !ignoreStock &&
         product.kind !== "local" &&
@@ -2188,15 +2223,15 @@ export function VentePage({
                 >
                   <span className="vente-cat-pill-icon">
                     <ProductIcon
-                      kind={CAT_ICON[c.key].kind}
-                      name={CAT_ICON[c.key].name}
+                      kind={c.icon.kind}
+                      name={c.icon.name}
                       size="md"
                     />
                   </span>
                   <span className="vente-cat-pill-label">
                     <span className="vente-cat-pill-label-long">{c.label}</span>
                     <span className="vente-cat-pill-label-short">
-                      {CAT_SHORT_LABELS[c.key]}
+                      {c.shortLabel}
                     </span>
                   </span>
                   <span className="vente-cat-pill-count">{c.count}</span>
@@ -2560,13 +2595,19 @@ export function VentePage({
       >
         {board?.recent.length ? (
           <ul className="vente-log">
-            {board.recent.map((entry) => (
+            {board.recent.map((entry) => {
+              // Article d'une catégorie créée : une vente au catalogue, avec
+              // quantité (≠ vente libre « Extra »).
+              const free =
+                entry.kind === "extra" &&
+                !board.products.some((p) => p.productId === entry.productId);
+              return (
               <li key={entry.id}>
                 <div>
                   <strong>
-                    {entry.kind === "extra" ? "Extra · " : ""}
-                    {entry.qty > 0 && entry.kind !== "extra" ? "+" : ""}
-                    {entry.kind !== "extra" ? `${entry.qty} ` : ""}
+                    {free ? "Extra · " : ""}
+                    {entry.qty > 0 && !free ? "+" : ""}
+                    {!free ? `${entry.qty} ` : ""}
                     {entry.name}
                   </strong>
                   <span className="muted mono">
@@ -2598,7 +2639,8 @@ export function VentePage({
                   ) : null}
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : (
           <p className="muted">Aucune vente.</p>
