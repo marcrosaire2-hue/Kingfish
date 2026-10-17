@@ -11532,3 +11532,14 @@ html.nav-open body {
   flex: 1;
   font-weight: 600;
 }
+
+.row-mover {
+  display: inline-flex;
+  gap: 2px;
+  margin-right: 4px;
+}
+
+.row-mover .btn-icon:disabled {
+  opacity: 0.3;
+  cursor: default;
+}

@@ -5,6 +5,7 @@ import { ExportExcelButton } from "@/components/export-excel-button";
 import { CatalogueView } from "@/components/parametres/catalogue-view";
 import { PriceInput } from "@/components/parametres/price-input";
 import { QtyInput } from "@/components/qty-input";
+import { useSession } from "@/components/session-provider";
 import { formatFcfa, formatUpdatedAt, newId } from "@/lib/format";
 import { exportParametresExcel } from "@/lib/page-exports";
 import { cloneSeed } from "@/lib/storage";
@@ -513,6 +514,54 @@ export function ParametresEditor({
   );
 }
 
+/**
+ * Priorité d'affichage : l'ordre du catalogue est l'ordre de la page Vente
+ * (haut = prioritaire). Seul l'administrateur peut le modifier.
+ */
+function RowMover<T>({
+  rows,
+  index,
+  label,
+  onChange,
+}: {
+  rows: T[];
+  index: number;
+  label: string;
+  onChange: (rows: T[]) => void;
+}) {
+  const { user } = useSession();
+  if (user?.role !== "admin") return null;
+  function move(to: number) {
+    if (to < 0 || to >= rows.length) return;
+    const next = [...rows];
+    const [item] = next.splice(index, 1);
+    next.splice(to, 0, item);
+    onChange(next);
+  }
+  return (
+    <span className="row-mover">
+      <button
+        type="button"
+        className="btn-icon"
+        aria-label={`Monter ${label} (plus prioritaire)`}
+        disabled={index === 0}
+        onClick={() => move(index - 1)}
+      >
+        ▲
+      </button>
+      <button
+        type="button"
+        className="btn-icon"
+        aria-label={`Descendre ${label} (moins prioritaire)`}
+        disabled={index === rows.length - 1}
+        onClick={() => move(index + 1)}
+      >
+        ▼
+      </button>
+    </span>
+  );
+}
+
 function NameCell({
   value,
   onChange,
@@ -606,6 +655,12 @@ function BaseDishesTable({
                 />
               </td>
               <td className="col-actions">
+                <RowMover
+                  rows={rows}
+                  index={index}
+                  label={row.name}
+                  onChange={onChange}
+                />
                 <button
                   type="button"
                   className="btn-icon"
@@ -766,6 +821,12 @@ function DrinksTable({
                   />
                 </td>
                 <td className="col-actions">
+                  <RowMover
+                    rows={rows}
+                    index={index}
+                    label={row.name}
+                    onChange={onChange}
+                  />
                   <button
                     type="button"
                     className="btn-icon"
@@ -878,6 +939,12 @@ function LocalDishesTable({
                 />
               </td>
               <td className="col-actions">
+                <RowMover
+                  rows={rows}
+                  index={index}
+                  label={row.name}
+                  onChange={onChange}
+                />
                 <button
                   type="button"
                   className="btn-icon"
@@ -1078,6 +1145,12 @@ function CategoriesEditor({
                       />
                     </td>
                     <td className="col-actions">
+                      <RowMover
+                        rows={rows}
+                        index={index}
+                        label={row.name}
+                        onChange={setRows}
+                      />
                       <button
                         type="button"
                         className="btn-icon"
