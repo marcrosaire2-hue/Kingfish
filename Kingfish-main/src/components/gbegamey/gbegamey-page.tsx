@@ -11,7 +11,6 @@ import {
   CataloguePaginationBar,
   CatalogueSkeleton,
 } from "@/components/parametres/catalogue-view";
-import { ParametresEditor } from "@/components/parametres/parametres-editor";
 import { ZoneBoissonsPanel } from "@/components/zone/zone-boissons-panel";
 import { ZoneVentesPanel } from "@/components/zone/zone-ventes-panel";
 import "@/components/parametres/parametres-catalogue.css";
@@ -44,15 +43,10 @@ type Payload = {
   ventesSummary?: VentesDaySummary;
 };
 
-type SectionKey = "transfer" | "local" | "boissons" | "ventes" | "parametres";
+type SectionKey = "transfer" | "local" | "boissons" | "ventes";
 
 function parseSection(raw: string | null): SectionKey {
-  if (
-    raw === "local" ||
-    raw === "boissons" ||
-    raw === "ventes" ||
-    raw === "parametres"
-  ) {
+  if (raw === "local" || raw === "boissons" || raw === "ventes") {
     return raw;
   }
   return "transfer";
@@ -440,33 +434,23 @@ export function GbegameyPage() {
 
   return (
     <AppShell
-      title={
-        section === "parametres" ? "Catalogue & paramètres" : "Stock Gbégamey"
-      }
-      subtitle={
-        section === "parametres"
-          ? "Gérez vos produits, matières et recettes."
-          : "Saisie du stock — plats reçus de Zogbo, accompagnements et boissons."
-      }
-      mainClassName={
-        section === "parametres" ? "main-catalogue" : "main-gbegamey"
-      }
+      title="Stock Gbégamey"
+      subtitle="Saisie du stock — plats reçus de Zogbo, accompagnements et boissons."
+      mainClassName="main-gbegamey"
     >
       <div className="stock-zogbo-page catalogue-view">
-        {section !== "parametres" ? (
-          <ContextBar
-            date={date}
-            onDateChange={handleDateChange}
-            siteLabel="Gbégamey"
-          >
-            <ExportExcelButton
-              onExport={() => exportGbegameyExcel(date)}
-              disabled={loading}
-            />
-          </ContextBar>
-        ) : null}
+        <ContextBar
+          date={date}
+          onDateChange={handleDateChange}
+          siteLabel="Gbégamey"
+        >
+          <ExportExcelButton
+            onExport={() => exportGbegameyExcel(date)}
+            disabled={loading}
+          />
+        </ContextBar>
 
-        {backdate && section !== "parametres" ? (
+        {backdate ? (
           <div className="catalogue-info" role="status">
             <span className="catalogue-info-mark" aria-hidden>
               i
@@ -526,26 +510,13 @@ export function GbegameyPage() {
               <span className="section-count">{ventesSummary.lignes}</span>
             ) : null}
           </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={section === "parametres"}
-            className={`section-tab${section === "parametres" ? " is-active" : ""}`}
-            onClick={() => setSection("parametres")}
-          >
-            Catalogue
-          </button>
         </div>
 
-        {error && section !== "parametres" ? (
+        {error ? (
           <StockErrorBanner
             message={error}
             onRetry={() => setReloadTick((n) => n + 1)}
           />
-        ) : null}
-
-        {section === "parametres" ? (
-          <ParametresEditor mode="catalogue" />
         ) : null}
 
         {section === "boissons" ? (

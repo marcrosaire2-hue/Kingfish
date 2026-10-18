@@ -61,6 +61,12 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
+    href: "/catalogue",
+    label: "Catalogue",
+    key: "parametres",
+    group: "ops",
+  },
+  {
     href: "/achats",
     label: "Achats",
     key: "appro",

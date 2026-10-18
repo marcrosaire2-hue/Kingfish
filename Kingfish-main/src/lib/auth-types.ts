@@ -550,6 +550,7 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/versements")) return allowed.includes("versements");
   if (pathname.startsWith("/reglages")) return allowed.includes("reglages");
   if (pathname.startsWith("/parametres")) return allowed.includes("parametres");
+  if (pathname.startsWith("/catalogue")) return allowed.includes("parametres");
   if (pathname.startsWith("/stock-zogbo")) return allowed.includes("zogbo");
   if (pathname.startsWith("/zogbo")) return allowed.includes("zogbo");
   if (pathname.startsWith("/stock-gbegamey")) return allowed.includes("gbegamey");

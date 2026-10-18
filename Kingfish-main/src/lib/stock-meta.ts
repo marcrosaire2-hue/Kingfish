@@ -75,6 +75,6 @@ export function zoneRoute(zone: StockZone, date: string): string {
     case "gbegamey-boissons":
       return `/stock-gbegamey?tab=boissons&date=${date}`;
     case "matieres":
-      return `/stock-zogbo?tab=parametres&date=${date}`;
+      return `/catalogue`;
   }
 }

@@ -18,7 +18,6 @@ import {
   CatalogueSkeleton,
 } from "@/components/parametres/catalogue-view";
 import { QrScanner } from "@/components/stock-zogbo/qr-scanner";
-import { ParametresEditor } from "@/components/parametres/parametres-editor";
 import { useSession } from "@/components/session-provider";
 import "@/components/parametres/parametres-catalogue.css";
 import { formatStickerCode, parseQrIdFromScan } from "@/lib/parse-qr-id";
@@ -35,12 +34,12 @@ import { downloadQrSheet } from "@/lib/download-qr-sheet";
 import { computeLocalLine } from "@/lib/gbegamey-calc";
 import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
 
-type TabKey = "plats" | "acc" | "boissons" | "parametres";
+type TabKey = "plats" | "acc" | "boissons";
 
 const PAGE_SIZE = 6;
 
 function parseTab(raw: string | null): TabKey {
-  if (raw === "acc" || raw === "boissons" || raw === "parametres") return raw;
+  if (raw === "acc" || raw === "boissons") return raw;
   return "plats";
 }
 
@@ -198,9 +197,7 @@ export function StockZogboPage({
   const router = useRouter();
   const { user } = useSession();
   const readOnly = Boolean(user && !canWriteStock(user.role));
-  const requestedTab = parseTab(searchParams.get("tab"));
-  const tab =
-    readOnly && requestedTab === "parametres" ? "plats" : requestedTab;
+  const tab = parseTab(searchParams.get("tab"));
   const dateFromUrl = searchParams.get("date");
   const [date, setDate] = useState(() => {
     if (dateFromUrl && /^\d{4}-\d{2}-\d{2}$/.test(dateFromUrl)) return dateFromUrl;
@@ -287,9 +284,8 @@ export function StockZogboPage({
   }, [date, apiBase]);
 
   useEffect(() => {
-    if (tab === "parametres") return;
     void load(date);
-  }, [date, load, tab]);
+  }, [date, load]);
 
   async function postAction(
     action: string,
@@ -561,26 +557,20 @@ export function StockZogboPage({
 
   return (
     <AppShell
-      title={tab === "parametres" ? "Catalogue & paramètres" : siteTitle}
+      title={siteTitle}
       subtitle={
-        tab === "parametres"
-          ? "Gérez vos produits, matières et recettes."
-          : readOnly
-            ? "Consultation du stock — aucune saisie."
-            : "Saisie du stock — plats tracés par QR, accompagnements et boissons."
+        readOnly
+          ? "Consultation du stock — aucune saisie."
+          : "Saisie du stock — plats tracés par QR, accompagnements et boissons."
       }
-      mainClassName={
-        tab === "parametres" ? "main-catalogue" : "main-stock-zogbo"
-      }
+      mainClassName="main-stock-zogbo"
     >
       <div className="stock-zogbo-page catalogue-view">
-        {tab !== "parametres" ? (
-          <ContextBar
-            date={date}
-            onDateChange={setDate}
-            siteLabel={isGbegamey ? "Gbégamey" : "Zogbo"}
-          />
-        ) : null}
+        <ContextBar
+          date={date}
+          onDateChange={setDate}
+          siteLabel={isGbegamey ? "Gbégamey" : "Zogbo"}
+        />
 
         <div
           className="section-tabs catalogue-stock-tabs"
@@ -616,24 +606,13 @@ export function StockZogboPage({
           >
             Boissons
           </button>
-          {readOnly ? null : (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "parametres"}
-              className={`section-tab${tab === "parametres" ? " is-active" : ""}`}
-              onClick={() => setTab("parametres")}
-            >
-              Catalogue
-            </button>
-          )}
         </div>
 
-        {error && tab !== "parametres" ? (
+        {error ? (
           <StockErrorBanner message={error} onRetry={() => void load(date)} />
         ) : null}
 
-        {readOnly && tab !== "parametres" ? (
+        {readOnly ? (
           <div className="catalogue-info" role="note">
             <span className="catalogue-info-mark" aria-hidden>
               i
@@ -645,9 +624,7 @@ export function StockZogboPage({
           </div>
         ) : null}
 
-        {tab === "parametres" ? (
-          <ParametresEditor mode="catalogue" />
-        ) : loading ? (
+        {loading ? (
           <CatalogueSkeleton />
         ) : tab === "plats" ? (
           <>
