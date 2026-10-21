@@ -8,8 +8,8 @@ import {
   getStockSitePayload,
   listPlatUnits,
   registerProductStock,
+  savePlatCounted,
   saveAccompanimentStock,
-  sendPlatQrUnits,
 } from "@/lib/stock-unit-repo";
 import type { GbegameyLocalLine } from "@/lib/types";
 import type { StockUnitStatus } from "@/lib/stock-unit-types";
@@ -86,6 +86,7 @@ export async function POST(request: Request) {
       date?: string;
       productId?: string;
       qty?: number;
+      counted?: number | null;
       qrIds?: string[];
       kind?: "plat" | "local" | "boisson";
       accompanimentLines?: GbegameyLocalLine[];
@@ -125,6 +126,31 @@ export async function POST(request: Request) {
       return NextResponse.json(result);
     }
 
+    if (action === "save-counted") {
+      if (!body.productId) {
+        return NextResponse.json({ error: "productId requis." }, { status: 400 });
+      }
+      const counted =
+        body.counted === null || body.counted === undefined
+          ? null
+          : Number(body.counted);
+      const payload = await savePlatCounted({
+        date,
+        site: "gbegamey",
+        productId: body.productId,
+        counted,
+      });
+      await logActivity({
+        user,
+        kind: "gbegamey",
+        title: `Stock réel saisi · ${body.productId}`,
+        detail: `${counted ?? "effacé"} · ${date}`,
+        date,
+        site: "gbegamey",
+      });
+      return NextResponse.json({ payload });
+    }
+
     if (action === "register-stock") {
       if (!body.productId) {
         return NextResponse.json({ error: "productId requis." }, { status: 400 });
@@ -162,21 +188,10 @@ export async function POST(request: Request) {
     }
 
     if (action === "send") {
-      const qrIds = Array.isArray(body.qrIds) ? body.qrIds : [];
-      const result = await sendPlatQrUnits({
-        date,
-        qrIds,
-        payloadSite: "gbegamey",
-      });
-      await logActivity({
-        user,
-        kind: "transfert",
-        title: `Réception QR Gbégamey`,
-        detail: `${result.sent.length} unité(s) · ${date}`,
-        date,
-        site: "gbegamey",
-      });
-      return NextResponse.json(result);
+      return NextResponse.json(
+        { error: "Les réceptions Zogbo → Gbégamey n'existent plus : les sites sont indépendants." },
+        { status: 410 },
+      );
     }
 
     if (action === "save-accompaniments") {

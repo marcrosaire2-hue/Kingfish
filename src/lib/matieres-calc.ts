@@ -60,6 +60,7 @@ export function normalizeMatieresMovement(
     fournisseurId: m.fournisseurId ?? null,
     fournisseurNom: m.fournisseurNom ?? null,
     depenseId: m.depenseId ?? null,
+    ...(m.site === "zogbo" || m.site === "gbegamey" ? { site: m.site } : {}),
     pertes: Math.max(0, Number(m.pertes) || 0),
   };
 }
@@ -125,6 +126,7 @@ export function applyMatieresPurchaseToState(
     unitPrice?: number;
     fournisseurId?: string | null;
     fournisseurNom?: string | null;
+    site?: "zogbo" | "gbegamey";
   },
 ): {
   lines: MatieresLine[];
@@ -164,6 +166,7 @@ export function applyMatieresPurchaseToState(
     fournisseurId: input.fournisseurId ?? null,
     fournisseurNom: input.fournisseurNom ?? null,
     depenseId: null,
+    ...(input.site ? { site: input.site } : {}),
     pertes: 0,
   };
 
@@ -192,6 +195,7 @@ export function applyMatieresOtherPurchaseToState(
     unitPrice?: number;
     fournisseurId?: string | null;
     fournisseurNom?: string | null;
+    site?: "zogbo" | "gbegamey";
   },
 ): {
   lines: MatieresLine[];
@@ -220,6 +224,7 @@ export function applyMatieresOtherPurchaseToState(
     fournisseurId: input.fournisseurId ?? null,
     fournisseurNom: input.fournisseurNom ?? null,
     depenseId: null,
+    ...(input.site ? { site: input.site } : {}),
     pertes: 0,
   };
 

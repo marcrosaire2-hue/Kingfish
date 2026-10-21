@@ -65,26 +65,3 @@ export function BrandLogoMark({
     </span>
   );
 }
-
-/** Composition pleine page : marque + nom + barre, pour l’entrée dans l’app. */
-export function BrandIntro({
-  title = APP_NAME,
-  tagline = APP_TAGLINE,
-  hint,
-}: {
-  title?: string;
-  tagline?: string;
-  hint?: string;
-}) {
-  return (
-    <div className="kf-intro">
-      <BrandLogoMark size="lg" />
-      <p className="kf-intro-name">{title}</p>
-      <p className="kf-intro-tag">{tagline}</p>
-      <div className="kf-intro-bar" aria-hidden>
-        <span className="kf-intro-bar-fill" />
-      </div>
-      {hint ? <p className="kf-intro-hint">{hint}</p> : null}
-    </div>
-  );
-}

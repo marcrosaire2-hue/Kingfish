@@ -94,22 +94,11 @@ export async function POST(request: Request) {
     const lookupWorkflow =
       body.workflow === "gbegamey-receive" ? "gbegamey-receive" : "zogbo-send";
 
-    if (action === "send-one" && qrId && date) {
-      const result = await sendPlatQrUnits({
-        date,
-        qrIds: [qrId],
-        payloadSite,
-      });
-      return NextResponse.json(result);
-    }
-
-    if (action === "send-batch" && date && Array.isArray(body.qrIds)) {
-      const result = await sendPlatQrUnits({
-        date,
-        qrIds: body.qrIds,
-        payloadSite,
-      });
-      return NextResponse.json(result);
+    if (action === "send-one" || action === "send-batch") {
+      return NextResponse.json(
+        { error: "Les transferts Zogbo → Gbégamey n'existent plus : les sites sont indépendants." },
+        { status: 410 },
+      );
     }
 
     if (action === "mark-lost" && qrId && date) {

@@ -10,9 +10,7 @@ import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
 import { RegistreDrawer } from "@/components/registre-drawer";
-import { QrScanner } from "@/components/stock-zogbo/qr-scanner";
 import { formatFcfa } from "@/lib/format";
-import { formatStickerCode, parseQrIdFromScan } from "@/lib/parse-qr-id";
 import {
   ajouterEnAttente,
   installerSupportHorsLigne,
@@ -56,20 +54,7 @@ type CartLine = {
   name: string;
   unitPrice: number;
   qty: number;
-  /** Unité QR tracée — une ligne = une unité, non duplicable. */
-  qrId?: string;
-  stickerCode?: string;
 };
-
-type PendingCodeAdd = {
-  product: VenteProduct;
-  unitPrice?: number;
-};
-
-function venteKindFromUnit(kind: unknown): VenteProduct["kind"] {
-  if (kind === "local" || kind === "boisson") return kind;
-  return "plat";
-}
 
 type CatKey = "plat" | "accompagnement" | "boisson";
 
@@ -320,9 +305,7 @@ export const ProductGrid = memo(function ProductGrid({
                 aria-label={
                   reason
                     ? `${p.name} — ${reason}`
-                    : p.qrRequired
-                      ? `Saisir le code de ${p.name}`
-                      : `Ajouter ${p.name}`
+                    : `Ajouter ${p.name}`
                 }
                 onClick={() => onAdd(p)}
               >
@@ -377,8 +360,7 @@ export const MealComposer = memo(function MealComposer({
       <header className="vente-panel-head">
         <h2>Vente plat + accompagnements</h2>
         <p>
-          Choisissez le plat, puis les accompagnements. Le code collé n’est
-          demandé que si des QR sont déjà en stock pour l’article.
+          Choisissez le plat, puis les accompagnements.
         </p>
       </header>
       {plats.length === 0 ? (
@@ -541,179 +523,6 @@ type CartLinesProps = {
   onChangeQty: (key: string, delta: number) => void;
 };
 
-type VenteQrScanPanelProps = {
-  scanOpen: boolean;
-  scanBusy: boolean;
-  onToggleScan: () => void;
-  onScanSubmit: (raw: string) => void | Promise<boolean>;
-};
-
-const VenteQrScanPanel = memo(function VenteQrScanPanel({
-  scanOpen,
-  scanBusy,
-  onToggleScan,
-  onScanSubmit,
-}: VenteQrScanPanelProps) {
-  const [draft, setDraft] = useState("");
-
-  return (
-    <div className="vente-qr-scan">
-      <form
-        className="vente-sticker-form"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const raw = draft.trim();
-          if (!raw || scanBusy) return;
-          void Promise.resolve(onScanSubmit(raw)).then((ok) => {
-            if (ok) setDraft("");
-          });
-        }}
-      >
-        <label className="vente-sticker-field">
-          <span>Code collé sur l’étiquette</span>
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value.toUpperCase())}
-            placeholder="A7K-3Q2"
-            autoCapitalize="characters"
-            autoCorrect="off"
-            spellCheck={false}
-            disabled={scanBusy}
-            aria-label="Code collé sous le QR"
-          />
-        </label>
-        <button
-          type="submit"
-          className="btn btn-primary"
-          disabled={scanBusy || !draft.trim()}
-        >
-          Ajouter
-        </button>
-      </form>
-
-      <button
-        type="button"
-        className={`vente-qr-scan-toggle btn btn-ghost${scanOpen ? " is-active" : ""}`}
-        onClick={onToggleScan}
-      >
-        <span className="vente-qr-scan-icon" aria-hidden>
-          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path
-              d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-            />
-            <path
-              d="M8 12h8"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-            />
-          </svg>
-        </span>
-        {scanOpen ? "Fermer la caméra" : "Scanner le QR"}
-      </button>
-
-      {scanOpen ? (
-        <>
-          <p className="section-hint">
-            Cadrez le QR, ou saisissez le code collé dessous.
-          </p>
-          <QrScanner
-            active={!scanBusy}
-            cameraOnly
-            onDetected={(id) => onScanSubmit(id)}
-          />
-        </>
-      ) : null}
-    </div>
-  );
-});
-
-const StickerCodePrompt = memo(function StickerCodePrompt({
-  item,
-  index,
-  total,
-  busy,
-  error,
-  onSubmit,
-  onCancel,
-}: {
-  item: PendingCodeAdd;
-  index: number;
-  total: number;
-  busy: boolean;
-  error: string | null;
-  onSubmit: (raw: string) => void;
-  onCancel: () => void;
-}) {
-  const [draft, setDraft] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setDraft("");
-    inputRef.current?.focus();
-  }, [item.product.productId, index]);
-
-  return (
-    <div
-      className="facture-overlay"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="vente-sticker-title"
-    >
-      <form
-        className="facture-card vente-sticker-card"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const raw = draft.trim();
-          if (!raw || busy) return;
-          onSubmit(raw);
-        }}
-      >
-        <header className="vente-panel-head">
-          <h2 id="vente-sticker-title">Code collé sur l’étiquette</h2>
-          <p>
-            {item.product.name}
-            {total > 1 ? ` · ${index + 1}/${total}` : ""}
-          </p>
-        </header>
-        <label className="vente-sticker-field">
-          <span>2e code, sous le QR (ex. A7K-3Q2)</span>
-          <input
-            ref={inputRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value.toUpperCase())}
-            placeholder="A7K-3Q2"
-            autoCapitalize="characters"
-            autoCorrect="off"
-            spellCheck={false}
-            disabled={busy}
-          />
-        </label>
-        {error ? (
-          <p className="error-banner" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <div className="vente-sticker-actions">
-          <button type="button" className="btn btn-ghost" onClick={onCancel}>
-            Annuler
-          </button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={busy || !draft.trim()}
-          >
-            {busy ? "Vérification…" : "Ajouter"}
-          </button>
-        </div>
-      </form>
-    </div>
-  );
-});
-
 export const CartLines = memo(function CartLines({
   cart,
   onChangeQty,
@@ -725,15 +534,6 @@ export const CartLines = memo(function CartLines({
           <div>
             <strong>
               {l.name}
-              {l.stickerCode || l.qrId ? (
-                <span
-                  className="vente-qr-badge"
-                  title={l.qrId}
-                >
-                  {" "}
-                  · {formatStickerCode(l.stickerCode || l.qrId || "")}
-                </span>
-              ) : null}
             </strong>
             <div className="muted mono">
               {formatFcfa(l.unitPrice)} × {l.qty}
@@ -751,7 +551,6 @@ export const CartLines = memo(function CartLines({
             <button
               type="button"
               className="vente-plus"
-              disabled={Boolean(l.qrId)}
               onClick={() => onChangeQty(l.key, 1)}
             >
               +
@@ -882,10 +681,6 @@ export function VentePage({
   const [flash, setFlash] = useState<string | null>(null);
   const [journalOpen, setJournalOpen] = useState(false);
   const [posBusy, setPosBusy] = useState(false);
-  const [scanOpen, setScanOpen] = useState(false);
-  const [scanBusy, setScanBusy] = useState(false);
-  const [codeQueue, setCodeQueue] = useState<PendingCodeAdd[]>([]);
-  const [codeQueueTotal, setCodeQueueTotal] = useState(0);
   const [cartSheetOpen, setCartSheetOpen] = useState(false);
   const catalogRef = useRef<HTMLDivElement>(null);
   const [composerPlatId, setComposerPlatId] = useState("");
@@ -1342,116 +1137,10 @@ export function VentePage({
       prev
         .map((l) => {
           if (l.key !== key) return l;
-          if (l.qrId && delta > 0) return l;
           return { ...l, qty: l.qty + delta };
         })
         .filter((l) => l.qty > 0),
     );
-  }, []);
-
-  const handleQrScan = useCallback(
-    async (raw: string, expected?: PendingCodeAdd | null): Promise<boolean> => {
-      const qrId = parseQrIdFromScan(raw) ?? String(raw ?? "").trim();
-      if (!qrId) return false;
-      if (!canSell) {
-        setError(
-          backdateMode
-            ? "Correction de jour passé impossible pour le moment."
-            : "Ouvrez une caisse avant de vendre.",
-        );
-        return false;
-      }
-      setScanBusy(true);
-      setError(null);
-      try {
-        const res = await fetch("/api/vente", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "scan-qr",
-            qrId,
-            site,
-            date,
-          }),
-        });
-        const body = await res.json();
-        if (!res.ok) throw new Error(body.error || "Code invalide");
-        if (!body.canSell) {
-          throw new Error(body.message || "Code non vendable");
-        }
-        const unit = body.unit as {
-          qrId: string;
-          productId: string;
-          productName: string;
-          stickerCode?: string;
-          kind?: string;
-        };
-        const canonical = String(unit.qrId || qrId);
-        if (expected && unit.productId !== expected.product.productId) {
-          throw new Error(
-            `Ce code est pour « ${unit.productName} », pas « ${expected.product.name} ».`,
-          );
-        }
-        const unitPrice =
-          expected?.unitPrice != null && expected.unitPrice > 0
-            ? expected.unitPrice
-            : Math.round(Number(body.unitPrice) || 0) ||
-              board?.products.find((p) => p.productId === unit.productId)
-                ?.unitPrice ||
-              0;
-        if (unitPrice <= 0) {
-          throw new Error("Prix introuvable pour cet article.");
-        }
-        let duplicate = false;
-        setCart((prev) => {
-          if (prev.some((l) => l.qrId === canonical || l.qrId === qrId)) {
-            duplicate = true;
-            return prev;
-          }
-          return [
-            ...prev,
-            {
-              key: `qr:${canonical}`,
-              kind: venteKindFromUnit(unit.kind),
-              productId: unit.productId,
-              name: unit.productName,
-              unitPrice,
-              qty: 1,
-              qrId: canonical,
-              stickerCode: unit.stickerCode,
-            },
-          ];
-        });
-        if (duplicate) {
-          setFlash("Ce code est déjà dans le panier");
-          window.setTimeout(() => setFlash(null), 2000);
-          return false;
-        }
-        if (expected) {
-          setCodeQueue((q) => q.slice(1));
-        }
-        setFlash(`${unit.productName} ajouté au panier`);
-        window.setTimeout(() => setFlash(null), 2000);
-        return true;
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Code impossible à vérifier");
-        return false;
-      } finally {
-        setScanBusy(false);
-      }
-    },
-    [canSell, backdateMode, site, date, board],
-  );
-
-  const requestCodes = useCallback((items: PendingCodeAdd[]) => {
-    if (!items.length) return;
-    setCodeQueue(items);
-    setCodeQueueTotal(items.length);
-    setError(null);
-  }, []);
-
-  const toggleQrScan = useCallback(() => {
-    setScanOpen((open) => !open);
   }, []);
 
   const commitMeal = useCallback(() => {
@@ -1479,27 +1168,12 @@ export function VentePage({
       );
       return;
     }
-    const queue: PendingCodeAdd[] = [];
-    if (composerPlat.qrRequired) {
-      for (let i = 0; i < composerQty; i++) {
-        queue.push({ product: composerPlat });
-      }
-    } else {
-      addToCart(composerPlat, undefined, composerQty);
-    }
+    addToCart(composerPlat, undefined, composerQty);
     for (const a of composerAccOptions) {
       const qty = composerAccQtys[a.productId] ?? 0;
       if (qty <= 0) continue;
-      const unitPrice = accPriceFor(a);
-      if (a.qrRequired) {
-        for (let i = 0; i < qty; i++) {
-          queue.push({ product: a, unitPrice });
-        }
-      } else {
-        addToCart(a, unitPrice, qty);
-      }
+      addToCart(a, accPriceFor(a), qty);
     }
-    if (queue.length) requestCodes(queue);
     resetComposer();
     setError(null);
   }, [
@@ -1511,7 +1185,6 @@ export function VentePage({
     addToCart,
     resetComposer,
     ignoreStock,
-    requestCodes,
   ]);
 
   const siteLabel = site === "zogbo" ? "Zogbo" : "Gbégamey";
@@ -1560,7 +1233,6 @@ export function VentePage({
         name: l.name,
         qty: l.qty,
         unitPrice: l.unitPrice,
-        qrId: l.qrId,
       })),
     };
     try {
@@ -2222,13 +1894,6 @@ export function VentePage({
               ))}
             </div>
 
-            <VenteQrScanPanel
-              scanOpen={scanOpen}
-              scanBusy={scanBusy}
-              onToggleScan={toggleQrScan}
-              onScanSubmit={(raw) => handleQrScan(raw, codeQueue[0] ?? null)}
-            />
-
             {loading && !board ? (
               <BrandLoader variant="ligne" label="Chargement du catalogue…" />
             ) : cat === "plat" ? (
@@ -2254,9 +1919,7 @@ export function VentePage({
                 products={products}
                 canSell={canSell}
                 ignoreStock={ignoreStock}
-                onAdd={(p) =>
-                  p.qrRequired ? requestCodes([{ product: p }]) : addToCart(p)
-                }
+                onAdd={(p) => addToCart(p)}
               />
             )}
           </div>
@@ -2440,24 +2103,6 @@ export function VentePage({
       {/* Opération en cours : le logo occupe l'écran et absorbe les clics,
           le temps que le serveur réponde. */}
       {posBusy ? <BrandLoader variant="voile" label="Enregistrement de la commande…" /> : null}
-
-      {codeQueue[0] ? (
-        <StickerCodePrompt
-          item={codeQueue[0]}
-          index={Math.max(0, codeQueueTotal - codeQueue.length)}
-          total={codeQueueTotal}
-          busy={scanBusy}
-          error={error}
-          onSubmit={(raw) => {
-            void handleQrScan(raw, codeQueue[0]);
-          }}
-          onCancel={() => {
-            setCodeQueue([]);
-            setCodeQueueTotal(0);
-            setError(null);
-          }}
-        />
-      ) : null}
 
       {/* Facture de la commande : générée à chaque validation, elle porte le
           détail complet de la transaction avant toute impression. */}

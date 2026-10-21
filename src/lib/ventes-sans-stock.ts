@@ -9,8 +9,12 @@ import { getZogboDayPayload } from "@/lib/zogbo-repo";
  */
 export function dayVentesSansStock(
   day: { ventesSansStock?: boolean } | null | undefined,
+  /** Valeur quand le jour n'a pas de réglage explicite (vente libre par défaut). */
+  fallback = true,
 ): boolean {
-  return day?.ventesSansStock !== false;
+  return typeof day?.ventesSansStock === "boolean"
+    ? day.ventesSansStock
+    : fallback;
 }
 
 export async function isVentesSansStockActive(
@@ -91,7 +95,8 @@ export async function endVentesSansStock(
 export function mergeVentesSansStockOnSave(input: {
   stockSaisie?: boolean;
   existing?: { ventesSansStock?: boolean } | null;
+  fallback?: boolean;
 }): boolean {
   void input.stockSaisie;
-  return dayVentesSansStock(input.existing);
+  return dayVentesSansStock(input.existing, input.fallback);
 }

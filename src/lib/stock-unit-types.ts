@@ -78,6 +78,12 @@ export type PlatUnitStats = {
    * Indépendant du compteur QR.
    */
   stockRemaining: number;
+  /** Stock réel constaté (comptage) ; `null` tant qu'il n'est pas saisi. */
+  counted: number | null;
+  /** Stock théorique de départ (préparé / mouvements) ; `null` si non défini. */
+  theoretical: number | null;
+  /** Écart = stock réel − stock théorique ; `null` si non mesurable. */
+  ecart: number | null;
 };
 
 export type StockZogboPayload = {

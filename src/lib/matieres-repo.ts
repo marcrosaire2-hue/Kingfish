@@ -252,6 +252,8 @@ function mouvementsDuJour(existing: MatieresDoc | null): MatieresMovement[] {
 
 export async function applyMatieresPurchase(input: {
   date: string;
+  /** Point de vente qui saisit l'achat. */
+  site?: "zogbo" | "gbegamey";
   productId: string;
   qty: number;
   unitPrice?: number;
@@ -289,6 +291,7 @@ export async function applyMatieresPurchase(input: {
         unitPrice,
         fournisseurId: input.fournisseurId,
         fournisseurNom: input.fournisseurNom,
+        site: input.site,
       },
     );
     const updatedAt = new Date().toISOString();
@@ -317,6 +320,8 @@ export async function applyMatieresPurchase(input: {
  */
 export async function applyMatieresOtherPurchase(input: {
   date: string;
+  /** Point de vente qui saisit l'achat. */
+  site?: "zogbo" | "gbegamey";
   name: string;
   qty: number;
   unitPrice?: number;
@@ -347,6 +352,7 @@ export async function applyMatieresOtherPurchase(input: {
         unitPrice: input.unitPrice ?? 0,
         fournisseurId: input.fournisseurId,
         fournisseurNom: input.fournisseurNom,
+        site: input.site,
       },
     );
     const updatedAt = new Date().toISOString();
@@ -387,6 +393,8 @@ export async function linkMatieresMovementDepense(input: {
 export async function listMatieresMovements(input: {
   dateFrom: string;
   dateTo: string;
+  /** Ne renvoie que les achats saisis par ce point de vente. */
+  site?: "zogbo" | "gbegamey";
 }): Promise<Array<{ date: string; movement: MatieresMovement }>> {
   if (!isValidDate(input.dateFrom) || !isValidDate(input.dateTo)) {
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
@@ -401,7 +409,9 @@ export async function listMatieresMovements(input: {
   for (const doc of docs) {
     for (const m of doc.movements ?? []) {
       const movement = normalizeMatieresMovement(m);
-      if (movement) out.push({ date: doc._id, movement });
+      if (!movement) continue;
+      if (input.site && movement.site !== input.site) continue;
+      out.push({ date: doc._id, movement });
     }
   }
   return out.sort((a, b) => b.movement.at.localeCompare(a.movement.at));

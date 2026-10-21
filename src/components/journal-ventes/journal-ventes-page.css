@@ -1885,3 +1885,110 @@
     font-size: 0.78rem;
   }
 }
+
+/* ==========================================================================
+   Journal des ventes — version simplifiée : une ligne de synthèse, des
+   filtres de catégorie, puis la liste des tickets.
+   ========================================================================== */
+.jv-readonly-note {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #5a7a9a;
+}
+
+.jv-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 2rem;
+  padding: 1rem 1.3rem;
+  background: #fff;
+  border: 1px solid #e3eaf3;
+  border-radius: 14px;
+}
+
+.jv-summary-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.jv-summary-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #5a7a9a;
+}
+
+.jv-summary-value {
+  font-size: clamp(1.5rem, 2.6vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #06193d;
+}
+
+.jv-summary-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1.8rem;
+  margin: 0;
+}
+
+.jv-summary-facts dt {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #5a7a9a;
+}
+
+.jv-summary-facts dd {
+  margin: 0.1rem 0 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #06193d;
+}
+
+.jv-cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.jv-cat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.95rem;
+  border: 1px solid #dce8f3;
+  border-radius: 999px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #3a5a8c;
+  cursor: pointer;
+}
+
+.jv-cat-chip strong {
+  font-size: 0.8rem;
+  color: #06193d;
+}
+
+.jv-cat-chip:hover:not(:disabled) {
+  border-color: #075ea8;
+}
+
+.jv-cat-chip.is-active {
+  border-color: #075ea8;
+  background: #075ea8;
+  color: #fff;
+}
+
+.jv-cat-chip.is-active strong {
+  color: #fff;
+}
+
+.jv-cat-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

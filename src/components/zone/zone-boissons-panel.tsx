@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RegistreDrawer } from "@/components/registre-drawer";
+import { ExportExcelButton } from "@/components/export-excel-button";
+import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import {
   computeBoissonsDay,
   createEmptyBoissonsDay,
@@ -19,6 +21,7 @@ import type {
 } from "@/lib/types";
 import { BrandLoader } from "@/components/brand-loader";
 import { ProductIcon } from "@/components/product-icon";
+import { EcartBadge } from "@/components/stock-ecart";
 import { downloadQrSheet } from "@/lib/download-qr-sheet";
 import type { StockUnit } from "@/lib/stock-unit-types";
 
@@ -163,8 +166,12 @@ export function ZoneBoissonsPanel({
       setError("Indiquez d’abord la quantité en bouteilles.");
       return;
     }
-    const name = drinks.find((d) => d.id === productId)?.name ?? "Boisson";
     setError(null);
+    if (premium) {
+      void submitPurchase(productId, raw, false);
+      return;
+    }
+    const name = drinks.find((d) => d.id === productId)?.name ?? "Boisson";
     setBuyPrompt({ productId, productName: name, raw });
   }
 
@@ -353,6 +360,47 @@ export function ZoneBoissonsPanel({
           </p>
           <div className="catalogue-view-top-actions">
             <div className="catalogue-view-actions">
+              <ExportExcelButton
+                disabled={loading || !computed || computed.lines.length === 0}
+                className="btn btn-ghost"
+                onExport={() => {
+                  if (!computed) return Promise.resolve();
+                  downloadExcel(excelFilename("stock-boissons", site, date), [
+                    {
+                      name: "Boissons",
+                      subtitle: `${siteLabel} · ${date}`,
+                      rows: computed.lines.map((line) => {
+                        const upc = line.unitsPerCasier;
+                        const zog = site === "zogbo";
+                        const theo = Math.max(
+                          0,
+                          Math.round(
+                            (zog
+                              ? line.theoreticalRemainingZogbo
+                              : line.theoreticalRemainingGbegamey) * upc,
+                          ),
+                        );
+                        const counted = zog
+                          ? line.countedZogbo
+                          : line.countedGbegamey;
+                        return {
+                          Boisson: line.name,
+                          "Achat (bt)": Math.round(
+                            (zog ? line.purchasesZogbo : line.purchasesGbegamey) *
+                              upc,
+                          ),
+                          "Stock réel (bt)": counted ?? "",
+                          "Stock théorique (bt)": theo,
+                          "Stock restant (bt)": counted ?? theo,
+                          "Écart (bt)": counted === null ? "" : counted - theo,
+                          "Vendu (bt)": zog ? line.soldZogbo : line.soldGbegamey,
+                        };
+                      }),
+                    },
+                  ]);
+                  return Promise.resolve();
+                }}
+              />
               <button
                 type="button"
                 className="btn btn-ghost"
@@ -395,8 +443,7 @@ export function ZoneBoissonsPanel({
           </span>
           <p>
             Un seul geste : saisissez le nombre de <strong>bouteilles</strong>{" "}
-            achetées. Ça met le stock à jour et imprime les QR / codes collés
-            de ces bouteilles seulement — les anciens codes restent.
+            achetées. Ça met le stock à jour.
           </p>
         </div>
 
@@ -440,38 +487,48 @@ export function ZoneBoissonsPanel({
 
         <section className="catalogue-panel">
           <div className="catalogue-table-wrap">
-            <table className="catalogue-table">
+            <table className="catalogue-table stock-zogbo-table">
               <thead>
+                <tr className="stock-grp">
+                  <th aria-hidden="true"></th>
+                  <th colSpan={2} className="is-input">
+                    À saisir
+                  </th>
+                  <th colSpan={4}>Calculé</th>
+                </tr>
                 <tr>
                   <th scope="col">Boisson</th>
-                  <th scope="col">+ Achat (bt)</th>
-                  <th scope="col">Vendu {siteLabel} (bt)</th>
+                  <th scope="col">Quantité achetée (bt)</th>
+                  <th scope="col">Stock réel (bt)</th>
+                  <th scope="col">Stock théorique (bt)</th>
                   <th scope="col">Stock restant (bt)</th>
-                  <th scope="col">Stock actuel (bt)</th>
+                  <th scope="col">Écart (bt)</th>
+                  <th scope="col">Vendu {siteLabel} (bt)</th>
                 </tr>
               </thead>
               <tbody>
                 {loading || !computed ? (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={7}>
                       <BrandLoader variant="ligne" label="Chargement…" />
                     </td>
                   </tr>
                 ) : computed.lines.length === 0 ? (
                   <tr>
-                    <td colSpan={5}>
+                    <td colSpan={7}>
                       <div className="catalogue-empty">
                         <p className="catalogue-empty-title">
                           Aucune boisson
                         </p>
                         <p className="catalogue-empty-hint">
-                          Ajoutez des boissons dans l&apos;onglet Catalogue.
+                          Ajoutez des boissons dans le Catalogue.
                         </p>
                       </div>
                     </td>
                   </tr>
                 ) : (
                   computed.lines.map((line) => {
+                    const upc = line.unitsPerCasier;
                     const qty =
                       site === "zogbo" ? line.soldZogbo : line.soldGbegamey;
                     const initialStock =
@@ -494,19 +551,18 @@ export function ZoneBoissonsPanel({
                       site === "zogbo"
                         ? line.countedZogbo
                         : line.countedGbegamey;
-                    const variance =
-                      site === "zogbo"
-                        ? line.varianceZogbo
-                        : line.varianceGbegamey;
-                    const hasVariance = variance !== null && variance !== 0;
+                    const theoBt = Math.max(
+                      0,
+                      Math.round(theoreticalRemaining * upc),
+                    );
+                    const restantBt = counted ?? theoBt;
+                    const ecart = counted === null ? null : counted - theoBt;
                     const missingPv = line.salePrice === null;
                     const buyBusy = busyId === `buy-${line.productId}`;
                     return (
                       <tr
                         key={line.productId}
-                        className={
-                          hasVariance || missingPv ? "row-warn" : undefined
-                        }
+                        className={missingPv ? "row-warn" : undefined}
                       >
                         <td>
                           <div className="catalogue-product-cell">
@@ -520,80 +576,59 @@ export function ZoneBoissonsPanel({
                                 {line.name}
                               </div>
                               <span className="cell-sub mono">
-                                init.{" "}
-                                {Math.round(initialStock * line.unitsPerCasier)}{" "}
-                                bt · achats{" "}
-                                {Math.round(purchases * line.unitsPerCasier)} bt
-                                · solde{" "}
-                                {Math.round(available * line.unitsPerCasier)} bt
-                                · QR {qrOf(line.productId)}
+                                init. {Math.round(initialStock * upc)} bt ·
+                                achats {Math.round(purchases * upc)} bt · solde{" "}
+                                {Math.round(available * upc)} bt
                               </span>
                             </div>
                           </div>
                         </td>
                         <td>
-                          {readOnly ? (
+                          <div className="stock-prepared-cell">
                             <span className="catalogue-qty-badge">
-                              {Math.round(purchases * line.unitsPerCasier)}
+                              {Math.round(purchases * upc)}
                             </span>
-                          ) : (
-                            <div className="mvt-entry catalogue-inline-qr">
-                              <input
-                                className="qty-input"
-                                inputMode="numeric"
-                                aria-label={`Achat bouteilles ${line.name}`}
-                                placeholder="bt"
-                                value={draftBuy[line.productId] ?? ""}
-                                disabled={!!busyId}
-                                onChange={(e) =>
-                                  setDraftBuy((d) => ({
-                                    ...d,
-                                    [line.productId]: e.target.value,
-                                  }))
-                                }
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") {
+                            {readOnly ? null : (
+                              <div className="mvt-entry catalogue-inline-qr">
+                                <input
+                                  className="qty-input"
+                                  inputMode="numeric"
+                                  aria-label={`Achat bouteilles ${line.name}`}
+                                  placeholder="+"
+                                  value={draftBuy[line.productId] ?? ""}
+                                  disabled={!!busyId}
+                                  onChange={(e) =>
+                                    setDraftBuy((d) => ({
+                                      ...d,
+                                      [line.productId]: e.target.value,
+                                    }))
+                                  }
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      openPurchase(
+                                        line.productId,
+                                        draftBuy[line.productId] ?? "",
+                                      );
+                                    }
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn btn-sm btn-primary"
+                                  disabled={buyBusy || !!busyId}
+                                  aria-label={`Acheter ${line.name}`}
+                                  onClick={() =>
                                     openPurchase(
                                       line.productId,
                                       draftBuy[line.productId] ?? "",
-                                    );
+                                    )
                                   }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-primary"
-                                disabled={buyBusy || !!busyId}
-                                aria-label={`Acheter ${line.name}`}
-                                onClick={() =>
-                                  openPurchase(
-                                    line.productId,
-                                    draftBuy[line.productId] ?? "",
-                                  )
-                                }
-                              >
-                                {buyBusy ? "…" : "+"}
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        <td>
-                          <span className="catalogue-qty-badge">{qty}</span>
-                        </td>
-                        <td>
-                          <span
-                            className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
-                              Math.round(
-                                theoreticalRemaining * line.unitsPerCasier,
-                              ) <= 0
-                                ? " is-empty"
-                                : ""
-                            }`}
-                          >
-                            {Math.round(
-                              theoreticalRemaining * line.unitsPerCasier,
+                                >
+                                  {buyBusy ? "…" : "+"}
+                                </button>
+                              </div>
                             )}
-                          </span>
+                          </div>
                         </td>
                         <td>
                           {readOnly ? (
@@ -604,15 +639,8 @@ export function ZoneBoissonsPanel({
                             <input
                               className="qty-input"
                               inputMode="numeric"
-                              aria-label={`Stock actuel bouteilles ${line.name}`}
-                              placeholder={String(
-                                Math.max(
-                                  0,
-                                  Math.round(
-                                    theoreticalRemaining * line.unitsPerCasier,
-                                  ),
-                                ),
-                              )}
+                              aria-label={`Stock réel bouteilles ${line.name}`}
+                              placeholder={String(theoBt)}
                               value={counted ?? ""}
                               onChange={(e) => {
                                 const raw = e.target.value
@@ -631,18 +659,24 @@ export function ZoneBoissonsPanel({
                               }}
                             />
                           )}
-                          {counted !== null ? (
-                            <span className="cell-sub muted">
-                              théo.{" "}
-                              {Math.max(
-                                0,
-                                Math.round(
-                                  theoreticalRemaining * line.unitsPerCasier,
-                                ),
-                              )}{" "}
-                              bt
-                            </span>
-                          ) : null}
+                        </td>
+                        <td>
+                          <span className="catalogue-qty-badge">{theoBt}</span>
+                        </td>
+                        <td>
+                          <span
+                            className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
+                              restantBt <= 0 ? " is-empty" : ""
+                            }`}
+                          >
+                            {restantBt}
+                          </span>
+                        </td>
+                        <td>
+                          <EcartBadge value={ecart} />
+                        </td>
+                        <td>
+                          <span className="catalogue-qty-badge">{qty}</span>
                         </td>
                       </tr>
                     );

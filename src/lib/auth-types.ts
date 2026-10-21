@@ -179,7 +179,6 @@ const EXECUTIVE_ADMIN_NAV: NavKey[] = [
   "quantites-vendues",
   "historique",
   "rapport-quotidien",
-  "controle",
   "admin",
 ];
 
@@ -299,8 +298,7 @@ export type NavKey =
   | "immobilisations"
   | "stock"
   | "admin"
-  | "rapport-quotidien"
-  | "controle";
+  | "rapport-quotidien";
 
 const ROLE_NAV: Record<UserRole, NavKey[]> = {
   gerant: [
@@ -324,7 +322,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     // Volumes vendus par article (période).
     "quantites-vendues",
     "rapport-quotidien",
-    "controle",
   ],
   // Finance + consultation des stocks. Pas d’analyse, ni registre.
   comptable: [
@@ -345,7 +342,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "journal-ventes",
     "quantites-vendues",
     "rapport-quotidien",
-    "controle",
   ],
   // Finance + consultation des stocks. Pas de vente, pertes, registre,
   // régularisation, réglages POS ni comptabilité.
@@ -368,7 +364,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "stock",
     "immobilisations",
     "rapport-quotidien",
-    "controle",
   ],
   admin: [
     "synthese",
@@ -394,7 +389,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "immobilisations",
     "historique",
     "admin",
-    "rapport-quotidien",    "controle",
+    "rapport-quotidien",
   ],
 };
 
@@ -590,6 +585,7 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/compteur")) return allowed.includes("compteur");
   if (pathname.startsWith("/reglages")) return allowed.includes("reglages");
   if (pathname.startsWith("/parametres")) return allowed.includes("parametres");
+  if (pathname.startsWith("/catalogue")) return allowed.includes("parametres");
   if (pathname.startsWith("/stock-zogbo")) return allowed.includes("zogbo");
   if (pathname.startsWith("/zogbo")) return allowed.includes("zogbo");
   if (pathname.startsWith("/stock-gbegamey")) return allowed.includes("gbegamey");
@@ -608,9 +604,6 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/analyse")) return allowed.includes("analyse");
   if (pathname.startsWith("/rapport-quotidien")) {
     return allowed.includes("rapport-quotidien");
-  }
-  if (pathname.startsWith("/controle")) {
-    return allowed.includes("controle");
   }
   if (pathname.startsWith("/compte-resultat")) {
     return allowed.includes("compte-resultat");

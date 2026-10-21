@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { APP_LOGO, APP_NAME } from "@/lib/brand";
+import { APP_LOGO, APP_NAME, APP_TAGLINE } from "@/lib/brand";
 import "./brand-loader.css";
 import { BrandLogoMark } from "@/components/brand-logo-mark";
 import {
@@ -21,65 +21,51 @@ function Overlay({
 }) {
   return (
     <div
-      className={`brand-loader-voile${leaving ? " is-leaving" : ""}`}
+      className={`intro-loader${leaving ? " is-leaving" : ""}`}
       role="status"
       aria-live="polite"
+      aria-label={label}
     >
-      <svg
-        className="kfl-waves"
-        viewBox="0 0 1440 220"
-        preserveAspectRatio="none"
-        aria-hidden
-        focusable="false"
-      >
-        <path
-          d="M0 90C240 20 420 150 720 150s520-130 720-60v130H0Z"
-          fill="#cfe2f6"
-          opacity="0.55"
-        />
-        <path
-          d="M0 150C260 90 460 200 760 190s460-110 680-50v80H0Z"
-          fill="#a9cbee"
-          opacity="0.4"
-        />
-        <path
-          d="M0 120C260 80 460 170 760 160s460-90 680-30"
-          fill="none"
-          stroke="#f5b400"
-          strokeWidth="3"
-          strokeLinecap="round"
-        />
-      </svg>
-      <div className="brand-loader-inner">
-        <div className="kfl-mark">
-          <svg className="kfl-ring" viewBox="0 0 160 160" aria-hidden focusable="false">
-            <circle cx="80" cy="80" r="72" fill="none" stroke="#dce8f3" strokeWidth="2" />
-            <circle
-              className="kfl-arc"
-              cx="80"
-              cy="80"
-              r="72"
-              fill="none"
-              stroke="#f5b400"
-              strokeWidth="5"
-              strokeLinecap="round"
-              strokeDasharray="120 332"
+      <div className="intro-loader__content">
+        <div className="intro-loader__mark">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={APP_LOGO} alt="" width={226} height={215} />
+          <svg
+            className="intro-loader__draw"
+            viewBox="0 0 226 215"
+            aria-hidden
+            focusable="false"
+          >
+            <path
+              className="draw-crown"
+              pathLength={1}
+              d="M84 45 86 16 102 32 117 8 132 32 148 16 150 45Z"
+            />
+            <path
+              className="draw-body"
+              pathLength={1}
+              d="M62 90C80 62 128 52 168 64 186 70 192 82 190 90 186 102 168 114 138 113 104 114 78 108 62 90Z"
+            />
+            <path
+              className="draw-tail"
+              pathLength={1}
+              d="M62 90 34 64C40 80 40 100 34 118Z"
+            />
+            <path
+              className="draw-detail"
+              pathLength={1}
+              d="M171 80a6 6 0 1 0 12 0 6 6 0 1 0-12 0M120 68C108 82 108 98 120 110M40 206H186"
             />
           </svg>
-          <span className="kfl-dot kfl-dot-a" />
-          <span className="kfl-dot kfl-dot-b" />
-          <span className="kfl-dot kfl-dot-c" />
-          <span className="kfl-plate">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={APP_LOGO} alt="" width={96} height={96} />
-          </span>
+          <span className="intro-loader__shine" aria-hidden />
         </div>
-        <p className="kfl-title">{label}</p>
-        <p className="kfl-sub">Veuillez patienter, nous récupérons vos données.</p>
-        <div className="kfl-bar" aria-hidden>
+        <span className="intro-loader__caption">{APP_TAGLINE}</span>
+        <span className="intro-loader__track" aria-hidden>
           <span />
-        </div>
-        <span className="sr-only">{APP_NAME}</span>
+        </span>
+        <span className="sr-only">
+          {label} · {APP_NAME}
+        </span>
       </div>
     </div>
   );
