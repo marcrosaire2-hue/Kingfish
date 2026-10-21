@@ -27,10 +27,6 @@ import {
 import {
   leftoverFromLocalLines,
 } from "@/lib/gbegamey-calc";
-import {
-  loadAquaAlimentStocks,
-  openingByProductName,
-} from "@/lib/aquapro-opening-stock";
 import { mergeVentesSansStockOnSave, dayVentesSansStock } from "@/lib/ventes-sans-stock";
 
 type ZogboDoc = Omit<ZogboDay, "date"> & {
@@ -142,15 +138,11 @@ async function leftoversForDate(
       }
     }
   }
-  try {
-    const { byName } = await loadAquaAlimentStocks();
-    return {
-      lines: openingByProductName(baseDishes, byName),
-      accompaniment: openingByProductName(localDishes, byName),
-    };
-  } catch {
-    return { lines: new Map(), accompaniment: new Map() };
-  }
+  // Plus de stock d'ouverture importé d'AquaPro pour Zogbo : sans report des
+  // jours précédents, le stock démarre à zéro et n'est saisi qu'à la main.
+  void baseDishes;
+  void localDishes;
+  return { lines: new Map(), accompaniment: new Map() };
 }
 
 function buildAccompanimentOpening(
