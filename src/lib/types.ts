@@ -1015,6 +1015,8 @@ export type MatieresMovement = {
   fournisseurNom?: string | null;
   /** Dépense de trésorerie auto-générée à la caisse lors de l'achat. */
   depenseId?: string | null;
+  /** Point de vente qui a saisi l'achat : chaque site ne voit que les siens. */
+  site?: "zogbo" | "gbegamey";
   /**
    * Perte déclarée contre ce mouvement (uniquement pour un achat libre — un
    * achat catalogue passe par la ligne matière et son propre compteur

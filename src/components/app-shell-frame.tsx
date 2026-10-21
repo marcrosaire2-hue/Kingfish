@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { roleSiteLabel, type NavKey } from "@/lib/auth-types";
-import { APP_LOGO, APP_NAME, APP_SHORT } from "@/lib/brand";
+import { APP_LOGO, APP_NAME } from "@/lib/brand";
 import { usePageChrome } from "@/components/page-chrome-context";
 import { clearSessionCache, useSession } from "@/components/session-provider";
 import { setOfflineQueueUser } from "@/lib/offline-queue";
@@ -65,6 +65,12 @@ const NAV_ITEMS: {
     href: "/stock-gbegamey",
     label: "Stock Gbégamey",
     key: "gbegamey",
+    group: "ops",
+  },
+  {
+    href: "/catalogue",
+    label: "Catalogue",
+    key: "parametres",
     group: "ops",
   },
   {
@@ -191,7 +197,6 @@ const NAV_ICON_PATHS: Partial<Record<NavKey, string>> = {
   parametres: "M5 6h14M5 12h14M5 18h14M9 4v4M15 10v4M8 16v4",
   admin: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M17 11a3 3 0 1 0 0-6m1 9.5c2 .5 3.5 2.1 3.5 4.5",
   "rapport-quotidien": "M7 3h10v18H7V3Zm3 5h4M10 12h4M10 16h2",
-  controle: "M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Zm-3 9 2 2 4-4",
   "rattrapage-ventes": "M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4M9 15h6",
 };
 
@@ -220,8 +225,15 @@ const EXTRA_ROUTE_ICONS: Record<string, NavKey> = {
   "/parametres": "parametres",
   "/quantites-vendues": "journal-ventes",
   "/rapport-quotidien": "rapport-quotidien",
-  "/controle": "controle",
 };
+
+function normalizeLabel(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
 
 function isActive(pathname: string, href: string) {
   if (href === "/") return pathname === "/";
@@ -235,6 +247,8 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
   const { meta, setActionsSlot } = usePageChrome();
   const [menuOpen, setMenuOpen] = useState(false);
   const [navBusy, setNavBusy] = useState(false);
+  const [search, setSearch] = useState("");
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
 
   useEffect(() => {
     // Session révoquée (tokenVersion, désactivation, hors créneau) :
@@ -252,10 +266,29 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMenuOpen(false);
+    setUserMenuOpen(false);
     setNavBusy(true);
     const t = window.setTimeout(() => setNavBusy(false), 450);
     return () => window.clearTimeout(t);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const onClick = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest?.(".tb2-user-wrap")) {
+        setUserMenuOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setUserMenuOpen(false);
+    };
+    document.addEventListener("click", onClick);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", onClick);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [userMenuOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -279,6 +312,17 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
     if (!nav?.length) return [];
     return NAV_ITEMS.filter((item) => nav.includes(item.key));
   }, [nav]);
+
+  function goSearch(e: React.FormEvent) {
+    e.preventDefault();
+    const q = normalizeLabel(search);
+    if (!q) return;
+    const hit = links.find((l) => normalizeLabel(l.label).includes(q));
+    if (hit) {
+      router.push(hit.href);
+      setSearch("");
+    }
+  }
 
   async function logout() {
     setOfflineQueueUser(null);
@@ -307,59 +351,12 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`app-shell${menuOpen ? " is-nav-open" : ""}`}>
-      <div className="topbar">
-        <Link href="/" className="topbar-brand" prefetch>
-          <span className="topbar-logo">
-            <img src={APP_LOGO} alt="" width={44} height={44} />
-          </span>
-          <span className="topbar-name">
-            <strong>KINGFISH</strong>
-            <span>Manager</span>
-          </span>
-        </Link>
-        <p className="topbar-slogan">
-          Pilotez vos activités,
-          <br />
-          en toute clarté
-        </p>
-        <svg
-          className="topbar-wave"
-          viewBox="0 0 520 80"
-          preserveAspectRatio="none"
-          aria-hidden
-          focusable="false"
-        >
-          <path d="M0 80C120 70 160 10 300 28s140 36 220-28v80Z" fill="#0b5fa8" opacity="0.55" />
-          <path d="M120 80C230 62 300 20 400 22s90 16 120-6" fill="none" stroke="#f5b400" strokeWidth="5" strokeLinecap="round" />
-        </svg>
-        {user ? (
-          <div className="topbar-user">
-            <span className="user-avatar" aria-hidden>
-              {initials}
-            </span>
-            <span className="topbar-user-meta">
-              <strong>{user.name}</strong>
-              <span>{roleSiteLabel(user.role, user.site)}</span>
-            </span>
-          </div>
-        ) : null}
-      </div>
-
       <aside className="sidebar" aria-label="Navigation">
-        <Link href="/" className="brand brand-link sidebar-brand" prefetch>
-          <img
-            src={APP_LOGO}
-            alt={APP_NAME}
-            className="brand-logo"
-            width={76}
-            height={76}
-          />
-          <span className="brand-text">
-            <span className="brand-name">{APP_SHORT}</span>
-            <span className="brand-tag">
-              <span>Production · Vente</span>
-              <span>Stock</span>
-            </span>
+        <Link href="/" className="sb-brand" prefetch>
+          <img src={APP_LOGO} alt="" width={52} height={52} />
+          <span>
+            <strong>KINGFISH</strong>
+            <small>Manager</small>
           </span>
         </Link>
 
@@ -403,7 +400,7 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
                 </span>
               </span>
               <button type="button" className="btn-logout" onClick={logout}>
-                Sortir
+                Se déconnecter
               </button>
             </div>
           ) : null}
@@ -423,6 +420,73 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
           className={`page-nav-progress${navBusy ? " is-active" : ""}`}
           aria-hidden
         />
+
+        <div className="topbar2">
+          <form className="tb2-search" role="search" onSubmit={goSearch}>
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <circle cx="11" cy="11" r="6.5" />
+              <path d="m20 20-4.2-4.2" />
+            </svg>
+            <input
+              type="search"
+              list="nav-pages"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Rechercher une page…"
+              aria-label="Rechercher une page"
+              autoComplete="off"
+            />
+            <datalist id="nav-pages">
+              {links.map((l) => (
+                <option key={l.href} value={l.label} />
+              ))}
+            </datalist>
+          </form>
+          <div className="tb2-date">
+            <svg viewBox="0 0 24 24" aria-hidden>
+              <rect x="4" y="5.5" width="16" height="14.5" rx="2.5" />
+              <path d="M4 10h16M8.5 3.5v4M15.5 3.5v4" />
+            </svg>
+            <span suppressHydrationWarning>
+              {new Date().toLocaleDateString("fr-FR", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+                year: "numeric",
+              })}
+            </span>
+          </div>
+          {user ? (
+            <div className="tb2-user-wrap">
+              <button
+                type="button"
+                className="tb2-user"
+                aria-haspopup="true"
+                aria-expanded={userMenuOpen}
+                onClick={() => setUserMenuOpen((o) => !o)}
+              >
+                <span className="user-avatar" aria-hidden>
+                  {initials}
+                </span>
+                <span className="tb2-meta">
+                  <strong>{user.name}</strong>
+                  <small>{roleSiteLabel(user.role, user.site)}</small>
+                </span>
+                <i className="tb2-chev" aria-hidden />
+              </button>
+              {userMenuOpen ? (
+                <div className="pop-user" role="menu">
+                  <button type="button" role="menuitem" onClick={logout}>
+                    <svg viewBox="0 0 24 24" aria-hidden>
+                      <path d="M9 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20H9M16 8l4 4-4 4M20 12H9" />
+                    </svg>
+                    Se déconnecter
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
 
         <div className="mobile-bar">
           <button
@@ -461,12 +525,6 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
             </span>
           ) : null}
           <div className="page-header-copy">
-            {pathname === "/" && user ? (
-              <p className="page-greeting">
-                Bonjour, {user.name.split(/\s+/)[0]}{" "}
-                <span aria-hidden>👋</span>
-              </p>
-            ) : null}
             <h1>{meta.title}</h1>
             {meta.subtitle ? (
               <p className="page-subtitle">{meta.subtitle}</p>

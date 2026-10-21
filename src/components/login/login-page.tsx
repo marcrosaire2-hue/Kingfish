@@ -7,7 +7,8 @@ import {
   APP_SITES_LABEL,
   APP_TAGLINE,
 } from "@/lib/brand";
-import { BrandIntro, BrandLogoMark } from "@/components/brand-logo-mark";
+import { BrandLoader } from "@/components/brand-loader";
+import { BrandLogoMark } from "@/components/brand-logo-mark";
 import {
   CartIcon,
   ChartIcon,
@@ -23,8 +24,8 @@ import "./login-page.css";
 import { useSession } from "@/components/session-provider";
 
 const REMEMBER_KEY = "kingfish-remember-user";
-/** Temps mini d’affichage du logo avant d’entrer dans l’app. */
-const LOGO_HOLD_MS = 1400;
+/** Temps mini d’affichage du logo : la scène de chargement dure environ 3 s. */
+const LOGO_HOLD_MS = 3000;
 
 export function LoginPage({ nextPath }: { nextPath?: string }) {
   const router = useRouter();
@@ -112,11 +113,7 @@ export function LoginPage({ nextPath }: { nextPath?: string }) {
   }
 
   if (entering) {
-    return (
-      <div className="route-loader login-route-loader" role="status" aria-live="polite">
-        <BrandIntro hint="Connexion en cours…" />
-      </div>
-    );
+    return <BrandLoader label="Connexion en cours…" />;
   }
 
   return (

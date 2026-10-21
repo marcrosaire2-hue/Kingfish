@@ -191,21 +191,9 @@ export async function countQrGeneratedByProduct(
 export async function listSellableQrProductIds(
   site: VenteSite,
 ): Promise<Set<string>> {
-  await ensureStockUnitIndexes();
-  const db = await getDb();
-  const filter =
-    site === "gbegamey"
-      ? {
-          site: "gbegamey" as const,
-          status: { $in: ["prepare", "envoye"] as StockUnitStatus[] },
-        }
-      : { site: "zogbo" as const, status: "prepare" as const };
-  const ids = await db
-    .collection<StockUnitDoc>("stock_units")
-    .distinct("productId", filter);
-  return new Set(
-    ids.map((id) => String(id ?? "").trim()).filter(Boolean),
-  );
+  // Les ventes ne passent plus par un code QR : aucun article n'en dépend.
+  void site;
+  return new Set();
 }
 
 function statsFromCounts(
@@ -239,7 +227,16 @@ function statsFromCounts(
     qrToGenerate:
       extra.qrToGenerate ?? Math.max(0, prepared - qrGenerated),
     stockRemaining,
+    counted: extra.counted ?? null,
+    theoretical: extra.theoretical ?? null,
+    ecart: extra.ecart ?? null,
   };
+}
+
+/** Écart = stock réel (comptage) − stock théorique de départ ; null sans comptage. */
+function ecartOf(counted: number | null | undefined, theoretical: number) {
+  if (counted === null || counted === undefined) return null;
+  return Math.round(counted - theoretical);
 }
 
 export async function getStockZogboPayload(
@@ -284,6 +281,7 @@ export async function getStockSitePayload(
         qrRemainingZogbo: remaining,
         qrToGenerate: 0,
         stockRemaining,
+        counted: line?.counted ?? null,
       });
     });
     const accLines = gbegamey.day.localLines ?? [];
@@ -301,6 +299,11 @@ export async function getStockSitePayload(
           soldAggregate: line?.sold ?? 0,
           pertesAggregate: line?.pertes ?? 0,
           stockRemaining,
+          counted: line?.counted ?? null,
+          theoretical: line ? line.initialStock + line.prepared : null,
+          ecart: line
+            ? ecartOf(line.counted, line.initialStock + line.prepared)
+            : null,
         },
       );
     });
@@ -352,6 +355,9 @@ export async function getStockSitePayload(
         pertesAggregate: line?.pertes ?? 0,
         stockAggregate: line?.stock ?? 0,
         stockRemaining,
+        counted: line?.counted ?? null,
+        theoretical: line?.stock ?? null,
+        ecart: line ? ecartOf(line.counted, line.stock) : null,
       },
     );
   });
@@ -370,6 +376,11 @@ export async function getStockSitePayload(
         soldAggregate: line?.sold ?? 0,
         pertesAggregate: line?.pertes ?? 0,
         stockRemaining,
+        counted: line?.counted ?? null,
+        theoretical: line ? line.initialStock + line.prepared : null,
+        ecart: line
+          ? ecartOf(line.counted, line.initialStock + line.prepared)
+          : null,
       },
     );
   });
@@ -1122,6 +1133,69 @@ export async function registerProductStock(input: {
     site,
     kind,
   });
+}
+
+/**
+ * Saisie du stock réel (comptage) d'un plat du site courant ; `null` l'efface.
+ * Un comptage saisi active le suivi de stock pour ce plat.
+ */
+export async function savePlatCounted(input: {
+  date: string;
+  site: VenteSite;
+  productId: string;
+  counted: number | null;
+}): Promise<StockZogboPayload> {
+  if (!isValidDate(input.date)) throw new Error("Date invalide.");
+  const site: VenteSite = input.site === "gbegamey" ? "gbegamey" : "zogbo";
+  const counted =
+    input.counted === null || input.counted === undefined
+      ? null
+      : Math.max(0, Math.round(Number(input.counted)));
+  if (counted !== null && !Number.isFinite(counted)) {
+    throw new Error("Stock réel invalide.");
+  }
+
+  if (site === "zogbo") {
+    const zogbo = await getZogboDayPayload(input.date);
+    if (!zogbo.day.lines.some((l) => l.productId === input.productId)) {
+      throw new Error("Plat introuvable.");
+    }
+    await saveZogboDay({
+      date: input.date,
+      lines: zogbo.day.lines.map((l) =>
+        l.productId === input.productId
+          ? {
+              ...l,
+              counted,
+              ...(counted !== null ? { stockTracked: true } : {}),
+            }
+          : l,
+      ),
+      accompanimentLines: zogbo.day.accompanimentLines,
+      ...(counted !== null ? { stockSaisie: true } : {}),
+    });
+  } else {
+    const gbegamey = await getGbegameyDayPayload(input.date);
+    if (!gbegamey.day.transferLines.some((l) => l.productId === input.productId)) {
+      throw new Error("Plat introuvable.");
+    }
+    await saveGbegameyDay({
+      date: input.date,
+      transferLines: gbegamey.day.transferLines.map((l) =>
+        l.productId === input.productId
+          ? {
+              ...l,
+              counted,
+              ...(counted !== null ? { stockTracked: true } : {}),
+            }
+          : l,
+      ),
+      localLines: gbegamey.day.localLines,
+      status: gbegamey.day.status,
+      ...(counted !== null ? { stockSaisie: true } : {}),
+    });
+  }
+  return getStockSitePayload(input.date, site);
 }
 
 /** Vérifie la cohérence agrégés ↔ unités (tests / diagnostic). */

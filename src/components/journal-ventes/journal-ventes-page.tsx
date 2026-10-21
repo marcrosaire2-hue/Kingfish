@@ -289,7 +289,7 @@ export function JournalVentesPage({
   const [paiement, setPaiement] = useState("");
   const [qInput, setQInput] = useState("");
   const q = useDebouncedValue(qInput);
-  const [view, setView] = useState<JournalView>("tickets");
+  const [view] = useState<JournalView>("tickets");
   const [categoryFocus, setCategoryFocus] = useState<VenteCategory | "all">(
     "all",
   );
@@ -404,7 +404,6 @@ export function JournalVentesPage({
     [allLines],
   );
 
-  const mixTotal = categoryTotals.reduce((s, c) => s + c.montant, 0);
   const panierMoyen =
     result.totals.valide > 0
       ? Math.round(result.totals.montant / result.totals.valide)
@@ -741,34 +740,9 @@ export function JournalVentesPage({
       mainClassName="main-journal-ventes"
     >
       <DashboardShell className="jv-page">
-        <header className="jv-banner">
-          <span className="jv-banner-ico" aria-hidden>
-            <svg viewBox="0 0 24 24" focusable="false">
-              <path d="M4 5h2l2 10h9l2-7H7M10 19.5h.01M16 19.5h.01" />
-            </svg>
-          </span>
-          <div className="jv-banner-copy">
-            <h2>Journal des ventes</h2>
-            <p>{pageSubtitle}</p>
-          </div>
-          <div className="jv-banner-side">
-            {!canManagePast && !canPurge && !canEditFull ? (
-              <span className="jv-readonly">
-                <svg viewBox="0 0 24 24" aria-hidden focusable="false">
-                  <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
-                </svg>
-                Lecture seule
-              </span>
-            ) : null}
-          </div>
-          <svg className="jv-banner-art" viewBox="0 0 120 80" aria-hidden focusable="false">
-            <rect x="14" y="48" width="16" height="26" rx="3" fill="#1d6fd6" />
-            <rect x="40" y="34" width="16" height="40" rx="3" fill="#2a7ec8" />
-            <rect x="66" y="20" width="16" height="54" rx="3" fill="#075ea8" />
-            <path d="M12 38 44 20l22 8 36-22" fill="none" stroke="#f5b400" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="m92 4 12 2-4 11" fill="none" stroke="#f5b400" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </header>
+        {!canManagePast && !canPurge && !canEditFull ? (
+          <p className="jv-readonly-note">Lecture seule</p>
+        ) : null}
 
         <section className="panel jv-toolbar" aria-label="Filtres du journal">
           <div className="jv-toolbar-top">
@@ -955,135 +929,65 @@ export function JournalVentesPage({
           </div>
         </section>
 
-        <section className="jv-hero" aria-label="Synthèse de la période">
-          <div className="jv-hero-ca">
-            <div className="jv-hero-top">
-              <i className="jv-ico jv-ico-blue" aria-hidden>
-                <svg viewBox="0 0 24 24" focusable="false"><path d="M5 5h14v14H5V5Zm3 4h8M8 13h3m2 0h3M8 16h3m2 0h3" /></svg>
-              </i>
-              <span className="jv-kicker">CA filtré (validé)</span>
-            </div>
-            <strong className="jv-hero-value mono">
+        <section className="jv-summary" aria-label="Synthèse de la période">
+          <div className="jv-summary-main">
+            <span className="jv-summary-label">CA validé · {periodHint}</span>
+            <strong className="jv-summary-value mono">
               {formatFcfa(result.totals.montant)}
             </strong>
-            <ul className="jv-hero-facts">
-              <li>
-                <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4" /></svg>
-                {periodHint}
-              </li>
-              <li>
-                <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M4 8h16v3a2 2 0 0 0 0 4v3H4v-3a2 2 0 0 0 0-4V8Zm10 0v10" /></svg>
-                {result.totals.count} ticket{result.totals.count > 1 ? "s" : ""} · {result.days.length} jour{result.days.length > 1 ? "s" : ""}
-              </li>
-              {panierMoyen > 0 ? (
-                <li>
-                  <svg viewBox="0 0 24 24" aria-hidden focusable="false"><path d="M12 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-7 9c0-3.3 3-5.5 7-5.5s7 2.2 7 5.5" /></svg>
-                  Panier moyen {formatFcfa(panierMoyen)}
-                </li>
-              ) : null}
-            </ul>
-            <svg className="jv-hero-art" viewBox="0 0 90 60" aria-hidden focusable="false">
-              <rect x="6" y="38" width="14" height="20" rx="3" fill="#bcd6ee" />
-              <rect x="28" y="26" width="14" height="32" rx="3" fill="#8dbcf0" />
-              <rect x="50" y="12" width="14" height="46" rx="3" fill="#5a9be0" />
-            </svg>
           </div>
-          <div className="jv-hero-side">
-            <div className="jv-kpis">
-              {(
-                [
-                  ["valide", "Validé", result.totals.valide],
-                  ["annule", "Annulé", result.totals.annule],
-                  ["encours", "En cours", result.totals.encours],
-                ] as const
-              ).map(([tone, label, n]) => {
-                const pct = (result.totals.valide + result.totals.annule + result.totals.encours) > 0 ? Math.round((n / (result.totals.valide + result.totals.annule + result.totals.encours)) * 100) : 0;
-                return (
-                  <div key={tone} className={`jv-kpi is-${tone}`}>
-                    <i className="jv-ico" aria-hidden>
-                      <svg viewBox="0 0 24 24" focusable="false">
-                        {tone === "valide" ? (
-                          <path d="m5 12.5 4.5 4.5L19 7.5" />
-                        ) : tone === "annule" ? (
-                          <path d="m6 6 12 12M18 6 6 18" />
-                        ) : (
-                          <path d="M12 7v5l3 2" />
-                        )}
-                      </svg>
-                    </i>
-                    <span>{label}</span>
-                    <strong className="mono">{n}</strong>
-                    <em>{pct}%</em>
-                    <b className="jv-kpi-bar" aria-hidden>
-                      <u style={{ width: `${pct}%` }} />
-                    </b>
-                  </div>
-                );
-              })}
+          <dl className="jv-summary-facts">
+            <div>
+              <dt>Tickets</dt>
+              <dd className="mono">{result.totals.count}</dd>
             </div>
-            <div className="jv-mix" aria-label="Répartition par catégorie">
-              <div className="jv-mix-bar" aria-hidden>
-                {categoryTotals.map((c) =>
-                  c.montant > 0 && mixTotal > 0 ? (
-                    <span
-                      key={c.cat}
-                      className={`jv-mix-seg jv-mix-${c.cat}`}
-                      style={{ width: `${(c.montant / mixTotal) * 100}%` }}
-                    />
-                  ) : null,
-                )}
-              </div>
-              <div className="jv-mix-chips" role="tablist" aria-label="Catégorie">
-                <button
-                  type="button"
-                  className={`jv-mix-chip jv-mix-chip-all${categoryFocus === "all" ? " is-active" : ""}`}
-                  onClick={() => setCategoryFocus("all")}
-                >
-                  Tout
-                </button>
-                {categoryTotals.map((c) => (
-                  <button
-                    key={c.cat}
-                    type="button"
-                    className={`jv-mix-chip jv-mix-chip-${c.cat}${categoryFocus === c.cat ? " is-active" : ""}`}
-                    onClick={() =>
-                      setCategoryFocus(categoryFocus === c.cat ? "all" : c.cat)
-                    }
-                    disabled={c.lignes === 0}
-                  >
-                    <i className="jv-ico" aria-hidden>
-                      <CatIcon cat={c.cat} />
-                    </i>
-                    <span>{c.label}</span>
-                    <strong className="mono">{formatFcfa(c.montant)}</strong>
-                  </button>
-                ))}
-              </div>
+            <div>
+              <dt>Jours</dt>
+              <dd className="mono">{result.days.length}</dd>
             </div>
-          </div>
+            {panierMoyen > 0 ? (
+              <div>
+                <dt>Panier moyen</dt>
+                <dd className="mono">{formatFcfa(panierMoyen)}</dd>
+              </div>
+            ) : null}
+            <div>
+              <dt>Validés</dt>
+              <dd className="mono">{result.totals.valide}</dd>
+            </div>
+            <div>
+              <dt>Annulés</dt>
+              <dd className="mono">{result.totals.annule}</dd>
+            </div>
+            <div>
+              <dt>En cours</dt>
+              <dd className="mono">{result.totals.encours}</dd>
+            </div>
+          </dl>
         </section>
 
-        <div className="jv-viewbar">
-          <div className="jv-seg" role="tablist" aria-label="Présentation">
+        <div className="jv-cat-chips" role="tablist" aria-label="Catégorie">
+          <button
+            type="button"
+            className={`jv-cat-chip${categoryFocus === "all" ? " is-active" : ""}`}
+            onClick={() => setCategoryFocus("all")}
+          >
+            Tout
+          </button>
+          {categoryTotals.map((c) => (
             <button
+              key={c.cat}
               type="button"
-              role="tab"
-              aria-selected={view === "tickets"}
-              className={`jv-seg-btn${view === "tickets" ? " is-active" : ""}`}
-              onClick={() => setView("tickets")}
+              className={`jv-cat-chip${categoryFocus === c.cat ? " is-active" : ""}`}
+              onClick={() =>
+                setCategoryFocus(categoryFocus === c.cat ? "all" : c.cat)
+              }
+              disabled={c.lignes === 0}
             >
-              Par ticket
+              {c.label}
+              <strong className="mono">{formatFcfa(c.montant)}</strong>
             </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={view === "categories"}
-              className={`jv-seg-btn${view === "categories" ? " is-active" : ""}`}
-              onClick={() => setView("categories")}
-            >
-              Par catégorie
-            </button>
-          </div>
+          ))}
         </div>
 
         {error ? (
@@ -1267,22 +1171,6 @@ export function JournalVentesPage({
         ) : null}
       </RegistreDrawer>
     </AppShell>
-  );
-}
-
-function CatIcon({ cat }: { cat: VenteCategory }) {
-  const d =
-    cat === "plat"
-      ? "M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 2-2.5 5-2.5 8h2.5v10"
-      : cat === "accompagnement"
-        ? "M4 12h16a8 8 0 0 1-16 0Zm4-4c0-2 2-2 2-4m4 4c0-2 2-2 2-4"
-        : cat === "boisson"
-          ? "M6 6h12l-1.5 14h-9L6 6Zm2-3h8M7 11h10"
-          : "M6 12h.01M12 12h.01M18 12h.01";
-  return (
-    <svg viewBox="0 0 24 24" focusable="false">
-      <path d={d} />
-    </svg>
   );
 }
 

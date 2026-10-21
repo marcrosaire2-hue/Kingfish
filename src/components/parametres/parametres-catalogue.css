@@ -819,7 +819,8 @@
 
 .stock-zogbo-layout-premium {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(17rem, 22rem);
+  /* Plus de panneau latéral (QR retiré) : le tableau prend toute la largeur. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
   align-items: start;
 }
@@ -1470,4 +1471,173 @@
   .immo-form-grid .immo-field-full {
     grid-column: 1 / -1;
   }
+}
+
+/* ==========================================================================
+   Tableaux stock (plats / accompagnements) — sobre, deux groupes de colonnes
+   ========================================================================== */
+.stock-zogbo-table {
+  font-size: 0.9rem;
+  table-layout: auto;
+}
+
+.stock-zogbo-table th,
+.stock-zogbo-table td {
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-zogbo-table .stock-grp th {
+  padding: 0.55rem 0.6rem 0.4rem;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.stock-zogbo-table .stock-grp th.is-input {
+  color: var(--sidebar-mid, #003399);
+  border-bottom: 2px solid var(--sidebar-mid, #003399);
+}
+
+.stock-zogbo-table thead tr:not(.stock-grp) th {
+  padding: 0.6rem 0.6rem 0.65rem;
+  text-align: right;
+  vertical-align: bottom;
+  white-space: normal;
+  line-height: 1.3;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.stock-zogbo-table thead th:first-child {
+  min-width: 11rem;
+  padding-left: 1.1rem;
+  text-align: left;
+}
+
+.stock-zogbo-table tbody td {
+  padding: 0.7rem 0.6rem;
+  text-align: right;
+}
+
+.stock-zogbo-table tbody td:first-child {
+  padding-left: 1.1rem;
+  text-align: left;
+}
+
+.stock-zogbo-table tbody tr {
+  background: transparent;
+}
+
+.stock-zogbo-table tbody tr:hover {
+  background: color-mix(in srgb, var(--ink) 3%, var(--surface));
+}
+
+/* Début du groupe « Calculé » : un simple filet. */
+.stock-zogbo-table thead tr:not(.stock-grp) th:nth-child(4),
+.stock-zogbo-table tbody td:nth-child(4) {
+  border-left: 1px solid var(--line);
+}
+
+/* Chiffres en texte simple, pas de pastilles. */
+.stock-zogbo-table .catalogue-qty-badge {
+  min-width: 0;
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.stock-zogbo-table .stock-remaining-badge {
+  font-size: 0.95rem;
+  font-weight: 700;
+  min-width: 0;
+}
+
+.stock-zogbo-table .stock-remaining-badge.is-empty {
+  background: none;
+  color: #b42318;
+}
+
+/* Champs de saisie nets. */
+.stock-zogbo-table .qty-input,
+.stock-zogbo-table .input-qty {
+  width: 4.25rem;
+  min-width: 4.25rem;
+  max-width: 4.25rem;
+  min-height: 2.1rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: right;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.stock-zogbo-table .qty-input:hover,
+.stock-zogbo-table .input-qty:hover {
+  border-color: color-mix(in srgb, var(--sidebar-mid, #003399) 45%, var(--line));
+}
+
+/* Quantité préparée : valeur du jour + saisie « + » à côté. */
+.stock-prepared-cell {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.6rem;
+}
+
+.stock-prepared-cell .catalogue-inline-qr {
+  justify-content: flex-end;
+}
+
+.stock-prepared-cell .input-qty {
+  width: 3.5rem;
+  min-width: 3.5rem;
+  max-width: 3.5rem;
+}
+
+/* Écart : texte coloré avec un point (vert juste, rouge manque, ambre surplus). */
+.stock-ecart {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.stock-ecart-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.stock-ecart.ecart-ok {
+  color: #1f7a4d;
+}
+
+.stock-ecart.ecart-neg {
+  color: #b42318;
+}
+
+.stock-ecart.ecart-pos {
+  color: #b54708;
+}
+
+.stock-ecart.ecart-none {
+  color: var(--ink-soft);
+  font-weight: 400;
 }

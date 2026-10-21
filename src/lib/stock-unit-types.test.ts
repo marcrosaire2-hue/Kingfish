@@ -19,6 +19,9 @@ function stats(partial: Partial<PlatUnitStats> & Pick<PlatUnitStats, "productId"
     qrPerdu: 0,
     qrToGenerate: 0,
     stockRemaining: 0,
+    counted: null,
+    theoretical: null,
+    ecart: null,
     ...partial,
   };
 }

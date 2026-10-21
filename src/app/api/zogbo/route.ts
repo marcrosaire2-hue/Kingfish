@@ -185,6 +185,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (body.type === "send") {
+      return NextResponse.json(
+        { error: "Les envois vers Gbégamey n'existent plus : les sites sont indépendants." },
+        { status: 410 },
+      );
+    }
+
     const result = await applyZogboMovement({
       date: body.date,
       productId: body.productId,
@@ -192,25 +199,14 @@ export async function POST(request: Request) {
       qty: body.qty,
     });
     const m = result.movement;
-    if (m.type === "send") {
-      await logActivity({
-        user,
-        kind: "transfert",
-        title: `Envoi → Gbégamey · ${m.name}`,
-        detail: `−${m.qty} · stock reste ${m.stockAfter}`,
-        date: body.date,
-        site: "zogbo",
-      });
-    } else {
-      await logActivity({
-        user,
-        kind: "zogbo",
-        title: `Préparé · ${m.name}`,
-        detail: `+${m.qty} · stock ${m.stockAfter}`,
-        date: body.date,
-        site: "zogbo",
-      });
-    }
+    await logActivity({
+      user,
+      kind: "zogbo",
+      title: `Préparé · ${m.name}`,
+      detail: `+${m.qty} · stock ${m.stockAfter}`,
+      date: body.date,
+      site: "zogbo",
+    });
 
     return NextResponse.json(result);
   } catch (error) {

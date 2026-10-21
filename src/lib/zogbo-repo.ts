@@ -88,7 +88,8 @@ function toDay(doc: ZogboDoc, accompanimentLines?: GbegameyLocalLine[]): ZogboDa
     accompanimentLines,
     movements,
     updatedAt: doc.updatedAt ?? null,
-    ventesSansStock: dayVentesSansStock(doc),
+    // Zogbo : ventes plafonnées au stock par défaut (pas de vente libre).
+    ventesSansStock: dayVentesSansStock(doc, false),
   };
 }
 
@@ -413,6 +414,7 @@ export async function saveZogboDay(
       const ventesSansStock = mergeVentesSansStockOnSave({
         stockSaisie: input.stockSaisie,
         existing,
+        fallback: false,
       });
 
       return {
@@ -465,7 +467,7 @@ async function mutateZogboDay(
     const status = payload.day.status;
     const lines = applied.lines.map((l) => normalizeZogboLine(l));
     const movements = applied.movements;
-    const ventesSansStock = dayVentesSansStock(existing);
+    const ventesSansStock = dayVentesSansStock(existing, false);
 
     return {
       set: {

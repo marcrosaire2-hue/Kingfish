@@ -409,103 +409,6 @@
   color: var(--sidebar-mid, #0a3d8f);
 }
 
-/* --- Scanner QR --------------------------------------------------------- */
-.vente-qr-scan {
-  margin-bottom: 0.5rem;
-}
-
-.vente-qr-scan-toggle {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  width: 100%;
-  min-height: 2.85rem;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--sidebar-mid) 25%, var(--line));
-  background: var(--surface);
-  color: var(--sidebar-mid, #0a3d8f);
-  font-weight: 700;
-  box-shadow: 0 2px 10px color-mix(in srgb, var(--ink) 3%, transparent);
-}
-
-.vente-qr-scan-toggle.is-active {
-  background: color-mix(in srgb, var(--sidebar-mid) 8%, var(--surface));
-  border-color: color-mix(in srgb, var(--sidebar-mid) 40%, var(--line));
-}
-
-.vente-qr-scan-icon {
-  display: grid;
-  place-items: center;
-  width: 1.35rem;
-  height: 1.35rem;
-}
-
-.vente-qr-scan-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.vente-sticker-form {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.55rem;
-  align-items: end;
-  margin-bottom: 0.55rem;
-}
-
-.vente-sticker-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.28rem;
-  min-width: 0;
-}
-
-.vente-sticker-field span {
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-
-.vente-sticker-field input {
-  width: 100%;
-  min-height: 2.85rem;
-  border-radius: 14px;
-  border: 1px solid color-mix(in srgb, var(--sidebar-mid) 28%, var(--line));
-  background: var(--surface);
-  padding: 0 0.85rem;
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  font-variant-numeric: tabular-nums;
-  text-transform: uppercase;
-}
-
-.vente-sticker-form .btn-primary {
-  min-height: 2.85rem;
-  border-radius: 14px;
-  padding-inline: 1rem;
-}
-
-.vente-sticker-card {
-  max-width: 26rem;
-  width: min(26rem, calc(100vw - 1.5rem));
-  padding: 1.15rem 1.2rem 1.2rem;
-}
-
-.vente-sticker-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.5rem;
-  margin-top: 1rem;
-}
-
-@media (max-width: 640px) {
-  .vente-sticker-form {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* --- Carte formulaire vente --------------------------------------------- */
 .vente-sale-card.vente-panel,
 .vente-meal-composer.vente-panel {
@@ -950,4 +853,24 @@
   .vente-cat-pill {
     transition: none;
   }
+}
+
+/* Catégorie active : plus de fond coloré ni de pastille circulaire derrière
+   l'icône. Seuls la bordure, l'icône et le texte changent de couleur. */
+.vente-cat-pills .vente-cat-pill,
+.vente-cat-pills .vente-cat-pill.is-active {
+  background: var(--surface);
+}
+
+.vente-cat-pills .vente-cat-pill.is-active {
+  box-shadow: none;
+}
+
+.vente-cat-pills .vente-cat-pill .vente-cat-pill-icon,
+.vente-cat-pills .vente-cat-pill.is-active .vente-cat-pill-icon {
+  background: transparent;
+}
+
+.vente-cat-pills .vente-cat-pill.is-active .vente-cat-pill-icon {
+  color: #075ea8;
 }

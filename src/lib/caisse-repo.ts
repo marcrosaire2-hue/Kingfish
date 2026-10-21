@@ -281,29 +281,32 @@ export async function ensureActiveCaisseForSite(input: {
   site: VenteSite;
   user: SessionUser;
 }): Promise<CaisseSession> {
-  const existing = await getActiveCaisseForSite(input.site);
-  if (existing) {
-    if (!canReceiveCaisseSales(existing.statut)) {
-      throw new Error(
-        `${CAISSE_LABELS[existing.caisse]} est en comptage : finalisez la clôture avant d'encaisser.`,
-      );
+  const existing: CaisseSession | null = await getActiveCaisseForSite(input.site);
+
+  // Aucune caisse ouverte (premier encaissement du jour, ou caisse vidée) :
+  // on en ouvre une pour aujourd'hui.
+  if (existing === null || existing === undefined) {
+    try {
+      return await openCaisse({
+        date: todayIsoDate(),
+        caisse: input.site,
+        user: input.user,
+        soldeInitial: 0,
+      });
+    } catch (error) {
+      // Course entre deux postes : l'autre a ouvert entre-temps.
+      const concurrente = await getActiveCaisseForSite(input.site);
+      if (concurrente) return concurrente;
+      throw error;
     }
-    return existing;
   }
 
-  try {
-    return await openCaisse({
-      date: todayIsoDate(),
-      caisse: input.site,
-      user: input.user,
-      soldeInitial: 0,
-    });
-  } catch (error) {
-    // Course entre deux postes : l'autre a ouvert entre-temps.
-    const concurrente = await getActiveCaisseForSite(input.site);
-    if (concurrente) return concurrente;
-    throw error;
+  if (!canReceiveCaisseSales(existing.statut)) {
+    throw new Error(
+      `${CAISSE_LABELS[existing.caisse]} est en comptage : finalisez la clôture avant d'encaisser.`,
+    );
   }
+  return existing;
 }
 
 /** Date à laquelle stock, journal et CA doivent s'écrire pour cette zone. */

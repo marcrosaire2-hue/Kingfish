@@ -20,7 +20,6 @@ import {
   syncLocalLines,
   syncTransferLines,
 } from "@/lib/gbegamey-calc";
-import { getZogboDayPayload } from "@/lib/zogbo-repo";
 import {
   LEFTOVER_LOOKBACK_DAYS,
   leftoverMapHasStock,
@@ -75,13 +74,13 @@ async function isOpeningDay(date: string): Promise<boolean> {
   return !previous;
 }
 
-async function loadSentMap(date: string): Promise<Record<string, number>> {
-  const { day: zogbo } = await getZogboDayPayload(date);
-  const map: Record<string, number> = {};
-  for (const line of zogbo.lines) {
-    map[line.productId] = line.sentToGbegamey;
-  }
-  return map;
+/**
+ * Gbégamey est indépendant de Zogbo : plus aucun envoi n'est lu côté Zogbo,
+ * le stock du site ne dépend que de sa propre saisie.
+ */
+async function loadSentMap(_date: string): Promise<Record<string, number>> {
+  void _date;
+  return {};
 }
 
 /**

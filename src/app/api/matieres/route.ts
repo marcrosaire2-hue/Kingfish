@@ -86,13 +86,23 @@ export async function GET(request: Request) {
       const historique = await listMatieresMovements({
         dateFrom: from,
         dateTo: to,
+        site: siteOf(user),
       });
       return NextResponse.json({ historique, canManagePast });
     }
     if (!date) {
       return NextResponse.json({ error: "Date requise." }, { status: 400 });
     }
-    const payload = await getMatieresDayPayload(date);
+    const full = await getMatieresDayPayload(date);
+    // Chaque point de vente ne voit que ses propres achats.
+    const mine = siteOf(user);
+    const payload = {
+      ...full,
+      day: {
+        ...full.day,
+        movements: full.day.movements.filter((m) => m.site === mine),
+      },
+    };
     return NextResponse.json({
       ...payload,
       canManagePast,
@@ -207,6 +217,7 @@ export async function POST(request: Request) {
       body.productId === "autre"
         ? await applyMatieresOtherPurchase({
             date: body.date,
+            site: siteOf(user),
             name: String(body.name ?? ""),
             qty: Number(body.qty),
             unitPrice: body.unitPrice,
@@ -216,6 +227,7 @@ export async function POST(request: Request) {
           })
         : await applyMatieresPurchase({
             date: body.date,
+            site: siteOf(user),
             productId: body.productId,
             qty: Number(body.qty),
             unitPrice: body.unitPrice,
@@ -247,7 +259,7 @@ export async function POST(request: Request) {
           ? `${body.name} · +${Number(body.qty)}`
           : `Produit ${body.productId} · +${Number(body.qty)}`,
       date: body.date,
-      site: "zogbo",
+      site: siteOf(user),
       amount: montant > 0 ? montant : null,
     });
     const depenseError =

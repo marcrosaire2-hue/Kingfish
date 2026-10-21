@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
+import { ExportExcelButton } from "@/components/export-excel-button";
+import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { CataloguePaginationBar } from "@/components/parametres/catalogue-view";
 import { useSession } from "@/components/session-provider";
 import { formatDateFr } from "@/components/achats/achats-shared";
@@ -253,6 +255,34 @@ export function DepensesPage() {
           <Link href="/caisse" className="btn btn-ghost">
             Caisse
           </Link>
+          <ExportExcelButton
+            disabled={loading || filtered.length === 0}
+            className="btn btn-ghost"
+            onExport={() => {
+              downloadExcel(excelFilename("depenses", resolved, todayIsoDate()), [
+                {
+                  name: "Dépenses",
+                  subtitle: CAISSE_LABELS[resolved],
+                  rows: filtered.map((row) => {
+                    const m = row.mouvement;
+                    return {
+                      Date: row.sessionDate,
+                      Heure: new Date(m.at).toLocaleTimeString("fr-FR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      }),
+                      Nature: m.nature,
+                      Bénéficiaire: m.beneficiaire,
+                      "Montant (FCFA)": m.montant,
+                      Statut: statutLabel(m),
+                      "Saisi par": m.actorName ?? "",
+                    };
+                  }),
+                },
+              ]);
+              return Promise.resolve();
+            }}
+          />
           {allowed.length > 1 ? (
             <div className="site-switch" role="tablist" aria-label="Site">
               {allowed.map((c) => (

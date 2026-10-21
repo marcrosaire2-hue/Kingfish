@@ -34,8 +34,7 @@ describe("rôle Comptable", () => {
       "immobilisations",
       "journal-ventes",
       "quantites-vendues",
-      "rapport-quotidien",
-      "controle",
+      "rapport-quotidien",
     ]);
     expect(menu).not.toContain("analyse");
     expect(menu).not.toContain("historique");
@@ -277,8 +276,7 @@ describe("l'API suit les droits de l'écran", () => {
       "journal-ventes",
       "quantites-vendues",
       "historique",
-      "rapport-quotidien",
-      "controle",
+      "rapport-quotidien",
       "admin",
     ]);
     expect(canAccessPath("admin", "/rattrapage-ventes", "tous", "marc")).toBe(true);
