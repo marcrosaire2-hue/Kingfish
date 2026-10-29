@@ -1,3 +1,5 @@
+import { withReadCache } from "@/lib/read-cache";
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import type { DayCharges } from "@/lib/types";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
@@ -24,7 +26,7 @@ import { logActivity } from "@/lib/log-activity";
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export const GET = withReadCache(async function GET(request: Request) {
   try {
     const user = await requireUser();
     const { searchParams } = new URL(request.url);
@@ -131,9 +133,9 @@ export async function GET(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as Partial<DayCharges> & {
@@ -213,4 +215,4 @@ export async function PUT(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});

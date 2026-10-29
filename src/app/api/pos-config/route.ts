@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { logActivity } from "@/lib/log-activity";
@@ -22,7 +23,7 @@ export async function GET() {
   }
 }
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireUser();
     if (
@@ -51,4 +52,4 @@ export async function PUT(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});

@@ -18,7 +18,7 @@ const ACTION_ERROR: Record<VentePolicyAction, string> = {
   delete:
     "Suppression des ventes désactivée pour votre profil ou ce site.",
   cancel:
-    "Annulation réservée à l’administrateur.",
+    "Annulation des ventes désactivée pour votre profil ou ce site.",
 };
 
 export function authorizeVenteAction(input: {
@@ -26,8 +26,17 @@ export function authorizeVenteAction(input: {
   role: UserRole;
   site: VenteSite;
   action: VentePolicyAction;
+  userId?: string | null;
 }): PolicyDecision {
-  if (isVenteActionAllowed(input.config, input.role, input.site, input.action)) {
+  if (
+    isVenteActionAllowed(
+      input.config,
+      input.role,
+      input.site,
+      input.action,
+      input.userId,
+    )
+  ) {
     return { ok: true };
   }
   return {
@@ -44,12 +53,14 @@ export function authorizePermanentDelete(input: {
   reason: unknown;
   confirm?: unknown;
   purge?: boolean;
+  userId?: string | null;
 }): PolicyDecision {
   const gate = authorizeVenteAction({
     config: input.config,
     role: input.role,
     site: input.site,
     action: "delete",
+    userId: input.userId,
   });
   if (!gate.ok) return gate;
   if (input.purge && input.confirm !== true) {

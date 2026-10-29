@@ -4,11 +4,13 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
+import { useSession } from "@/components/session-provider";
+import { SITE_LABELS, effectiveSite } from "@/lib/auth-types";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { CataloguePaginationBar } from "@/components/parametres/catalogue-view";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
-import type { Fournisseur, MatieresMovement } from "@/lib/types";
+import type { Fournisseur, MatieresMovement, VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import {
   emptyDraftLibre,
@@ -80,6 +82,13 @@ function lineTotal(qty: string, price: string): number {
 }
 
 export function AchatsPage() {
+  const { user } = useSession();
+  const scope = user ? effectiveSite(user.role, user.site) : null;
+  /** Compte multi-sites (administrateur) : le site de l'achat est à préciser. */
+  const siteAChoisir = scope === "tous";
+  const [siteChoisi, setSiteChoisi] = useState<VenteSite | "">("");
+  const site: VenteSite | "" =
+    scope === "zogbo" || scope === "gbegamey" ? scope : siteChoisi;
   const composerRef = useRef<HTMLElement | null>(null);
   const productInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -107,7 +116,7 @@ export function AchatsPage() {
       try {
         const to = todayIsoDate();
         const res = await fetch(
-          `/api/matieres?from=${encodeURIComponent(RANGE_FROM)}&to=${encodeURIComponent(to)}`,
+          `/api/matieres?from=${encodeURIComponent(RANGE_FROM)}&to=${encodeURIComponent(to)}${site ? `&site=${site}` : ""}`,
           { cache: "no-store" },
         );
         const body = (await res.json()) as {
@@ -129,8 +138,11 @@ export function AchatsPage() {
   }
 
   useEffect(() => {
+    // Rechargement quand le site affiché change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     reload();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site]);
 
   useEffect(() => {
     let annule = false;
@@ -186,6 +198,10 @@ export function AchatsPage() {
     const name = row.name.trim();
     const qty = Number(String(row.qty).replace(",", ".")) || 0;
     const price = Number(String(row.price).replace(",", ".")) || 0;
+    if (!site) {
+      setError("Choisissez le site concerné par l'achat.");
+      return;
+    }
     if (!row.date) {
       setError("Choisissez la date de l'achat.");
       return;
@@ -207,6 +223,7 @@ export function AchatsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: row.date,
+          site,
           productId: "autre",
           name,
           qty,
@@ -338,6 +355,23 @@ export function AchatsPage() {
             </p>
           </header>
           <form className="achats-composer-grid" onSubmit={submitPurchaseLibre}>
+            {siteAChoisir ? (
+              <label className="achats-field">
+                <span>Site concerné</span>
+                <select
+                  value={siteChoisi}
+                  required
+                  onChange={(e) => setSiteChoisi(e.target.value as VenteSite | "")}
+                >
+                  <option value="">— Choisir le site —</option>
+                  {(["zogbo", "gbegamey"] as VenteSite[]).map((s) => (
+                    <option key={s} value={s}>
+                      {SITE_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="achats-field">
               <span>Date</span>
               <input
@@ -423,7 +457,7 @@ export function AchatsPage() {
             <button
               type="submit"
               className="btn btn-primary achats-submit"
-              disabled={busyLibre}
+              disabled={busyLibre || !site}
             >
               {busyLibre ? "…" : "Enregistrer"}
             </button>

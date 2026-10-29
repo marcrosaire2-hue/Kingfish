@@ -44,7 +44,7 @@ const CATALOGUE_SECTIONS: {
   {
     key: "categories",
     label: "Dessert & catégories",
-    hint: "Catégories de vente personnalisées (ex. Dessert) et leurs articles — vendus au prix du catalogue, sans stock.",
+    hint: "",
   },
 ];
 
@@ -1331,12 +1331,14 @@ export function CatalogueView({
         ))}
       </div>
 
-      <div className="catalogue-info" role="note">
-        <span className="catalogue-info-mark" aria-hidden>
-          i
-        </span>
-        <p>{sectionHint}</p>
-      </div>
+      {sectionHint ? (
+        <div className="catalogue-info" role="note">
+          <span className="catalogue-info-mark" aria-hidden>
+            i
+          </span>
+          <p>{sectionHint}</p>
+        </div>
+      ) : null}
 
       {catalogueSection === "base" ? (
         <BaseDishesCatalogue

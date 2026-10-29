@@ -3,6 +3,7 @@ import path from "node:path";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { ObjectId } from "mongodb";
+import { cached, invalidateCache } from "@/lib/ttl-cache";
 import { getDb } from "@/lib/mongodb";
 import {
   assertValidRoleSite,
@@ -161,11 +162,15 @@ export async function getSessionAuthState(
 ): Promise<{ user: AppUser; tokenVersion: number } | null> {
   if (!ObjectId.isValid(id)) return null;
   const db = await getDb();
-  const doc = await db.collection<UserDoc>("users").findOne({
-    _id: new ObjectId(id),
+  // Lu à chaque appel d'API : gardé quelques secondes. Toute modification de
+  // compte (désactivation, mot de passe, droits…) vide ce cache aussitôt.
+  return cached(`${db.databaseName}:auth:${id}`, 8_000, async () => {
+    const doc = await db.collection<UserDoc>("users").findOne({
+      _id: new ObjectId(id),
+    });
+    if (!doc || !doc.active) return null;
+    return { user: toAppUser(doc), tokenVersion: doc.tokenVersion ?? 1 };
   });
-  if (!doc || !doc.active) return null;
-  return { user: toAppUser(doc), tokenVersion: doc.tokenVersion ?? 1 };
 }
 
 export async function createUser(input: {
@@ -317,6 +322,7 @@ export async function updateUser(
       ? { $set, $inc: { tokenVersion: 1 } }
       : { $set },
   );
+  invalidateCache(":auth:");
   const doc = await col.findOne({ _id });
   if (!doc) throw new Error("Utilisateur introuvable.");
   return toAppUser(doc);
@@ -365,6 +371,7 @@ export async function changeOwnPassword(input: {
       $inc: { tokenVersion: 1 },
     },
   );
+  invalidateCache(":auth:");
 }
 
 export async function deleteUser(
@@ -383,4 +390,5 @@ export async function deleteUser(
     throw new Error("Impossible de supprimer le compte admin principal.");
   }
   await col.deleteOne({ _id });
+  invalidateCache(":auth:");
 }

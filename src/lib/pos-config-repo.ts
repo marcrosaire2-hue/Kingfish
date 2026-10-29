@@ -1,3 +1,4 @@
+import { cached, invalidateCache } from "@/lib/ttl-cache";
 import { getDb } from "@/lib/mongodb";
 import type {
   Fournisseur,
@@ -56,6 +57,11 @@ function normalize(doc: Partial<PosConfigDoc> | null): PosConfig {
 
 export async function getPosConfig(): Promise<PosConfig> {
   const db = await getDb();
+  return cached(`${db.databaseName}:pos_config`, 15_000, loadPosConfig);
+}
+
+async function loadPosConfig(): Promise<PosConfig> {
+  const db = await getDb();
   const existing = await db
     .collection<PosConfigDoc>("pos_config")
     .findOne({ _id: DOC_ID });
@@ -93,5 +99,6 @@ export async function savePosConfig(data: {
     { $set: { _id: DOC_ID, ...next } },
     { upsert: true },
   );
+  invalidateCache(`${db.databaseName}:pos_config`);
   return next;
 }

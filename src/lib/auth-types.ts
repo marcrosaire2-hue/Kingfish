@@ -257,11 +257,9 @@ export function userVisibleToAdmin(
 
 export type NavKey =
   | "vente"
-  | "tests-plats"
   | "simulation"
   | "caisse"
   | "fonds-caisse"
-  | "rattrapage-ventes"
   | "mouvements-caisse"
   | "depenses"
   | "appro"
@@ -279,6 +277,9 @@ export type NavKey =
   | "comptabilite"
   | "historique"
   | "journal-ventes"
+  | "journal-direction"
+  | "droits"
+  | "alertes"
   | "quantites-vendues"
   | "immobilisations"
   | "stock"
@@ -289,7 +290,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
   gerant: [
     "synthese",
     "vente",
-    "tests-plats",
     "simulation",
     "zogbo",
     "gbegamey",
@@ -354,14 +354,12 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "synthese",
     "analyse",
     "vente",
-    "tests-plats",
     "simulation",
     "zogbo",
     "gbegamey",
     "caisse",
     "fonds-caisse",
     "mouvements-caisse",
-    "rattrapage-ventes",
     "versements",
     "appro",
     "pertes",
@@ -376,6 +374,9 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "admin",
     "rapport-quotidien",
     // Pages Gérant / finance : l'administrateur a tout.
+    "journal-direction",
+    "droits",
+    "alertes",
     "depenses",
     "compte-resultat",
     "comptabilite",
@@ -537,13 +538,9 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/autorisations")) {
     return allowed.includes("admin");
   }
-  if (pathname.startsWith("/tests-plats")) return allowed.includes("tests-plats");
   if (pathname.startsWith("/simulation")) return allowed.includes("simulation");
   if (pathname.startsWith("/vente")) return allowed.includes("vente");
   if (pathname.startsWith("/caisse")) return allowed.includes("caisse");
-  if (pathname.startsWith("/rattrapage-ventes")) {
-    return allowed.includes("rattrapage-ventes");
-  }
   if (pathname.startsWith("/fonds-caisse")) {
     return allowed.includes("fonds-caisse");
   }
@@ -598,6 +595,11 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/historique-ventes")) {
     return allowed.includes("journal-ventes");
   }
+  if (pathname.startsWith("/journal-direction")) {
+    return allowed.includes("journal-direction");
+  }
+  if (pathname.startsWith("/droits")) return allowed.includes("droits");
+  if (pathname.startsWith("/alertes")) return allowed.includes("alertes");
   if (pathname.startsWith("/journal-ventes")) {
     return allowed.includes("journal-ventes");
   }
@@ -630,8 +632,13 @@ export function canAccessPath(
   ) {
     return false;
   }
-  // Ventes passées : administrateur uniquement, quoi que dise le JWT ou la matrice.
-  if (role !== "admin" && pathname.startsWith("/rattrapage-ventes")) {
+  // Journal direction, droits et alertes : administrateur uniquement.
+  if (
+    role !== "admin" &&
+    (pathname.startsWith("/journal-direction") ||
+      pathname.startsWith("/droits") ||
+      pathname.startsWith("/alertes"))
+  ) {
     return false;
   }
   // Tous les administrateurs gardent Équipe (page + APIs), même si le JWT

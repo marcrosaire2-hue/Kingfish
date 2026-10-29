@@ -112,12 +112,6 @@ const NAV_ITEMS: {
     groupLabel: "Approvisionnement",
   },
   {
-    href: "/tests-plats",
-    label: "Tests de plats",
-    key: "tests-plats",
-    group: "supply",
-  },
-  {
     href: "/pertes",
     label: "Pertes",
     key: "pertes",
@@ -143,6 +137,13 @@ const NAV_ITEMS: {
     groupLabel: "Pilotage",
   },
   {
+    href: "/journal-direction",
+    label: "Journal direction",
+    key: "journal-direction",
+    group: "pilot",
+    groupLabel: "Pilotage",
+  },
+  {
     href: "/historique",
     label: "Registre",
     key: "historique",
@@ -155,18 +156,29 @@ const NAV_ITEMS: {
     group: "pilot",
   },
   {
-    href: "/rattrapage-ventes",
-    label: "Ventes passées",
-    key: "rattrapage-ventes",
-    group: "admin",
-    groupLabel: "Compte",
-  },
-  {
     href: "/admin",
     label: "Équipe",
     key: "admin",
     group: "admin",
     groupLabel: "Compte",
+  },
+  {
+    href: "/autorisations",
+    label: "Autorisations",
+    key: "admin",
+    group: "admin",
+  },
+  {
+    href: "/droits",
+    label: "Droits",
+    key: "droits",
+    group: "admin",
+  },
+  {
+    href: "/alertes",
+    label: "Alertes",
+    key: "alertes",
+    group: "admin",
   },
 ];
 
@@ -178,7 +190,6 @@ const NAV_ICON_PATHS: Partial<Record<NavKey, string>> = {
   comptabilite: "M5 4h14v16H5V4Zm3 4h8M8 12h3m2 0h3M8 16h3m2 0h3",
   vente: "M4 5h2l2 10h9l2-7H7M10 19.5h.01M16 19.5h.01",
   simulation: "M5 4h14v10H5V4Zm4 14h6M12 14v4M9 9l2 2 4-4",
-  "tests-plats": "M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3M8 15h8",
   zogbo: "M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Zm0-8.5a2.4 2.4 0 1 0 0-4.8 2.4 2.4 0 0 0 0 4.8Z",
   gbegamey: "M4 19V7l8-3 8 3v12M4 19h16M9 19v-5h6v5",
   caisse: "M4 9h16v10H4V9Zm2-4h12l2 4H4l2-4Zm6 7v3",
@@ -192,12 +203,14 @@ const NAV_ICON_PATHS: Partial<Record<NavKey, string>> = {
   immobilisations: "M4 20h16M6 20V9l6-5 6 5v11M10 20v-6h4v6",
   stock: "M4 7l8-4 8 4v10l-8 4-8-4V7Zm8 4v10M4 7l8 4 8-4",
   "journal-ventes": "M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6M9 12h6",
+  "journal-direction": "M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6M9 12h6",
   historique: "M12 7v5l3 2M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4",
   reglages: "M5 6h14M5 12h14M5 18h14M9 4v4M15 10v4M8 16v4",
   parametres: "M5 6h14M5 12h14M5 18h14M9 4v4M15 10v4M8 16v4",
   admin: "M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Zm-6 9c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M17 11a3 3 0 1 0 0-6m1 9.5c2 .5 3.5 2.1 3.5 4.5",
   "rapport-quotidien": "M7 3h10v18H7V3Zm3 5h4M10 12h4M10 16h2",
-  "rattrapage-ventes": "M4 6h16v14H4V6Zm0 5h16M8 3v4M16 3v4M9 15h6",
+  droits: "M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Zm-3 9 2 2 4-4",
+  alertes: "M6 16v-5a6 6 0 1 1 12 0v5l1.5 2h-15L6 16Zm4 4h4",
 };
 
 function NavIcon({ name }: { name: NavKey }) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -621,9 +622,9 @@ const TicketsList = memo(function TicketsList({
                   : t.statut === "annule"
                     ? "Annulé"
                     : t.statut === "en_attente"
-                      ? "Vente direction · en attente de validation admin"
+                      ? "Vente direction · en attente"
                       : t.statut === "direction_validee"
-                        ? "Vente direction validée · hors CA clients"
+                        ? "Vente direction validée"
                         : t.statut}
               </div>
             </div>
@@ -725,6 +726,9 @@ export function VentePage({
   const [cart, setCart] = useState<CartLine[]>([]);
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
   const [venteOrigine, setVenteOrigine] = useState<VenteOrigine>("client");
+  /** Site d'une vente direction : l'admin (deux sites) doit le préciser. */
+  const [directionSite, setDirectionSite] = useState<VenteSite | "">("");
+  const needsDirectionSite = venteOrigine === "direction" && allowedSites.length > 1;
   const [paymentId, setPaymentId] = useState("");
   const [clientNom, setClientNom] = useState("");
   const [reduction, setReduction] = useState("0");
@@ -990,9 +994,13 @@ export function VentePage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, site, pathname]);
 
+  // Tickets et chiffres à jour dès qu'un autre poste vend, annule ou valide.
+  useLiveRefresh(() => void load());
+
   /** Encaissement possible : caisse du jour, ou correction gérant (backdate). */
-  const canSell = Boolean(caisse) || backdateMode;
-  const ignoreStock = backdateMode || board?.ventesSansStock === true;
+  // Administrateur : articles jamais grisés (ni caisse fermée, ni stock épuisé).
+  const canSell = Boolean(caisse) || backdateMode || isAdmin;
+  const ignoreStock = isAdmin || backdateMode || board?.ventesSansStock === true;
 
   const plats = useMemo(
     () => board?.products.filter((p) => p.kind === "plat") ?? [],
@@ -1291,6 +1299,12 @@ export function VentePage({
       );
       return;
     }
+    if (needsDirectionSite && !directionSite) {
+      setError("Précisez le site concerné par cette vente direction.");
+      return;
+    }
+    const saleSite: VenteSite =
+      needsDirectionSite && directionSite ? directionSite : site;
     setPosBusy(true);
     setError(null);
     // Référence de poste attribuée AVANT l'envoi : si la commande part mais que
@@ -1300,7 +1314,7 @@ export function VentePage({
     const corps = {
       action: "validate",
       date,
-      site,
+      site: saleSite,
       saleType,
       venteOrigine,
       paymentMethodId: paymentId || undefined,
@@ -1339,15 +1353,17 @@ export function VentePage({
       }
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Validation impossible");
-      setBoard(body.board as Board);
+      // Vente direction sur l'autre site : on garde l'affichage du site courant.
+      if (saleSite === site) setBoard(body.board as Board);
       setCart([]);
       setClientNom("");
       setReduction("0");
       setVenteOrigine("client");
+      setDirectionSite("");
       setFlash(
         `Ticket ${body.ticket.numero} · ${formatFcfa(body.ticket.montant)}${
           body.ticket.statut === "en_attente"
-            ? " · en attente de validation admin"
+            ? " · en attente"
             : ""
         }`,
       );
@@ -1359,17 +1375,19 @@ export function VentePage({
       if (body.ticket) {
         const ticket = body.ticket as PosTicket;
         setFacture(ticket);
-        setTickets((prev) => [
-          ticket,
-          ...prev.filter((t) => t.id !== ticket.id),
-        ]);
+        if (saleSite === site) {
+          setTickets((prev) => [
+            ticket,
+            ...prev.filter((t) => t.id !== ticket.id),
+          ]);
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Validation impossible");
     } finally {
       setPosBusy(false);
     }
-  }, [cart, canSell, backdateMode, date, site, saleType, venteOrigine, paymentId, clientNom, reductionN]);
+  }, [cart, canSell, backdateMode, date, site, saleType, venteOrigine, directionSite, needsDirectionSite, paymentId, clientNom, reductionN]);
 
   useEffect(() => {
     if (!cart.length) setCartSheetOpen(false);
@@ -1390,7 +1408,7 @@ export function VentePage({
       if (
         !window.confirm(
           ticket.statut === "en_attente"
-            ? `Refuser la vente direction ${ticket.numero} (${formatFcfa(ticket.montant)}) ? Le stock sera remis.`
+            ? `Refuser la vente direction ${ticket.numero} (${formatFcfa(ticket.montant)}) ?`
             : `Annuler le ticket ${ticket.numero} (${formatFcfa(ticket.montant)}) ?`,
         )
       ) {
@@ -2124,6 +2142,26 @@ export function VentePage({
                   </select>
                 </label>
 
+                {needsDirectionSite ? (
+                  <label className="vente-field">
+                    <span>Site concerné (obligatoire)</span>
+                    <select
+                      value={directionSite}
+                      required
+                      onChange={(e) =>
+                        setDirectionSite(e.target.value as VenteSite | "")
+                      }
+                    >
+                      <option value="">— Choisir le site —</option>
+                      {allowedSites.map((s) => (
+                        <option key={s} value={s}>
+                          {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+
                 <label className="vente-field">
                   <span>Paiement</span>
                   <select
@@ -2295,7 +2333,7 @@ export function VentePage({
                   {facture.statut === "valide"
                     ? "Validée"
                     : facture.statut === "en_attente"
-                      ? "En attente de validation admin"
+                      ? "En attente"
                       : facture.statut === "direction_validee"
                         ? "Vente direction validée"
                         : "Annulée"}

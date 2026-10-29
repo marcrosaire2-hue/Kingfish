@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/app-shell";
@@ -121,8 +122,8 @@ export function CaissePage() {
   const [journalFilter, setJournalFilter] = useState<JournalFilter>("tous");
   const [journalQuery, setJournalQuery] = useState("");
 
-  async function load(nextDate = date, nextCaisse = caisse) {
-    setLoading(true);
+  async function load(nextDate = date, nextCaisse = caisse, silent = false) {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const res = await fetch(
@@ -155,6 +156,8 @@ export function CaissePage() {
     if (!res.ok) throw new Error(body.error || "Erreur détail");
     setDetail(body as Detail);
   }
+
+  useLiveRefresh(() => void load(date, caisse, true));
 
   useEffect(() => {
     void load(date, caisse);

@@ -29,7 +29,16 @@ function getDbName(): string {
 }
 
 function createClient(): Promise<MongoClient> {
-  const client = new MongoClient(getUri());
+  const client = new MongoClient(getUri(), {
+    // Connexions gardées ouvertes : sans cela, chaque requête simultanée
+    // rouvre une connexion TLS (plusieurs centaines de ms, voire 1 à 2 s).
+    minPoolSize: 6,
+    maxPoolSize: 40,
+    connectTimeoutMS: 15_000,
+    serverSelectionTimeoutMS: 15_000,
+    // Réponses compressées : utile quand la base est loin du serveur.
+    compressors: ["zlib"],
+  });
   return client.connect();
 }
 

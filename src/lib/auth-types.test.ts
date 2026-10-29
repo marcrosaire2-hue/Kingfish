@@ -273,7 +273,6 @@ describe("l'API suit les droits de l'écran", () => {
       expect(menu, key).toContain(key);
     }
     for (const path of [
-      "/rattrapage-ventes",
       "/analyse",
       "/",
       "/versements",
@@ -291,8 +290,9 @@ describe("l'API suit les droits de l'écran", () => {
     ]) {
       expect(canAccessPath("admin", path, "tous", "marc"), path).toBe(true);
     }
-    expect(canAccessPath("gerant", "/rattrapage-ventes", "tous")).toBe(false);
-    expect(canAccessPath("daf", "/rattrapage-ventes", "tous", "daff")).toBe(false);
+    // La page « Ventes passées » n'existe plus : les jours passés se saisissent
+    // depuis la page Vente, réservée à l'admin pour ce mode.
+    expect(canAccessPath("admin", "/rattrapage-ventes", "tous", "marc")).toBe(false);
   });
 
   it("donne à tout admin toutes les pages (finance et dépenses comprises), sur les deux sites", () => {
@@ -313,6 +313,22 @@ describe("l'API suit les droits de l'écran", () => {
     // Les autres rôles gardent leurs restrictions.
     expect(canAccessPath("gerant", "/depenses", "zogbo")).toBe(true);
     expect(canAccessPath("daf", "/depenses", "tous", "daff")).toBe(true);
+  });
+
+  it("réserve le journal des ventes direction à l'administrateur", () => {
+    for (const [key, path] of [
+      ["journal-direction", "/journal-direction"],
+      ["droits", "/droits"],
+      ["alertes", "/alertes"],
+    ] as const) {
+      expect(navForUser("admin", "tous", "un-admin")).toContain(key);
+      expect(canAccessPath("admin", path, "tous", "un-admin")).toBe(true);
+      for (const role of ["gerant", "comptable", "daf"] as const) {
+        expect(navForUser(role, "tous", "x")).not.toContain(key);
+        // même si une session ou une matrice réintroduisait la clé
+        expect(canAccessPath(role, path, "tous", "x", [key])).toBe(false);
+      }
+    }
   });
 
   it("ignore le menu figé dans la session d'un admin (suit les nouvelles pages)", () => {

@@ -8,6 +8,7 @@ import type {
   RawMaterial,
   Recipe,
 } from "@/lib/types";
+import { cached, invalidateCache } from "@/lib/ttl-cache";
 import { getDb } from "@/lib/mongodb";
 
 const DOC_ID = "parametres";
@@ -158,7 +159,13 @@ async function seedRawMaterialsFromAqua(): Promise<RawMaterial[]> {
   }
 }
 
+/** Catalogue : lu par presque tous les écrans, donc gardé quelques secondes. */
 export async function getParametres(): Promise<Parametres> {
+  const db = await getDb();
+  return cached(`${db.databaseName}:parametres`, 15_000, loadParametres);
+}
+
+async function loadParametres(): Promise<Parametres> {
   const db = await getDb();
   const col = db.collection<ParametresDoc>("parametres");
   const existing = await col.findOne({ _id: DOC_ID });
@@ -226,6 +233,7 @@ export async function saveParametresToDb(
     { $set: payload },
     { upsert: true },
   );
+  invalidateCache(`${db.databaseName}:parametres`);
 
   return payload;
 }

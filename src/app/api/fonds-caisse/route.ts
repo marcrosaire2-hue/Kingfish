@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { logActivity } from "@/lib/log-activity";
@@ -94,7 +95,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireUser();
     const lectureSeule = ecritureInterdite(user);
@@ -136,9 +137,9 @@ export async function POST(request: Request) {
     console.error("POST /api/fonds-caisse failed:", err);
     return authErrorResponse(err);
   }
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireUser();
     const lectureSeule = ecritureInterdite(user);
@@ -178,9 +179,9 @@ export async function PUT(request: Request) {
     console.error("PUT /api/fonds-caisse failed:", err);
     return authErrorResponse(err);
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withLiveBump(async function DELETE(request: Request) {
   try {
     const user = await requireUser();
     const lectureSeule = ecritureInterdite(user);
@@ -212,4 +213,4 @@ export async function DELETE(request: Request) {
     console.error("DELETE /api/fonds-caisse failed:", err);
     return authErrorResponse(err);
   }
-}
+});

@@ -20,6 +20,7 @@ import {
   type PermissionOverride,
   type PermissionValue,
 } from "@/lib/autorisations-model";
+import { cached, invalidateCache } from "@/lib/ttl-cache";
 import { getDb } from "@/lib/mongodb";
 import { listUsers } from "@/lib/users-repo";
 
@@ -76,6 +77,14 @@ function normalizeOverride(raw: PermissionOverride): PermissionOverride | null {
 
 export async function getAutorisationsConfig(): Promise<AutorisationsConfig> {
   const db = await getDb();
+  return cached(`${db.databaseName}:autorisations`, 15_000, () =>
+    loadAutorisationsConfig(db),
+  );
+}
+
+async function loadAutorisationsConfig(
+  db: Awaited<ReturnType<typeof getDb>>,
+): Promise<AutorisationsConfig> {
   const doc = await db
     .collection<ConfigDoc>("autorisations")
     .findOne({ _id: CONFIG_ID });
@@ -296,6 +305,7 @@ export async function saveAutorisationsConfig(input: {
     },
     { upsert: true },
   );
+  invalidateCache(`${db.databaseName}:autorisations`);
 
   const added = cleaned.length - prev.overrides.length;
   const summary =
@@ -347,5 +357,6 @@ export async function bumpAllSessionTokenVersions(): Promise<number> {
     {},
     { $inc: { tokenVersion: 1 } },
   );
+  invalidateCache(":auth:");
   return result.modifiedCount;
 }

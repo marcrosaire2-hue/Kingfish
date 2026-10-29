@@ -25,12 +25,6 @@ import {
 } from "@/lib/auth-types";
 import { exportAdminUsersExcel } from "@/lib/page-exports";
 import { BrandLoader } from "@/components/brand-loader";
-import { AutorisationsEditor } from "@/components/admin/autorisations-editor";
-import { ConnexionsPanel } from "@/components/admin/connexions-panel";
-import { MailAlertsPanel } from "@/components/admin/mail-alerts-panel";
-import { StockEnforcementPanel } from "@/components/admin/stock-enforcement-panel";
-import { VentesLiveNotifier } from "@/components/admin/ventes-live-notifier";
-import { SiteRolesEditor } from "@/components/reglages/site-roles-editor";
 
 const ALL_ROLES: UserRole[] = ["gerant", "comptable", "daf", "admin"];
 const SITE_ORDER: UserSite[] = ["gbegamey", "zogbo", "tous"];
@@ -41,13 +35,6 @@ const ROLE_SHORT: Record<UserRole, string> = {
   daf: "DAF",
   admin: "Admin",
 };
-
-type AdminSection =
-  | "comptes"
-  | "connexions"
-  | "ventes"
-  | "autorisations"
-  | "mails";
 
 type ActorInfo = Pick<SessionUser, "id" | "username" | "role" | "site"> & {
   isGlobal: boolean;
@@ -137,7 +124,6 @@ export function AdminPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [createMode, setCreateMode] = useState<"single" | "bulk">("single");
   const [createOpen, setCreateOpen] = useState(false);
-  const [section, setSection] = useState<AdminSection>("comptes");
   const [query, setQuery] = useState("");
   const [filterRole, setFilterRole] = useState<UserRole | "all">("all");
   const [filterSite, setFilterSite] = useState<UserSite | "all">("all");
@@ -193,10 +179,6 @@ export function AdminPage() {
   useEffect(() => {
     void load();
   }, []);
-
-  useEffect(() => {
-    if (section !== "comptes") setCreateOpen(false);
-  }, [section]);
 
   function setRole(role: UserRole) {
     if (!actor) {
@@ -339,49 +321,9 @@ export function AdminPage() {
   const actorIsGlobal = actor ? isGlobalAdmin(actor) : true;
   const actorCanDeleteAny =
     !!actor && isExecutiveAdminAccount(actor.username);
-  const showAutorisations = !!actor && actor.role === "admin";
   const bulkExample = actorIsGlobal
     ? "paul;Paul D.;Paul123;gerant;zogbo\naya;Aya S.;Aya1234;admin;gbegamey\nsuper;Aide globale;Super123;admin;tous"
     : `marie;Marie K.;Marie123;gerant;${actor?.site ?? "gbegamey"}\nchef;Chef zone;Chef123;admin;${actor?.site ?? "gbegamey"}`;
-
-  const navItems = useMemo(() => {
-    const items: {
-      id: AdminSection;
-      label: string;
-      hint: string;
-      badge?: number;
-    }[] = [
-      {
-        id: "comptes",
-        label: "Comptes",
-        hint: "Annuaire et accès",
-        badge: loading ? undefined : users.length,
-      },
-      {
-        id: "connexions",
-        label: "Connexions",
-        hint: "Présence en direct",
-      },
-      {
-        id: "ventes",
-        label: "Politiques",
-        hint: "Stock et droits POS",
-      },
-    ];
-    if (showAutorisations) {
-      items.push({
-        id: "autorisations",
-        label: "Autorisations",
-        hint: "Pages par rôle",
-      });
-      items.push({
-        id: "mails",
-        label: "Alertes mail",
-        hint: "Destinataires ventes",
-      });
-    }
-    return items;
-  }, [loading, showAutorisations, users.length]);
 
   const stats = useMemo(() => {
     const active = users.filter((u) => u.active).length;
@@ -428,13 +370,6 @@ export function AdminPage() {
   return (
     <AppShell
       title="Équipe"
-      subtitle={
-        actor
-          ? actorIsGlobal
-            ? "Comptes, présence, politiques de vente et autorisations."
-            : `${adminKindLabel(actor.site)} — périmètre ${SITE_LABELS[actor.site]}.`
-          : "Gestion des comptes et des droits."
-      }
       mainClassName="equipe-page"
     >
       <div className="equipe-canvas">
@@ -446,21 +381,12 @@ export function AdminPage() {
           </span>
           <div className="eq-banner-copy">
             <h2>Équipe</h2>
-            <p>
-              {actor
-              ? actorIsGlobal
-                ? "Comptes, présence, politiques de vente et autorisations."
-                : `${adminKindLabel(actor.site)} — périmètre ${SITE_LABELS[actor.site]}.`
-              : "Gestion des comptes et des droits."}
-            </p>
           </div>
           <div className="eq-banner-side">
-            {section === "comptes" ? (
-              <ExportExcelButton
-                onExport={() => exportAdminUsersExcel(users)}
-                disabled={loading || users.length === 0}
-              />
-            ) : null}
+            <ExportExcelButton
+              onExport={() => exportAdminUsersExcel(users)}
+              disabled={loading || users.length === 0}
+            />
           </div>
           <svg className="eq-banner-art" viewBox="0 0 120 80" aria-hidden focusable="false">
             <circle cx="36" cy="30" r="12" fill="#1d6fd6" />
@@ -471,27 +397,7 @@ export function AdminPage() {
           </svg>
         </header>
 
-        <div className="section-tabs equipe-section-tabs" role="tablist" aria-label="Sections Équipe">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="tab"
-              title={item.hint}
-              aria-selected={section === item.id}
-              className={`section-tab${section === item.id ? " is-active" : ""}`}
-              onClick={() => setSection(item.id)}
-            >
-              {item.label}
-              {item.badge != null ? (
-                <span className="section-count">{item.badge}</span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-
         <div className="equipe-status-row">
-          <VentesLiveNotifier />
           {flash ? (
             <p className="equipe-flash" role="status">
               {flash}
@@ -504,7 +410,7 @@ export function AdminPage() {
           </p>
         ) : null}
 
-          {section === "comptes" ? (
+          {(
             <div className="equipe-section">
               <div className="equipe-kpis" aria-label="Synthèse des comptes">
                 <article className="equipe-kpi">
@@ -856,75 +762,7 @@ export function AdminPage() {
                 </div>
               )}
             </div>
-          ) : null}
-
-          {section === "connexions" ? (
-            <div className="equipe-section">
-              <ConnexionsPanel />
-            </div>
-          ) : null}
-
-          {section === "ventes" ? (
-            <div className="equipe-section">
-            <header className="eq-intro">
-              <i className="eq-ico eq-ico-lg" aria-hidden>
-                <svg viewBox="0 0 24 24" focusable="false"><path d="M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6l-7-3Zm-3 9 2 2 4-4" /></svg>
-              </i>
-              <div>
-                <h3>Politiques de vente</h3>
-                <p>Règles de vente selon le stock, droits par rôle et restrictions par point de vente.</p>
-              </div>
-            </header>
-              <div className="equipe-ventes-stack">
-                <StockEnforcementPanel />
-                <SiteRolesEditor />
-              </div>
-            </div>
-          ) : null}
-
-          {section === "autorisations" && showAutorisations ? (
-            <div className="equipe-section">
-            <header className="eq-intro">
-              <i className="eq-ico eq-ico-lg" aria-hidden>
-                <svg viewBox="0 0 24 24" focusable="false"><path d="M6 11h12v9H6v-9Zm2 0V8a4 4 0 0 1 8 0v3" /></svg>
-              </i>
-              <div>
-                <h3>Autorisations</h3>
-                <p>Choisissez un rôle ou une personne, puis activez les pages auxquelles elle a accès.</p>
-              </div>
-            </header>
-              <AutorisationsEditor embedded />
-            </div>
-          ) : null}
-
-        {section === "mails" && showAutorisations ? (
-          <div className="equipe-section">
-            <header className="eq-intro">
-              <i className="eq-ico eq-ico-lg" aria-hidden>
-                <svg viewBox="0 0 24 24" focusable="false"><path d="M4 6h16v12H4V6Zm0 1 8 6 8-6" /></svg>
-              </i>
-              <div>
-                <h3>Alertes mail</h3>
-                <p>Destinataires du point journalier des ventes et envois manuels.</p>
-              </div>
-            </header>
-            <MailAlertsPanel />
-            <section className="equipe-mail-panel">
-              <h3>Sauvegarde</h3>
-              <p className="muted">
-                Télécharge toute la base en un fichier JSON (hors mots de passe).
-                La restauration reste réservée à la ligne de commande.
-              </p>
-              <a
-                className="btn btn-ghost"
-                href="/api/admin/sauvegarde"
-                download
-              >
-                Télécharger une sauvegarde
-              </a>
-            </section>
-          </div>
-        ) : null}
+          )}
       </div>
 
       <RegistreDrawer

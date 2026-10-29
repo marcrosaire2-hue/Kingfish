@@ -162,17 +162,6 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "create", "update"],
   },
   {
-    id: "rattrapage-ventes",
-    navKey: "rattrapage-ventes",
-    label: "Ventes passées",
-    path: "/rattrapage-ventes",
-    category: "quotidien",
-    description:
-      "Enregistrement des ventes d'un jour passé, pour Zogbo et Gbégamey (administrateur uniquement).",
-    actions: ["access", "view", "create"],
-    sensitive: true,
-  },
-  {
     id: "mouvements-caisse",
     navKey: "mouvements-caisse",
     label: "Mouvements de fonds",
@@ -191,16 +180,6 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     category: "quotidien",
     description: "Achats matières et libellés libres.",
     actions: ["access", "view", "create", "update"],
-  },
-  {
-    id: "tests-plats",
-    navKey: "tests-plats",
-    label: "Tests de plats",
-    path: "/tests-plats",
-    category: "quotidien",
-    description:
-      "Enregistrement des tests de plats (dégustations, essais de recettes). Distinct des ventes : aucun encaissement, aucun CA.",
-    actions: ["access", "view", "create"],
   },
   {
     id: "simulation",
@@ -248,6 +227,37 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     category: "quotidien",
     description: "Emballages et actifs.",
     actions: ["access", "view", "create", "update"],
+  },
+  {
+    id: "journal-direction",
+    navKey: "journal-direction",
+    label: "Journal des ventes direction",
+    path: "/journal-direction",
+    category: "pilotage",
+    description:
+      "Ventes direction : à valider, validées, refusées.",
+    actions: ["access", "view"],
+    sensitive: true,
+  },
+  {
+    id: "droits",
+    navKey: "droits",
+    label: "Droits",
+    path: "/droits",
+    category: "pilotage",
+    description: "Droits de vente par rôle, site et compte.",
+    actions: ["access", "view"],
+    sensitive: true,
+  },
+  {
+    id: "alertes",
+    navKey: "alertes",
+    label: "Alertes",
+    path: "/alertes",
+    category: "pilotage",
+    description: "Destinataires des mails et sauvegarde.",
+    actions: ["access", "view"],
+    sensitive: true,
   },
   {
     id: "journal-ventes",

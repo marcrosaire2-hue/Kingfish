@@ -71,7 +71,7 @@ export function MailAlertsPanel() {
       setFlash(
         body.added === false
           ? "Cette adresse est déjà dans la liste."
-          : "Adresse ajoutée — elle recevra les alertes de vente direction et le point journalier.",
+          : "Adresse ajoutée.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ajout impossible.");
@@ -210,20 +210,13 @@ export function MailAlertsPanel() {
             <span className="equipe-live-dot" aria-hidden />
             {data?.gmailConfigured ? "Gmail branché" : "Gmail non configuré"}
           </span>
-          <h2>Alertes mail — administrateurs</h2>
-          <p>
-            Adresses qui reçoivent un mail (Brevo) à chaque vente direction à
-            valider, ainsi que le point journalier des ventes à minuit. Ajoutez
-            ou retirez les administrateurs concernés ici.
-          </p>
+          <h2>Alertes mail</h2>
         </div>
       </header>
 
       {data && !data.brevoConfigured ? (
         <p className="warn-inline" role="status">
-          La liste est enregistrée ; les alertes de vente direction partiront
-          une fois Brevo configuré sur le serveur (BREVO_API_KEY et
-          BREVO_SENDER_EMAIL).
+          Brevo non configuré : BREVO_API_KEY et BREVO_SENDER_EMAIL manquants.
         </p>
       ) : null}
 
@@ -298,17 +291,12 @@ export function MailAlertsPanel() {
 
         <section className="equipe-mail-panel">
           <h3>Envois manuels</h3>
-          <p className="muted">
-            Pour tester Gmail ou renvoyer le point d’une journée si le cron a
-            manqué.
-          </p>
           <div className="equipe-mail-actions">
             <button
               type="button"
               className="btn btn-ghost"
               disabled={busy || !data?.brevoConfigured || !data?.effective.length}
               onClick={() => void sendBrevoTest()}
-              title="Envoie un mail de test par Brevo à tous les destinataires"
             >
               Tester Brevo
             </button>
@@ -339,12 +327,6 @@ export function MailAlertsPanel() {
               Point du mois
             </button>
           </div>
-          <p className="equipe-mail-note">
-            Automatique : <strong>un seul mail par jour à 00h00</strong>{" "}
-            (Africa/Porto-Novo) avec le détail de toutes les ventes de la
-            journée écoulée — cron <code>?kind=day</code>. Pas de mail à chaque
-            ticket. Optionnel le 1er du mois : <code>?kind=month</code>.
-          </p>
         </section>
       </div>
     </div>

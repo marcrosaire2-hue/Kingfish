@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
 import type { GbegameyLocalLine, GbegameyTransferLine } from "@/lib/types";
@@ -61,7 +62,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireGbegameyAccess();
     requireStockWrite(user);
@@ -120,12 +121,12 @@ export async function PUT(request: Request) {
       { status: 500 },
     );
   }
-}
+});
 
 /** Les réceptions Zogbo → Gbégamey n'existent plus : les sites sont indépendants. */
-export async function POST() {
+export const POST = withLiveBump(async function POST() {
   return NextResponse.json(
     { error: "Les réceptions Zogbo → Gbégamey n'existent plus." },
     { status: 410 },
   );
-}
+});

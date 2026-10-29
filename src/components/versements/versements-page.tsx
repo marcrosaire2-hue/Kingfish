@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import {
   useCallback,
   useEffect,
@@ -215,12 +216,12 @@ export function VersementsPage() {
     if (user?.shift) setTranche(defaultTrancheFromShift(user.shift));
   }, [user?.shift]);
 
-  const charger = useCallback(async () => {
+  const charger = useCallback(async (silent = false) => {
     if (!scope) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -711,6 +712,8 @@ export function VersementsPage() {
       setBusy(false);
     }
   }
+
+  useLiveRefresh(() => void charger(true));
 
   const siteLocked = scope === "zogbo" || scope === "gbegamey";
   const periodHint = followAll

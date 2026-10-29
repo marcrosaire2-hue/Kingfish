@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { ROLE_LABELS, roleNavUnscoped, type UserRole } from "@/lib/auth-types";
@@ -108,7 +109,7 @@ export async function GET() {
   }
 }
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireAutorisationsAdmin();
     const body = (await request.json()) as {
@@ -179,4 +180,4 @@ export async function PUT(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});

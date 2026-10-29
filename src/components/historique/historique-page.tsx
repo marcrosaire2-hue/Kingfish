@@ -1,7 +1,9 @@
 "use client";
 
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { ConnexionsPanel } from "@/components/admin/connexions-panel";
 import { BrandLoader } from "@/components/brand-loader";
 import { DashboardShell } from "@/components/dashboard/dashboard-layout";
 import { ExportExcelButton } from "@/components/export-excel-button";
@@ -190,6 +192,7 @@ export function HistoriquePage({
   const startSite = parseSite(initialSite) ?? "all";
   const startKind = parseKind(initialKind) ?? "all";
 
+  const [vue, setVue] = useState<"registre" | "connexions">("registre");
   const [from, setFrom] = useState(startFrom);
   const [to, setTo] = useState(startTo);
   const [kind, setKind] = useState<KindFilter>(startKind);
@@ -229,8 +232,8 @@ export function HistoriquePage({
     }
   };
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
@@ -339,6 +342,8 @@ export function HistoriquePage({
       ? formatDateLong(from)
       : `${formatDateShort(from)} → ${formatDateShort(to)}`;
 
+  useLiveRefresh(() => void load(true));
+
   const pageSubtitle =
     lockedSite && site !== "all"
       ? `Mouvements et comptes · ${siteLabel(site)}`
@@ -388,6 +393,30 @@ export function HistoriquePage({
           </svg>
         </header>
 
+        <div className="section-tabs" role="tablist" aria-label="Registre">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={vue === "registre"}
+            className={`section-tab${vue === "registre" ? " is-active" : ""}`}
+            onClick={() => setVue("registre")}
+          >
+            Registre
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={vue === "connexions"}
+            className={`section-tab${vue === "connexions" ? " is-active" : ""}`}
+            onClick={() => setVue("connexions")}
+          >
+            Connexions
+          </button>
+        </div>
+
+        {vue === "connexions" ? <ConnexionsPanel /> : null}
+
+        <div hidden={vue !== "registre"} className="rg-registre-body">
         <section className="panel rg-toolbar" aria-label="Filtres du registre">
           <div className="rg-toolbar-top">
             <div className="rg-periods" role="tablist" aria-label="Période">
@@ -759,6 +788,7 @@ export function HistoriquePage({
                   </section>
                 )
               : null}
+        </div>
         </div>
       </DashboardShell>
     </AppShell>

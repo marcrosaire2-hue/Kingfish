@@ -23,7 +23,6 @@ import {
   deleteVentePermanently,
   getVenteBoard,
   recordVente,
-  releaseDirectionPending,
   undoVente,
 } from "@/lib/vente-repo";
 import {
@@ -302,7 +301,7 @@ export async function validatePosTicket(input: {
     : null;
 
   const saleType = input.saleType || "Sur place";
-  // Vente direction : le stock sort, mais ni CA ni caisse avant validation admin.
+  // Vente direction : ni stock, ni CA, ni caisse — validation admin requise.
   const directionPending = input.venteOrigine === "direction";
 
   const reductionRaw = Math.round(Number(input.reduction) || 0);
@@ -540,21 +539,23 @@ export async function validatePosTicket(input: {
 export async function listDirectionTickets(input: {
   from: string;
   to: string;
-}): Promise<{ pending: PosTicket[]; validated: PosTicket[] }> {
+}): Promise<PosTicket[]> {
   const db = await getDb();
-  const col = db.collection<TicketDoc>("pos_tickets");
-  const [pending, validated] = await Promise.all([
-    col.find({ statut: "en_attente" }).sort({ at: 1 }).limit(300).toArray(),
-    col
-      .find({
-        statut: "direction_validee",
-        date: { $gte: input.from, $lte: input.to },
-      })
-      .sort({ at: -1 })
-      .limit(2000)
-      .toArray(),
-  ]);
-  return { pending: pending.map(toTicket), validated: validated.map(toTicket) };
+  // Journal : toutes les ventes direction de la période (à valider, validées,
+  // refusées) + celles encore à valider, quel que soit leur jour.
+  const docs = await db
+    .collection<TicketDoc>("pos_tickets")
+    .find({
+      venteOrigine: "direction",
+      $or: [
+        { statut: "en_attente" },
+        { date: { $gte: input.from, $lte: input.to } },
+      ],
+    })
+    .sort({ date: -1, at: -1 })
+    .limit(3000)
+    .toArray();
+  return docs.map(toTicket);
 }
 
 /**
@@ -659,15 +660,9 @@ export async function cancelPosTicket(input: {
     shift: input.user.shift,
   };
 
-  // Vente direction refusée ou annulée : ses lignes sont « hors CA » ; on les
-  // libère pour que undoVente puisse les annuler et reprendre le stock.
+  // Vente direction : ses lignes n'ont jamais touché au stock (undoVente le gère).
   const wasPending =
     doc.statut === "en_attente" || doc.statut === "direction_validee";
-  if (wasPending) {
-    await releaseDirectionPending(
-      (doc.lines || []).flatMap((l) => (l.venteLogId ? [l.venteLogId] : [])),
-    );
-  }
 
   for (const line of doc.lines || []) {
     if (!line.venteLogId) continue;

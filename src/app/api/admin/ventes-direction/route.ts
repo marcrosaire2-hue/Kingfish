@@ -8,8 +8,8 @@ export const runtime = "nodejs";
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Ventes direction (hors CA clients) : file « à valider » sur tous les jours
- * et sites, validées de la période, totaux par site.
+ * Journal des ventes direction (hors CA clients, sans effet sur le stock) :
+ * toutes les ventes de la période, tous statuts, plus celles encore à valider.
  */
 export async function GET(request: Request) {
   try {
@@ -20,36 +20,8 @@ export async function GET(request: Request) {
     const toRaw = searchParams.get("to") ?? "";
     const from = DATE_RE.test(fromRaw) ? fromRaw : `${today.slice(0, 8)}01`;
     const to = DATE_RE.test(toRaw) ? toRaw : today;
-
-    const { pending, validated } = await listDirectionTickets({ from, to });
-
-    const totals: Record<string, { count: number; montant: number }> = {
-      zogbo: { count: 0, montant: 0 },
-      gbegamey: { count: 0, montant: 0 },
-    };
-    for (const t of validated) {
-      const bucket = totals[t.site];
-      if (!bucket) continue;
-      bucket.count += 1;
-      bucket.montant += t.montant;
-    }
-    return NextResponse.json({
-      from,
-      to,
-      pending,
-      validated,
-      totals: {
-        ...totals,
-        all: {
-          count: validated.length,
-          montant: validated.reduce((s, t) => s + t.montant, 0),
-        },
-        pending: {
-          count: pending.length,
-          montant: pending.reduce((s, t) => s + t.montant, 0),
-        },
-      },
-    });
+    const tickets = await listDirectionTickets({ from, to });
+    return NextResponse.json({ from, to, tickets });
   } catch (error) {
     return authErrorResponse(error);
   }

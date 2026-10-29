@@ -64,8 +64,8 @@ export async function POST(request: Request) {
       await sendBrevoMail({
         to,
         subject: "[King Fish] Test d'envoi des alertes",
-        text: `Test d'envoi demandé par ${admin.username}. Vous recevrez ici les ventes direction à valider.`,
-        html: `<p>Test d'envoi demandé par <strong>${admin.username.replace(/[<>&"]/g, "")}</strong>.</p><p>Vous recevrez ici les ventes direction à valider.</p>`,
+        text: `Test d'envoi demandé par ${admin.username}.`,
+        html: `<p>Test d'envoi demandé par <strong>${admin.username.replace(/[<>&"]/g, "")}</strong>.</p>`,
       });
       return NextResponse.json({ ok: true, sent: to.length });
     }

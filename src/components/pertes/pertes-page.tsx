@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
@@ -143,8 +144,8 @@ export function PertesPage() {
   }, []);
 
   const charger = useCallback(
-    async (jour: string, point: VenteSite) => {
-      setLoading(true);
+    async (jour: string, point: VenteSite, silent = false) => {
+      if (!silent) setLoading(true);
       setError(null);
       try {
         const journalRes = await fetch(
@@ -383,6 +384,8 @@ export function PertesPage() {
       setBusy(false);
     }
   }
+
+  useLiveRefresh(() => void charger(date, site, true));
 
   const actives = pertes.filter((p) => !p.cancelledAt);
   const coutDuJour = actives.reduce((s, p) => s + p.cost, 0);

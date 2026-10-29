@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import {
@@ -105,7 +106,7 @@ export async function GET(request: Request) {
  * Admin : capital initial, ajout de fonds, ou remplacement du capital.
  * Pas de saisie de versements, achats ou dépenses (réservée à la caisse / achats).
  */
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireUser();
     assertAdmin(user);
@@ -299,4 +300,4 @@ export async function POST(request: Request) {
     }
     return authErrorResponse(error);
   }
-}
+});

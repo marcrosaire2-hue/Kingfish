@@ -12,16 +12,21 @@ export default function manifest(): MetadataRoute.Manifest {
     description: APP_TAGLINE,
     start_url: "/vente",
     display: "standalone",
-    orientation: "portrait",
     background_color: "#0b1a2e",
     theme_color: "#005098",
     lang: "fr",
     icons: [
       {
-        src: "/logo-king-fish.jpg",
+        src: "/icon.png",
         sizes: "512x512",
-        type: "image/jpeg",
+        type: "image/png",
         purpose: "any",
+      },
+      {
+        src: "/icon.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
       },
     ],
   };

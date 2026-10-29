@@ -236,7 +236,7 @@ export function ParametresEditor({
       : zone === "gbegamey"
         ? GBEGAMEY_SECTIONS.find((s) => s.key === gbegameySection)?.hint
         : zone === "categories"
-          ? "Créez vos propres catégories de vente (ex. Dessert) puis ajoutez-y des articles. Chaque catégorie devient un onglet de la page Vente ; ses articles sont vendus sans stock, au prix indiqué."
+          ? ""
           : CUISINE_SECTIONS.find((s) => s.key === cuisineSection)?.hint;
 
   const rawMaterials = data.rawMaterials ?? [];
@@ -441,12 +441,14 @@ export function ParametresEditor({
           )}
       </>
 
-      <div className="ui-info" role="note">
-        <span className="ui-info-mark" aria-hidden>
-          i
-        </span>
-        <p>{sectionHint}</p>
-      </div>
+      {sectionHint ? (
+        <div className="ui-info" role="note">
+          <span className="ui-info-mark" aria-hidden>
+            i
+          </span>
+          <p>{sectionHint}</p>
+        </div>
+      ) : null}
 
       {zone === "zogbo" && zogboSection === "base" ? (
         <BaseDishesTable
@@ -983,9 +985,6 @@ function CategoriesEditor({
         </form>
       </section>
 
-      {categories.length === 0 ? (
-        <p className="section-hint">Aucune catégorie personnalisée.</p>
-      ) : null}
 
       {categories.map((cat) => {
         const rows = products.filter((p) => p.categoryId === cat.id);

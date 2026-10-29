@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import {
   AuthError,
@@ -56,7 +57,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const admin = await requireUserManagementAdmin();
     const body = (await request.json()) as {
@@ -110,4 +111,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});

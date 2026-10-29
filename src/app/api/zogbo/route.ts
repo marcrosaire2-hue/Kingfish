@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
 import type {
@@ -87,7 +88,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireZogboAccess();
     requireStockWrite(user);
@@ -134,10 +135,10 @@ export async function PUT(request: Request) {
       { status: 500 },
     );
   }
-}
+});
 
 /** Ajoute un mouvement (préparé / envoi) — met à jour le stock et le registre */
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireZogboAccess();
     requireStockWrite(user);
@@ -225,4 +226,4 @@ export async function POST(request: Request) {
         : 500;
     return NextResponse.json({ error: message }, { status });
   }
-}
+});

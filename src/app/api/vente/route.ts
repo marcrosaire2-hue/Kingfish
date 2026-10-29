@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import {
@@ -13,7 +14,10 @@ import {
   isValidAuditReason,
   parseFiniteAmount,
 } from "@/lib/security-policy";
-import { ventePermissionsFor } from "@/lib/site-roles-model";
+import {
+  resolveConfigForUser,
+  ventePermissionsFor,
+} from "@/lib/site-roles-model";
 import {
   authorizePermanentDelete,
   authorizeVenteAction,
@@ -115,7 +119,7 @@ export async function GET(request: Request) {
       getVenteBoard(date, site, { recentLimit }),
       getSiteRolesConfig(),
     ]);
-    const ventePerms = ventePermissionsFor(siteRoles, user.role, site);
+    const ventePerms = ventePermissionsFor(siteRoles, user.role, site, user.id);
     return NextResponse.json({
       ...board,
       backdate: allowBackdate && date < todayIsoDate(),
@@ -127,7 +131,7 @@ export async function GET(request: Request) {
         user.site === "tous"
           ? (["zogbo", "gbegamey"] as VenteSite[])
           : [user.site],
-      sitePolicies: siteRoles,
+      sitePolicies: resolveConfigForUser(siteRoles, user.role, user.id),
       ventePermissions: ventePerms,
     });
   } catch (error) {
@@ -135,7 +139,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireUser();
     const actor = actorOf(user);
@@ -229,6 +233,7 @@ export async function POST(request: Request) {
       const gate = authorizeVenteAction({
         config: siteRoles,
         role: user.role,
+        userId: user.id,
         site,
         action: "cancel",
       });
@@ -256,6 +261,7 @@ export async function POST(request: Request) {
       const gate = authorizeVenteAction({
         config: siteRoles,
         role: user.role,
+        userId: user.id,
         site,
         action: "modify",
       });
@@ -342,6 +348,7 @@ export async function POST(request: Request) {
       const gate = authorizePermanentDelete({
         config: siteRoles,
         role: user.role,
+        userId: user.id,
         site,
         reason: body.reason,
       });
@@ -376,6 +383,7 @@ export async function POST(request: Request) {
       const gate = authorizePermanentDelete({
         config: siteRoles,
         role: user.role,
+        userId: user.id,
         site,
         reason: body.reason,
         confirm: body.confirm,
@@ -428,6 +436,7 @@ export async function POST(request: Request) {
     const sellGate = authorizeVenteAction({
       config: siteRoles,
       role: user.role,
+        userId: user.id,
       site,
       action: "sell",
     });
@@ -487,4 +496,4 @@ export async function POST(request: Request) {
     reportError("POST /api/vente", error);
     return authErrorResponse(error);
   }
-}
+});

@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite, effectiveSite } from "@/lib/auth-types";
@@ -86,7 +87,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireUser();
     const scope = effectiveSite(user.role, user.site);
@@ -138,4 +139,4 @@ export async function POST(request: Request) {
     reportError("POST /api/compteur", error);
     return NextResponse.json({ error: message }, { status: 400 });
   }
-}
+});

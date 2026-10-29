@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { homeForRole } from "@/lib/auth-types";
 import { resolveEffectiveNav } from "@/lib/autorisations-repo";
@@ -26,7 +26,8 @@ export async function GET(request: Request) {
     const user = await requireUser();
     const nav = await resolveEffectiveNav(user);
     const ip = clientIpFrom(request);
-    await touchConnexionSession({ user, ip }).catch(() => undefined);
+    // Présence en ligne : écrite après l'envoi de la réponse, sans la retarder.
+    after(() => touchConnexionSession({ user, ip }).catch(() => undefined));
     return NextResponse.json({
       user: { ...user, nav },
       nav,

@@ -80,10 +80,17 @@
     content: "";
     position: absolute;
     inset: auto 0 0 0;
-    height: 15rem;
-    opacity: 0.5;
+    height: 17rem;
     pointer-events: none;
-    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 280 240' preserveAspectRatio='none'%3E%3Cpath d='M0 240V150l45-55 30 38 55-80 60 85 35-40 55 70v72Z' fill='%231a56a8' fill-opacity='.45'/%3E%3Cpath d='M0 240V190l60-45 40 30 70-60 60 70 50-30v85Z' fill='%23123f80' fill-opacity='.6'/%3E%3C/svg%3E") bottom / cover no-repeat;
+    /* Photo de montagne sous un voile marine : le menu reste lisible. */
+    background:
+      linear-gradient(
+        180deg,
+        #062b55 0%,
+        rgb(6 43 85 / 0.6) 40%,
+        rgb(5 34 74 / 0.55) 100%
+      ),
+      url("/menu-montagne.jpg") center bottom / cover no-repeat;
   }
 
   .sidebar-footer,

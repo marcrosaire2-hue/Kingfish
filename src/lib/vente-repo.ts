@@ -79,8 +79,7 @@ type VenteLogDoc = {
   source?: string | null;
   caExcluded?: boolean;
   /**
-   * Vente direction en attente de validation admin : hors CA (caExcluded) mais
-   * le stock est bien sorti — voir venteLogStockActive.
+   * Vente direction : hors CA (caExcluded) et sans aucun effet sur le stock.
    */
   directionPending?: boolean;
   /** Unité QR tracée vendue avec cette ligne */
@@ -1312,9 +1311,12 @@ export async function recordVente(input: {
     assertGbegameyEmployeeVentePlanning({ username: input.actor.username });
   }
 
-  await assertDayNotClosed(input.date, input.site, input.kind, {
-    bypassClosedDay: input.bypassClosedDay,
-  });
+  // Vente direction : indépendante du stock, donc aussi du jour clôturé.
+  if (!input.directionPending) {
+    await assertDayNotClosed(input.date, input.site, input.kind, {
+      bypassClosedDay: input.bypassClosedDay,
+    });
+  }
 
   // Article d'une catégorie personnalisée : pas de stock, prix du catalogue.
   if (input.kind === "extra") {
@@ -1326,7 +1328,7 @@ export async function recordVente(input: {
   // Régularisation gérant : pas de plafond (maxSold null).
   let maxSold: number | null = null;
   const dayFreeSale = await isVentesSansStockActive(input.date, input.site);
-  if (qty > 0 && !input.bypassStock && !input.qrId) {
+  if (qty > 0 && !input.bypassStock && !input.qrId && !input.directionPending) {
     if (input.kind === "plat") {
       const { left, maxSold: max } = await getBaseDishStockLeft(
         input.date,
@@ -1436,14 +1438,17 @@ export async function recordVente(input: {
     }
   }
 
-  const result = await applySoldDelta({
-    date: input.date,
-    site: input.site,
-    kind: input.kind,
-    productId: input.productId,
-    delta: qty,
-    maxSold,
-  });
+  // Vente direction : le stock n'est ni vérifié ni décrémenté.
+  const result = input.directionPending
+    ? { name: target.name, costPrice: target.costPrice, soldToday: 0 }
+    : await applySoldDelta({
+        date: input.date,
+        site: input.site,
+        kind: input.kind,
+        productId: input.productId,
+        delta: qty,
+        maxSold,
+      });
 
   const at = new Date().toISOString();
   const amount = Math.abs(qty) * unitPrice;
@@ -1474,16 +1479,18 @@ export async function recordVente(input: {
         : {}),
     });
   } catch (error) {
-    try {
-      await applySoldDelta({
-        date: input.date,
-        site: input.site,
-        kind: input.kind,
-        productId: input.productId,
-        delta: -qty,
-      });
-    } catch {
-      /* best effort : le compteur sold ne doit pas rester sans journal */
+    if (!input.directionPending) {
+      try {
+        await applySoldDelta({
+          date: input.date,
+          site: input.site,
+          kind: input.kind,
+          productId: input.productId,
+          delta: -qty,
+        });
+      } catch {
+        /* best effort : le compteur sold ne doit pas rester sans journal */
+      }
     }
     throw error;
   }
@@ -1762,6 +1769,36 @@ export async function undoVente(input: {
   entry: { id: string; name: string; amount: number };
 }> {
   const db = await getDb();
+
+  // Ligne d'une vente direction : jamais de stock, simple marquage « annulée ».
+  const directionDoc = await db.collection<VenteLogDoc>("ventes_log").findOne({
+    _id: new ObjectId(input.id),
+    site: input.site,
+    directionPending: true,
+    cancelledAt: null,
+  });
+  if (directionDoc) {
+    await db.collection<VenteLogDoc>("ventes_log").updateOne(
+      { _id: directionDoc._id, cancelledAt: null },
+      {
+        $set: {
+          cancelledAt: new Date().toISOString(),
+          cancelledById: input.actor?.id ?? null,
+          cancelledByName: input.actor?.name ?? null,
+          cancelledByUsername: input.actor?.username ?? null,
+        },
+      },
+    );
+    return {
+      board: await getVenteBoard(input.date, input.site),
+      entry: {
+        id: directionDoc._id.toHexString(),
+        name: directionDoc.name,
+        amount: directionDoc.amount,
+      },
+    };
+  }
+
   const doc = await db.collection<VenteLogDoc>("ventes_log").findOne({
     _id: new ObjectId(input.id),
     site: input.site,
@@ -2291,27 +2328,8 @@ export async function editVenteFull(input: {
 }
 
 function venteLogStockActive(doc: VenteLogDoc): boolean {
-  return (
-    !doc.cancelledAt &&
-    (doc.caExcluded !== true || doc.directionPending === true) &&
-    doc.kind !== "extra"
-  );
-}
-
-/**
- * Sort des lignes d'une vente direction de l'état « en attente » : elles
- * rejoignent le CA (validation) ou redeviennent annulables (refus).
- */
-export async function releaseDirectionPending(ids: string[]): Promise<void> {
-  const oids = ids.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id));
-  if (!oids.length) return;
-  const db = await getDb();
-  await db
-    .collection<VenteLogDoc>("ventes_log")
-    .updateMany(
-      { _id: { $in: oids }, directionPending: true },
-      { $unset: { caExcluded: "", directionPending: "" } },
-    );
+  // Les lignes « direction » sont caExcluded : aucun stock à reprendre.
+  return !doc.cancelledAt && doc.caExcluded !== true && doc.kind !== "extra";
 }
 
 type PosTicketLineDoc = {
