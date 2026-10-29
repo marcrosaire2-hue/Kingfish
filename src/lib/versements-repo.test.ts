@@ -3,6 +3,7 @@ import {
   assertPreuveFile,
   canCancelPendingVersement,
   canCancelVersement,
+  canDeleteVersement,
   canConfirmVersement,
   canCorrectVersement,
   canDeclareVersement,
@@ -17,16 +18,28 @@ import {
 } from "@/lib/versements-model";
 
 describe("droits versements", () => {
-  it("seul le gérant déclare ; seul le comptable confirme ; admin/DAF lecteurs", () => {
+  it("gérant et admin déclarent ; comptable et admin confirment ; DAF lecteur", () => {
     expect(canDeclareVersement("gerant")).toBe(true);
-    expect(canDeclareVersement("admin")).toBe(false);
+    expect(canDeclareVersement("admin")).toBe(true);
     expect(canDeclareVersement("comptable")).toBe(false);
     expect(canDeclareVersement("daf")).toBe(false);
 
     expect(canConfirmVersement("comptable")).toBe(true);
+    expect(canConfirmVersement("admin")).toBe(true);
     expect(canConfirmVersement("daf")).toBe(false);
-    expect(canConfirmVersement("admin")).toBe(false);
     expect(canConfirmVersement("gerant")).toBe(false);
+  });
+
+  it("l'admin annule un versement confirmé et le supprime ; les autres non", () => {
+    expect(canCancelVersement("admin", "en_attente")).toBe(true);
+    expect(canCancelVersement("admin", "confirmee")).toBe(true);
+    expect(canCancelVersement("admin", "annulee")).toBe(false);
+    expect(canCancelVersement("gerant", "confirmee")).toBe(false);
+    expect(canCancelVersement("comptable", "confirmee")).toBe(false);
+    expect(canDeleteVersement("admin")).toBe(true);
+    for (const role of ["gerant", "comptable", "daf"] as const) {
+      expect(canDeleteVersement(role)).toBe(false);
+    }
   });
 
   it("le gérant peut modifier et annuler un versement en attente seulement", () => {

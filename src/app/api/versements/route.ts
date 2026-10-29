@@ -1,22 +1,28 @@
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite, effectiveSite } from "@/lib/auth-types";
-import { logActivity } from "@/lib/log-activity";
+import { logActivity, logCriticalActivity } from "@/lib/log-activity";
 import {
   addCaisseMouvement,
+  cancelCaisseMouvement,
   resolveCaisseForDepense,
 } from "@/lib/caisse-repo";
-import { canCorrectClosedFinancialData } from "@/lib/security-policy";
+import {
+  canCorrectClosedFinancialData,
+  isValidAuditReason,
+} from "@/lib/security-policy";
 import { reportError } from "@/lib/report-error";
 import type { VersementStatut, VenteSite } from "@/lib/types";
 import {
   canCancelPendingVersement,
   canConfirmVersement,
   canDeclareVersement,
+  canDeleteVersement,
   canEditPendingVersement,
   cancelVersement,
   confirmVersement,
   declareVersement,
+  deleteVersementPermanently,
   getVersement,
   getVersementCaisseMouvement,
   listVersements,
@@ -30,6 +36,27 @@ export const runtime = "nodejs";
 function resolveSite(raw: string | null, userSite: string): VenteSite {
   if (raw === "zogbo" || raw === "gbegamey") return raw;
   return userSite === "zogbo" ? "zogbo" : "gbegamey";
+}
+
+/**
+ * Annulation / suppression d'un versement confirmé (admin) : l'entrée de caisse
+ * créée à la confirmation est annulée AVANT, sinon l'argent resterait compté.
+ * Si elle échoue, rien n'est touché.
+ */
+async function reverseCaisseEntry(
+  versementId: string,
+  user: Awaited<ReturnType<typeof requireUser>>,
+): Promise<void> {
+  const mouvementId = await getVersementCaisseMouvement(versementId);
+  if (!mouvementId) return;
+  try {
+    await cancelCaisseMouvement({ mouvementId, user, allowClosed: true });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : "erreur inconnue";
+    // Déjà annulée à la main : rien à reprendre.
+    if (message.includes("déjà annulé")) return;
+    throw new Error(`Entrée de caisse liée non annulée : ${message}`);
+  }
 }
 
 function actorFrom(user: Awaited<ReturnType<typeof requireUser>>) {
@@ -107,6 +134,7 @@ export async function GET(request: Request) {
       canConfirm: canConfirmVersement(user.role),
       canEditPending: canEditPendingVersement(user.role),
       canCancelPending: canCancelPendingVersement(user.role),
+      canDelete: canDeleteVersement(user.role),
       canFollowAll: scope === "tous",
     });
   } catch (error) {
@@ -124,10 +152,16 @@ export async function POST(request: Request) {
 
     if (contentType.includes("application/json")) {
       const body = (await request.json()) as {
-        action?: "confirm" | "cancel";
+        action?: "confirm" | "cancel" | "delete";
         id?: string;
+        reason?: string;
       };
-      if (!body.id || (body.action !== "confirm" && body.action !== "cancel")) {
+      if (
+        !body.id ||
+        (body.action !== "confirm" &&
+          body.action !== "cancel" &&
+          body.action !== "delete")
+      ) {
         return NextResponse.json(
           { error: "Action invalide." },
           { status: 400 },
@@ -148,7 +182,40 @@ export async function POST(request: Request) {
         );
       }
 
+      if (body.action === "delete") {
+        if (!canDeleteVersement(user.role)) {
+          return NextResponse.json(
+            { error: "Suppression réservée à l'administrateur." },
+            { status: 403 },
+          );
+        }
+        if (!isValidAuditReason(body.reason)) {
+          return NextResponse.json(
+            { error: "Motif d'audit requis (au moins 8 caractères)." },
+            { status: 400 },
+          );
+        }
+        await reverseCaisseEntry(body.id, user);
+        const entry = await deleteVersementPermanently({
+          id: body.id,
+          actor: actorFrom(user),
+        });
+        await logCriticalActivity({
+          user,
+          kind: "versements",
+          title: "Versement supprimé définitivement",
+          detail: `Motif : ${String(body.reason).trim()} · ${entry.montant} FCFA · n° ${entry.numeroTransaction} · statut ${entry.statut} · déclaré par ${entry.actorName} (@${entry.actorUsername})`,
+          date: entry.date,
+          site: entry.site,
+          amount: -entry.montant,
+        });
+        return NextResponse.json({ deleted: true, id: body.id });
+      }
+
       if (body.action === "cancel") {
+        if (existing.statut === "confirmee") {
+          await reverseCaisseEntry(body.id, user);
+        }
         const entry = await cancelVersement({
           id: body.id,
           actor: actorFrom(user),

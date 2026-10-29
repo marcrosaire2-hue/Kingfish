@@ -423,6 +423,31 @@ export async function cancelPerte(input: {
   });
 }
 
+/**
+ * Suppression définitive d'une perte (administrateur, via l'API). Une perte
+ * encore active est d'abord annulée pour que le stock soit repris.
+ */
+export async function deletePertePermanently(input: {
+  id: string;
+  actor?: PerteActor | null;
+  bypassClosedDay?: boolean;
+}): Promise<PerteEntry> {
+  if (!ObjectId.isValid(input.id)) throw new Error("Perte introuvable");
+  const db = await getDb();
+  const col = db.collection<PerteDoc>("pertes");
+  const doc = await col.findOne({ _id: new ObjectId(input.id) });
+  if (!doc) throw new Error("Perte introuvable");
+  const entry = doc.cancelledAt
+    ? toEntry(doc)
+    : await cancelPerte({
+        id: input.id,
+        actor: input.actor,
+        bypassClosedDay: input.bypassClosedDay,
+      });
+  await col.deleteOne({ _id: doc._id });
+  return entry;
+}
+
 export async function listPertes(input: {
   date: string;
   site?: VenteSite | "all";

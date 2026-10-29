@@ -698,6 +698,16 @@ export type VentesDaySummary = {
 /** Types de vente POS (AquaPro) */
 export type SaleType = "Sur place" | "Rapido";
 
+/** Destinataire de la vente : un client, ou la direction (mail à l'admin). */
+export type VenteOrigine = "client" | "direction";
+
+export const VENTE_ORIGINES: VenteOrigine[] = ["client", "direction"];
+
+export const VENTE_ORIGINE_LABELS: Record<VenteOrigine, string> = {
+  client: "Vente client",
+  direction: "Vente direction",
+};
+
 /** Immobilisation patrimoniale ou emballage facturable en caisse. */
 export type ImmobilisationKind = "actif" | "emballage";
 
@@ -953,7 +963,16 @@ export type PosTicketLine = {
   qrId?: string | null;
 };
 
-export type PosTicketStatut = "valide" | "annule";
+/**
+ * Ventes direction (jamais dans le CA clients) : « en_attente » tant que
+ * l'admin ne les a pas validées, puis « direction_validee ». « valide » est
+ * réservé aux ventes clients : c'est lui que filtrent tous les calculs de CA.
+ */
+export type PosTicketStatut =
+  | "valide"
+  | "annule"
+  | "en_attente"
+  | "direction_validee";
 
 export type PosTicket = {
   id: string;
@@ -962,6 +981,8 @@ export type PosTicket = {
   site: VenteSite;
   statut: PosTicketStatut;
   saleType: SaleType;
+  /** Absent sur les anciens tickets : équivaut à « client ». */
+  venteOrigine?: VenteOrigine;
   caisseId: string | null;
   paymentMethodId: string | null;
   paymentLabel: string | null;
@@ -980,6 +1001,8 @@ export type PosTicket = {
   shift?: UserShift;
   at: string;
   cancelledAt: string | null;
+  /** Vente direction validée par un admin. */
+  validatedByName?: string | null;
 };
 
 /** Journée matières / appro */

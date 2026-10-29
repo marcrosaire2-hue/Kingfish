@@ -108,7 +108,7 @@ export function adminKindLabel(site: UserSite): string {
 }
 
 export function roleSiteLabel(role: UserRole, site: UserSite): string {
-  if (role === "admin") return adminKindLabel(site);
+  if (role === "admin") return adminKindLabel(effectiveSite(role, site));
   if (role === "daf" || role === "comptable") return ROLE_LABELS[role];
   return `${ROLE_LABELS[role]} · ${SITE_LABELS[site]}`;
 }
@@ -145,8 +145,8 @@ export function isPrincipalAdminAccount(
 }
 
 /**
- * Compte direction (Marc) : vue synthèse + journaux + registre + création
- * d'utilisateurs — sans les écrans opérationnels (vente, caisse, stocks zone…).
+ * Compte direction (Marc) : mêmes écrans que tout administrateur (dont toutes
+ * les pages du Gérant) + gestion de tous les comptes, quelle que soit la zone.
  */
 export function isExecutiveAdminAccount(
   username: string | undefined | null,
@@ -166,21 +166,6 @@ export function canManageUsers(user: {
 }): boolean {
   return user.role === "admin";
 }
-
-const EXECUTIVE_ADMIN_NAV: NavKey[] = [
-  "synthese",
-  "analyse",
-  "mouvements-caisse",
-  "rattrapage-ventes",
-  "fonds-caisse",
-  "versements",
-  "compteur",
-  "journal-ventes",
-  "quantites-vendues",
-  "historique",
-  "rapport-quotidien",
-  "admin",
-];
 
 /** Rôles qu’un admin peut attribuer. */
 export function rolesCreatableBy(actor: {
@@ -390,6 +375,10 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "historique",
     "admin",
     "rapport-quotidien",
+    // Pages Gérant / finance : l'administrateur a tout.
+    "depenses",
+    "compte-resultat",
+    "comptabilite",
   ],
 };
 
@@ -403,7 +392,8 @@ export function sitesForRole(role: UserRole): UserSite[] {
     // Multi-sites : les deux restaurants.
     return ["tous"];
   }
-  return ["zogbo", "gbegamey", "tous"];
+  // Administrateur : un seul niveau, les deux sites.
+  return ["tous"];
 }
 
 export function defaultSiteForRole(role: UserRole): UserSite {
@@ -412,6 +402,8 @@ export function defaultSiteForRole(role: UserRole): UserSite {
 }
 
 export function assertValidRoleSite(role: UserRole, site: UserSite): void {
+  // Anciens admins « de zone » : toujours acceptés, traités comme globaux.
+  if (role === "admin") return;
   if (!sitesForRole(role).includes(site)) {
     throw new Error(
       "Ce rôle doit être rattaché à un seul site (Zogbo ou Gbégamey).",
@@ -421,6 +413,8 @@ export function assertValidRoleSite(role: UserRole, site: UserSite): void {
 
 /** Corrige les anciens comptes encore en « tous » : une zone unique fait foi. */
 export function effectiveSite(role: UserRole, site: UserSite): UserSite {
+  // Tous les administrateurs ont le même périmètre : les deux sites.
+  if (role === "admin") return "tous";
   if (role === "gerant" && site === "tous") {
     return "gbegamey";
   }
@@ -430,11 +424,8 @@ export function effectiveSite(role: UserRole, site: UserSite): UserSite {
 /** Menu code du rôle sans filtre de site (héritage matrice Autorisations). */
 export function roleNavUnscoped(
   role: UserRole,
-  username?: string,
+  _username?: string,
 ): NavKey[] {
-  if (role === "admin" && username && isExecutiveAdminAccount(username)) {
-    return stripRoleDeniedNavKeys([...EXECUTIVE_ADMIN_NAV], role);
-  }
   return stripRoleDeniedNavKeys([...ROLE_NAV[role]], role);
 }
 
@@ -453,13 +444,6 @@ const COMPTABLE_DENIED_NAV: readonly NavKey[] = ["analyse", "historique"];
 /** Pages refusées au gérant même si un JWT / une matrice les réintroduit. */
 const GERANT_DENIED_NAV: readonly NavKey[] = ["analyse", "immobilisations"];
 
-/** Pages refusées à l’admin (finance réservée DAF / comptable ; dépenses opérationnelles). */
-const ADMIN_DENIED_NAV: readonly NavKey[] = [
-  "compte-resultat",
-  "comptabilite",
-  "depenses",
-];
-
 export function stripRoleDeniedNavKeys(
   keys: NavKey[],
   role: UserRole,
@@ -473,9 +457,7 @@ export function stripRoleDeniedNavKeys(
   if (role === "comptable") {
     return keys.filter((k) => !COMPTABLE_DENIED_NAV.includes(k));
   }
-  if (role === "admin") {
-    return keys.filter((k) => !ADMIN_DENIED_NAV.includes(k));
-  }
+  // Administrateur : aucune page refusée.
   return keys;
 }
 
@@ -505,9 +487,6 @@ export function navForUser(
   site: UserSite,
   username?: string,
 ): NavKey[] {
-  if (role === "admin" && username && isExecutiveAdminAccount(username)) {
-    return filterNavKeysBySite([...EXECUTIVE_ADMIN_NAV], role, site);
-  }
   return filterNavKeysBySite([...ROLE_NAV[role]], role, site);
 }
 
@@ -530,8 +509,10 @@ export function navForSession(user: {
   username: string;
   nav?: NavKey[];
 }): NavKey[] {
+  // Administrateur : menu toujours recalculé, jamais celui figé dans la
+  // session — il suit immédiatement les pages ajoutées, sans reconnexion.
   const keys =
-    user.nav && user.nav.length > 0
+    user.role !== "admin" && user.nav && user.nav.length > 0
       ? [...user.nav]
       : navForUser(user.role, user.site, user.username);
   return filterNavKeysBySite(keys, user.role, user.site);
@@ -662,7 +643,8 @@ export function canAccessPath(
     return true;
   }
   const allowed = filterNavKeysBySite(
-    navOverride ?? navForUser(role, site, username),
+    (role !== "admin" ? navOverride : undefined) ??
+      navForUser(role, site, username),
     role,
     site,
   );

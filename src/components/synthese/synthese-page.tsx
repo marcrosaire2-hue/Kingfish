@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
+import { DirectionSalesPanel } from "@/components/admin/direction-sales-panel";
+import { MailAlertsPanel } from "@/components/admin/mail-alerts-panel";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { PriceInput } from "@/components/parametres/price-input";
 import {
@@ -1065,6 +1067,9 @@ export function SynthesePage() {
             </div>
           </section>
         ) : null}
+
+        {role === "admin" ? <DirectionSalesPanel /> : null}
+        {role === "admin" ? <MailAlertsPanel /> : null}
       </div>
     </AppShell>
   );

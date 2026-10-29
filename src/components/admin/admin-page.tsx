@@ -909,6 +909,20 @@ export function AdminPage() {
               </div>
             </header>
             <MailAlertsPanel />
+            <section className="equipe-mail-panel">
+              <h3>Sauvegarde</h3>
+              <p className="muted">
+                Télécharge toute la base en un fichier JSON (hors mots de passe).
+                La restauration reste réservée à la ligne de commande.
+              </p>
+              <a
+                className="btn btn-ghost"
+                href="/api/admin/sauvegarde"
+                download
+              >
+                Télécharger une sauvegarde
+              </a>
+            </section>
           </div>
         ) : null}
       </div>

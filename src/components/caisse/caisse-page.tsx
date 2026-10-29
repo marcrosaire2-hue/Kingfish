@@ -109,6 +109,7 @@ export function CaissePage() {
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [canReopen, setCanReopen] = useState(false);
   const [soldeInitial, setSoldeInitial] = useState("0");
   const [soldePhysique, setSoldePhysique] = useState("");
   const [commentaire, setCommentaire] = useState("");
@@ -133,6 +134,7 @@ export function CaissePage() {
       setBoard(body as Board);
       if (body.caisse) setCaisse(body.caisse as CaisseKey);
       setAllowed((body.allowedCaisses as CaisseKey[]) || []);
+      setCanReopen(body.canReopen === true);
       if (body.active?.id) {
         await loadDetail(body.active.id);
       } else {
@@ -229,6 +231,21 @@ export function CaissePage() {
       setJustificationEcart("");
       setFlash("Caisse clôturée — écart et soldes enregistrés.");
     }
+  }
+
+  async function reopenSession(id: string, jour: string) {
+    const reason = window.prompt(
+      `Rouvrir la caisse du ${jour} ? La clôture sera annulée.\nMotif (8 caractères minimum) :`,
+    );
+    if (!reason || reason.trim().length < 8) {
+      if (reason !== null) setError("Motif requis (au moins 8 caractères).");
+      return;
+    }
+    const ok = await post(
+      { action: "reopen", id, reason: reason.trim() },
+      "Échec réouverture",
+    );
+    if (ok) setFlash(`Caisse du ${jour} rouverte.`);
   }
 
   async function startComptage() {
@@ -958,6 +975,19 @@ export function CaissePage() {
                               {s.justificationEcart?.trim() ||
                                 s.commentaire?.trim() ||
                                 "—"}
+                              {canReopen && s.statut === "fermee" ? (
+                                <>
+                                  {" "}
+                                  <button
+                                    type="button"
+                                    className="btn-link"
+                                    disabled={busy}
+                                    onClick={() => void reopenSession(s.id, s.date)}
+                                  >
+                                    Rouvrir
+                                  </button>
+                                </>
+                              ) : null}
                             </td>
                           </tr>
                         );

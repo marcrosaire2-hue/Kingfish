@@ -8,6 +8,8 @@ type Payload = {
   envEmails: string[];
   effective: string[];
   gmailConfigured: boolean;
+  brevoConfigured: boolean;
+  brevoStatus?: { ok: boolean; at: string; error?: string | null } | null;
   error?: string;
 };
 
@@ -69,7 +71,7 @@ export function MailAlertsPanel() {
       setFlash(
         body.added === false
           ? "Cette adresse est déjà dans la liste."
-          : "Adresse ajoutée — elle recevra les mails de vente.",
+          : "Adresse ajoutée — elle recevra les alertes de vente direction et le point journalier.",
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ajout impossible.");
@@ -103,6 +105,27 @@ export function MailAlertsPanel() {
       setFlash("Adresse retirée.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Suppression impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendBrevoTest() {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/admin/mail-alerts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test-brevo" }),
+      });
+      const body = (await res.json()) as { sent?: number; error?: string };
+      if (!res.ok) throw new Error(body.error || "Envoi impossible.");
+      setFlash(`Mail de test envoyé à ${body.sent ?? 0} destinataire(s).`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Envoi impossible.");
     } finally {
       setBusy(false);
     }
@@ -176,23 +199,38 @@ export function MailAlertsPanel() {
       <header className="equipe-mail-hero">
         <div>
           <span
+            className={`equipe-live-pill${data?.brevoConfigured ? " is-on" : ""}`}
+          >
+            <span className="equipe-live-dot" aria-hidden />
+            {data?.brevoConfigured ? "Brevo branché" : "Brevo non configuré"}
+          </span>{" "}
+          <span
             className={`equipe-live-pill${data?.gmailConfigured ? " is-on" : ""}`}
           >
             <span className="equipe-live-dot" aria-hidden />
             {data?.gmailConfigured ? "Gmail branché" : "Gmail non configuré"}
           </span>
-          <h2>Alertes mail — ventes</h2>
+          <h2>Alertes mail — administrateurs</h2>
           <p>
-            Destinataires du point journalier de toutes les ventes (envoi
-            automatique à minuit). Accessible à tous les administrateurs.
+            Adresses qui reçoivent un mail (Brevo) à chaque vente direction à
+            valider, ainsi que le point journalier des ventes à minuit. Ajoutez
+            ou retirez les administrateurs concernés ici.
           </p>
         </div>
       </header>
 
-      {data && !data.gmailConfigured ? (
+      {data && !data.brevoConfigured ? (
         <p className="warn-inline" role="status">
-          La liste est enregistrée ; les envois démarreront une fois Gmail
-          branché sur le serveur.
+          La liste est enregistrée ; les alertes de vente direction partiront
+          une fois Brevo configuré sur le serveur (BREVO_API_KEY et
+          BREVO_SENDER_EMAIL).
+        </p>
+      ) : null}
+
+      {data?.brevoStatus && !data.brevoStatus.ok ? (
+        <p className="error-banner" role="alert">
+          Dernier envoi Brevo en échec ({new Date(data.brevoStatus.at).toLocaleString("fr-FR")}) :{" "}
+          {data.brevoStatus.error ?? "erreur inconnue"}
         </p>
       ) : null}
 
@@ -268,10 +306,19 @@ export function MailAlertsPanel() {
             <button
               type="button"
               className="btn btn-ghost"
+              disabled={busy || !data?.brevoConfigured || !data?.effective.length}
+              onClick={() => void sendBrevoTest()}
+              title="Envoie un mail de test par Brevo à tous les destinataires"
+            >
+              Tester Brevo
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost"
               disabled={busy || !data?.gmailConfigured}
               onClick={() => void sendDigestTest("test")}
             >
-              Tester l’envoi
+              Tester Gmail
             </button>
             <button
               type="button"

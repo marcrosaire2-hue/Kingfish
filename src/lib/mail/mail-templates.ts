@@ -161,7 +161,8 @@ export function saleTicketMail(ticket: PosTicket): {
 } {
   const site =
     SITE_LABELS[ticket.site as keyof typeof SITE_LABELS] ?? ticket.site;
-  const subject = `[${APP_SHORT}] Vente ${ticket.numero} · ${site} · ${formatFcfa(ticket.montant)}`;
+  const direction = ticket.venteOrigine === "direction";
+  const subject = `[${APP_SHORT}] ${direction ? "Vente DIRECTION" : "Vente"} ${ticket.numero} · ${site} · ${formatFcfa(ticket.montant)}`;
 
   const linesText = ticket.lines
     .map(
@@ -171,10 +172,11 @@ export function saleTicketMail(ticket: PosTicket): {
     .join("\n");
 
   const text = [
-    `${APP_NAME} — Ticket ${ticket.numero}`,
+    `${APP_NAME} — ${direction ? "VENTE DIRECTION · " : ""}Ticket ${ticket.numero}`,
     `Date : ${ticket.date}`,
     `Site : ${site}`,
     `Type : ${ticket.saleType}`,
+    direction ? "Origine : vente direction — EN ATTENTE DE VOTRE VALIDATION (jamais comptée dans le CA des ventes clients)" : null,
     `Caissier : ${ticket.userName}`,
     ticket.serveurNom ? `Serveur : ${ticket.serveurNom}` : null,
     ticket.tableLabel ? `Table : ${ticket.tableLabel}` : null,
@@ -207,6 +209,8 @@ export function saleTicketMail(ticket: PosTicket): {
     ["Date", ticket.date],
     ["Site", site],
     ["Type", ticket.saleType],
+    direction ? ["Origine", "Vente direction"] : null,
+    direction ? ["Statut", "À valider par l'administrateur (hors CA des ventes clients)"] : null,
     ["Caissier", ticket.userName],
     ticket.serveurNom ? ["Serveur", ticket.serveurNom] : null,
     ticket.tableLabel ? ["Table", ticket.tableLabel] : null,
@@ -226,7 +230,7 @@ export function saleTicketMail(ticket: PosTicket): {
 
   const appUrl = appPublicUrl();
   const html = mailShell(
-    `Ticket ${ticket.numero}`,
+    `${direction ? "Vente direction · " : ""}Ticket ${ticket.numero}`,
     `
     <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 18px;">${metaHtml}</table>
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">

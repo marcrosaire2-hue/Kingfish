@@ -1,9 +1,18 @@
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canManagePastVentes, canUseSite, effectiveSite } from "@/lib/auth-types";
-import { canCorrectClosedFinancialData } from "@/lib/security-policy";
-import { logActivity } from "@/lib/log-activity";
-import { cancelPerte, listPertes, recordPerte } from "@/lib/pertes-repo";
+import {
+  canCorrectClosedFinancialData,
+  canPurgeFinancialData,
+  isValidAuditReason,
+} from "@/lib/security-policy";
+import { logActivity, logCriticalActivity } from "@/lib/log-activity";
+import {
+  cancelPerte,
+  deletePertePermanently,
+  listPertes,
+  recordPerte,
+} from "@/lib/pertes-repo";
 import { reportError } from "@/lib/report-error";
 import { PERTE_MOTIF_LABELS } from "@/lib/types";
 import type { PerteKind, PerteMotif, VenteSite } from "@/lib/types";
@@ -39,7 +48,13 @@ export async function GET(request: Request) {
     });
     // `site` = périmètre réel du compte (« tous » ou sa zone) : le front
     // verrouille la page sur cette zone, sans sélecteur de site.
-    return NextResponse.json({ date, pertes, motifs: PERTE_MOTIF_LABELS, site: scope });
+    return NextResponse.json({
+      date,
+      pertes,
+      motifs: PERTE_MOTIF_LABELS,
+      site: scope,
+      canDelete: canPurgeFinancialData(user.role),
+    });
   } catch (error) {
     if (error instanceof AuthError) return authErrorResponse(error);
     reportError("GET /api/pertes", error);
@@ -51,7 +66,8 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as {
-      action?: "declare" | "cancel";
+      action?: "declare" | "cancel" | "delete";
+      reason?: string;
       date?: string;
       site?: VenteSite;
       kind?: PerteKind;
@@ -65,6 +81,38 @@ export async function POST(request: Request) {
     };
 
     const actor = { id: user.id, name: user.name };
+
+    if (body.action === "delete") {
+      if (!canPurgeFinancialData(user.role)) {
+        return NextResponse.json(
+          { error: "Suppression réservée à l'administrateur." },
+          { status: 403 },
+        );
+      }
+      if (!body.id) {
+        return NextResponse.json({ error: "id requis." }, { status: 400 });
+      }
+      if (!isValidAuditReason(body.reason)) {
+        return NextResponse.json(
+          { error: "Motif d'audit requis (au moins 8 caractères)." },
+          { status: 400 },
+        );
+      }
+      const entry = await deletePertePermanently({
+        id: body.id,
+        actor,
+        bypassClosedDay: canCorrectClosedFinancialData(user.role),
+      });
+      await logCriticalActivity({
+        user,
+        kind: "pertes",
+        title: "Perte supprimée définitivement",
+        detail: `Motif : ${String(body.reason).trim()} · ${entry.qty} × ${entry.name}`,
+        date: entry.date,
+        site: entry.site,
+      });
+      return NextResponse.json({ deleted: true, id: body.id });
+    }
 
     if (body.action === "cancel") {
       if (!body.id) {

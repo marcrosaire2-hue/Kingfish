@@ -20,19 +20,19 @@ const ALLOWED_MIME = new Set([
   "image/jpg",
 ]);
 
-/** Seule l’équipe (gérant) enregistre un versement. Admin et DAF sont lecteurs. */
+/** L’équipe (gérant) et l’administrateur enregistrent un versement. DAF : lecteur. */
 export function canDeclareVersement(role: UserRole): boolean {
-  return role === "gerant";
+  return role === "gerant" || role === "admin";
 }
 
-/** Seul le comptable confirme. Admin et DAF sont lecteurs. */
+/** Le comptable et l’administrateur confirment. DAF : lecteur. */
 export function canConfirmVersement(role: UserRole): boolean {
-  return role === "comptable";
+  return role === "comptable" || role === "admin";
 }
 
-/** Gérant : modifier un versement encore en attente. */
+/** Gérant / admin : modifier un versement encore en attente. */
 export function canEditPendingVersement(role: UserRole): boolean {
-  return role === "gerant";
+  return role === "gerant" || role === "admin";
 }
 
 /**
@@ -40,12 +40,12 @@ export function canEditPendingVersement(role: UserRole): boolean {
  * Une correction d’un confirmé le remet en attente de re-confirmation.
  */
 export function canCorrectVersement(role: UserRole): boolean {
-  return role === "comptable";
+  return role === "comptable" || role === "admin";
 }
 
-/** Gérant : annuler un versement encore en attente. */
+/** Gérant / admin : annuler un versement encore en attente. */
 export function canCancelPendingVersement(role: UserRole): boolean {
-  return role === "gerant";
+  return role === "gerant" || role === "admin";
 }
 
 /** Peut ouvrir le formulaire d’édition selon le statut. */
@@ -60,13 +60,20 @@ export function canUpdateVersement(
   return canCorrectVersement(role);
 }
 
-/** Peut annuler selon le statut. */
+/** Peut annuler selon le statut. L'admin annule aussi un versement confirmé. */
 export function canCancelVersement(
   role: UserRole,
   statut: "en_attente" | "confirmee" | "annulee",
 ): boolean {
+  if (statut === "annulee") return false;
+  if (role === "admin") return true;
   if (statut !== "en_attente") return false;
   return canCancelPendingVersement(role);
+}
+
+/** Suppression définitive d'un versement (tout statut) : administrateur seul. */
+export function canDeleteVersement(role: UserRole): boolean {
+  return role === "admin";
 }
 
 export function parseVersementHeure(raw: string): string {

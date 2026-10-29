@@ -77,6 +77,11 @@ type VenteLogDoc = {
   /** Provenance (caisse, carnet-zogbo, aquapro, reprise…) */
   source?: string | null;
   caExcluded?: boolean;
+  /**
+   * Vente direction en attente de validation admin : hors CA (caExcluded) mais
+   * le stock est bien sorti — voir venteLogStockActive.
+   */
+  directionPending?: boolean;
   /** Unité QR tracée vendue avec cette ligne */
   qrId?: string | null;
 };
@@ -1212,6 +1217,8 @@ export async function recordVente(input: {
   bypassStock?: boolean;
   /** Lien vers l'unité QR vendue (plats tracés). */
   qrId?: string | null;
+  /** Vente direction : hors CA tant que l'admin ne l'a pas validée. */
+  directionPending?: boolean;
 }): Promise<{
   entry: VenteLogEntry;
   soldToday: number;
@@ -1393,6 +1400,9 @@ export async function recordVente(input: {
       actorUsername: input.actor?.username ?? null,
       shift: effectiveShift(input.actor?.shift),
       qrId: input.qrId ?? null,
+      ...(input.directionPending
+        ? { caExcluded: true, directionPending: true }
+        : {}),
     });
   } catch (error) {
     try {
@@ -2125,7 +2135,27 @@ export async function editVenteFull(input: {
 }
 
 function venteLogStockActive(doc: VenteLogDoc): boolean {
-  return !doc.cancelledAt && doc.caExcluded !== true && doc.kind !== "extra";
+  return (
+    !doc.cancelledAt &&
+    (doc.caExcluded !== true || doc.directionPending === true) &&
+    doc.kind !== "extra"
+  );
+}
+
+/**
+ * Sort des lignes d'une vente direction de l'état « en attente » : elles
+ * rejoignent le CA (validation) ou redeviennent annulables (refus).
+ */
+export async function releaseDirectionPending(ids: string[]): Promise<void> {
+  const oids = ids.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id));
+  if (!oids.length) return;
+  const db = await getDb();
+  await db
+    .collection<VenteLogDoc>("ventes_log")
+    .updateMany(
+      { _id: { $in: oids }, directionPending: true },
+      { $unset: { caExcluded: "", directionPending: "" } },
+    );
 }
 
 type PosTicketLineDoc = {

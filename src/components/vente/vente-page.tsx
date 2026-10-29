@@ -32,9 +32,11 @@ import type {
   PosTicket,
   SaleType,
   VenteLogEntry,
+  VenteOrigine,
   VenteProduct,
   VenteSite,
 } from "@/lib/types";
+import { VENTE_ORIGINES, VENTE_ORIGINE_LABELS } from "@/lib/types";
 import { previousIsoDate, shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 
 type Board = {
@@ -570,6 +572,8 @@ type TicketsListProps = {
   onFacture: (ticket: PosTicket) => void;
   onCancel: (ticket: PosTicket) => void;
   onDeletePermanent: (ticket: PosTicket) => void;
+  isAdmin: boolean;
+  onApprove: (ticket: PosTicket) => void;
 };
 
 const TicketsList = memo(function TicketsList({
@@ -580,6 +584,8 @@ const TicketsList = memo(function TicketsList({
   onFacture,
   onCancel,
   onDeletePermanent,
+  isAdmin,
+  onApprove,
 }: TicketsListProps) {
   return (
     <div className="pos-tickets">
@@ -602,10 +608,44 @@ const TicketsList = memo(function TicketsList({
                   ? "Validé"
                   : t.statut === "annule"
                     ? "Annulé"
-                    : t.statut}
+                    : t.statut === "en_attente"
+                      ? "Vente direction · en attente de validation admin"
+                      : t.statut === "direction_validee"
+                        ? "Vente direction validée · hors CA clients"
+                        : t.statut}
               </div>
             </div>
             <div className="pos-ticket-actions">
+              {t.statut === "en_attente" && isAdmin ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={!!busyKey}
+                    onClick={() => onApprove(t)}
+                  >
+                    Valider
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-link btn-link-danger"
+                    disabled={!!busyKey}
+                    onClick={() => onCancel(t)}
+                  >
+                    Refuser
+                  </button>
+                </>
+              ) : null}
+              {t.statut === "direction_validee" && isAdmin ? (
+                <button
+                  type="button"
+                  className="btn-link btn-link-danger"
+                  disabled={!!busyKey}
+                  onClick={() => onCancel(t)}
+                >
+                  Annuler
+                </button>
+              ) : null}
               {t.statut === "valide" ? (
                 <>
                   <button
@@ -672,6 +712,7 @@ export function VentePage({
   const [tickets, setTickets] = useState<PosTicket[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
+  const [venteOrigine, setVenteOrigine] = useState<VenteOrigine>("client");
   const [paymentId, setPaymentId] = useState("");
   const [clientNom, setClientNom] = useState("");
   const [reduction, setReduction] = useState("0");
@@ -695,6 +736,7 @@ export function VentePage({
   const [canManagePast, setCanManagePast] = useState(false);
   const [canPurge, setCanPurge] = useState(false);
   const [canManageStock, setCanManageStock] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [degriserBusy, setDegriserBusy] = useState(false);
   /** Ruptures connues au dernier chargement (pour ne signaler que les nouvelles). */
   const prevRuptures = useRef<Set<string> | null>(null);
@@ -1006,6 +1048,7 @@ export function VentePage({
         if (!annule) {
           setOperateur(body.user?.name ?? null);
           setCanManageStock(body.user?.role === "admin");
+          setIsAdmin(body.user?.role === "admin");
           if (typeof body.user?.id === "string") {
             setOfflineQueueUser(body.user.id);
           }
@@ -1224,6 +1267,7 @@ export function VentePage({
       date,
       site,
       saleType,
+      venteOrigine,
       paymentMethodId: paymentId || undefined,
       clientNom: clientNom || undefined,
       reduction: reductionN,
@@ -1264,7 +1308,14 @@ export function VentePage({
       setCart([]);
       setClientNom("");
       setReduction("0");
-      setFlash(`Ticket ${body.ticket.numero} · ${formatFcfa(body.ticket.montant)}`);
+      setVenteOrigine("client");
+      setFlash(
+        `Ticket ${body.ticket.numero} · ${formatFcfa(body.ticket.montant)}${
+          body.ticket.statut === "en_attente"
+            ? " · en attente de validation admin"
+            : ""
+        }`,
+      );
       window.setTimeout(() => setFlash(null), 2000);
       // La commande créée ouvre systématiquement sa facture : le détail complet
       // s'affiche à l'écran, l'impression n'est qu'un geste de plus. La réponse
@@ -1283,7 +1334,7 @@ export function VentePage({
     } finally {
       setPosBusy(false);
     }
-  }, [cart, canSell, backdateMode, date, site, saleType, paymentId, clientNom, reductionN]);
+  }, [cart, canSell, backdateMode, date, site, saleType, venteOrigine, paymentId, clientNom, reductionN]);
 
   useEffect(() => {
     if (!cart.length) setCartSheetOpen(false);
@@ -1300,10 +1351,12 @@ export function VentePage({
 
   const cancelTicket = useCallback(
     async (ticket: PosTicket) => {
-      if (ticket.statut !== "valide") return;
+      if (ticket.statut === "annule") return;
       if (
         !window.confirm(
-          `Annuler le ticket ${ticket.numero} (${formatFcfa(ticket.montant)}) ?`,
+          ticket.statut === "en_attente"
+            ? `Refuser la vente direction ${ticket.numero} (${formatFcfa(ticket.montant)}) ? Le stock sera remis.`
+            : `Annuler le ticket ${ticket.numero} (${formatFcfa(ticket.montant)}) ?`,
         )
       ) {
         return;
@@ -1335,6 +1388,49 @@ export function VentePage({
         window.setTimeout(() => setFlash(null), 1600);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Annulation impossible");
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [date, site],
+  );
+
+  const approveTicket = useCallback(
+    async (ticket: PosTicket) => {
+      if (ticket.statut !== "en_attente") return;
+      if (
+        !window.confirm(
+          `Valider la vente direction ${ticket.numero} (${formatFcfa(ticket.montant)}) ? Elle ne sera jamais comptée dans le CA des ventes clients.`,
+        )
+      ) {
+        return;
+      }
+      setBusyKey(`ticket:${ticket.id}`);
+      setError(null);
+      try {
+        const res = await fetch("/api/pos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "approve-direction",
+            id: ticket.id,
+            date,
+            site,
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Validation impossible");
+        if (body.board) setBoard(body.board as Board);
+        if (body.ticket) {
+          const validated = body.ticket as PosTicket;
+          setTickets((prev) =>
+            prev.map((t) => (t.id === validated.id ? validated : t)),
+          );
+        }
+        setFlash(`Vente direction ${ticket.numero} validée`);
+        window.setTimeout(() => setFlash(null), 1600);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Validation impossible");
       } finally {
         setBusyKey(null);
       }
@@ -1978,6 +2074,22 @@ export function VentePage({
                 </label>
 
                 <label className="vente-field">
+                  <span>Vente pour</span>
+                  <select
+                    value={venteOrigine}
+                    onChange={(e) =>
+                      setVenteOrigine(e.target.value as VenteOrigine)
+                    }
+                  >
+                    {VENTE_ORIGINES.map((o) => (
+                      <option key={o} value={o}>
+                        {VENTE_ORIGINE_LABELS[o]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="vente-field">
                   <span>Paiement</span>
                   <select
                     value={paymentId}
@@ -2052,6 +2164,8 @@ export function VentePage({
                   onFacture={openFacture}
                   onCancel={cancelTicket}
                   onDeletePermanent={deleteTicketPermanent}
+                  isAdmin={isAdmin}
+                  onApprove={approveTicket}
                 />
               ) : null}
           </aside>
@@ -2142,7 +2256,15 @@ export function VentePage({
               </div>
               <div>
                 <dt>Statut</dt>
-                <dd>{facture.statut === "valide" ? "Validée" : "Annulée"}</dd>
+                <dd>
+                  {facture.statut === "valide"
+                    ? "Validée"
+                    : facture.statut === "en_attente"
+                      ? "En attente de validation admin"
+                      : facture.statut === "direction_validee"
+                        ? "Vente direction validée"
+                        : "Annulée"}
+                </dd>
               </div>
             </dl>
 

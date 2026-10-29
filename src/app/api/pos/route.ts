@@ -14,14 +14,18 @@ import {
 import { consumeRateLimit, rateLimitResponse } from "@/lib/security-rate-limit";
 import { logActivity, logCriticalActivity } from "@/lib/log-activity";
 import {
+  approveDirectionTicket,
   cancelPosTicket,
   deletePosTicketPermanently,
   getPosContext,
   validatePosTicket,
 } from "@/lib/pos-repo";
 import { getSiteRolesConfig } from "@/lib/site-roles-repo";
-import type { SaleType, VenteKind, VenteSite } from "@/lib/types";
-import { notifySaleTicketAsync } from "@/lib/mail/notify-sale";
+import type { SaleType, VenteKind, VenteOrigine, VenteSite } from "@/lib/types";
+import {
+  notifyDirectionSaleAsync,
+  notifySaleTicketAsync,
+} from "@/lib/mail/notify-sale";
 import { getSimulationDbName } from "@/lib/mongodb";
 import { reportError } from "@/lib/report-error";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -98,11 +102,12 @@ export async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as {
-      action?: "validate" | "cancel" | "delete";
+      action?: "validate" | "cancel" | "delete" | "approve-direction";
       date?: string;
       site?: VenteSite;
       id?: string;
       saleType?: SaleType;
+      venteOrigine?: VenteOrigine;
       paymentMethodId?: string;
       tableId?: string;
       serveurId?: string;
@@ -152,6 +157,7 @@ export async function POST(request: Request) {
         site,
         user,
         saleType: body.saleType || "Sur place",
+        venteOrigine: body.venteOrigine === "direction" ? "direction" : "client",
         // Vente encaissée hors ligne puis rejouée : la référence du poste
         // évite de compter deux fois la même commande.
         clientRef: request.headers.get("X-Vente-Locale"),
@@ -172,7 +178,45 @@ export async function POST(request: Request) {
         amount: result.ticket.montant,
       });
       // Simulation (formation) : aucun mail de vente ne doit partir.
-      if (!(await getSimulationDbName())) notifySaleTicketAsync(result.ticket);
+      if (!result.replayed && !(await getSimulationDbName())) {
+        if (result.ticket.statut === "en_attente") {
+          notifyDirectionSaleAsync(result.ticket);
+        } else {
+          notifySaleTicketAsync(result.ticket);
+        }
+      }
+      return NextResponse.json(result);
+    }
+
+    if (body.action === "approve-direction") {
+      // Seul l'administrateur valide une vente direction.
+      if (user.role !== "admin") {
+        return NextResponse.json(
+          { error: "Validation réservée à l'administrateur." },
+          { status: 403 },
+        );
+      }
+      if (!body.id || !body.date) {
+        return NextResponse.json(
+          { error: "id et date requis" },
+          { status: 400 },
+        );
+      }
+      const result = await approveDirectionTicket({
+        id: body.id,
+        date: body.date,
+        site,
+        user,
+      });
+      await logActivity({
+        user,
+        kind: "pos",
+        title: `Vente direction validée · ${result.ticket.numero}`,
+        detail: `${result.ticket.lines.length} ligne(s) · ${result.ticket.userName}`,
+        date: result.ticket.date,
+        site,
+        amount: result.ticket.montant,
+      });
       return NextResponse.json(result);
     }
 

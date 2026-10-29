@@ -66,10 +66,29 @@ describe("site-roles-model", () => {
         },
       },
     };
-    expect(isVenteActionAllowed(config, "admin", "zogbo", "sell")).toBe(false);
-    expect(isVenteActionAllowed(config, "admin", "gbegamey", "sell")).toBe(
+    expect(isVenteActionAllowed(config, "gerant", "zogbo", "sell")).toBe(false);
+    expect(isVenteActionAllowed(config, "gerant", "gbegamey", "sell")).toBe(
       true,
     );
+  });
+
+  it("l'administrateur n'est jamais bridé par la configuration", () => {
+    const config = {
+      ...DEFAULT_SITE_ROLES_CONFIG,
+      sites: {
+        ...DEFAULT_SITE_ROLES_CONFIG.sites,
+        zogbo: { sell: false, modify: false, delete: false, cancel: false },
+      },
+    };
+    for (const action of ["sell", "modify", "delete", "cancel"] as const) {
+      expect(isVenteActionAllowed(config, "admin", "zogbo", action)).toBe(true);
+    }
+    expect(ventePermissionsFor(config, "admin", "zogbo")).toEqual({
+      sell: true,
+      modify: true,
+      delete: true,
+      cancel: true,
+    });
   });
 
   it("venteActionEnabled tolère une config absente", () => {

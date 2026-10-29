@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUserManagementAdmin } from "@/lib/api-auth";
+import { brevoConfigured, sendBrevoMail } from "@/lib/mail/brevo-send";
+import { getBrevoStatus } from "@/lib/mail/mail-status-repo";
 import {
   gmailConfigured,
   mailAlertRecipientsFromEnv,
@@ -17,16 +19,19 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const admin = await requireUserManagementAdmin();
-    const [emails, envEmails, effective] = await Promise.all([
+    const [emails, envEmails, effective, brevoStatus] = await Promise.all([
       getMailAlertEmails(),
       Promise.resolve(mailAlertRecipientsFromEnv()),
       resolveMailAlertRecipients(),
+      getBrevoStatus().catch(() => null),
     ]);
     return NextResponse.json({
       emails,
       envEmails,
       effective,
       gmailConfigured: gmailConfigured(),
+      brevoConfigured: brevoConfigured(),
+      brevoStatus,
       managedBy: admin.username,
     });
   } catch (error) {
@@ -38,9 +43,33 @@ export async function POST(request: Request) {
   try {
     const admin = await requireUserManagementAdmin();
     const body = (await request.json()) as {
-      action?: "add" | "remove";
+      action?: "add" | "remove" | "test-brevo";
       email?: string;
     };
+
+    if (body.action === "test-brevo") {
+      if (!brevoConfigured()) {
+        return NextResponse.json(
+          { error: "Brevo n'est pas configuré (clé ou expéditeur manquant)." },
+          { status: 400 },
+        );
+      }
+      const to = await resolveMailAlertRecipients();
+      if (to.length === 0) {
+        return NextResponse.json(
+          { error: "Aucun destinataire enregistré." },
+          { status: 400 },
+        );
+      }
+      await sendBrevoMail({
+        to,
+        subject: "[King Fish] Test d'envoi des alertes",
+        text: `Test d'envoi demandé par ${admin.username}. Vous recevrez ici les ventes direction à valider.`,
+        html: `<p>Test d'envoi demandé par <strong>${admin.username.replace(/[<>&"]/g, "")}</strong>.</p><p>Vous recevrez ici les ventes direction à valider.</p>`,
+      });
+      return NextResponse.json({ ok: true, sent: to.length });
+    }
+
     const email = String(body.email ?? "").trim();
     if (!email) {
       return NextResponse.json({ error: "E-mail requis." }, { status: 400 });
@@ -67,6 +96,12 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     reportError("POST /api/admin/mail-alerts", error);
+    if (error instanceof Error && error.message.startsWith("Brevo")) {
+      return NextResponse.json(
+        { error: "Brevo a refusé l'envoi. Vérifiez la clé et l'expéditeur validé." },
+        { status: 502 },
+      );
+    }
     if (error instanceof Error && error.message.includes("invalide")) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }

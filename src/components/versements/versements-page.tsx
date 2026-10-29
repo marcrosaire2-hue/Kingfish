@@ -165,7 +165,7 @@ export function VersementsPage() {
   const { user } = useSession();
   const scope = user ? effectiveSite(user.role, user.site) : null;
   const followAll = scope === "tous";
-  const isReaderOnly = user?.role === "admin" || user?.role === "daf";
+  const isReaderOnly = user?.role === "daf";
   const formRef = useRef<HTMLElement | null>(null);
 
   const [declareDate, setDeclareDate] = useState(() => todayIsoDate());
@@ -178,6 +178,7 @@ export function VersementsPage() {
   const [canConfirm, setCanConfirm] = useState(false);
   const [canEditPending, setCanEditPending] = useState(false);
   const [canCancelPending, setCanCancelPending] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
 
   const [heure, setHeure] = useState(() => nowHeureLocale());
   const [tranche, setTranche] = useState<VersementTranche>("matin");
@@ -239,6 +240,7 @@ export function VersementsPage() {
         canConfirm?: boolean;
         canEditPending?: boolean;
         canCancelPending?: boolean;
+        canDelete?: boolean;
         error?: string;
       };
       if (!res.ok) throw new Error(body.error || "Chargement impossible.");
@@ -247,6 +249,7 @@ export function VersementsPage() {
       setCanConfirm(body.canConfirm === true);
       setCanEditPending(body.canEditPending === true);
       setCanCancelPending(body.canCancelPending === true);
+      setCanDelete(body.canDelete === true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chargement impossible.");
     } finally {
@@ -645,6 +648,37 @@ export function VersementsPage() {
       await charger();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Confirmation impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onDeleteVersement(id: string) {
+    if (busy || !canDelete) return;
+    const reason = window.prompt(
+      "Supprimer définitivement ce versement ? Action irréversible.\nMotif (8 caractères minimum) :",
+    );
+    if (!reason || reason.trim().length < 8) {
+      if (reason !== null) setError("Motif requis (au moins 8 caractères).");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/versements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id, reason: reason.trim() }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(body.error || "Suppression impossible.");
+      setFlash("Versement supprimé définitivement.");
+      setSelected(null);
+      if (editingId === id) closeComposer();
+      await charger();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Suppression impossible.");
     } finally {
       setBusy(false);
     }
@@ -1869,7 +1903,9 @@ export function VersementsPage() {
                     Modifier
                   </button>
                 ) : null}
-                {canCancelPending && selected.statut === "en_attente" ? (
+                {canCancelPending &&
+                (selected.statut === "en_attente" ||
+                  (canDelete && selected.statut === "confirmee")) ? (
                   <button
                     type="button"
                     className="btn btn-ghost vs-btn-cancel"
@@ -1877,6 +1913,16 @@ export function VersementsPage() {
                     onClick={() => void onCancelVersement(selected.id)}
                   >
                     Annuler le versement
+                  </button>
+                ) : null}
+                {canDelete ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost vs-btn-cancel"
+                    disabled={busy}
+                    onClick={() => void onDeleteVersement(selected.id)}
+                  >
+                    Supprimer définitivement
                   </button>
                 ) : null}
                 {selected.statut === "confirmee" ? (
