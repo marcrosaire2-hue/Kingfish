@@ -19,6 +19,7 @@ import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import { parseFiniteAmount } from "@/lib/security-policy";
 import type {
   GbegameyLocalLine,
+  ProductCategory,
   VenteKind,
   VenteLogEntry,
   VenteProduct,
@@ -84,6 +85,8 @@ type VenteLogDoc = {
   directionPending?: boolean;
   /** Unité QR tracée vendue avec cette ligne */
   qrId?: string | null;
+  /** Catégorie personnalisée de l'article (ventes « extra » du catalogue). */
+  categoryId?: string | null;
 };
 
 function mapVenteLogDoc(d: VenteLogDoc): VenteLogEntry {
@@ -341,6 +344,8 @@ export async function getVenteBoard(
   caParEquipe: Record<UserShift, number>;
   /** Ventes sans plafond stock (après reset, jusqu'à saisie stock). */
   ventesSansStock: boolean;
+  /** Catégories personnalisées (onglets de la page Vente). */
+  categories: ProductCategory[];
 }> {
   if (!isValidDate(date)) throw new Error("Date invalide");
   if (site !== "zogbo" && site !== "gbegamey") {
@@ -560,7 +565,66 @@ export async function getVenteBoard(
     });
   }
 
-  return { date, site, products, recent, caToday, caParEquipe, ventesSansStock };
+  // Catégories personnalisées (ex. Dessert) : articles sans stock, prix du
+  // catalogue. Le vendu du jour vient du journal (pas de document « jour »).
+  const categoryProducts = parametres.categoryProducts ?? [];
+  if (categoryProducts.length) {
+    const soldByProduct = await sumCategorySoldToday(
+      date,
+      site,
+      categoryProducts.map((p) => p.id),
+    );
+    for (const item of categoryProducts) {
+      products.push({
+        kind: "extra",
+        productId: item.id,
+        name: item.name,
+        unitPrice: item.unitPrice,
+        soldToday: soldByProduct.get(item.id) ?? 0,
+        stockLeft: null,
+        hint: item.unitPrice <= 0 ? "Prix manquant" : null,
+        blockReason: item.unitPrice <= 0 ? "Prix de vente manquant" : null,
+        categoryId: item.categoryId,
+      });
+    }
+  }
+
+  return {
+    date,
+    site,
+    products,
+    recent,
+    caToday,
+    caParEquipe,
+    ventesSansStock,
+    categories: parametres.categories ?? [],
+  };
+}
+
+/** Quantité vendue (lignes actives) par article de catégorie, pour un jour. */
+async function sumCategorySoldToday(
+  date: string,
+  site: VenteSite,
+  productIds: string[],
+): Promise<Map<string, number>> {
+  const db = await getDb();
+  const rows = await db
+    .collection<VenteLogDoc>("ventes_log")
+    .aggregate<{ _id: string; qty: number }>([
+      {
+        $match: {
+          date,
+          site,
+          kind: "extra",
+          productId: { $in: productIds },
+          cancelledAt: null,
+          caExcluded: { $ne: true },
+        },
+      },
+      { $group: { _id: "$productId", qty: { $sum: "$qty" } } },
+    ])
+    .toArray();
+  return new Map(rows.map((r) => [r._id, Math.max(0, Number(r.qty) || 0)]));
 }
 
 /** CA du jour réparti par équipe — répond à « quelle équipe a vendu ». */
@@ -1252,6 +1316,11 @@ export async function recordVente(input: {
     bypassClosedDay: input.bypassClosedDay,
   });
 
+  // Article d'une catégorie personnalisée : pas de stock, prix du catalogue.
+  if (input.kind === "extra") {
+    return recordCategoryVente({ ...input, qty });
+  }
+
   // Contrôle stock + plafond atomique. « maxSold » est le vendu maximal
   // (stock − pertes) : transmis à applySoldDelta, il borne l'écriture.
   // Régularisation gérant : pas de plafond (maxSold null).
@@ -1360,7 +1429,7 @@ export async function recordVente(input: {
         );
       }
       unitPrice = unitPriceOverride;
-    } else if (input.kind !== "extra" && unitPriceOverride !== target.unitPrice) {
+    } else if (unitPriceOverride !== target.unitPrice) {
       throw new Error(
         `Prix non autorisé pour « ${target.name} » : ${unitPriceOverride} F.`,
       );
@@ -1434,6 +1503,93 @@ export async function recordVente(input: {
 
   const board = await getVenteBoard(input.date, input.site);
   return { entry, soldToday: result.soldToday, board };
+}
+
+/**
+ * Vente d'un article de catégorie personnalisée (ex. Dessert). Enregistrée comme
+ * une vente « extra » (CA du point, sans stock), mais le nom et le prix
+ * viennent du catalogue : le client ne fixe jamais le tarif.
+ */
+async function recordCategoryVente(input: {
+  date: string;
+  site: VenteSite;
+  productId: string;
+  qty: number;
+  unitPrice?: number;
+  actor?: VenteActor | null;
+  directionPending?: boolean;
+}): Promise<{
+  entry: VenteLogEntry;
+  soldToday: number;
+  board: Awaited<ReturnType<typeof getVenteBoard>>;
+}> {
+  const parametres = await getParametres();
+  const item = (parametres.categoryProducts ?? []).find(
+    (p) => p.id === input.productId,
+  );
+  if (!item) throw new Error("Article de catégorie introuvable");
+  if (item.unitPrice <= 0) {
+    throw new Error(`Prix de vente manquant pour « ${item.name} » (Paramètres)`);
+  }
+  const override = Math.round(Number(input.unitPrice) || 0);
+  if (override > 0 && override !== item.unitPrice) {
+    throw new Error(
+      `Prix non autorisé pour « ${item.name} » : ${override} F.`,
+    );
+  }
+  const qty = Math.round(input.qty);
+  if (!Number.isFinite(qty) || qty === 0) throw new Error("Quantité invalide");
+
+  // Une correction (quantité négative) ne peut pas descendre sous zéro.
+  const before = (
+    await sumCategorySoldToday(input.date, input.site, [item.id])
+  ).get(item.id) ?? 0;
+  if (before + qty < 0) {
+    throw new Error("Annulation invalide : rien à retirer pour cet article.");
+  }
+
+  const at = new Date().toISOString();
+  const amount = Math.abs(qty) * item.unitPrice;
+  const db = await getDb();
+  const insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
+    _id: new ObjectId(),
+    date: input.date,
+    site: input.site,
+    kind: "extra",
+    productId: item.id,
+    name: item.name,
+    qty,
+    unitPrice: item.unitPrice,
+    costPrice: item.costPrice ?? 0,
+    amount: qty > 0 ? amount : -amount,
+    at,
+    cancelledAt: null,
+    baseProductId: null,
+    actorId: input.actor?.id ?? null,
+    actorName: input.actor?.name ?? null,
+    actorUsername: input.actor?.username ?? null,
+    shift: effectiveShift(input.actor?.shift),
+    categoryId: item.categoryId,
+    ...(input.directionPending
+      ? { caExcluded: true, directionPending: true }
+      : {}),
+  });
+
+  const entry: VenteLogEntry = {
+    id: insert.insertedId.toHexString(),
+    date: input.date,
+    site: input.site,
+    kind: "extra",
+    productId: item.id,
+    name: item.name,
+    qty,
+    unitPrice: item.unitPrice,
+    amount: qty > 0 ? amount : -amount,
+    at,
+  };
+
+  const board = await getVenteBoard(input.date, input.site);
+  return { entry, soldToday: before + qty, board };
 }
 
 /** Vente libre : description + prix, comptée dans le CA du point (sans stock). */

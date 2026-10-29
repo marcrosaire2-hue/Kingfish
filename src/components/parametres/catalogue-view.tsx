@@ -41,6 +41,11 @@ const CATALOGUE_SECTIONS: {
     label: "Boissons",
     hint: "Catalogue boissons (partagé) — stock et ventes en bouteilles.",
   },
+  {
+    key: "categories",
+    label: "Dessert & catégories",
+    hint: "Catégories de vente personnalisées (ex. Dessert) et leurs articles — vendus au prix du catalogue, sans stock.",
+  },
 ];
 
 function useDebouncedValue<T>(value: T, delayMs = 280): T {
@@ -1140,7 +1145,11 @@ function DrinksCatalogue({
   );
 }
 
-export type CatalogueSectionKey = "base" | "accompagnements" | "drinks";
+export type CatalogueSectionKey =
+  | "base"
+  | "accompagnements"
+  | "drinks"
+  | "categories";
 
 export function CatalogueView({
   data,
@@ -1156,6 +1165,7 @@ export function CatalogueView({
   onReset,
   drinksWithoutPrice,
   onRetry,
+  categoriesSlot,
 }: {
   data: Parametres;
   ready: boolean;
@@ -1170,6 +1180,8 @@ export function CatalogueView({
   onReset: () => void;
   drinksWithoutPrice: string[];
   onRetry?: () => void;
+  /** Éditeur des catégories (Dessert…), fourni par l'éditeur de paramètres. */
+  categoriesSlot?: ReactNode;
 }) {
   const { user } = useSession();
 
@@ -1188,6 +1200,7 @@ export function CatalogueView({
     base: data.baseDishes.length,
     accompagnements: data.localDishes.length,
     drinks: data.drinks.length,
+    categories: (data.categoryProducts ?? []).length,
   };
 
   return (
@@ -1348,6 +1361,8 @@ export function CatalogueView({
           onChange={(drinks) => onUpdate({ ...data, drinks })}
         />
       ) : null}
+
+      {catalogueSection === "categories" ? categoriesSlot : null}
     </div>
   );
 }

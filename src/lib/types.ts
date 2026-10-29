@@ -99,10 +99,35 @@ export type Recipe = {
   lines: RecipeLine[];
 };
 
+/**
+ * Catégorie de vente créée par l'administrateur (ex. « Dessert »), en plus des
+ * trois catégories d'origine : plats, accompagnements, boissons.
+ */
+export type ProductCategory = {
+  id: string;
+  name: string;
+};
+
+/**
+ * Article d'une catégorie personnalisée. Vendu sans stock (comme une vente
+ * libre) mais au prix du catalogue, fixé côté serveur.
+ */
+export type CategoryProduct = {
+  id: ProductId;
+  categoryId: string;
+  name: string;
+  unitPrice: number;
+  costPrice?: number;
+};
+
 export type Parametres = {
   baseDishes: BaseDish[];
   drinks: Drink[];
   localDishes: LocalDish[];
+  /** Catégories de vente personnalisées (ex. Dessert). */
+  categories?: ProductCategory[];
+  /** Articles des catégories personnalisées. */
+  categoryProducts?: CategoryProduct[];
   /** Formules / combos (catalogue). */
   combos?: ComboDish[];
   rawMaterials?: RawMaterial[];
@@ -665,6 +690,8 @@ export type VenteProduct = {
    * Tant qu’il n’y en a pas, la caisse vend sans code (stock agrégé).
    */
   qrRequired?: boolean;
+  /** Catégorie personnalisée (kind « extra » du catalogue, sans stock). */
+  categoryId?: string;
 };
 
 export type VenteLogEntry = {

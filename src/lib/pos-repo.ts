@@ -15,6 +15,7 @@ import {
   getCaisseById,
 } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
+import { getParametres } from "@/lib/parametres-repo";
 import { getPosConfig } from "@/lib/pos-config-repo";
 import { reportError } from "@/lib/report-error";
 import {
@@ -126,6 +127,12 @@ async function ensureClientRefUniqueIndex(): Promise<boolean> {
     reportError("ensureClientRefUniqueIndex", error);
     return false;
   }
+}
+
+/** L'article appartient-il à une catégorie personnalisée du catalogue ? */
+async function isCategoryProduct(productId: string): Promise<boolean> {
+  const { categoryProducts } = await getParametres();
+  return (categoryProducts ?? []).some((p) => p.id === productId);
 }
 
 export function ensurePosIdempotenceGuard(): Promise<boolean> {
@@ -335,7 +342,12 @@ export async function validatePosTicket(input: {
       const qty = Math.round(Number(line.qty) || 0);
       if (qty <= 0) continue;
 
-      if (line.kind === "extra") {
+      // Les ventes hors catalogue restent refusées ; un article d'une
+      // catégorie personnalisée (ex. Dessert) est, lui, dans le catalogue.
+      if (
+        line.kind === "extra" &&
+        !(await isCategoryProduct(line.productId))
+      ) {
         throw new Error(
           "Les ventes hors catalogue ne sont plus autorisées. Choisissez un article du catalogue.",
         );
