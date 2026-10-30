@@ -72,6 +72,12 @@ async function leftoversForDate(
   }
 }
 
+/** Comptage d'ouverture en bouteilles ; `null` quand il ne reste rien à reporter. */
+function openingCount(casiers: number, upc: number): number | null {
+  const bottles = Math.max(0, Math.round(casiers * upc));
+  return bottles > 0 ? bottles : null;
+}
+
 export async function getBoissonsDayPayload(
   date: string,
 ): Promise<BoissonsDayPayload> {
@@ -105,14 +111,13 @@ export async function getBoissonsDayPayload(
         const hasGbegamey = leftovers.gbegamey.has(l.productId);
         return {
           ...l,
+          // Un reste à zéro n'est pas un comptage : le poser à 0 écraserait
+          // ensuite les achats du jour (le comptage prévaut sur le théorique).
           countedZogbo: hasZogbo
-            ? Math.max(0, Math.round(leftovers.zogbo.get(l.productId)! * upc))
+            ? openingCount(leftovers.zogbo.get(l.productId)!, upc)
             : null,
           countedGbegamey: hasGbegamey
-            ? Math.max(
-                0,
-                Math.round(leftovers.gbegamey.get(l.productId)! * upc),
-              )
+            ? openingCount(leftovers.gbegamey.get(l.productId)!, upc)
             : null,
           observations:
             hasZogbo || hasGbegamey ? "Ouverture (dernier inventaire)" : "",
