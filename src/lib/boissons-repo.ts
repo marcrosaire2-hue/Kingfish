@@ -111,11 +111,11 @@ export async function getBoissonsDayPayload(
         const hasGbegamey = leftovers.gbegamey.has(l.productId);
         return {
           ...l,
+          // Zogbo : le stock réel reste vide tant que personne n'a compté. Le
+          // reste de la veille est déjà reporté dans le stock initial.
+          countedZogbo: null,
           // Un reste à zéro n'est pas un comptage : le poser à 0 écraserait
           // ensuite les achats du jour (le comptage prévaut sur le théorique).
-          countedZogbo: hasZogbo
-            ? openingCount(leftovers.zogbo.get(l.productId)!, upc)
-            : null,
           countedGbegamey: hasGbegamey
             ? openingCount(leftovers.gbegamey.get(l.productId)!, upc)
             : null,

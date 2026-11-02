@@ -481,8 +481,19 @@ export function applyBoissonsPurchaseToState(
   const isZogbo = input.site === "zogbo";
   const purchases =
     (isZogbo ? line.purchasesZogbo : line.purchasesGbegamey) + qty;
+  // Zogbo : un comptage déjà saisi prévaut sur initial + achats ; sans le
+  // relever, les bouteilles achetées après le comptage disparaîtraient du
+  // stock réel.
   const nextLine: BoissonsLine = isZogbo
-    ? { ...line, purchasesZogbo: purchases, stockTrackedZogbo: true }
+    ? {
+        ...line,
+        purchasesZogbo: purchases,
+        countedZogbo:
+          line.countedZogbo === null
+            ? null
+            : line.countedZogbo + Math.round(qty * upc),
+        stockTrackedZogbo: true,
+      }
     : { ...line, purchasesGbegamey: purchases, stockTrackedGbegamey: true };
   const stockAfter = remainingCasiersForSite(nextLine, input.site, upc);
 
@@ -533,8 +544,16 @@ export function cancelBoissonsMovementInState(
     0,
     (isZogbo ? line.purchasesZogbo : line.purchasesGbegamey) - target.qty,
   );
+  // Symétrique de l'achat à Zogbo : on retire les bouteilles du comptage.
   const nextLine: BoissonsLine = isZogbo
-    ? { ...line, purchasesZogbo: purchases }
+    ? {
+        ...line,
+        purchasesZogbo: purchases,
+        countedZogbo:
+          line.countedZogbo === null
+            ? null
+            : Math.max(0, line.countedZogbo - Math.round(target.qty * upc)),
+      }
     : { ...line, purchasesGbegamey: purchases };
   const onHandAfter = remainingCasiersForSite(nextLine, target.site, upc);
   if (onHandAfter < -1e-9) {

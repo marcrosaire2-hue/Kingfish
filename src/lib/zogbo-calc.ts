@@ -1,5 +1,8 @@
+import { normalizeLocalLine } from "@/lib/gbegamey-calc";
 import type {
   BaseDish,
+  GbegameyLocalComputed,
+  GbegameyLocalLine,
   ZogboDay,
   ZogboLine,
   ZogboLineComputed,
@@ -133,24 +136,16 @@ export function computeZogboLine(
 ): ZogboLineComputed {
   const normalized = normalizeZogboLine(line);
   const counted = normalized.counted;
-  // Le comptage saisi devient le stock du jour : la vérité physique remplace
-  // le stock mouvementé dès qu'elle est saisie. Les ventes et pertes le
-  // décrementent ensuite.
-  const available =
-    counted !== null ? Math.max(0, counted) : normalized.stock;
+  // Le stock suit les mouvements : un stock initial ajouté après un comptage
+  // entre tout de suite dans le restant. Le comptage, saisi à la main, ne
+  // remplace plus le stock : il sert à mesurer l'écart.
+  const available = normalized.stock;
   const theoreticalRemaining = Math.max(
     0,
     available - normalized.sold - normalized.pertes,
   );
-  // Stock qui prévaut : le comptage (stock initial) s'il existe, sinon le
-  // mouvementé. Le comptage est la vérité physique : les ventes suivantes le
-  // décrementent, sans recompter le vendu antérieur.
-  const prevalentMaxSold =
-    counted !== null
-      ? Math.max(0, counted)
-      : Math.max(0, available - normalized.pertes);
-  // Plus d'écart mesurable : le comptage EST le stock du jour.
-  const variance = null;
+  const prevalentMaxSold = Math.max(0, available - normalized.pertes);
+  const variance = counted === null ? null : Math.round(counted - available);
 
   return {
     ...normalized,
@@ -162,6 +157,35 @@ export function computeZogboLine(
     prevalentMaxSold,
     prevalentRemaining: Math.max(0, prevalentMaxSold - normalized.sold),
     variance,
+  };
+}
+
+/**
+ * Accompagnement Zogbo : même règle que les plats Zogbo. Le stock suit
+ * init. + préparé (un stock initial ajouté entre tout de suite dans le
+ * restant) ; le comptage, saisi à la main, mesure l'écart sans remplacer le
+ * stock. Gbégamey garde sa propre règle (computeLocalLine).
+ */
+export function computeZogboAccompanimentLine(
+  line: GbegameyLocalLine,
+  unitPrice: number,
+): GbegameyLocalComputed {
+  const normalized = normalizeLocalLine(line);
+  const counted = normalized.counted;
+  const available = normalized.initialStock + normalized.prepared;
+  const prevalentMaxSold = Math.max(0, available - normalized.pertes);
+  return {
+    ...normalized,
+    unitPrice,
+    available,
+    soldAmount: normalized.sold * unitPrice,
+    theoreticalRemaining: Math.max(
+      0,
+      available - normalized.sold - normalized.pertes,
+    ),
+    prevalentRemaining: Math.max(0, prevalentMaxSold - normalized.sold),
+    prevalentMaxSold,
+    variance: counted === null ? null : Math.round(counted - available),
   };
 }
 
@@ -349,12 +373,13 @@ export function leftoverFromZogboLines(
   // jour, le théorique en tient déjà compte.
   _options?: { useCounted?: boolean },
 ): Map<string, number> {
-  // Le comptage étant le stock du jour, le reste du jour l'est aussi :
-  // compté − vendu − pertes, même si la journée n'est pas clôturée.
+  // Report au lendemain : le comptage, s'il existe, reste la base physique
+  // (compté − vendu − pertes) ; sinon le restant mouvementé.
   const out = new Map<string, number>();
   for (const line of lines) {
-    const computed = computeZogboLine(line, 0);
-    out.set(line.productId, Math.max(0, computed.theoreticalRemaining));
+    const n = normalizeZogboLine(line);
+    const base = n.counted !== null ? Math.max(0, n.counted) : n.stock;
+    out.set(line.productId, Math.max(0, base - n.sold - n.pertes));
   }
   return out;
 }

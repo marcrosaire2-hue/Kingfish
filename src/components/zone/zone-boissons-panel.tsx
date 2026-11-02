@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { RegistreDrawer } from "@/components/registre-drawer";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
@@ -22,15 +22,12 @@ import type {
 import { BrandLoader } from "@/components/brand-loader";
 import { ProductIcon } from "@/components/product-icon";
 import { EcartBadge } from "@/components/stock-ecart";
-import { downloadQrSheet } from "@/lib/download-qr-sheet";
-import type { StockUnit } from "@/lib/stock-unit-types";
 
 type Payload = {
   day: BoissonsDay;
   drinks: Drink[];
   exits?: VenteLogEntry[];
   caJournal?: number;
-  qrGeneratedByProduct?: Record<string, number>;
 };
 
 function formatTime(iso: string): string {
@@ -70,14 +67,11 @@ export function ZoneBoissonsPanel({
   const [draftBuy, setDraftBuy] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [registreOpen, setRegistreOpen] = useState(false);
-  const [qrGeneratedByProduct, setQrGeneratedByProduct] = useState<
-    Record<string, number>
-  >({});
-  const [buyPrompt, setBuyPrompt] = useState<{
-    productId: string;
-    productName: string;
-    raw: string;
-  } | null>(null);
+  /** Compteur de saisies : une réponse d'enregistrement plus ancienne que la
+   *  dernière frappe ne doit pas écraser ce qui vient d'être tapé. */
+  const editSeq = useRef(0);
+  /** Saisie dont l'enregistrement a échoué : pas de relance auto en boucle. */
+  const failedSeq = useRef(-1);
 
   async function load() {
     setLoading(true);
@@ -93,7 +87,6 @@ export function ZoneBoissonsPanel({
       setDrinks(body.drinks);
       setExits(body.exits ?? []);
       setCaJournal(Number(body.caJournal) || 0);
-      setQrGeneratedByProduct(body.qrGeneratedByProduct ?? {});
       setDirty(false);
       setDraftBuy({});
     } catch (e) {
@@ -102,7 +95,6 @@ export function ZoneBoissonsPanel({
       setDrinks([]);
       setExits([]);
       setCaJournal(0);
-      setQrGeneratedByProduct({});
     } finally {
       setLoading(false);
     }
@@ -127,11 +119,13 @@ export function ZoneBoissonsPanel({
         l.productId === productId ? { ...l, ...patch } : l,
       ),
     });
+    editSeq.current += 1;
     setDirty(true);
   }
 
   async function handleSave() {
     if (readOnly || !day) return;
+    const seq = editSeq.current;
     setSaving(true);
     setError(null);
     try {
@@ -147,17 +141,32 @@ export function ZoneBoissonsPanel({
       });
       const body = (await res.json()) as Payload & { error?: string };
       if (!res.ok) throw new Error(body.error || "Erreur d’enregistrement");
-      setDay(body.day);
       setDrinks(body.drinks);
+      // Saisie faite pendant l'envoi : on la garde, l'enregistrement auto
+      // repartira avec la nouvelle valeur.
+      if (editSeq.current !== seq) return;
+      setDay(body.day);
       setDirty(false);
       setSavedFlash(true);
       window.setTimeout(() => setSavedFlash(false), 1800);
     } catch (e) {
+      failedSeq.current = seq;
       setError(e instanceof Error ? e.message : "Erreur d’enregistrement");
     } finally {
       setSaving(false);
     }
   }
+
+  // Zogbo : comptage enregistré dès la saisie, la correction du stock réel
+  // est immédiate. Court délai pour ne pas enregistrer « 2 » quand on tape
+  // « 24 ». Gbégamey garde l'enregistrement par le bouton.
+  useEffect(() => {
+    if (site !== "zogbo" || !dirty || readOnly || saving) return;
+    if (failedSeq.current === editSeq.current) return;
+    const t = window.setTimeout(() => void handleSave(), 800);
+    return () => window.clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [day, dirty, saving, readOnly, site]);
 
   function openPurchase(productId: string, raw: string) {
     if (readOnly) return;
@@ -167,19 +176,10 @@ export function ZoneBoissonsPanel({
       return;
     }
     setError(null);
-    if (premium) {
-      void submitPurchase(productId, raw, false);
-      return;
-    }
-    const name = drinks.find((d) => d.id === productId)?.name ?? "Boisson";
-    setBuyPrompt({ productId, productName: name, raw });
+    void submitPurchase(productId, raw);
   }
 
-  async function submitPurchase(
-    productId: string,
-    raw: string,
-    generateQr: boolean,
-  ) {
+  async function submitPurchase(productId: string, raw: string) {
     if (readOnly) return;
     const upc = Math.max(
       1,
@@ -194,7 +194,6 @@ export function ZoneBoissonsPanel({
     const qty = Math.round((bt / upc) * 100) / 100;
     setBusyId(`buy-${productId}`);
     setError(null);
-    setBuyPrompt(null);
     try {
       const res = await fetch("/api/boissons", {
         method: "POST",
@@ -205,42 +204,19 @@ export function ZoneBoissonsPanel({
           qty,
           qtyBottles: bt,
           site,
-          generateQr,
+          // QR retiré de l'app : le serveur en génère par défaut, on le refuse.
+          generateQr: false,
         }),
       });
       const body = (await res.json()) as Payload & {
         movement?: BoissonsMovement;
-        units?: StockUnit[];
-        qrError?: string | null;
         error?: string;
       };
       if (!res.ok) throw new Error(body.error || "Erreur");
       setDay(body.day);
       setDrinks(body.drinks);
       setExits(body.exits ?? exits);
-      if (body.qrGeneratedByProduct) {
-        setQrGeneratedByProduct(body.qrGeneratedByProduct);
-      }
       setDraftBuy((d) => ({ ...d, [productId]: "" }));
-      const units = body.units ?? [];
-      try {
-        if (generateQr && units.length) {
-          await downloadQrSheet({
-            qrIds: units.map((u) => u.qrId),
-            productName: units[0]?.productName || "Boisson",
-            date,
-          });
-        }
-      } catch (e) {
-        setError(
-          e instanceof Error
-            ? `Achat enregistré, mais PDF QR : ${e.message}`
-            : "Achat enregistré, mais PDF QR impossible.",
-        );
-      }
-      if (body.qrError) {
-        setError(`Achat enregistré, mais PDF QR : ${body.qrError}`);
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -284,9 +260,6 @@ export function ZoneBoissonsPanel({
       setDay(body.day);
       setDrinks(body.drinks);
       setExits(body.exits ?? exits);
-      if (body.qrGeneratedByProduct) {
-        setQrGeneratedByProduct(body.qrGeneratedByProduct);
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Annulation impossible");
     } finally {
@@ -303,7 +276,6 @@ export function ZoneBoissonsPanel({
           DEFAULT_UNITS_PER_CASIER,
       ),
     );
-  const qrOf = (productId: string) => qrGeneratedByProduct[productId] ?? 0;
   const qtySite = computed
     ? site === "zogbo"
       ? computed.totals.soldZogbo
@@ -633,14 +605,14 @@ export function ZoneBoissonsPanel({
                         <td>
                           {readOnly ? (
                             <span className="catalogue-qty-badge">
-                              {counted ?? "—"}
+                              {counted ?? (site === "zogbo" ? 0 : "—")}
                             </span>
                           ) : (
                             <input
                               className="qty-input"
                               inputMode="numeric"
                               aria-label={`Stock réel bouteilles ${line.name}`}
-                              placeholder={String(theoBt)}
+                              placeholder={site === "zogbo" ? "0" : String(theoBt)}
                               value={counted ?? ""}
                               onChange={(e) => {
                                 const raw = e.target.value
@@ -869,8 +841,7 @@ export function ZoneBoissonsPanel({
         </span>
         <p>
           Un seul geste : saisissez le nombre de <strong>bouteilles</strong>{" "}
-          achetées. Ça met le stock à jour et imprime les QR / codes collés de
-          ces bouteilles seulement — les anciens codes restent.
+          achetées. Ça met le stock à jour.
         </p>
       </div>
 
@@ -1006,7 +977,7 @@ export function ZoneBoissonsPanel({
                         bt · achats{" "}
                         {Math.round(purchases * line.unitsPerCasier)} bt ·
                         solde {Math.round(available * line.unitsPerCasier)}{" "}
-                        bt · QR {qrOf(line.productId)}
+                        bt
                         {" · "}
                         PA {formatFcfa(line.purchasePrice)}/bt
                         {" · "}
@@ -1068,20 +1039,22 @@ export function ZoneBoissonsPanel({
                     </td>
                     <td className="col-qty">
                       {readOnly ? (
-                        <span className="mono">{counted ?? "—"}</span>
+                        <span className="mono">{counted ?? (site === "zogbo" ? 0 : "—")}</span>
                       ) : (
                         <input
                           className="qty-input"
                           inputMode="numeric"
                           aria-label={`Stock actuel bouteilles ${line.name}`}
-                          placeholder={String(
-                            Math.max(
-                              0,
-                              Math.round(
-                                theoreticalRemaining * line.unitsPerCasier,
-                              ),
-                            ),
-                          )}
+                          placeholder={
+                            site === "zogbo"
+                              ? "0"
+                              : String(
+                                  Math.max(
+                                    0,
+                                    Math.round(theoreticalRemaining * line.unitsPerCasier),
+                                  ),
+                                )
+                          }
                           value={counted ?? ""}
                           onChange={(e) => {
                             const raw = e.target.value.trim().replace(",", ".");
@@ -1127,60 +1100,6 @@ export function ZoneBoissonsPanel({
       >
         {renderRegistreContent()}
       </RegistreDrawer>
-
-      {buyPrompt ? (
-        <div
-          className="stock-qr-prompt"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="boisson-qr-prompt-title"
-        >
-          <div className="stock-qr-prompt-card">
-            <h2 id="boisson-qr-prompt-title" className="panel-title">
-              Générer le code QR ?
-            </h2>
-            <p className="muted">
-              <strong>{buyPrompt.productName}</strong> · {buyPrompt.raw} bt sur{" "}
-              {site === "gbegamey" ? "Gbégamey" : "Zogbo"}.
-            </p>
-            <p className="muted">
-              Oui = QR + PDF. Non = achat enregistré sans QR. Les ventes de cette
-              boisson sur ce site dépendront de ce stock.
-            </p>
-            <div className="stock-qr-prompt-actions">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => setBuyPrompt(null)}
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() =>
-                  void submitPurchase(
-                    buyPrompt.productId,
-                    buyPrompt.raw,
-                    false,
-                  )
-                }
-              >
-                Non
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={() =>
-                  void submitPurchase(buyPrompt.productId, buyPrompt.raw, true)
-                }
-              >
-                Oui, PDF
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -30,7 +30,11 @@ import type {
   StockZogboPayload,
 } from "@/lib/stock-unit-types";
 import { computeLocalLine } from "@/lib/gbegamey-calc";
-import { formatDisplayDate, todayIsoDate } from "@/lib/zogbo-calc";
+import {
+  computeZogboAccompanimentLine,
+  formatDisplayDate,
+  todayIsoDate,
+} from "@/lib/zogbo-calc";
 
 type TabKey = "plats" | "acc" | "boissons";
 
@@ -355,10 +359,12 @@ export function StockZogboPage({
 
   const accComputed = useMemo(() => {
     const priceById = new Map(localDishes.map((d) => [d.id, d.unitPrice]));
+    // Zogbo : le comptage mesure l'écart sans remplacer le stock.
+    const compute = isGbegamey ? computeLocalLine : computeZogboAccompanimentLine;
     return accLines.map((l) =>
-      computeLocalLine(l, priceById.get(l.productId) ?? 0),
+      compute(l, priceById.get(l.productId) ?? 0),
     );
-  }, [accLines, localDishes]);
+  }, [accLines, localDishes, isGbegamey]);
 
   const filteredPlats = useMemo(
     () =>
@@ -914,7 +920,11 @@ export function StockZogboPage({
                             </td>
                             <td>
                               <EcartBadge
-                                value={accEcartByProduct.get(row.productId) ?? null}
+                                value={
+                                  isGbegamey
+                                    ? (accEcartByProduct.get(row.productId) ?? null)
+                                    : row.variance
+                                }
                               />
                             </td>
                             <td>
@@ -970,7 +980,13 @@ export function StockZogboPage({
                             <span className="stock-mobile-metric-label">
                               Écart
                             </span>
-                            <strong>{formatEcart(accEcartByProduct.get(row.productId) ?? null)}</strong>
+                            <strong>
+                              {formatEcart(
+                                isGbegamey
+                                  ? (accEcartByProduct.get(row.productId) ?? null)
+                                  : row.variance,
+                              )}
+                            </strong>
                           </div>
                           <div className="stock-mobile-metric">
                             <span className="stock-mobile-metric-label">

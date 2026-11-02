@@ -1,6 +1,7 @@
 import { getParametres } from "@/lib/parametres-repo";
-import { computeGbegameyDay, computeLocalLine } from "@/lib/gbegamey-calc";
+import { computeGbegameyDay } from "@/lib/gbegamey-calc";
 import {
+  computeZogboAccompanimentLine,
   computeZogboDay,
 } from "@/lib/zogbo-calc";
 import {
@@ -278,7 +279,7 @@ export async function getStockPayload(input: {
     if (wanted.has("accompagnements")) {
       const accLines = day.accompanimentLines ?? [];
       for (const raw of accLines) {
-        const line = computeLocalLine(
+        const line = computeZogboAccompanimentLine(
           raw,
           priceLocal.get(raw.productId) ?? 0,
         );

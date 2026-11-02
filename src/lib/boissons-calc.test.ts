@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyBoissonsPurchaseToState,
+  cancelBoissonsMovementInState,
   computeBoissonsLine,
   formatCasiers,
   guessUnitsPerCasier,
@@ -112,6 +114,47 @@ describe("physicalBoissonsStockForSite", () => {
       physicalBoissonsStockForSite(l, "zogbo", 12),
     );
     expect(physicalBoissonsStockForSite(l, "zogbo", -3)).toBeGreaterThan(0);
+  });
+});
+
+describe("achat après comptage", () => {
+  it("Zogbo : ajoute les bouteilles achetées au stock compté, et les retire à l'annulation", () => {
+    // Comptage 10 bt à Zogbo, puis achat de 24 bt (2 casiers de 12).
+    const achat = applyBoissonsPurchaseToState(
+      [ligne({ initialStockZogbo: 1, countedZogbo: 10 })],
+      [],
+      { productId: "drink-beaufort", site: "zogbo", qty: 2, unitsPerCasier: 12 },
+    );
+    expect(achat.lines[0]!.countedZogbo).toBe(34);
+    expect(physicalBoissonsStockForSite(achat.lines[0]!, "zogbo", 12)).toBe(34);
+
+    const annule = cancelBoissonsMovementInState(
+      achat.lines,
+      achat.movements,
+      achat.movement.id,
+      12,
+    );
+    expect(annule.lines[0]!.countedZogbo).toBe(10);
+  });
+
+  it("Zogbo : laisse le comptage vide s'il n'a pas été saisi", () => {
+    const achat = applyBoissonsPurchaseToState([ligne()], [], {
+      productId: "drink-beaufort",
+      site: "zogbo",
+      qty: 2,
+      unitsPerCasier: 12,
+    });
+    expect(achat.lines[0]!.countedZogbo).toBeNull();
+    expect(physicalBoissonsStockForSite(achat.lines[0]!, "zogbo", 12)).toBe(24);
+  });
+
+  it("Gbégamey : le comptage n'est pas modifié par un achat", () => {
+    const achat = applyBoissonsPurchaseToState(
+      [ligne({ countedGbegamey: 10 })],
+      [],
+      { productId: "drink-beaufort", site: "gbegamey", qty: 2, unitsPerCasier: 12 },
+    );
+    expect(achat.lines[0]!.countedGbegamey).toBe(10);
   });
 });
 

@@ -9,7 +9,10 @@ import { computeLocalLine, computeTransferLine } from "@/lib/gbegamey-calc";
 import { getParametres } from "@/lib/parametres-repo";
 import { normalizeStickerCode, STICKER_ALPHABET } from "@/lib/parse-qr-id";
 import type { GbegameyLocalLine, VenteSite } from "@/lib/types";
-import { computeZogboLine } from "@/lib/zogbo-calc";
+import {
+  computeZogboAccompanimentLine,
+  computeZogboLine,
+} from "@/lib/zogbo-calc";
 import {
   canTransitionUnitStatus,
   type PlatUnitStats,
@@ -365,7 +368,7 @@ export async function getStockSitePayload(
   const accStats = zogbo.localDishes.map((dish) => {
     const line = accLines.find((l) => l.productId === dish.id);
     const stockRemaining = line
-      ? computeLocalLine(line, dish.unitPrice).prevalentRemaining
+      ? computeZogboAccompanimentLine(line, dish.unitPrice).prevalentRemaining
       : 0;
     return statsFromCounts(
       dish.id,

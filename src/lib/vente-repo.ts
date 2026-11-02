@@ -303,12 +303,14 @@ export function accompanimentTracked(line: GbegameyLocalLine): boolean {
  */
 export function accompanimentAvailability(
   line: GbegameyLocalLine | null | undefined,
+  site: VenteSite = "gbegamey",
 ): { tracked: boolean; stockLeft: number | null; maxSold: number | null } {
   if (!line || !accompanimentTracked(line)) {
     return { tracked: false, stockLeft: null, maxSold: null };
   }
-  // Comptage saisi : le stock physique prévaut sur le théorique.
-  if (line.counted !== null && line.counted !== undefined) {
+  // Gbégamey : le comptage saisi prévaut sur le théorique. Zogbo : le
+  // comptage mesure l'écart, la vente suit init. + préparé.
+  if (site === "gbegamey" && line.counted !== null && line.counted !== undefined) {
     const prevalent = Math.max(0, Number(line.counted) || 0);
     const stockLeft = Math.max(0, prevalent - line.sold);
     return {
@@ -419,7 +421,7 @@ export async function getVenteBoard(
     );
     for (const dish of parametres.localDishes) {
       const line = accById.get(dish.id);
-      const { tracked, stockLeft } = accompanimentAvailability(line);
+      const { tracked, stockLeft } = accompanimentAvailability(line, "zogbo");
       const enforce = shouldEnforceProductStock({
         dayFreeSale: ventesSansStock,
         productTracked: tracked,
@@ -1350,7 +1352,7 @@ export async function recordVente(input: {
         const { day } = await getGbegameyDayPayload(input.date);
         line = day.localLines.find((l) => l.productId === input.productId);
       }
-      const avail = accompanimentAvailability(line ?? null);
+      const avail = accompanimentAvailability(line ?? null, input.site);
       const enforce = shouldEnforceProductStock({
         dayFreeSale,
         productTracked: avail.tracked,
