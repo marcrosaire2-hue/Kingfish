@@ -1,3 +1,4 @@
+import { withReadCache } from "@/lib/read-cache";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { consumeRateLimit, rateLimitResponse } from "@/lib/security-rate-limit";
@@ -10,7 +11,7 @@ import {
 
 export const runtime = "nodejs";
 
-export async function GET(request: Request) {
+export const GET = withReadCache(async function GET(request: Request) {
   try {
     const user = await requireUser();
     try {
@@ -53,4 +54,4 @@ export async function GET(request: Request) {
     }
     return authErrorResponse(error);
   }
-}
+});

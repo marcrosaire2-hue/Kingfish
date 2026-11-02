@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import Link from "next/link";
 import {
   useCallback,
@@ -337,8 +338,8 @@ export function JournalVentesPage({
     }
   };
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({
@@ -388,6 +389,8 @@ export function JournalVentesPage({
       setLoading(false);
     }
   }, [from, to, site, statut, source, serveur, paiement, q]);
+
+  useLiveRefresh(() => void load(true));
 
   const allLines = useMemo(
     () => result.days.flatMap((d) => d.lines),

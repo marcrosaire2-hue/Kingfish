@@ -3,6 +3,8 @@ import {
   resolveMailAlertRecipients,
   saleNotifyEnabled,
 } from "@/lib/mail/mail-config";
+import { sendBrevoMail } from "@/lib/mail/brevo-send";
+import { setBrevoStatus } from "@/lib/mail/mail-status-repo";
 import { sendMail, MailRateLimitError } from "@/lib/mail/gmail-send";
 import { saleTicketMail } from "@/lib/mail/mail-templates";
 import { listValidTicketsForDate } from "@/lib/pos-repo";
@@ -30,6 +32,42 @@ export function notifySaleTicketAsync(ticket: PosTicket): void {
       await sendSaleTicketMail(ticket);
     } catch (error) {
       reportError("mail/notifySaleTicket", error);
+    }
+  });
+}
+
+/**
+ * Vente direction : prévient l'administrateur par Brevo dès l'encaissement
+ * (liste de destinataires des alertes admin). Indépendant de MAIL_SALE_NOTIFY
+ * et de Gmail ; ne fait jamais échouer la vente.
+ */
+export function notifyDirectionSaleAsync(ticket: PosTicket): void {
+  if (ticket.venteOrigine !== "direction") return;
+
+  after(async () => {
+    try {
+      const to = await resolveMailAlertRecipients();
+      if (to.length === 0) {
+        console.warn("[mail] Vente direction : aucun destinataire admin configuré.");
+        await setBrevoStatus({
+          ok: false,
+          error: `Vente direction ${ticket.numero} : aucun destinataire enregistré.`,
+        }).catch(() => undefined);
+        return;
+      }
+      const sent = await sendBrevoMail({ to, ...saleTicketMail(ticket) });
+      await setBrevoStatus({
+        ok: sent,
+        error: sent
+          ? null
+          : `Vente direction ${ticket.numero} : Brevo non configuré (clé ou expéditeur).`,
+      }).catch(() => undefined);
+    } catch (error) {
+      reportError("mail/notifyDirectionSale", error);
+      await setBrevoStatus({
+        ok: false,
+        error: `Vente direction ${ticket.numero} : ${error instanceof Error ? error.message : "envoi impossible"}`,
+      }).catch(() => undefined);
     }
   });
 }

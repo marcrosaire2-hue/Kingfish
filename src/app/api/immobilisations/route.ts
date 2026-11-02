@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canManagePastVentes, canUseSite, effectiveSite } from "@/lib/auth-types";
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireUser();
     if (user.role === "gerant" || !canManagePastVentes(user.role)) {
@@ -193,4 +194,4 @@ export async function POST(request: Request) {
     reportError("POST /api/immobilisations", error);
     return authErrorResponse(error);
   }
-}
+});

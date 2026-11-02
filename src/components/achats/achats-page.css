@@ -451,3 +451,8 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
+
+.main-achats .achats-tag-stock {
+  margin-left: 0.4rem;
+  vertical-align: middle;
+}

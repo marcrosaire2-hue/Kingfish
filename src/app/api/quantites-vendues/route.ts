@@ -1,3 +1,4 @@
+import { withReadCache } from "@/lib/read-cache";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite } from "@/lib/auth-types";
@@ -13,7 +14,7 @@ function monthStart(d = todayIsoDate()) {
 
 const KINDS: VenteKind[] = ["plat", "local", "boisson", "extra"];
 
-export async function GET(request: Request) {
+export const GET = withReadCache(async function GET(request: Request) {
   try {
     const user = await requireUser();
     const { searchParams } = new URL(request.url);
@@ -53,4 +54,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});

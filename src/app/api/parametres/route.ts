@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import {
@@ -30,7 +31,7 @@ export async function GET() {
   }
 }
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireUser();
     const body = await request.json();
@@ -52,9 +53,9 @@ export async function PUT(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json().catch(() => ({}))) as {
@@ -75,4 +76,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});

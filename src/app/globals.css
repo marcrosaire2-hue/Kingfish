@@ -3351,6 +3351,39 @@ select {
   margin-top: 0.75rem;
 }
 
+.equipe-mail-list li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Téléphone : texte au-dessus, boutons pleine largeur (valider / refuser…). */
+@media (max-width: 720px) {
+  .equipe-mail-panel {
+    padding: 0.9rem 0.85rem 1rem;
+  }
+
+  .equipe-mail-list li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .equipe-mail-list li > span:last-child:not(:first-child) {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .equipe-mail-list li .btn {
+    flex: 1 1 0;
+    min-height: 2.75rem;
+  }
+
+  .equipe-mail-add .btn,
+  .equipe-mail-actions .btn {
+    flex: 1 1 100%;
+    min-height: 2.75rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .equipe-live-pill.is-on .equipe-live-dot,
   .equipe-live-bar.is-on .equipe-live-dot {
@@ -10802,4 +10835,27 @@ html.nav-open body {
   .sidebar-backdrop {
     transition: none;
   }
+}
+
+.category-add {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.category-add .name-input {
+  flex: 1 1 220px;
+}
+
+.category-title {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 8px;
+}
+
+.category-title .name-input {
+  flex: 1;
+  font-weight: 600;
 }

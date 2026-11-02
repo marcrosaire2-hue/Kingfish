@@ -99,10 +99,35 @@ export type Recipe = {
   lines: RecipeLine[];
 };
 
+/**
+ * Catégorie de vente créée par l'administrateur (ex. « Dessert »), en plus des
+ * trois catégories d'origine : plats, accompagnements, boissons.
+ */
+export type ProductCategory = {
+  id: string;
+  name: string;
+};
+
+/**
+ * Article d'une catégorie personnalisée. Vendu sans stock (comme une vente
+ * libre) mais au prix du catalogue, fixé côté serveur.
+ */
+export type CategoryProduct = {
+  id: ProductId;
+  categoryId: string;
+  name: string;
+  unitPrice: number;
+  costPrice?: number;
+};
+
 export type Parametres = {
   baseDishes: BaseDish[];
   drinks: Drink[];
   localDishes: LocalDish[];
+  /** Catégories de vente personnalisées (ex. Dessert). */
+  categories?: ProductCategory[];
+  /** Articles des catégories personnalisées. */
+  categoryProducts?: CategoryProduct[];
   /** Formules / combos (catalogue). */
   combos?: ComboDish[];
   rawMaterials?: RawMaterial[];
@@ -665,6 +690,8 @@ export type VenteProduct = {
    * Tant qu’il n’y en a pas, la caisse vend sans code (stock agrégé).
    */
   qrRequired?: boolean;
+  /** Catégorie personnalisée (kind « extra » du catalogue, sans stock). */
+  categoryId?: string;
 };
 
 export type VenteLogEntry = {
@@ -697,6 +724,16 @@ export type VentesDaySummary = {
 
 /** Types de vente POS (AquaPro) */
 export type SaleType = "Sur place" | "Rapido";
+
+/** Destinataire de la vente : un client, ou la direction (mail à l'admin). */
+export type VenteOrigine = "client" | "direction";
+
+export const VENTE_ORIGINES: VenteOrigine[] = ["client", "direction"];
+
+export const VENTE_ORIGINE_LABELS: Record<VenteOrigine, string> = {
+  client: "Vente client",
+  direction: "Vente direction",
+};
 
 /** Immobilisation patrimoniale ou emballage facturable en caisse. */
 export type ImmobilisationKind = "actif" | "emballage";
@@ -953,7 +990,16 @@ export type PosTicketLine = {
   qrId?: string | null;
 };
 
-export type PosTicketStatut = "valide" | "annule";
+/**
+ * Ventes direction (jamais dans le CA clients) : « en_attente » tant que
+ * l'admin ne les a pas validées, puis « direction_validee ». « valide » est
+ * réservé aux ventes clients : c'est lui que filtrent tous les calculs de CA.
+ */
+export type PosTicketStatut =
+  | "valide"
+  | "annule"
+  | "en_attente"
+  | "direction_validee";
 
 export type PosTicket = {
   id: string;
@@ -962,6 +1008,8 @@ export type PosTicket = {
   site: VenteSite;
   statut: PosTicketStatut;
   saleType: SaleType;
+  /** Absent sur les anciens tickets : équivaut à « client ». */
+  venteOrigine?: VenteOrigine;
   caisseId: string | null;
   paymentMethodId: string | null;
   paymentLabel: string | null;
@@ -980,6 +1028,8 @@ export type PosTicket = {
   shift?: UserShift;
   at: string;
   cancelledAt: string | null;
+  /** Vente direction validée par un admin. */
+  validatedByName?: string | null;
 };
 
 /** Journée matières / appro */

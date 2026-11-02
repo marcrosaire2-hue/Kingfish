@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canAccessPath, type SessionUser } from "@/lib/auth-types";
@@ -96,7 +97,7 @@ export async function GET() {
   }
 }
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireUser();
     assertCombosAccess(user);
@@ -173,4 +174,4 @@ export async function PUT(request: Request) {
     }
     return authErrorResponse(error);
   }
-}
+});

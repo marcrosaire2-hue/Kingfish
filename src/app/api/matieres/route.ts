@@ -1,6 +1,11 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
-import { canManagePastVentes, type SessionUser } from "@/lib/auth-types";
+import {
+  canManagePastVentes,
+  effectiveSite,
+  type SessionUser,
+} from "@/lib/auth-types";
 import { canCorrectClosedFinancialData } from "@/lib/security-policy";
 import { logActivity } from "@/lib/log-activity";
 import { getPosConfig } from "@/lib/pos-config-repo";
@@ -16,13 +21,35 @@ import {
   listMatieresMovements,
   saveMatieresDay,
 } from "@/lib/matieres-repo";
-import type { MatieresLine } from "@/lib/types";
+import type { MatieresLine, VenteSite } from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
 function siteOf(user: { site: string }): "zogbo" | "gbegamey" {
   return user.site === "gbegamey" ? "gbegamey" : "zogbo";
+}
+
+/**
+ * Site d'un achat : celui du compte rattaché à un site ; un compte multi-sites
+ * (administrateur) doit préciser le site concerné.
+ */
+function resolveAchatSite(
+  user: SessionUser,
+  requested: unknown,
+): { site: VenteSite } | { error: string } {
+  const scope = effectiveSite(user.role, user.site);
+  if (scope === "zogbo" || scope === "gbegamey") return { site: scope };
+  if (requested === "zogbo" || requested === "gbegamey") {
+    return { site: requested };
+  }
+  return { error: "Précisez le site concerné par l'achat." };
+}
+
+/** Site affiché en lecture : celui du compte, ou celui choisi par l'admin. */
+function readSite(user: SessionUser, requested: string | null): VenteSite {
+  const res = resolveAchatSite(user, requested);
+  return "site" in res ? res.site : siteOf(user);
 }
 
 function managerBypass(
@@ -41,11 +68,12 @@ async function attachDepense(input: {
   fournisseurNom: string | null;
   montant: number;
   bypassPast: boolean;
+  site: VenteSite;
 }): Promise<{ id: string; montant: number } | { error: string } | null> {
   if (input.montant <= 0) return null;
   try {
     const { session, allowClosed } = await resolveCaisseForDepense({
-      site: siteOf(input.user),
+      site: input.site,
       date: input.date,
       allowPastClosed: input.bypassPast,
     });
@@ -86,7 +114,7 @@ export async function GET(request: Request) {
       const historique = await listMatieresMovements({
         dateFrom: from,
         dateTo: to,
-        site: siteOf(user),
+        site: readSite(user, searchParams.get("site")),
       });
       return NextResponse.json({ historique, canManagePast });
     }
@@ -95,7 +123,7 @@ export async function GET(request: Request) {
     }
     const full = await getMatieresDayPayload(date);
     // Chaque point de vente ne voit que ses propres achats.
-    const mine = siteOf(user);
+    const mine = readSite(user, searchParams.get("site"));
     const payload = {
       ...full,
       day: {
@@ -113,7 +141,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as {
@@ -144,9 +172,9 @@ export async function PUT(request: Request) {
     }
     return authErrorResponse(error);
   }
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as {
@@ -158,6 +186,7 @@ export async function POST(request: Request) {
       unitPrice?: number;
       movementId?: string;
       fournisseurId?: string;
+      site?: string;
     };
 
     if (!body.date) {
@@ -165,6 +194,7 @@ export async function POST(request: Request) {
     }
 
     const bypass = managerBypass(user, body.date);
+    const siteChoice = resolveAchatSite(user, body.site);
 
     if (body.action === "cancel") {
       return NextResponse.json(
@@ -192,6 +222,10 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+    if ("error" in siteChoice) {
+      return NextResponse.json({ error: siteChoice.error }, { status: 400 });
+    }
+    const site = siteChoice.site;
     const fournisseur = body.fournisseurId
       ? (await getPosConfig()).fournisseurs.find(
           (f) => f.id === body.fournisseurId,
@@ -200,7 +234,7 @@ export async function POST(request: Request) {
     // Un achat sort de l'argent : sans caisse ouverte il ne serait tracé nulle
     // part. On refuse AVANT d'enregistrer l'achat (qui n'est plus annulable).
     const { session: caisseDuJour } = await resolveCaisseForDepense({
-      site: siteOf(user),
+      site,
       date: body.date,
       allowPastClosed: bypass,
     });
@@ -217,7 +251,7 @@ export async function POST(request: Request) {
       body.productId === "autre"
         ? await applyMatieresOtherPurchase({
             date: body.date,
-            site: siteOf(user),
+            site,
             name: String(body.name ?? ""),
             qty: Number(body.qty),
             unitPrice: body.unitPrice,
@@ -227,7 +261,7 @@ export async function POST(request: Request) {
           })
         : await applyMatieresPurchase({
             date: body.date,
-            site: siteOf(user),
+            site,
             productId: body.productId,
             qty: Number(body.qty),
             unitPrice: body.unitPrice,
@@ -248,6 +282,7 @@ export async function POST(request: Request) {
       fournisseurNom: payload.movement.fournisseurNom ?? null,
       montant,
       bypassPast: bypass,
+      site,
     });
 
     await logActivity({
@@ -259,7 +294,7 @@ export async function POST(request: Request) {
           ? `${body.name} · +${Number(body.qty)}`
           : `Produit ${body.productId} · +${Number(body.qty)}`,
       date: body.date,
-      site: siteOf(user),
+      site,
       amount: montant > 0 ? montant : null,
     });
     const depenseError =
@@ -273,7 +308,7 @@ export async function POST(request: Request) {
         title: "Achat sans écriture de caisse",
         detail: depenseError,
         date: body.date,
-        site: siteOf(user),
+        site,
         amount: montant > 0 ? montant : null,
       });
     }
@@ -288,4 +323,4 @@ export async function POST(request: Request) {
     }
     return authErrorResponse(error);
   }
-}
+});

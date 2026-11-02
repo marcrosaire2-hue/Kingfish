@@ -4,11 +4,18 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
+import { useSession } from "@/components/session-provider";
+import { SITE_LABELS, effectiveSite } from "@/lib/auth-types";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { CataloguePaginationBar } from "@/components/parametres/catalogue-view";
 import { downloadExcel, excelFilename } from "@/lib/export-excel";
 import { formatFcfa } from "@/lib/format";
-import type { Fournisseur, MatieresMovement } from "@/lib/types";
+import type {
+  Fournisseur,
+  MatieresMovement,
+  RawMaterial,
+  VenteSite,
+} from "@/lib/types";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import {
   emptyDraftLibre,
@@ -19,9 +26,9 @@ import {
 } from "@/components/achats/achats-shared";
 import "./achats-page.css";
 
-/** Achats libres : tout ce qui n'est pas une matière du catalogue. */
-function isLibre(m: MatieresMovement): boolean {
-  return m.type === "autre";
+/** Achat d'une matière du catalogue : il entre au stock, contrairement aux achats libres. */
+function isStock(m: MatieresMovement): boolean {
+  return m.type === "purchase";
 }
 
 const RANGE_FROM = "2020-01-01";
@@ -80,6 +87,13 @@ function lineTotal(qty: string, price: string): number {
 }
 
 export function AchatsPage() {
+  const { user } = useSession();
+  const scope = user ? effectiveSite(user.role, user.site) : null;
+  /** Compte multi-sites (administrateur) : le site de l'achat est à préciser. */
+  const siteAChoisir = scope === "tous";
+  const [siteChoisi, setSiteChoisi] = useState<VenteSite | "">("");
+  const site: VenteSite | "" =
+    scope === "zogbo" || scope === "gbegamey" ? scope : siteChoisi;
   const composerRef = useRef<HTMLElement | null>(null);
   const productInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -91,6 +105,7 @@ export function AchatsPage() {
   );
   const [busyLibre, setBusyLibre] = useState(false);
   const [fournisseurs, setFournisseurs] = useState<Fournisseur[]>([]);
+  const [materials, setMaterials] = useState<RawMaterial[]>([]);
   const [flash, setFlash] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -107,7 +122,7 @@ export function AchatsPage() {
       try {
         const to = todayIsoDate();
         const res = await fetch(
-          `/api/matieres?from=${encodeURIComponent(RANGE_FROM)}&to=${encodeURIComponent(to)}`,
+          `/api/matieres?from=${encodeURIComponent(RANGE_FROM)}&to=${encodeURIComponent(to)}${site ? `&site=${site}` : ""}`,
           { cache: "no-store" },
         );
         const body = (await res.json()) as {
@@ -116,7 +131,7 @@ export function AchatsPage() {
         };
         if (!res.ok) throw new Error(body.error || "Impossible de charger les achats.");
         setEntries(
-          (body.historique ?? []).filter(({ movement }) => isLibre(movement)),
+          body.historique ?? [],
         );
       } catch (e) {
         setError(
@@ -129,8 +144,11 @@ export function AchatsPage() {
   }
 
   useEffect(() => {
+    // Rechargement quand le site affiché change.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     reload();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site]);
 
   useEffect(() => {
     let annule = false;
@@ -148,6 +166,36 @@ export function AchatsPage() {
       annule = true;
     };
   }, []);
+
+  useEffect(() => {
+    let annule = false;
+    void (async () => {
+      try {
+        const res = await fetch("/api/parametres", { cache: "no-store" });
+        if (!res.ok) return;
+        const params = (await res.json()) as { rawMaterials?: RawMaterial[] };
+        if (!annule) setMaterials(params.rawMaterials ?? []);
+      } catch {
+        /* sans catalogue, seul l'achat libre reste proposé */
+      }
+    })();
+    return () => {
+      annule = true;
+    };
+  }, []);
+
+  const selectedMaterial = materials.find((m) => m.id === draftLibre.productId);
+
+  function chooseProduct(productId: string) {
+    const mat = materials.find((m) => m.id === productId);
+    setDraftLibre((d) => ({
+      ...d,
+      productId,
+      name: mat ? mat.name : "",
+      // Prix catalogue proposé, toujours modifiable.
+      price: mat && mat.purchasePrice > 0 ? String(mat.purchasePrice) : d.price,
+    }));
+  }
 
   const sorted = useMemo(
     () => [...entries].sort((a, b) => b.date.localeCompare(a.date)),
@@ -186,16 +234,21 @@ export function AchatsPage() {
     const name = row.name.trim();
     const qty = Number(String(row.qty).replace(",", ".")) || 0;
     const price = Number(String(row.price).replace(",", ".")) || 0;
+    if (!site) {
+      setError("Choisissez le site concerné par l'achat.");
+      return;
+    }
     if (!row.date) {
       setError("Choisissez la date de l'achat.");
       return;
     }
-    if (name.length < 2) {
+    const enStock = !!row.productId;
+    if (!enStock && name.length < 2) {
       setError("Saisissez le nom du produit acheté.");
       return;
     }
     if (qty <= 0 || price <= 0) {
-      setError("Quantité et prix unitaire obligatoires pour un achat libre.");
+      setError("Quantité et prix unitaire obligatoires.");
       return;
     }
     setBusyLibre(true);
@@ -207,7 +260,8 @@ export function AchatsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           date: row.date,
-          productId: "autre",
+          site,
+          productId: enStock ? row.productId : "autre",
           name,
           qty,
           unitPrice: price,
@@ -220,14 +274,15 @@ export function AchatsPage() {
       };
       if (!res.ok) throw new Error(body.error || "Erreur");
       setDraftLibre(emptyDraftLibre());
+      const quoi = enStock ? "Achat enregistré et ajouté au stock" : "Achat enregistré";
       if (body.depenseError) {
         setError(body.depenseError);
       } else if (body.depense) {
         setFlash(
-          `Achat enregistré — dépense de ${formatFcfa(body.depense.montant)} créée à la caisse.`,
+          `${quoi} — dépense de ${formatFcfa(body.depense.montant)} créée à la caisse.`,
         );
       } else {
-        setFlash("Achat enregistré — caisse fermée : aucune dépense liée.");
+        setFlash(`${quoi} — caisse fermée : aucune dépense liée.`);
       }
       reload();
     } catch (err) {
@@ -261,18 +316,15 @@ export function AchatsPage() {
   return (
     <AppShell
       title="Achats"
-      subtitle="Hors catalogue — les matières se saisissent dans Approvisionnement."
+      subtitle="Matières du stock ou achats libres hors catalogue."
       mainClassName="main-achats"
       actions={
         <>
-          <Link href="/appro" className="btn btn-ghost">
-            Approvisionnement
-          </Link>
           <ExportExcelButton
             disabled={loading}
             className="btn btn-ghost"
             onExport={() => {
-              downloadExcel(excelFilename("achats-libres", todayIsoDate()), [
+              downloadExcel(excelFilename("achats", todayIsoDate()), [
                 { name: "Achats", rows: movementRows(sorted) },
               ]);
               return Promise.resolve();
@@ -327,7 +379,7 @@ export function AchatsPage() {
           ref={composerRef}
           className="achats-composer"
           id="nouvel-achat"
-          aria-label="Saisie d’un achat libre"
+          aria-label="Saisie d’un achat"
         >
           <header className="achats-composer-head">
             <h2>Saisie rapide</h2>
@@ -338,6 +390,23 @@ export function AchatsPage() {
             </p>
           </header>
           <form className="achats-composer-grid" onSubmit={submitPurchaseLibre}>
+            {siteAChoisir ? (
+              <label className="achats-field">
+                <span>Site concerné</span>
+                <select
+                  value={siteChoisi}
+                  required
+                  onChange={(e) => setSiteChoisi(e.target.value as VenteSite | "")}
+                >
+                  <option value="">— Choisir le site —</option>
+                  {(["zogbo", "gbegamey"] as VenteSite[]).map((s) => (
+                    <option key={s} value={s}>
+                      {SITE_LABELS[s]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <label className="achats-field">
               <span>Date</span>
               <input
@@ -350,22 +419,41 @@ export function AchatsPage() {
                 required
               />
             </label>
-            <label className="achats-field achats-field-grow">
-              <span>Produit</span>
-              <input
-                ref={productInputRef}
-                type="text"
-                placeholder="Nom du produit…"
-                value={draftLibre.name}
-                onChange={(e) =>
-                  setDraftLibre((d) => ({ ...d, name: e.target.value }))
-                }
-                autoComplete="off"
-                required
-              />
-            </label>
+            {materials.length > 0 ? (
+              <label className="achats-field achats-field-grow">
+                <span>Stock</span>
+                <select
+                  value={draftLibre.productId}
+                  onChange={(e) => chooseProduct(e.target.value)}
+                >
+                  <option value="">Achat libre (hors stock)</option>
+                  {materials.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                      {m.unit ? ` (${m.unit})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            {selectedMaterial ? null : (
+              <label className="achats-field achats-field-grow">
+                <span>Produit</span>
+                <input
+                  ref={productInputRef}
+                  type="text"
+                  placeholder="Nom du produit…"
+                  value={draftLibre.name}
+                  onChange={(e) =>
+                    setDraftLibre((d) => ({ ...d, name: e.target.value }))
+                  }
+                  autoComplete="off"
+                  required
+                />
+              </label>
+            )}
             <label className="achats-field">
-              <span>Qté</span>
+              <span>{selectedMaterial?.unit ? `Qté (${selectedMaterial.unit})` : "Qté"}</span>
               <input
                 type="number"
                 min={0}
@@ -423,7 +511,7 @@ export function AchatsPage() {
             <button
               type="submit"
               className="btn btn-primary achats-submit"
-              disabled={busyLibre}
+              disabled={busyLibre || !site}
             >
               {busyLibre ? "…" : "Enregistrer"}
             </button>
@@ -523,6 +611,11 @@ export function AchatsPage() {
                           <td className="achats-td-date">{formatDateFr(d)}</td>
                           <td>
                             <strong className="achats-td-name">{m.name}</strong>
+                            {isStock(m) ? (
+                              <span className="achats-status achats-status-ok achats-tag-stock">
+                                Stock
+                              </span>
+                            ) : null}
                             {open ? (
                               <p className="achats-td-detail">
                                 {m.qty} × {formatFcfa(m.unitPrice)} ={" "}

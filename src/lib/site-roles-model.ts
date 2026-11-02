@@ -11,6 +11,11 @@ export type VentePolicyPermissions = {
   cancel: boolean;
 };
 
+/** Droits propres à un compte, par site (absent = hérite du rôle et du site). */
+export type UserSiteOverrides = Partial<
+  Record<VenteSite, Partial<VentePolicyPermissions>>
+>;
+
 export type SiteRolesConfig = {
   /** Restrictions globales par point de vente (tous rôles confondus). */
   sites: {
@@ -19,6 +24,8 @@ export type SiteRolesConfig = {
   };
   /** Droits par rôle métier. */
   roles: Record<UserRole, VentePolicyPermissions>;
+  /** Droits par compte (id utilisateur) : prioritaires sur le rôle et le site. */
+  users?: Record<string, UserSiteOverrides>;
   updatedAt: string | null;
 };
 
@@ -60,14 +67,14 @@ export const DEFAULT_VENTE_POLICY_PERMISSIONS: VentePolicyPermissions = {
   cancel: true,
 };
 
-/** Aligné sur le comportement historique de l'application. */
+/** Par défaut : seul l'admin modifie, supprime ou annule ; chacun reste réglable. */
 export const DEFAULT_ROLE_VENTE_PERMISSIONS: Record<
   UserRole,
   VentePolicyPermissions
 > = {
-  gerant: { sell: true, modify: true, delete: false, cancel: false },
-  comptable: { sell: false, modify: true, delete: false, cancel: false },
-  daf: { sell: true, modify: true, delete: false, cancel: false },
+  gerant: { sell: true, modify: false, delete: false, cancel: false },
+  comptable: { sell: false, modify: false, delete: false, cancel: false },
+  daf: { sell: false, modify: false, delete: false, cancel: false },
   admin: { sell: true, modify: true, delete: true, cancel: true },
 };
 
@@ -104,16 +111,13 @@ export function isVenteActionAllowed(
   role: UserRole,
   site: VenteSite,
   action: VentePolicyAction,
+  userId?: string | null,
 ): boolean {
-  // Règle métier définitive : seule l’admin peut modifier, supprimer ou
-  // annuler une vente / ticket — même si la config Mongo autorise encore
-  // un autre rôle.
-  if (
-    (action === "cancel" || action === "modify" || action === "delete") &&
-    role !== "admin"
-  ) {
-    return false;
-  }
+  // L'administrateur a tous les droits, quelle que soit la configuration.
+  if (role === "admin") return true;
+  // Droit propre au compte (par site) : prioritaire.
+  const own = userId ? config.users?.[userId]?.[site]?.[action] : undefined;
+  if (typeof own === "boolean") return own;
   return (
     permissionsForSite(config, site)[action] &&
     permissionsForRole(config, role)[action]
@@ -124,16 +128,35 @@ export function ventePermissionsFor(
   config: SiteRolesConfig,
   role: UserRole,
   site: VenteSite,
+  userId?: string | null,
 ): VentePolicyPermissions {
-  const sitePerms = permissionsForSite(config, site);
-  const rolePerms = permissionsForRole(config, role);
-  const isAdmin = role === "admin";
+  const out = {} as VentePolicyPermissions;
+  for (const action of VENTE_POLICY_ACTIONS) {
+    out[action] = isVenteActionAllowed(config, role, site, action, userId);
+  }
+  return out;
+}
+
+/**
+ * Configuration « aplatie » pour un compte : les droits effectifs du compte
+ * sont portés par les sites, le rôle est ouvert. Envoyée au navigateur pour
+ * que l'affichage suive exactement ce que le serveur autorise.
+ */
+export function resolveConfigForUser(
+  config: SiteRolesConfig,
+  role: UserRole,
+  userId?: string | null,
+): SiteRolesConfig {
   return {
-    sell: sitePerms.sell && rolePerms.sell,
-    // Hard gate : même si la config Mongo autorise encore un autre rôle.
-    modify: isAdmin && sitePerms.modify && rolePerms.modify,
-    delete: isAdmin && sitePerms.delete && rolePerms.delete,
-    cancel: isAdmin && sitePerms.cancel && rolePerms.cancel,
+    sites: {
+      zogbo: ventePermissionsFor(config, role, "zogbo", userId),
+      gbegamey: ventePermissionsFor(config, role, "gbegamey", userId),
+    },
+    roles: {
+      ...config.roles,
+      [role]: { sell: true, modify: true, delete: true, cancel: true },
+    },
+    updatedAt: config.updatedAt,
   };
 }
 

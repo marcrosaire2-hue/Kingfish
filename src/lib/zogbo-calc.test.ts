@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   applyZogboMovementToState,
   cancelZogboMovementInState,
+  computeZogboAccompanimentLine,
+  computeZogboLine,
   emptyZogboLine,
   isCaisseStale,
   leftoverFromZogboLines,
@@ -30,6 +32,47 @@ function ligne(patch: Partial<ZogboLine> = {}): ZogboLine {
     ...patch,
   };
 }
+
+describe("stock Zogbo et comptage", () => {
+  it("un stock ajouté après le comptage entre tout de suite dans le restant", () => {
+    // Comptage 8 alors que le stock mouvementé est 10, puis +5 : stock 15.
+    const c = computeZogboLine(ligne({ stock: 15, prepared: 15, sold: 3, counted: 8 }), 0);
+    expect(c.prevalentRemaining).toBe(12);
+    expect(c.counted).toBe(8);
+    expect(c.variance).toBe(-7);
+  });
+
+  it("sans comptage, pas d'écart", () => {
+    const c = computeZogboLine(ligne({ stock: 10, prepared: 10 }), 0);
+    expect(c.prevalentRemaining).toBe(10);
+    expect(c.variance).toBeNull();
+  });
+
+  it("accompagnement : init. + préparé fait le stock, le comptage donne l'écart", () => {
+    const c = computeZogboAccompanimentLine(
+      {
+        productId: "acc",
+        name: "Attasi",
+        initialStock: 2,
+        prepared: 10,
+        sold: 4,
+        pertes: 0,
+        counted: 11,
+        observations: "",
+      },
+      0,
+    );
+    expect(c.prevalentRemaining).toBe(8);
+    expect(c.variance).toBe(-1);
+  });
+
+  it("le report au lendemain part toujours du comptage s'il existe", () => {
+    const report = leftoverFromZogboLines([
+      ligne({ stock: 15, prepared: 15, sold: 3, counted: 8 }),
+    ]);
+    expect(report.get("base-poisson")).toBe(5);
+  });
+});
 
 describe("physicalStock", () => {
   it("retranche les ventes du stock préparé", () => {

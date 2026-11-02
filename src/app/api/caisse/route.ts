@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import {
@@ -9,7 +10,8 @@ import {
   isZoneCaisse,
   soldeTheorique,
 } from "@/lib/caisse-model";
-import { logActivity } from "@/lib/log-activity";
+import { logActivity, logCriticalActivity } from "@/lib/log-activity";
+import { isValidAuditReason } from "@/lib/security-policy";
 import {
   addCaisseMouvement,
   cancelCaisseMouvement,
@@ -20,6 +22,7 @@ import {
   getCaissesOverview,
   listCaisses,
   openCaisse,
+  reopenCaisse,
   rolloverCaisseToToday,
   startComptageCaisse,
 } from "@/lib/caisse-repo";
@@ -97,6 +100,7 @@ export async function GET(request: Request) {
       overview: overviewPack?.items ?? null,
       soldeGlobal: overviewPack?.soldeGlobal ?? null,
       allowedCaisses: allowedCaisses(user),
+      canReopen: user.role === "admin",
       independentSites: true,
       zoneCaisses: ZONE_CAISSES,
     });
@@ -105,7 +109,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireUser();
     const body = (await request.json()) as {
@@ -117,7 +121,9 @@ export async function POST(request: Request) {
         | "cancel-comptage"
         | "mouvement"
         | "versement"
-        | "annuler-mouvement";
+        | "annuler-mouvement"
+        | "reopen";
+      reason?: string;
       mouvementId?: string;
       date?: string;
       caisse?: CaisseKey;
@@ -226,6 +232,34 @@ export async function POST(request: Request) {
         kind: "caisse",
         title: `Reprise · ${CAISSE_LABELS[session.caisse]}`,
         detail: "Comptage annulé — encaissements réouverts",
+        date: session.date,
+        site: session.site ?? "tous",
+      });
+      return NextResponse.json({ session });
+    }
+
+    if (body.action === "reopen") {
+      if (user.role !== "admin") {
+        return NextResponse.json(
+          { error: "Réouverture réservée à l'administrateur." },
+          { status: 403 },
+        );
+      }
+      if (!body.id) {
+        return NextResponse.json({ error: "id requis" }, { status: 400 });
+      }
+      if (!isValidAuditReason(body.reason)) {
+        return NextResponse.json(
+          { error: "Motif d'audit requis (au moins 8 caractères)." },
+          { status: 400 },
+        );
+      }
+      const session = await reopenCaisse({ id: body.id, user });
+      await logCriticalActivity({
+        user,
+        kind: "caisse",
+        title: `Réouverture · ${CAISSE_LABELS[session.caisse]}`,
+        detail: `Motif : ${String(body.reason).trim()} · session du ${session.date}`,
         date: session.date,
         site: session.site ?? "tous",
       });
@@ -361,4 +395,4 @@ export async function POST(request: Request) {
     }
     return authErrorResponse(error);
   }
-}
+});

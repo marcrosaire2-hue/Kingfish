@@ -126,6 +126,8 @@ export async function middleware(request: NextRequest) {
     // propre mot de passe.
     if (
       pathname.startsWith("/api/auth/") ||
+      // Compteur « en direct » : un simple numéro de version, sans donnée.
+      (pathname === "/api/live" && request.method === "GET") ||
       estLectureDeReference(pathname, request.method)
     ) {
       return passer();
@@ -247,6 +249,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|svg|ico)$).*)",
+    "/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp|avif)$).*)",
   ],
 };

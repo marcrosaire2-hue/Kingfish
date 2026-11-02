@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import {
   useCallback,
   useEffect,
@@ -165,7 +166,7 @@ export function VersementsPage() {
   const { user } = useSession();
   const scope = user ? effectiveSite(user.role, user.site) : null;
   const followAll = scope === "tous";
-  const isReaderOnly = user?.role === "admin" || user?.role === "daf";
+  const isReaderOnly = user?.role === "daf";
   const formRef = useRef<HTMLElement | null>(null);
 
   const [declareDate, setDeclareDate] = useState(() => todayIsoDate());
@@ -178,6 +179,7 @@ export function VersementsPage() {
   const [canConfirm, setCanConfirm] = useState(false);
   const [canEditPending, setCanEditPending] = useState(false);
   const [canCancelPending, setCanCancelPending] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
 
   const [heure, setHeure] = useState(() => nowHeureLocale());
   const [tranche, setTranche] = useState<VersementTranche>("matin");
@@ -214,12 +216,12 @@ export function VersementsPage() {
     if (user?.shift) setTranche(defaultTrancheFromShift(user.shift));
   }, [user?.shift]);
 
-  const charger = useCallback(async () => {
+  const charger = useCallback(async (silent = false) => {
     if (!scope) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -239,6 +241,7 @@ export function VersementsPage() {
         canConfirm?: boolean;
         canEditPending?: boolean;
         canCancelPending?: boolean;
+        canDelete?: boolean;
         error?: string;
       };
       if (!res.ok) throw new Error(body.error || "Chargement impossible.");
@@ -247,6 +250,7 @@ export function VersementsPage() {
       setCanConfirm(body.canConfirm === true);
       setCanEditPending(body.canEditPending === true);
       setCanCancelPending(body.canCancelPending === true);
+      setCanDelete(body.canDelete === true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Chargement impossible.");
     } finally {
@@ -650,6 +654,37 @@ export function VersementsPage() {
     }
   }
 
+  async function onDeleteVersement(id: string) {
+    if (busy || !canDelete) return;
+    const reason = window.prompt(
+      "Supprimer définitivement ce versement ? Action irréversible.\nMotif (8 caractères minimum) :",
+    );
+    if (!reason || reason.trim().length < 8) {
+      if (reason !== null) setError("Motif requis (au moins 8 caractères).");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/versements", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id, reason: reason.trim() }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(body.error || "Suppression impossible.");
+      setFlash("Versement supprimé définitivement.");
+      setSelected(null);
+      if (editingId === id) closeComposer();
+      await charger();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Suppression impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function onCancelVersement(id: string) {
     if (busy || !canCancelPending) return;
     const ok = window.confirm(
@@ -677,6 +712,8 @@ export function VersementsPage() {
       setBusy(false);
     }
   }
+
+  useLiveRefresh(() => void charger(true));
 
   const siteLocked = scope === "zogbo" || scope === "gbegamey";
   const periodHint = followAll
@@ -1869,7 +1906,9 @@ export function VersementsPage() {
                     Modifier
                   </button>
                 ) : null}
-                {canCancelPending && selected.statut === "en_attente" ? (
+                {canCancelPending &&
+                (selected.statut === "en_attente" ||
+                  (canDelete && selected.statut === "confirmee")) ? (
                   <button
                     type="button"
                     className="btn btn-ghost vs-btn-cancel"
@@ -1877,6 +1916,16 @@ export function VersementsPage() {
                     onClick={() => void onCancelVersement(selected.id)}
                   >
                     Annuler le versement
+                  </button>
+                ) : null}
+                {canDelete ? (
+                  <button
+                    type="button"
+                    className="btn btn-ghost vs-btn-cancel"
+                    disabled={busy}
+                    onClick={() => void onDeleteVersement(selected.id)}
+                  >
+                    Supprimer définitivement
                   </button>
                 ) : null}
                 {selected.statut === "confirmee" ? (

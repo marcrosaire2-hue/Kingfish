@@ -46,7 +46,7 @@
   position: absolute;
   inset: 0;
   z-index: -2;
-  background: url("/login-bg.png") center 38% / cover no-repeat;
+  background: url("/login-gestion.jpg") 62% 50% / cover no-repeat;
 }
 
 .login-visual-shade {

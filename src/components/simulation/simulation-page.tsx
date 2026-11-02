@@ -7,8 +7,6 @@ import { CompteurPage } from "@/components/compteur/compteur-page";
 import { DepensesPage } from "@/components/depenses/depenses-page";
 import { FondsCaissePage } from "@/components/fonds-caisse/fonds-caisse-page";
 import { PertesPage } from "@/components/pertes/pertes-page";
-import { RattrapageVentesPage } from "@/components/rattrapage-ventes/rattrapage-ventes-page";
-import { TestsPlatsPage } from "@/components/tests-plats/tests-plats-page";
 import { VentePage } from "@/components/vente/vente-page";
 import { setOfflineQueueSimulation } from "@/lib/offline-queue";
 import { SIM_REQUEST_HEADER } from "@/lib/simulation-shared";
@@ -17,23 +15,19 @@ import "./simulation-page.css";
 
 type OngletId =
   | "vente"
-  | "rattrapage"
   | "achats"
   | "depenses"
   | "pertes"
   | "compteur"
-  | "fonds"
-  | "tests";
+  | "fonds";
 
 const ONGLETS: { id: OngletId; label: string; adminSeul?: boolean }[] = [
   { id: "vente", label: "Vente" },
-  { id: "rattrapage", label: "Ventes passées", adminSeul: true },
   { id: "achats", label: "Achats" },
   { id: "depenses", label: "Dépenses" },
   { id: "pertes", label: "Pertes" },
   { id: "compteur", label: "Compteur" },
   { id: "fonds", label: "Fonds de caisse" },
-  { id: "tests", label: "Tests de plats" },
 ];
 
 /** Routes d'API qui ne passent jamais par le bac à sable. */
@@ -193,13 +187,11 @@ export function SimulationPage({
           {onglet === "vente" ? (
             <VentePage canViewHistory={false} initialSite={initialSite} />
           ) : null}
-          {onglet === "rattrapage" ? <RattrapageVentesPage /> : null}
           {onglet === "achats" ? <AchatsPage /> : null}
           {onglet === "depenses" ? <DepensesPage /> : null}
           {onglet === "pertes" ? <PertesPage /> : null}
           {onglet === "compteur" ? <CompteurPage /> : null}
           {onglet === "fonds" ? <FondsCaissePage /> : null}
-          {onglet === "tests" ? <TestsPlatsPage /> : null}
         </div>
       ) : null}
     </div>

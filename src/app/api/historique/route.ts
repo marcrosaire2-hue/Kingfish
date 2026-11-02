@@ -1,3 +1,4 @@
+import { withReadCache } from "@/lib/read-cache";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite, resolveUserSiteScope } from "@/lib/auth-types";
@@ -32,7 +33,7 @@ const KINDS: Array<HistoriqueKind | "all"> = [
   "connexion",
 ];
 
-export async function GET(request: Request) {
+export const GET = withReadCache(async function GET(request: Request) {
   try {
     const user = await requireUser();
     const { searchParams } = new URL(request.url);
@@ -95,4 +96,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});

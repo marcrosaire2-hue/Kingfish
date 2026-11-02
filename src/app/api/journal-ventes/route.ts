@@ -1,3 +1,4 @@
+import { withReadCache } from "@/lib/read-cache";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canManagePastVentesSales } from "@/lib/auth-types";
@@ -10,6 +11,7 @@ import {
 import { getSiteRolesConfig } from "@/lib/site-roles-repo";
 import {
   permissionsForRole,
+  resolveConfigForUser,
   ventePermissionsFor,
 } from "@/lib/site-roles-model";
 import type { VenteSite } from "@/lib/types";
@@ -22,7 +24,7 @@ function monthStart(d = todayIsoDate()) {
   return `${d.slice(0, 7)}-01`;
 }
 
-export async function GET(request: Request) {
+export const GET = withReadCache(async function GET(request: Request) {
   try {
     const user = await requireUser();
     const { searchParams } = new URL(request.url);
@@ -65,7 +67,7 @@ export async function GET(request: Request) {
     const scopedSite =
       siteDecision.site !== "all" ? (siteDecision.site as VenteSite) : null;
     const ventePerms = scopedSite
-      ? ventePermissionsFor(siteRoles, user.role, scopedSite)
+      ? ventePermissionsFor(siteRoles, user.role, scopedSite, user.id)
       : rolePerms;
 
     return NextResponse.json({
@@ -76,7 +78,7 @@ export async function GET(request: Request) {
       canManagePast: canManagePastVentesSales(user.role) && rolePerms.modify,
       canPurge: rolePerms.delete,
       canEditFull: user.role === "admin",
-      sitePolicies: siteRoles,
+      sitePolicies: resolveConfigForUser(siteRoles, user.role, user.id),
       ventePermissions: ventePerms,
       catalog: parametres
         ? {
@@ -89,4 +91,4 @@ export async function GET(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});

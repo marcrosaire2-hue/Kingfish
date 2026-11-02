@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
 import type { BoissonsLine } from "@/lib/types";
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireUser();
     requireStockWrite(user);
@@ -106,10 +107,10 @@ export async function PUT(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});
 
 /** Entrée stock (achat) ou annulation — registre traçable */
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireUser();
     requireStockWrite(user);
@@ -257,4 +258,4 @@ export async function POST(request: Request) {
         : 500;
     return NextResponse.json({ error: message }, { status });
   }
-}
+});

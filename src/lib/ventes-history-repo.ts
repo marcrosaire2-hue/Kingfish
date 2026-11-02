@@ -258,7 +258,10 @@ export async function listVentesHistory(
     if (site !== "all") kfFilter.site = site;
     if (statut === "valide") kfFilter.statut = "valide";
     if (statut === "annule") kfFilter.statut = "annule";
-    if (statut === "encours") kfFilter.statut = "__none__";
+    // « En cours » : ventes direction en attente de validation admin.
+    if (statut === "encours") {
+      kfFilter.statut = { $in: ["en_attente", "direction_validee"] };
+    }
 
     const docs = await db
       .collection("pos_tickets")
@@ -268,8 +271,20 @@ export async function listVentesHistory(
       .toArray();
 
     for (const d of docs) {
-      const st = d.statut === "annule" ? "annule" : "valide";
-      const label = st === "annule" ? "Annulé" : "Validé";
+      const st =
+        d.statut === "annule"
+          ? "annule"
+          : d.statut === "en_attente" || d.statut === "direction_validee"
+            ? "encours"
+            : "valide";
+      const label =
+        st === "annule"
+          ? "Annulé"
+          : d.statut === "direction_validee"
+            ? "Direction (validée)"
+            : st === "encours"
+              ? "En attente"
+              : "Validé";
       const serveur = (d.serveurNom as string) || null;
       const paiement = (d.paymentLabel as string) || null;
       if (serveur) serveurs.add(serveur);
@@ -703,7 +718,12 @@ export async function getVenteHistoryTicket(
     if (!ObjectId.isValid(raw)) return null;
     const d = await db.collection("pos_tickets").findOne({ _id: new ObjectId(raw) });
     if (!d) return null;
-    const st = d.statut === "annule" ? "annule" : "valide";
+    const st =
+      d.statut === "annule"
+        ? "annule"
+        : d.statut === "en_attente" || d.statut === "direction_validee"
+          ? "encours"
+          : "valide";
     return {
       id,
       source: "kingfish",
@@ -712,7 +732,14 @@ export async function getVenteHistoryTicket(
       at: String(d.at || d.date),
       site: d.site as VenteSite,
       statut: st,
-      statutLabel: st === "annule" ? "Annulé" : "Validé",
+      statutLabel:
+        st === "annule"
+          ? "Annulé"
+          : d.statut === "direction_validee"
+            ? "Direction (validée)"
+            : st === "encours"
+              ? "En attente"
+              : "Validé",
       typeVente: String(d.saleType || "Sur place"),
       montant: Number(d.montant) || 0,
       reduction: Number(d.reduction) || 0,

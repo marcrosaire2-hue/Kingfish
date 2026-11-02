@@ -19,6 +19,7 @@ import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import { parseFiniteAmount } from "@/lib/security-policy";
 import type {
   GbegameyLocalLine,
+  ProductCategory,
   VenteKind,
   VenteLogEntry,
   VenteProduct,
@@ -77,8 +78,14 @@ type VenteLogDoc = {
   /** Provenance (caisse, carnet-zogbo, aquapro, reprise…) */
   source?: string | null;
   caExcluded?: boolean;
+  /**
+   * Vente direction : hors CA (caExcluded) et sans aucun effet sur le stock.
+   */
+  directionPending?: boolean;
   /** Unité QR tracée vendue avec cette ligne */
   qrId?: string | null;
+  /** Catégorie personnalisée de l'article (ventes « extra » du catalogue). */
+  categoryId?: string | null;
 };
 
 function mapVenteLogDoc(d: VenteLogDoc): VenteLogEntry {
@@ -296,12 +303,14 @@ export function accompanimentTracked(line: GbegameyLocalLine): boolean {
  */
 export function accompanimentAvailability(
   line: GbegameyLocalLine | null | undefined,
+  site: VenteSite = "gbegamey",
 ): { tracked: boolean; stockLeft: number | null; maxSold: number | null } {
   if (!line || !accompanimentTracked(line)) {
     return { tracked: false, stockLeft: null, maxSold: null };
   }
-  // Comptage saisi : le stock physique prévaut sur le théorique.
-  if (line.counted !== null && line.counted !== undefined) {
+  // Gbégamey : le comptage saisi prévaut sur le théorique. Zogbo : le
+  // comptage mesure l'écart, la vente suit init. + préparé.
+  if (site === "gbegamey" && line.counted !== null && line.counted !== undefined) {
     const prevalent = Math.max(0, Number(line.counted) || 0);
     const stockLeft = Math.max(0, prevalent - line.sold);
     return {
@@ -336,6 +345,8 @@ export async function getVenteBoard(
   caParEquipe: Record<UserShift, number>;
   /** Ventes sans plafond stock (après reset, jusqu'à saisie stock). */
   ventesSansStock: boolean;
+  /** Catégories personnalisées (onglets de la page Vente). */
+  categories: ProductCategory[];
 }> {
   if (!isValidDate(date)) throw new Error("Date invalide");
   if (site !== "zogbo" && site !== "gbegamey") {
@@ -410,7 +421,7 @@ export async function getVenteBoard(
     );
     for (const dish of parametres.localDishes) {
       const line = accById.get(dish.id);
-      const { tracked, stockLeft } = accompanimentAvailability(line);
+      const { tracked, stockLeft } = accompanimentAvailability(line, "zogbo");
       const enforce = shouldEnforceProductStock({
         dayFreeSale: ventesSansStock,
         productTracked: tracked,
@@ -555,7 +566,66 @@ export async function getVenteBoard(
     });
   }
 
-  return { date, site, products, recent, caToday, caParEquipe, ventesSansStock };
+  // Catégories personnalisées (ex. Dessert) : articles sans stock, prix du
+  // catalogue. Le vendu du jour vient du journal (pas de document « jour »).
+  const categoryProducts = parametres.categoryProducts ?? [];
+  if (categoryProducts.length) {
+    const soldByProduct = await sumCategorySoldToday(
+      date,
+      site,
+      categoryProducts.map((p) => p.id),
+    );
+    for (const item of categoryProducts) {
+      products.push({
+        kind: "extra",
+        productId: item.id,
+        name: item.name,
+        unitPrice: item.unitPrice,
+        soldToday: soldByProduct.get(item.id) ?? 0,
+        stockLeft: null,
+        hint: item.unitPrice <= 0 ? "Prix manquant" : null,
+        blockReason: item.unitPrice <= 0 ? "Prix de vente manquant" : null,
+        categoryId: item.categoryId,
+      });
+    }
+  }
+
+  return {
+    date,
+    site,
+    products,
+    recent,
+    caToday,
+    caParEquipe,
+    ventesSansStock,
+    categories: parametres.categories ?? [],
+  };
+}
+
+/** Quantité vendue (lignes actives) par article de catégorie, pour un jour. */
+async function sumCategorySoldToday(
+  date: string,
+  site: VenteSite,
+  productIds: string[],
+): Promise<Map<string, number>> {
+  const db = await getDb();
+  const rows = await db
+    .collection<VenteLogDoc>("ventes_log")
+    .aggregate<{ _id: string; qty: number }>([
+      {
+        $match: {
+          date,
+          site,
+          kind: "extra",
+          productId: { $in: productIds },
+          cancelledAt: null,
+          caExcluded: { $ne: true },
+        },
+      },
+      { $group: { _id: "$productId", qty: { $sum: "$qty" } } },
+    ])
+    .toArray();
+  return new Map(rows.map((r) => [r._id, Math.max(0, Number(r.qty) || 0)]));
 }
 
 /** CA du jour réparti par équipe — répond à « quelle équipe a vendu ». */
@@ -1212,6 +1282,8 @@ export async function recordVente(input: {
   bypassStock?: boolean;
   /** Lien vers l'unité QR vendue (plats tracés). */
   qrId?: string | null;
+  /** Vente direction : hors CA tant que l'admin ne l'a pas validée. */
+  directionPending?: boolean;
 }): Promise<{
   entry: VenteLogEntry;
   soldToday: number;
@@ -1241,16 +1313,24 @@ export async function recordVente(input: {
     assertGbegameyEmployeeVentePlanning({ username: input.actor.username });
   }
 
-  await assertDayNotClosed(input.date, input.site, input.kind, {
-    bypassClosedDay: input.bypassClosedDay,
-  });
+  // Vente direction : indépendante du stock, donc aussi du jour clôturé.
+  if (!input.directionPending) {
+    await assertDayNotClosed(input.date, input.site, input.kind, {
+      bypassClosedDay: input.bypassClosedDay,
+    });
+  }
+
+  // Article d'une catégorie personnalisée : pas de stock, prix du catalogue.
+  if (input.kind === "extra") {
+    return recordCategoryVente({ ...input, qty });
+  }
 
   // Contrôle stock + plafond atomique. « maxSold » est le vendu maximal
   // (stock − pertes) : transmis à applySoldDelta, il borne l'écriture.
   // Régularisation gérant : pas de plafond (maxSold null).
   let maxSold: number | null = null;
   const dayFreeSale = await isVentesSansStockActive(input.date, input.site);
-  if (qty > 0 && !input.bypassStock && !input.qrId) {
+  if (qty > 0 && !input.bypassStock && !input.qrId && !input.directionPending) {
     if (input.kind === "plat") {
       const { left, maxSold: max } = await getBaseDishStockLeft(
         input.date,
@@ -1272,7 +1352,7 @@ export async function recordVente(input: {
         const { day } = await getGbegameyDayPayload(input.date);
         line = day.localLines.find((l) => l.productId === input.productId);
       }
-      const avail = accompanimentAvailability(line ?? null);
+      const avail = accompanimentAvailability(line ?? null, input.site);
       const enforce = shouldEnforceProductStock({
         dayFreeSale,
         productTracked: avail.tracked,
@@ -1353,21 +1433,24 @@ export async function recordVente(input: {
         );
       }
       unitPrice = unitPriceOverride;
-    } else if (input.kind !== "extra" && unitPriceOverride !== target.unitPrice) {
+    } else if (unitPriceOverride !== target.unitPrice) {
       throw new Error(
         `Prix non autorisé pour « ${target.name} » : ${unitPriceOverride} F.`,
       );
     }
   }
 
-  const result = await applySoldDelta({
-    date: input.date,
-    site: input.site,
-    kind: input.kind,
-    productId: input.productId,
-    delta: qty,
-    maxSold,
-  });
+  // Vente direction : le stock n'est ni vérifié ni décrémenté.
+  const result = input.directionPending
+    ? { name: target.name, costPrice: target.costPrice, soldToday: 0 }
+    : await applySoldDelta({
+        date: input.date,
+        site: input.site,
+        kind: input.kind,
+        productId: input.productId,
+        delta: qty,
+        maxSold,
+      });
 
   const at = new Date().toISOString();
   const amount = Math.abs(qty) * unitPrice;
@@ -1393,18 +1476,23 @@ export async function recordVente(input: {
       actorUsername: input.actor?.username ?? null,
       shift: effectiveShift(input.actor?.shift),
       qrId: input.qrId ?? null,
+      ...(input.directionPending
+        ? { caExcluded: true, directionPending: true }
+        : {}),
     });
   } catch (error) {
-    try {
-      await applySoldDelta({
-        date: input.date,
-        site: input.site,
-        kind: input.kind,
-        productId: input.productId,
-        delta: -qty,
-      });
-    } catch {
-      /* best effort : le compteur sold ne doit pas rester sans journal */
+    if (!input.directionPending) {
+      try {
+        await applySoldDelta({
+          date: input.date,
+          site: input.site,
+          kind: input.kind,
+          productId: input.productId,
+          delta: -qty,
+        });
+      } catch {
+        /* best effort : le compteur sold ne doit pas rester sans journal */
+      }
     }
     throw error;
   }
@@ -1424,6 +1512,93 @@ export async function recordVente(input: {
 
   const board = await getVenteBoard(input.date, input.site);
   return { entry, soldToday: result.soldToday, board };
+}
+
+/**
+ * Vente d'un article de catégorie personnalisée (ex. Dessert). Enregistrée comme
+ * une vente « extra » (CA du point, sans stock), mais le nom et le prix
+ * viennent du catalogue : le client ne fixe jamais le tarif.
+ */
+async function recordCategoryVente(input: {
+  date: string;
+  site: VenteSite;
+  productId: string;
+  qty: number;
+  unitPrice?: number;
+  actor?: VenteActor | null;
+  directionPending?: boolean;
+}): Promise<{
+  entry: VenteLogEntry;
+  soldToday: number;
+  board: Awaited<ReturnType<typeof getVenteBoard>>;
+}> {
+  const parametres = await getParametres();
+  const item = (parametres.categoryProducts ?? []).find(
+    (p) => p.id === input.productId,
+  );
+  if (!item) throw new Error("Article de catégorie introuvable");
+  if (item.unitPrice <= 0) {
+    throw new Error(`Prix de vente manquant pour « ${item.name} » (Paramètres)`);
+  }
+  const override = Math.round(Number(input.unitPrice) || 0);
+  if (override > 0 && override !== item.unitPrice) {
+    throw new Error(
+      `Prix non autorisé pour « ${item.name} » : ${override} F.`,
+    );
+  }
+  const qty = Math.round(input.qty);
+  if (!Number.isFinite(qty) || qty === 0) throw new Error("Quantité invalide");
+
+  // Une correction (quantité négative) ne peut pas descendre sous zéro.
+  const before = (
+    await sumCategorySoldToday(input.date, input.site, [item.id])
+  ).get(item.id) ?? 0;
+  if (before + qty < 0) {
+    throw new Error("Annulation invalide : rien à retirer pour cet article.");
+  }
+
+  const at = new Date().toISOString();
+  const amount = Math.abs(qty) * item.unitPrice;
+  const db = await getDb();
+  const insert = await db.collection<VenteLogDoc>("ventes_log").insertOne({
+    _id: new ObjectId(),
+    date: input.date,
+    site: input.site,
+    kind: "extra",
+    productId: item.id,
+    name: item.name,
+    qty,
+    unitPrice: item.unitPrice,
+    costPrice: item.costPrice ?? 0,
+    amount: qty > 0 ? amount : -amount,
+    at,
+    cancelledAt: null,
+    baseProductId: null,
+    actorId: input.actor?.id ?? null,
+    actorName: input.actor?.name ?? null,
+    actorUsername: input.actor?.username ?? null,
+    shift: effectiveShift(input.actor?.shift),
+    categoryId: item.categoryId,
+    ...(input.directionPending
+      ? { caExcluded: true, directionPending: true }
+      : {}),
+  });
+
+  const entry: VenteLogEntry = {
+    id: insert.insertedId.toHexString(),
+    date: input.date,
+    site: input.site,
+    kind: "extra",
+    productId: item.id,
+    name: item.name,
+    qty,
+    unitPrice: item.unitPrice,
+    amount: qty > 0 ? amount : -amount,
+    at,
+  };
+
+  const board = await getVenteBoard(input.date, input.site);
+  return { entry, soldToday: before + qty, board };
 }
 
 /** Vente libre : description + prix, comptée dans le CA du point (sans stock). */
@@ -1596,6 +1771,36 @@ export async function undoVente(input: {
   entry: { id: string; name: string; amount: number };
 }> {
   const db = await getDb();
+
+  // Ligne d'une vente direction : jamais de stock, simple marquage « annulée ».
+  const directionDoc = await db.collection<VenteLogDoc>("ventes_log").findOne({
+    _id: new ObjectId(input.id),
+    site: input.site,
+    directionPending: true,
+    cancelledAt: null,
+  });
+  if (directionDoc) {
+    await db.collection<VenteLogDoc>("ventes_log").updateOne(
+      { _id: directionDoc._id, cancelledAt: null },
+      {
+        $set: {
+          cancelledAt: new Date().toISOString(),
+          cancelledById: input.actor?.id ?? null,
+          cancelledByName: input.actor?.name ?? null,
+          cancelledByUsername: input.actor?.username ?? null,
+        },
+      },
+    );
+    return {
+      board: await getVenteBoard(input.date, input.site),
+      entry: {
+        id: directionDoc._id.toHexString(),
+        name: directionDoc.name,
+        amount: directionDoc.amount,
+      },
+    };
+  }
+
   const doc = await db.collection<VenteLogDoc>("ventes_log").findOne({
     _id: new ObjectId(input.id),
     site: input.site,
@@ -2125,6 +2330,7 @@ export async function editVenteFull(input: {
 }
 
 function venteLogStockActive(doc: VenteLogDoc): boolean {
+  // Les lignes « direction » sont caExcluded : aucun stock à reprendre.
   return !doc.cancelledAt && doc.caExcluded !== true && doc.kind !== "extra";
 }
 

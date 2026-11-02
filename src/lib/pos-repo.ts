@@ -15,6 +15,7 @@ import {
   getCaisseById,
 } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
+import { getParametres } from "@/lib/parametres-repo";
 import { getPosConfig } from "@/lib/pos-config-repo";
 import { reportError } from "@/lib/report-error";
 import {
@@ -38,6 +39,7 @@ import type {
   PosTicketLine,
   SaleType,
   VenteKind,
+  VenteOrigine,
   VenteSite,
 } from "@/lib/types";
 
@@ -49,6 +51,10 @@ type TicketDoc = Omit<PosTicket, "id"> & {
    * ne pas encaisser deux fois la même commande.
    */
   clientRef?: string | null;
+  /** Validation admin d'une vente direction. */
+  validatedAt?: string | null;
+  validatedById?: string | null;
+  validatedByName?: string | null;
 };
 
 function toTicket(doc: TicketDoc): PosTicket {
@@ -59,6 +65,7 @@ function toTicket(doc: TicketDoc): PosTicket {
     site: doc.site,
     statut: doc.statut,
     saleType: doc.saleType,
+    venteOrigine: doc.venteOrigine === "direction" ? "direction" : "client",
     caisseId: doc.caisseId,
     paymentMethodId: doc.paymentMethodId,
     paymentLabel: doc.paymentLabel,
@@ -76,6 +83,7 @@ function toTicket(doc: TicketDoc): PosTicket {
     shift: doc.shift,
     at: doc.at,
     cancelledAt: doc.cancelledAt ?? null,
+    validatedByName: doc.validatedByName ?? null,
   };
 }
 
@@ -118,6 +126,12 @@ async function ensureClientRefUniqueIndex(): Promise<boolean> {
     reportError("ensureClientRefUniqueIndex", error);
     return false;
   }
+}
+
+/** L'article appartient-il à une catégorie personnalisée du catalogue ? */
+async function isCategoryProduct(productId: string): Promise<boolean> {
+  const { categoryProducts } = await getParametres();
+  return (categoryProducts ?? []).some((p) => p.id === productId);
 }
 
 export function ensurePosIdempotenceGuard(): Promise<boolean> {
@@ -182,6 +196,8 @@ export async function validatePosTicket(input: {
   site: VenteSite;
   user: SessionUser;
   saleType: SaleType;
+  /** « direction » déclenche un mail à l'administrateur (voir /api/pos). */
+  venteOrigine?: VenteOrigine;
   paymentMethodId?: string | null;
   tableId?: string | null;
   serveurId?: string | null;
@@ -201,6 +217,8 @@ export async function validatePosTicket(input: {
   ticket: PosTicket;
   board: Awaited<ReturnType<typeof getVenteBoard>>;
   caisseId: string | null;
+  /** Vente déjà encaissée (rejeu hors ligne) : rien de nouveau à notifier. */
+  replayed?: boolean;
 }> {
   if (!input.lines.length) throw new Error("Panier vide");
 
@@ -234,6 +252,7 @@ export async function validatePosTicket(input: {
         ticket: toTicket(existant),
         board: await getVenteBoard(existant.date, existant.site),
         caisseId: existant.caisseId,
+        replayed: true,
       };
     }
   }
@@ -282,6 +301,8 @@ export async function validatePosTicket(input: {
     : null;
 
   const saleType = input.saleType || "Sur place";
+  // Vente direction : ni stock, ni CA, ni caisse — validation admin requise.
+  const directionPending = input.venteOrigine === "direction";
 
   const reductionRaw = Math.round(Number(input.reduction) || 0);
   // Réduction commerciale : argent qui sort du ticket — tout rôle qui encaisse.
@@ -320,7 +341,12 @@ export async function validatePosTicket(input: {
       const qty = Math.round(Number(line.qty) || 0);
       if (qty <= 0) continue;
 
-      if (line.kind === "extra") {
+      // Les ventes hors catalogue restent refusées ; un article d'une
+      // catégorie personnalisée (ex. Dessert) est, lui, dans le catalogue.
+      if (
+        line.kind === "extra" &&
+        !(await isCategoryProduct(line.productId))
+      ) {
         throw new Error(
           "Les ventes hors catalogue ne sont plus autorisées. Choisissez un article du catalogue.",
         );
@@ -364,6 +390,7 @@ export async function validatePosTicket(input: {
             bypassClosedDay,
             bypassStock: manager || Boolean(qrId),
             qrId,
+            directionPending,
           });
           createdLogIds.push(result.entry.id);
           ticketLines.push({
@@ -420,8 +447,9 @@ export async function validatePosTicket(input: {
       numero: await nextNumero(date),
       date,
       site: input.site,
-      statut: "valide",
+      statut: directionPending ? "en_attente" : "valide",
       saleType,
+      venteOrigine: input.venteOrigine === "direction" ? "direction" : "client",
       caisseId,
       paymentMethodId: payment?.id ?? null,
       paymentLabel: payment?.libelle ?? null,
@@ -445,7 +473,7 @@ export async function validatePosTicket(input: {
     };
 
     await db.collection<TicketDoc>("pos_tickets").insertOne(doc);
-    if (caisseId) {
+    if (caisseId && !directionPending) {
       if (creditCaisseOpen) {
         // La caisse a pu être fermée entre la lecture initiale et cet appel
         // (autre poste). La vente est déjà encaissée côté client : on
@@ -476,6 +504,7 @@ export async function validatePosTicket(input: {
           ticket: toTicket(gagnant),
           board: await getVenteBoard(gagnant.date, gagnant.site),
           caisseId: gagnant.caisseId,
+          replayed: true,
         };
       }
     }
@@ -501,6 +530,90 @@ export async function validatePosTicket(input: {
 
   const board = await getVenteBoard(date, input.site);
   return { ticket: toTicket(doc), board, caisseId };
+}
+
+/**
+ * Ventes direction pour l'admin : toutes celles en attente (tous jours et
+ * sites) + les validées de la période. Aucune n'est dans le CA clients.
+ */
+export async function listDirectionTickets(input: {
+  from: string;
+  to: string;
+}): Promise<PosTicket[]> {
+  const db = await getDb();
+  // Journal : toutes les ventes direction de la période (à valider, validées,
+  // refusées) + celles encore à valider, quel que soit leur jour.
+  const docs = await db
+    .collection<TicketDoc>("pos_tickets")
+    .find({
+      venteOrigine: "direction",
+      $or: [
+        { statut: "en_attente" },
+        { date: { $gte: input.from, $lte: input.to } },
+      ],
+    })
+    .sort({ date: -1, at: -1 })
+    .limit(3000)
+    .toArray();
+  return docs.map(toTicket);
+}
+
+/**
+ * Validation admin d'une vente direction : le ticket passe « direction_validee ».
+ * Une vente direction n'entre JAMAIS dans le CA clients ni dans la caisse : ses
+ * lignes restent hors CA et seul « valide » (ventes clients) est compté.
+ * Le refus passe par cancelPosTicket (reprise du stock).
+ */
+export async function approveDirectionTicket(input: {
+  id: string;
+  date: string;
+  site: VenteSite;
+  user: SessionUser;
+}): Promise<{
+  board: Awaited<ReturnType<typeof getVenteBoard>>;
+  ticket: PosTicket;
+}> {
+  if (input.user.role !== "admin") {
+    throw new Error("Validation réservée à l'administrateur.");
+  }
+  if (!ObjectId.isValid(input.id)) throw new Error("Ticket invalide");
+  const db = await getDb();
+  const doc = await db.collection<TicketDoc>("pos_tickets").findOne({
+    _id: new ObjectId(input.id),
+    site: input.site,
+  });
+  if (!doc) throw new Error("Ticket introuvable");
+  // Séparation des tâches : celui qui a saisi la vente ne la valide pas.
+  if (doc.userId === input.user.id) {
+    throw new Error(
+      "Vous avez saisi cette vente : un autre administrateur doit la valider.",
+    );
+  }
+
+  // Bascule conditionnelle : un double clic (ou deux admins) ne valide qu'une fois.
+  const claimed = await db.collection<TicketDoc>("pos_tickets").updateOne(
+    { _id: doc._id, statut: "en_attente" },
+    {
+      $set: {
+        statut: "direction_validee",
+        validatedAt: new Date().toISOString(),
+        validatedById: input.user.id,
+        validatedByName: input.user.name,
+      },
+    },
+  );
+  if (claimed.modifiedCount === 0) {
+    throw new Error("Ce ticket n'est pas en attente de validation.");
+  }
+
+  const updated = await db
+    .collection<TicketDoc>("pos_tickets")
+    .findOne({ _id: doc._id });
+  const board = await getVenteBoard(doc.date, input.site);
+  return {
+    board,
+    ticket: toTicket(updated ?? { ...doc, statut: "direction_validee" }),
+  };
 }
 
 export async function cancelPosTicket(input: {
@@ -547,6 +660,10 @@ export async function cancelPosTicket(input: {
     shift: input.user.shift,
   };
 
+  // Vente direction : ses lignes n'ont jamais touché au stock (undoVente le gère).
+  const wasPending =
+    doc.statut === "en_attente" || doc.statut === "direction_validee";
+
   for (const line of doc.lines || []) {
     if (!line.venteLogId) continue;
     try {
@@ -566,7 +683,8 @@ export async function cancelPosTicket(input: {
     }
   }
 
-  if (doc.caisseId) {
+  // Un ticket direction n'a jamais crédité la caisse : rien à reprendre.
+  if (doc.caisseId && !wasPending) {
     if (manager) {
       await adjustCaisseVenteAmount(doc.caisseId, -doc.montant);
     } else {

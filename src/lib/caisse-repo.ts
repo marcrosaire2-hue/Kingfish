@@ -975,6 +975,58 @@ export async function cancelComptageCaisse(input: {
   return updated;
 }
 
+/**
+ * Rouvre une session clôturée (administrateur uniquement, via l'API).
+ * Refusée si une autre session est déjà active sur la même caisse. Les
+ * champs de clôture sont effacés : la caisse repasse « ouverte » avec ses
+ * totaux et ses mouvements intacts.
+ */
+export async function reopenCaisse(input: {
+  id: string;
+  user: SessionUser;
+}): Promise<CaisseSession> {
+  if (input.user.role !== "admin") {
+    throw new Error("Réouverture réservée à l'administrateur.");
+  }
+  const session = await getCaisseById(input.id);
+  if (!session) throw new Error("Caisse introuvable");
+  if (session.statut !== "fermee") {
+    throw new Error("Seule une caisse clôturée peut être rouverte.");
+  }
+  const active = await getActiveCaisse(session.caisse);
+  if (active) {
+    throw new Error(
+      `${CAISSE_LABELS[session.caisse]} a déjà une session active (${active.date}) : clôturez-la d'abord.`,
+    );
+  }
+  const now = new Date().toISOString();
+  const db = await getDb();
+  const result = await db.collection<CaisseDoc>("caisses_sessions").updateOne(
+    { _id: new ObjectId(input.id), statut: "fermee" },
+    {
+      $set: {
+        statut: "ouverte" satisfies CaisseStatut,
+        soldePhysique: null,
+        soldeFermeture: null,
+        soldeTheoriqueCloture: null,
+        ecart: null,
+        justificationEcart: null,
+        closedAt: null,
+        closedById: null,
+        closedByName: null,
+        comptageStartedAt: null,
+        updatedAt: now,
+      },
+    },
+  );
+  if (result.modifiedCount !== 1) {
+    throw new Error("Réouverture impossible : la caisse a été modifiée.");
+  }
+  const updated = await getCaisseById(input.id);
+  if (!updated) throw new Error("Caisse introuvable après réouverture");
+  return updated;
+}
+
 export async function closeCaisse(input: {
   id: string;
   user: SessionUser;
@@ -1173,7 +1225,7 @@ export async function cancelCaisseMouvement(input: {
     .collection<MouvementDoc>("caisse_mouvements")
     .findOne({ _id: new ObjectId(input.mouvementId), cancelledAt: null });
   if (!mDoc) throw new Error("Mouvement introuvable ou déjà annulé");
-  if ((mDoc.kind as string) === "versement-entree") {
+  if ((mDoc.kind as string) === "versement-entree" && input.user.role !== "admin") {
     throw new Error(
       "Cette entrée vient d'un versement confirmé et verrouillé : elle ne peut pas être annulée.",
     );

@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { AuthError, authErrorResponse, requireStockWrite, requireUser } from "@/lib/api-auth";
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireStockQrAccess();
     requireStockWrite(user);
@@ -127,4 +128,4 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
-}
+});

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useLiveRefresh } from "@/lib/use-live-refresh";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { PriceInput } from "@/components/parametres/price-input";
@@ -212,7 +213,9 @@ export function SynthesePage() {
   const [date, setDate] = useState(() => todayIsoDate());
   const [month, setMonth] = useState(() => currentMonth());
   const [year, setYear] = useState(() => String(new Date().getFullYear()));
-  const [site, setSite] = useState<VenteSite>(() => readStoredDashSite());
+  // Même valeur côté serveur et navigateur au premier rendu ; le site mémorisé
+  // est rétabli juste après (évite l'erreur d'hydratation et le clignotement).
+  const [site, setSite] = useState<VenteSite>("zogbo");
   const [allowedSites, setAllowedSites] = useState<VenteSite[]>([
     "zogbo",
     "gbegamey",
@@ -259,9 +262,20 @@ export function SynthesePage() {
   const [error, setError] = useState<string | null>(null);
   const [savedFlash, setSavedFlash] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+  // Rafraîchissement automatique : sans repasser par l'écran de chargement.
+  const silentRef = useRef(false);
+  useLiveRefresh(() => {
+    silentRef.current = true;
+    setReloadTick((n) => n + 1);
+  });
 
   const isGeneral = role !== null && role !== "admin" && role !== "daf" && role !== "comptable";
   const viewMode = isGeneral ? "day" : view;
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSite(readStoredDashSite());
+  }, []);
 
   useEffect(() => {
     try {
@@ -274,7 +288,8 @@ export function SynthesePage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setLoading(true);
+      if (!silentRef.current) setLoading(true);
+      silentRef.current = false;
       setError(null);
       try {
         const siteQs = `&site=${encodeURIComponent(site)}`;
@@ -551,7 +566,7 @@ export function SynthesePage() {
         {
           label: "CA du jour",
           value: day?.caTotal ?? 0,
-          sub: `${siteLabel} · ${status.label}`,
+          sub: siteLabel,
           tone: "blue",
           icon: ico.ca,
         },
@@ -581,7 +596,7 @@ export function SynthesePage() {
         {
           label: "Chiffre d’affaires",
           value: totals.ca,
-          sub: `${siteLabel} · ${status.label}`,
+          sub: siteLabel,
           tone: "blue",
           icon: ico.ca,
         },
@@ -1065,6 +1080,7 @@ export function SynthesePage() {
             </div>
           </section>
         ) : null}
+
       </div>
     </AppShell>
   );

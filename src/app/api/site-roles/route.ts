@@ -1,9 +1,11 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { ROLE_LABELS, type UserRole } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import {
   getSiteRolesConfig,
+  sanitizeUserOverrides,
   saveSiteRolesConfig,
 } from "@/lib/site-roles-repo";
 import {
@@ -15,7 +17,7 @@ import type { VenteSite } from "@/lib/types";
 export const runtime = "nodejs";
 
 function canEditSiteRoles(role: string): boolean {
-  return role === "admin" || role === "gerant";
+  return role === "admin";
 }
 
 function parsePermissions(raw: unknown): Partial<VentePolicyPermissions> | null {
@@ -57,10 +59,12 @@ function summarizePerms(p: VentePolicyPermissions): string {
 
 export async function GET() {
   try {
-    await requireUser();
+    const user = await requireUser();
     const config = await getSiteRolesConfig();
+    // Les droits par compte ne sont visibles que de l'administrateur.
+    const { users, ...publicConfig } = config;
     return NextResponse.json({
-      ...config,
+      ...(user.role === "admin" ? { ...publicConfig, users: users ?? {} } : publicConfig),
       roleLabels: ROLE_LABELS,
     });
   } catch (error) {
@@ -68,7 +72,7 @@ export async function GET() {
   }
 }
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireUser();
     if (!canEditSiteRoles(user.role)) {
@@ -77,6 +81,7 @@ export async function PUT(request: Request) {
     const body = (await request.json()) as {
       sites?: unknown;
       roles?: unknown;
+      users?: unknown;
       /** Compatibilité ancien client */
       zogbo?: unknown;
       gbegamey?: unknown;
@@ -91,8 +96,10 @@ export async function PUT(request: Request) {
       if (gbegamey) sites.gbegamey = gbegamey;
     }
     const roles = parseRoleMap(body.roles);
+    const users =
+      body.users !== undefined ? sanitizeUserOverrides(body.users) : undefined;
 
-    if (!sites && !roles) {
+    if (!sites && !roles && users === undefined) {
       return NextResponse.json(
         { error: "Aucune modification valide." },
         { status: 400 },
@@ -102,12 +109,13 @@ export async function PUT(request: Request) {
     const saved = await saveSiteRolesConfig({
       sites: sites ?? undefined,
       roles: roles ?? undefined,
+      users,
     });
 
     await logActivity({
       user,
       kind: "pos",
-      title: "Politiques ventes enregistrées",
+      title: "Droits de vente enregistrés",
       detail: USER_ROLES.map(
         (role) => `${ROLE_LABELS[role]} · ${summarizePerms(saved.roles[role])}`,
       ).join(" — "),
@@ -118,4 +126,4 @@ export async function PUT(request: Request) {
   } catch (error) {
     return authErrorResponse(error);
   }
-}
+});

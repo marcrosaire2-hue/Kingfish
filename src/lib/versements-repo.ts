@@ -20,6 +20,7 @@ import {
   canCancelVersement,
   canConfirmVersement,
   canDeclareVersement,
+  canDeleteVersement,
   canUpdateVersement,
   defaultTrancheFromShift,
   inferPreuveMime,
@@ -40,6 +41,7 @@ export {
   canConfirmVersement,
   canCorrectVersement,
   canDeclareVersement,
+  canDeleteVersement,
   canEditPendingVersement,
   canUpdateVersement,
   defaultTrancheFromShift,
@@ -501,7 +503,8 @@ export async function updateVersement(input: {
   }
 
   // Correction comptable d’un confirmé → remet en attente de re-confirmation.
-  if (existing.statut === "confirmee" && input.actor.role === "comptable") {
+  if (existing.statut === "confirmee" &&
+    (input.actor.role === "comptable" || input.actor.role === "admin")) {
     setFields.statut = "en_attente" satisfies VersementStatut;
     setFields.confirmedAt = null;
     setFields.confirmedById = null;
@@ -553,7 +556,13 @@ export async function cancelVersement(input: {
 
   const cancelledAt = new Date().toISOString();
   const result = await db.collection<VersementDoc>(COLLECTION).findOneAndUpdate(
-    { _id: new ObjectId(input.id), statut: "en_attente" },
+    {
+      _id: new ObjectId(input.id),
+      statut:
+        input.actor.role === "admin"
+          ? { $in: ["en_attente", "confirmee"] }
+          : "en_attente",
+    },
     {
       $set: {
         statut: "annulee" satisfies VersementStatut,
@@ -656,4 +665,29 @@ export async function getVersementCaisseMouvement(
     .collection<VersementDoc>(COLLECTION)
     .findOne({ _id: new ObjectId(id) });
   return doc?.caisseMouvementId ?? null;
+}
+
+/**
+ * Suppression définitive d'un versement (administrateur uniquement).
+ * Les justificatifs déjà hébergés ne sont pas supprimés ici.
+ */
+export async function deleteVersementPermanently(input: {
+  id: string;
+  actor: VersementActor;
+}): Promise<Versement> {
+  if (!canDeleteVersement(input.actor.role)) {
+    throw new Error("Suppression réservée à l'administrateur.");
+  }
+  if (!ObjectId.isValid(input.id)) {
+    throw new Error("Versement introuvable.");
+  }
+  const db = await getDb();
+  const existing = await db
+    .collection<VersementDoc>(COLLECTION)
+    .findOne({ _id: new ObjectId(input.id) });
+  if (!existing) throw new Error("Versement introuvable.");
+  await db
+    .collection<VersementDoc>(COLLECTION)
+    .deleteOne({ _id: existing._id });
+  return toPublic(existing);
 }

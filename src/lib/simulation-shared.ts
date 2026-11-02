@@ -45,7 +45,6 @@ const SIM_API_PREFIXES = [
   "/api/compteur",
   "/api/fonds-caisse",
   "/api/immobilisations",
-  "/api/tests-plats",
   "/api/boissons",
   "/api/zogbo",
   "/api/gbegamey",

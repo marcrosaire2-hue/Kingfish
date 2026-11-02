@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireUserManagementAdmin } from "@/lib/api-auth";
 import {
@@ -58,7 +59,7 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const admin = await requireUserManagementAdmin();
     const body = (await request.json()) as {
@@ -213,9 +214,9 @@ export async function POST(request: Request) {
     }
     return authErrorResponse(error);
   }
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const admin = await requireUserManagementAdmin();
     const body = (await request.json()) as {
@@ -296,9 +297,9 @@ export async function PUT(request: Request) {
     }
     return authErrorResponse(error);
   }
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withLiveBump(async function DELETE(request: Request) {
   try {
     const admin = await requireUserManagementAdmin();
     const { searchParams } = new URL(request.url);
@@ -342,4 +343,4 @@ export async function DELETE(request: Request) {
     }
     return authErrorResponse(error);
   }
-}
+});

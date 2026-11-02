@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import Link from "next/link";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
@@ -31,10 +32,13 @@ import type {
   PosConfig,
   PosTicket,
   SaleType,
+  ProductCategory,
   VenteLogEntry,
+  VenteOrigine,
   VenteProduct,
   VenteSite,
 } from "@/lib/types";
+import { VENTE_ORIGINES, VENTE_ORIGINE_LABELS } from "@/lib/types";
 import { previousIsoDate, shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 
 type Board = {
@@ -45,6 +49,8 @@ type Board = {
   recent: VenteLogEntry[];
   caToday: number;
   ventesSansStock?: boolean;
+  /** Catégories personnalisées créées dans Paramètres (ex. Dessert). */
+  categories?: ProductCategory[];
 };
 
 type CartLine = {
@@ -56,35 +62,43 @@ type CartLine = {
   qty: number;
 };
 
-type CatKey = "plat" | "accompagnement" | "boisson";
+type BuiltinCatKey = "plat" | "accompagnement" | "boisson";
+/** Onglet UI : catégorie d'origine, ou `cat:<id>` pour une catégorie créée. */
+type CatKey = BuiltinCatKey | `cat:${string}`;
 
-/** Onglet UI → kind API. */
-const CAT_KIND: Record<CatKey, VenteProduct["kind"]> = {
+const BUILTIN_CATS: BuiltinCatKey[] = ["plat", "accompagnement", "boisson"];
+
+/** Onglet UI → kind API (catégories d'origine). */
+const CAT_KIND: Record<BuiltinCatKey, VenteProduct["kind"]> = {
   plat: "plat",
   accompagnement: "local",
   boisson: "boisson",
 };
 
-const CAT_LABELS: Record<CatKey, string> = {
+const CAT_LABELS: Record<BuiltinCatKey, string> = {
   plat: "Plats",
   accompagnement: "Accompagnements",
   boisson: "Boissons",
 };
 
-const CAT_SHORT_LABELS: Record<CatKey, string> = {
+const CAT_SHORT_LABELS: Record<BuiltinCatKey, string> = {
   plat: "Plats",
   accompagnement: "Acc.",
   boisson: "Boissons",
 };
 
 const CAT_ICON: Record<
-  CatKey,
+  BuiltinCatKey,
   { kind: VenteProduct["kind"]; name: string }
 > = {
   plat: { kind: "plat", name: "Plat" },
   accompagnement: { kind: "local", name: "Accompagnement" },
   boisson: { kind: "boisson", name: "Boisson" },
 };
+
+function isBuiltinCat(key: CatKey): key is BuiltinCatKey {
+  return !key.startsWith("cat:");
+}
 
 const SALE_TYPES: SaleType[] = ["Sur place", "Rapido"];
 
@@ -224,7 +238,8 @@ export const ProductGrid = memo(function ProductGrid({
   return (
     <div className="vente-grid">
       {products.map((p) => {
-        const disabledPv = p.kind === "boisson" && p.unitPrice <= 0;
+        const disabledPv =
+          (p.kind === "boisson" || p.kind === "extra") && p.unitPrice <= 0;
         const stockBlocked =
           !ignoreStock &&
           p.stockLeft !== null &&
@@ -570,6 +585,8 @@ type TicketsListProps = {
   onFacture: (ticket: PosTicket) => void;
   onCancel: (ticket: PosTicket) => void;
   onDeletePermanent: (ticket: PosTicket) => void;
+  isAdmin: boolean;
+  onApprove: (ticket: PosTicket) => void;
 };
 
 const TicketsList = memo(function TicketsList({
@@ -580,6 +597,8 @@ const TicketsList = memo(function TicketsList({
   onFacture,
   onCancel,
   onDeletePermanent,
+  isAdmin,
+  onApprove,
 }: TicketsListProps) {
   return (
     <div className="pos-tickets">
@@ -602,10 +621,44 @@ const TicketsList = memo(function TicketsList({
                   ? "Validé"
                   : t.statut === "annule"
                     ? "Annulé"
-                    : t.statut}
+                    : t.statut === "en_attente"
+                      ? "Vente direction · en attente"
+                      : t.statut === "direction_validee"
+                        ? "Vente direction validée"
+                        : t.statut}
               </div>
             </div>
             <div className="pos-ticket-actions">
+              {t.statut === "en_attente" && isAdmin ? (
+                <>
+                  <button
+                    type="button"
+                    className="btn-link"
+                    disabled={!!busyKey}
+                    onClick={() => onApprove(t)}
+                  >
+                    Valider
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-link btn-link-danger"
+                    disabled={!!busyKey}
+                    onClick={() => onCancel(t)}
+                  >
+                    Refuser
+                  </button>
+                </>
+              ) : null}
+              {t.statut === "direction_validee" && isAdmin ? (
+                <button
+                  type="button"
+                  className="btn-link btn-link-danger"
+                  disabled={!!busyKey}
+                  onClick={() => onCancel(t)}
+                >
+                  Annuler
+                </button>
+              ) : null}
               {t.statut === "valide" ? (
                 <>
                   <button
@@ -672,6 +725,10 @@ export function VentePage({
   const [tickets, setTickets] = useState<PosTicket[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
+  const [venteOrigine, setVenteOrigine] = useState<VenteOrigine>("client");
+  /** Site d'une vente direction : l'admin (deux sites) doit le préciser. */
+  const [directionSite, setDirectionSite] = useState<VenteSite | "">("");
+  const needsDirectionSite = venteOrigine === "direction" && allowedSites.length > 1;
   const [paymentId, setPaymentId] = useState("");
   const [clientNom, setClientNom] = useState("");
   const [reduction, setReduction] = useState("0");
@@ -695,6 +752,7 @@ export function VentePage({
   const [canManagePast, setCanManagePast] = useState(false);
   const [canPurge, setCanPurge] = useState(false);
   const [canManageStock, setCanManageStock] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [degriserBusy, setDegriserBusy] = useState(false);
   /** Ruptures connues au dernier chargement (pour ne signaler que les nouvelles). */
   const prevRuptures = useRef<Set<string> | null>(null);
@@ -936,9 +994,13 @@ export function VentePage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, site, pathname]);
 
+  // Tickets et chiffres à jour dès qu'un autre poste vend, annule ou valide.
+  useLiveRefresh(() => void load());
+
   /** Encaissement possible : caisse du jour, ou correction gérant (backdate). */
-  const canSell = Boolean(caisse) || backdateMode;
-  const ignoreStock = backdateMode || board?.ventesSansStock === true;
+  // Administrateur : articles jamais grisés (ni caisse fermée, ni stock épuisé).
+  const canSell = Boolean(caisse) || backdateMode || isAdmin;
+  const ignoreStock = isAdmin || backdateMode || board?.ventesSansStock === true;
 
   const plats = useMemo(
     () => board?.products.filter((p) => p.kind === "plat") ?? [],
@@ -954,15 +1016,22 @@ export function VentePage({
     if (!board) return [];
     if (cat === "plat") return plats;
     if (cat === "accompagnement") return accompagnements;
+    if (!isBuiltinCat(cat)) {
+      const categoryId = cat.slice(4);
+      return board.products.filter(
+        (p) => p.kind === "extra" && p.categoryId === categoryId,
+      );
+    }
     const kind = CAT_KIND[cat];
     return board.products.filter((p) => p.kind === kind);
   }, [board, cat, plats, accompagnements]);
 
   const categories = useMemo(() => {
-    const keys: CatKey[] = ["plat", "accompagnement", "boisson"];
-    return keys.map((key) => ({
-      key,
+    const builtin = BUILTIN_CATS.map((key) => ({
+      key: key as CatKey,
       label: CAT_LABELS[key],
+      shortLabel: CAT_SHORT_LABELS[key],
+      icon: CAT_ICON[key],
       count:
         key === "plat"
           ? plats.length
@@ -971,6 +1040,17 @@ export function VentePage({
             : (board?.products.filter((p) => p.kind === CAT_KIND[key]).length ??
               0),
     }));
+    const custom = (board?.categories ?? []).map((c) => ({
+      key: `cat:${c.id}` as CatKey,
+      label: c.name,
+      shortLabel: c.name,
+      icon: { kind: "extra" as VenteProduct["kind"], name: c.name },
+      count:
+        board?.products.filter(
+          (p) => p.kind === "extra" && p.categoryId === c.id,
+        ).length ?? 0,
+    }));
+    return [...builtin, ...custom];
   }, [board, plats.length, accompagnements.length]);
 
   // Service worker + rejeu des ventes encaissées pendant une coupure.
@@ -1006,6 +1086,7 @@ export function VentePage({
         if (!annule) {
           setOperateur(body.user?.name ?? null);
           setCanManageStock(body.user?.role === "admin");
+          setIsAdmin(body.user?.role === "admin");
           if (typeof body.user?.id === "string") {
             setOfflineQueueUser(body.user.id);
           }
@@ -1097,7 +1178,12 @@ export function VentePage({
 
   const addToCart = useCallback(
     (product: VenteProduct, unitPriceOverride?: number, qty = 1) => {
-      if (product.kind === "boisson" && product.unitPrice <= 0) return;
+      if (
+        (product.kind === "boisson" || product.kind === "extra") &&
+        product.unitPrice <= 0
+      ) {
+        return;
+      }
       if (
         !ignoreStock &&
         product.kind !== "local" &&
@@ -1213,6 +1299,12 @@ export function VentePage({
       );
       return;
     }
+    if (needsDirectionSite && !directionSite) {
+      setError("Précisez le site concerné par cette vente direction.");
+      return;
+    }
+    const saleSite: VenteSite =
+      needsDirectionSite && directionSite ? directionSite : site;
     setPosBusy(true);
     setError(null);
     // Référence de poste attribuée AVANT l'envoi : si la commande part mais que
@@ -1222,8 +1314,9 @@ export function VentePage({
     const corps = {
       action: "validate",
       date,
-      site,
+      site: saleSite,
       saleType,
+      venteOrigine,
       paymentMethodId: paymentId || undefined,
       clientNom: clientNom || undefined,
       reduction: reductionN,
@@ -1260,11 +1353,20 @@ export function VentePage({
       }
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Validation impossible");
-      setBoard(body.board as Board);
+      // Vente direction sur l'autre site : on garde l'affichage du site courant.
+      if (saleSite === site) setBoard(body.board as Board);
       setCart([]);
       setClientNom("");
       setReduction("0");
-      setFlash(`Ticket ${body.ticket.numero} · ${formatFcfa(body.ticket.montant)}`);
+      setVenteOrigine("client");
+      setDirectionSite("");
+      setFlash(
+        `Ticket ${body.ticket.numero} · ${formatFcfa(body.ticket.montant)}${
+          body.ticket.statut === "en_attente"
+            ? " · en attente"
+            : ""
+        }`,
+      );
       window.setTimeout(() => setFlash(null), 2000);
       // La commande créée ouvre systématiquement sa facture : le détail complet
       // s'affiche à l'écran, l'impression n'est qu'un geste de plus. La réponse
@@ -1273,17 +1375,19 @@ export function VentePage({
       if (body.ticket) {
         const ticket = body.ticket as PosTicket;
         setFacture(ticket);
-        setTickets((prev) => [
-          ticket,
-          ...prev.filter((t) => t.id !== ticket.id),
-        ]);
+        if (saleSite === site) {
+          setTickets((prev) => [
+            ticket,
+            ...prev.filter((t) => t.id !== ticket.id),
+          ]);
+        }
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Validation impossible");
     } finally {
       setPosBusy(false);
     }
-  }, [cart, canSell, backdateMode, date, site, saleType, paymentId, clientNom, reductionN]);
+  }, [cart, canSell, backdateMode, date, site, saleType, venteOrigine, directionSite, needsDirectionSite, paymentId, clientNom, reductionN]);
 
   useEffect(() => {
     if (!cart.length) setCartSheetOpen(false);
@@ -1300,10 +1404,12 @@ export function VentePage({
 
   const cancelTicket = useCallback(
     async (ticket: PosTicket) => {
-      if (ticket.statut !== "valide") return;
+      if (ticket.statut === "annule") return;
       if (
         !window.confirm(
-          `Annuler le ticket ${ticket.numero} (${formatFcfa(ticket.montant)}) ?`,
+          ticket.statut === "en_attente"
+            ? `Refuser la vente direction ${ticket.numero} (${formatFcfa(ticket.montant)}) ?`
+            : `Annuler le ticket ${ticket.numero} (${formatFcfa(ticket.montant)}) ?`,
         )
       ) {
         return;
@@ -1335,6 +1441,49 @@ export function VentePage({
         window.setTimeout(() => setFlash(null), 1600);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Annulation impossible");
+      } finally {
+        setBusyKey(null);
+      }
+    },
+    [date, site],
+  );
+
+  const approveTicket = useCallback(
+    async (ticket: PosTicket) => {
+      if (ticket.statut !== "en_attente") return;
+      if (
+        !window.confirm(
+          `Valider la vente direction ${ticket.numero} (${formatFcfa(ticket.montant)}) ? Elle ne sera jamais comptée dans le CA des ventes clients.`,
+        )
+      ) {
+        return;
+      }
+      setBusyKey(`ticket:${ticket.id}`);
+      setError(null);
+      try {
+        const res = await fetch("/api/pos", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "approve-direction",
+            id: ticket.id,
+            date,
+            site,
+          }),
+        });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Validation impossible");
+        if (body.board) setBoard(body.board as Board);
+        if (body.ticket) {
+          const validated = body.ticket as PosTicket;
+          setTickets((prev) =>
+            prev.map((t) => (t.id === validated.id ? validated : t)),
+          );
+        }
+        setFlash(`Vente direction ${ticket.numero} validée`);
+        window.setTimeout(() => setFlash(null), 1600);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Validation impossible");
       } finally {
         setBusyKey(null);
       }
@@ -1878,15 +2027,15 @@ export function VentePage({
                 >
                   <span className="vente-cat-pill-icon">
                     <ProductIcon
-                      kind={CAT_ICON[c.key].kind}
-                      name={CAT_ICON[c.key].name}
+                      kind={c.icon.kind}
+                      name={c.icon.name}
                       size="md"
                     />
                   </span>
                   <span className="vente-cat-pill-label">
                     <span className="vente-cat-pill-label-long">{c.label}</span>
                     <span className="vente-cat-pill-label-short">
-                      {CAT_SHORT_LABELS[c.key]}
+                      {c.shortLabel}
                     </span>
                   </span>
                   <span className="vente-cat-pill-count">{c.count}</span>
@@ -1978,6 +2127,42 @@ export function VentePage({
                 </label>
 
                 <label className="vente-field">
+                  <span>Vente pour</span>
+                  <select
+                    value={venteOrigine}
+                    onChange={(e) =>
+                      setVenteOrigine(e.target.value as VenteOrigine)
+                    }
+                  >
+                    {VENTE_ORIGINES.map((o) => (
+                      <option key={o} value={o}>
+                        {VENTE_ORIGINE_LABELS[o]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                {needsDirectionSite ? (
+                  <label className="vente-field">
+                    <span>Site concerné (obligatoire)</span>
+                    <select
+                      value={directionSite}
+                      required
+                      onChange={(e) =>
+                        setDirectionSite(e.target.value as VenteSite | "")
+                      }
+                    >
+                      <option value="">— Choisir le site —</option>
+                      {allowedSites.map((s) => (
+                        <option key={s} value={s}>
+                          {s === "zogbo" ? "Zogbo" : "Gbégamey"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+
+                <label className="vente-field">
                   <span>Paiement</span>
                   <select
                     value={paymentId}
@@ -2052,6 +2237,8 @@ export function VentePage({
                   onFacture={openFacture}
                   onCancel={cancelTicket}
                   onDeletePermanent={deleteTicketPermanent}
+                  isAdmin={isAdmin}
+                  onApprove={approveTicket}
                 />
               ) : null}
           </aside>
@@ -2142,7 +2329,15 @@ export function VentePage({
               </div>
               <div>
                 <dt>Statut</dt>
-                <dd>{facture.statut === "valide" ? "Validée" : "Annulée"}</dd>
+                <dd>
+                  {facture.statut === "valide"
+                    ? "Validée"
+                    : facture.statut === "en_attente"
+                      ? "En attente"
+                      : facture.statut === "direction_validee"
+                        ? "Vente direction validée"
+                        : "Annulée"}
+                </dd>
               </div>
             </dl>
 
@@ -2229,13 +2424,19 @@ export function VentePage({
       >
         {board?.recent.length ? (
           <ul className="vente-log">
-            {board.recent.map((entry) => (
+            {board.recent.map((entry) => {
+              // Article d'une catégorie créée : une vente au catalogue, avec
+              // quantité (≠ vente libre « Extra »).
+              const free =
+                entry.kind === "extra" &&
+                !board.products.some((p) => p.productId === entry.productId);
+              return (
               <li key={entry.id}>
                 <div>
                   <strong>
-                    {entry.kind === "extra" ? "Extra · " : ""}
-                    {entry.qty > 0 && entry.kind !== "extra" ? "+" : ""}
-                    {entry.kind !== "extra" ? `${entry.qty} ` : ""}
+                    {free ? "Extra · " : ""}
+                    {entry.qty > 0 && !free ? "+" : ""}
+                    {!free ? `${entry.qty} ` : ""}
                     {entry.name}
                   </strong>
                   <span className="muted mono">
@@ -2267,7 +2468,8 @@ export function VentePage({
                   ) : null}
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         ) : (
           <p className="muted">Aucune vente.</p>

@@ -7,10 +7,20 @@
   min-width: 0;
 }
 
+.main-historique .rg-registre-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.main-historique .rg-registre-body[hidden] {
+  display: none;
+}
+
 .main-historique .rg-toolbar {
-  position: sticky;
-  top: 0.55rem;
-  z-index: 4;
+  /* Barre de filtres non collante : toute la page défile avec elle. */
+  position: static;
   display: flex;
   flex-direction: column;
   gap: 0.75rem;

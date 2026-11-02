@@ -1,5 +1,6 @@
 "use client";
 
+import { useLiveRefresh } from "@/lib/use-live-refresh";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { ExportExcelButton } from "@/components/export-excel-button";
@@ -124,6 +125,7 @@ export function PertesPage() {
   const [page, setPage] = useState(1);
   const [statutFilter, setStatutFilter] = useState<StatutFilter>("all");
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
   const debouncedSearch = useDebouncedValue(search);
 
   const chargerJournal = useCallback(async (jour: string) => {
@@ -134,14 +136,16 @@ export function PertesPage() {
     const body = (await res.json()) as {
       pertes: PerteEntry[];
       site?: VenteSite | "tous";
+      canDelete?: boolean;
     };
+    setCanDelete(body.canDelete === true);
     setPertes(body.pertes ?? []);
     setUserSite(body.site ?? "tous");
   }, []);
 
   const charger = useCallback(
-    async (jour: string, point: VenteSite) => {
-      setLoading(true);
+    async (jour: string, point: VenteSite, silent = false) => {
+      if (!silent) setLoading(true);
       setError(null);
       try {
         const journalRes = await fetch(
@@ -329,6 +333,32 @@ export function PertesPage() {
     }
   }
 
+  async function supprimer(entry: PerteEntry) {
+    const reason = window.prompt(
+      `Supprimer définitivement cette perte ?\n\n${entry.qty} × ${entry.name}\n${entry.cancelledAt ? "" : "Le stock sera repris. "}Action irréversible.\nMotif (8 caractères minimum) :`,
+    );
+    if (!reason || reason.trim().length < 8) {
+      if (reason !== null) setError("Motif requis (au moins 8 caractères).");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/pertes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", id: entry.id, reason: reason.trim() }),
+      });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(body.error || "Suppression impossible");
+      await charger(date, site);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Suppression impossible");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function annuler(entry: PerteEntry) {
     if (
       !window.confirm(
@@ -354,6 +384,8 @@ export function PertesPage() {
       setBusy(false);
     }
   }
+
+  useLiveRefresh(() => void charger(date, site, true));
 
   const actives = pertes.filter((p) => !p.cancelledAt);
   const coutDuJour = actives.reduce((s, p) => s + p.cost, 0);
@@ -765,6 +797,18 @@ export function PertesPage() {
                                 {p.cancelledByName ?? "—"}
                               </span>
                             )}
+                            {canDelete ? (
+                              <button
+                                type="button"
+                                className="catalogue-action-btn is-danger"
+                                disabled={busy}
+                                title="Supprimer définitivement"
+                                aria-label={`Supprimer définitivement ${p.name}`}
+                                onClick={() => void supprimer(p)}
+                              >
+                                🗑
+                              </button>
+                            ) : null}
                           </td>
                         </tr>
                       ))}
@@ -817,16 +861,28 @@ export function PertesPage() {
                         {p.actorName ? ` · ${p.actorName}` : ""}
                         {p.commentaire ? ` · ${p.commentaire}` : ""}
                       </p>
-                      {!p.cancelledAt ? (
+                      {!p.cancelledAt || canDelete ? (
                         <div className="catalogue-mobile-card-actions">
-                          <button
-                            type="button"
-                            className="catalogue-action-btn is-danger"
-                            disabled={busy}
-                            onClick={() => void annuler(p)}
-                          >
-                            Annuler
-                          </button>
+                          {!p.cancelledAt ? (
+                            <button
+                              type="button"
+                              className="catalogue-action-btn is-danger"
+                              disabled={busy}
+                              onClick={() => void annuler(p)}
+                            >
+                              Annuler
+                            </button>
+                          ) : null}
+                          {canDelete ? (
+                            <button
+                              type="button"
+                              className="catalogue-action-btn is-danger"
+                              disabled={busy}
+                              onClick={() => void supprimer(p)}
+                            >
+                              Supprimer
+                            </button>
+                          ) : null}
                         </div>
                       ) : null}
                     </article>

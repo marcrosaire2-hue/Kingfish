@@ -805,43 +805,30 @@ async function loadMaps(
   ]);
   applyPosReductions(ventes, reductions);
 
+  const charges = new Map(
+    chargesDocs.map((d) => [
+      d._id,
+      scopeSite
+        ? stripMaisonCharges(toCharges(d, d._id))
+        : toCharges(d, d._id),
+    ]),
+  );
+  const first = dates[0]!;
+  const last = dates[dates.length - 1]!;
+  // Cinq lectures indépendantes lancées ensemble (voir loadRange).
+  await Promise.all([
+    withPertes(charges, first, last, scopeSite),
+    withAchatsStock(charges, first, last, scopeSite),
+    withMatieresConsommees(charges, first, last, scopeSite),
+    withCmvFromVentes(charges, first, last, scopeSite),
+    withAmortissements(charges, first, last, scopeSite),
+  ]);
+
   return {
     zogbo: new Map(zogboDocs.map((d) => [d._id, toZogbo(d)])),
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: await withAmortissements(
-      await withCmvFromVentes(
-        await withMatieresConsommees(
-          await withAchatsStock(
-            await withPertes(
-              new Map(
-                chargesDocs.map((d) => [
-                  d._id,
-                  scopeSite
-                    ? stripMaisonCharges(toCharges(d, d._id))
-                    : toCharges(d, d._id),
-                ]),
-              ),
-              dates[0]!,
-              dates[dates.length - 1]!,
-              scopeSite,
-            ),
-            dates[0]!,
-            dates[dates.length - 1]!,
-            scopeSite,
-          ),
-          dates[0]!,
-          dates[dates.length - 1]!,
-          scopeSite,
-        ),
-        dates[0]!,
-        dates[dates.length - 1]!,
-        scopeSite,
-      ),
-      dates[0]!,
-      dates[dates.length - 1]!,
-      scopeSite,
-    ),
+    charges,
     ventes,
   };
 }
@@ -883,43 +870,29 @@ async function loadRange(
   ]);
   applyPosReductions(ventes, reductions);
 
+  const charges = new Map(
+    chargesDocs.map((d) => [
+      d._id,
+      scopeSite
+        ? stripMaisonCharges(toCharges(d, d._id))
+        : toCharges(d, d._id),
+    ]),
+  );
+  // Cinq lectures indépendantes (pertes, achats, matières, coût des boissons,
+  // amortissements) : lancées ensemble, chacune complète la même table.
+  await Promise.all([
+    withPertes(charges, start, end, scopeSite),
+    withAchatsStock(charges, start, end, scopeSite),
+    withMatieresConsommees(charges, start, end, scopeSite),
+    withCmvFromVentes(charges, start, end, scopeSite),
+    withAmortissements(charges, start, end, scopeSite),
+  ]);
+
   return {
     zogbo: new Map(zogboDocs.map((d) => [d._id, toZogbo(d)])),
     gbegamey: new Map(gbegameyDocs.map((d) => [d._id, toGbegamey(d)])),
     boissons: new Map(boissonsDocs.map((d) => [d._id, toBoissons(d)])),
-    charges: await withAmortissements(
-      await withCmvFromVentes(
-        await withMatieresConsommees(
-          await withAchatsStock(
-            await withPertes(
-              new Map(
-                chargesDocs.map((d) => [
-                  d._id,
-                  scopeSite
-                    ? stripMaisonCharges(toCharges(d, d._id))
-                    : toCharges(d, d._id),
-                ]),
-              ),
-              start,
-              end,
-              scopeSite,
-            ),
-            start,
-            end,
-            scopeSite,
-          ),
-          start,
-          end,
-          scopeSite,
-        ),
-        start,
-        end,
-        scopeSite,
-      ),
-      start,
-      end,
-      scopeSite,
-    ),
+    charges,
     ventes,
   };
 }

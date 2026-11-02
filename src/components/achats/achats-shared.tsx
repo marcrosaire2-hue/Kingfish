@@ -18,6 +18,8 @@ export type DraftRow = {
 };
 
 export type DraftLibre = {
+  /** Matière du catalogue (entre au stock) ; vide = achat libre hors stock. */
+  productId: string;
   name: string;
   qty: string;
   price: string;
@@ -32,7 +34,7 @@ export function emptyDraft(): DraftRow {
 }
 
 export function emptyDraftLibre(date: string = todayIsoDate()): DraftLibre {
-  return { name: "", qty: "", price: "", fournisseurId: "", date };
+  return { productId: "", name: "", qty: "", price: "", fournisseurId: "", date };
 }
 
 /** Date seule, sans heure — l'heure de saisie n'intéresse personne ici. */

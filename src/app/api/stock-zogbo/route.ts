@@ -1,3 +1,4 @@
+import { withLiveBump } from "@/lib/live-route";
 import { NextResponse } from "next/server";
 import { AuthError, authErrorResponse, requireStockWrite, requireUser } from "@/lib/api-auth";
 import { canUseSite } from "@/lib/auth-types";
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withLiveBump(async function POST(request: Request) {
   try {
     const user = await requireStockZogboAccess();
     requireStockWrite(user);
@@ -232,9 +233,9 @@ export async function POST(request: Request) {
     reportError("POST /api/stock-zogbo", error);
     return NextResponse.json({ error: message }, { status: 400 });
   }
-}
+});
 
-export async function PUT(request: Request) {
+export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
     const user = await requireStockZogboAccess();
     requireStockWrite(user);
@@ -257,4 +258,4 @@ export async function PUT(request: Request) {
       { status: 400 },
     );
   }
-}
+});
