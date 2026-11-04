@@ -26,10 +26,6 @@ import {
   previousIsoDate,
   shiftIsoDate,
 } from "@/lib/zogbo-calc";
-import {
-  loadAquaAlimentStocks,
-  openingByProductName,
-} from "@/lib/aquapro-opening-stock";
 
 type GbegameyDoc = Omit<GbegameyDay, "date"> & {
   _id: string;
@@ -93,7 +89,11 @@ async function leftoversForDate(
 ): Promise<{
   transfer: Map<string, number>;
   local: Map<string, number>;
+  /** Produits dont le stock a été saisi : la vente reste plafonnée au stock. */
+  trackedTransfer: Set<string>;
+  trackedLocal: Set<string>;
 }> {
+  void localDishes;
   const prev = previousIsoDate(date);
   const floor = shiftIsoDate(date, -LEFTOVER_LOOKBACK_DAYS);
   if (prev && floor) {
@@ -116,20 +116,51 @@ async function leftoversForDate(
         (prevDoc.localLines ?? []).map((l) => normalizeLocalLine(l)),
         undefined,
       );
-      if (leftoverMapHasStock(transfer) || leftoverMapHasStock(local)) {
-        return { transfer, local };
+      const trackedTransfer = new Set(
+        (prevDoc.transferLines ?? [])
+          .filter((l) => l.stockTracked === true)
+          .map((l) => l.productId),
+      );
+      const trackedLocal = new Set(
+        (prevDoc.localLines ?? [])
+          .filter((l) => l.stockTracked === true)
+          .map((l) => l.productId),
+      );
+      if (
+        leftoverMapHasStock(transfer) ||
+        leftoverMapHasStock(local) ||
+        trackedTransfer.size > 0 ||
+        trackedLocal.size > 0
+      ) {
+        return { transfer, local, trackedTransfer, trackedLocal };
       }
     }
   }
-  try {
-    const { byName } = await loadAquaAlimentStocks();
-    return {
-      transfer: new Map(),
-      local: openingByProductName(localDishes, byName),
-    };
-  } catch {
-    return { transfer: new Map(), local: new Map() };
-  }
+  // Le stock Gbégamey ne provient plus que des saisies faites dans l'appli :
+  // plus de reprise du stock d'ouverture AquaPro.
+  return {
+    transfer: new Map(),
+    local: new Map(),
+    trackedTransfer: new Set(),
+    trackedLocal: new Set(),
+  };
+}
+
+/** Une ligne porte-t-elle une entrée de stock (initial, préparé, reçu, compté) ? */
+function lineHasStockEntry(line: {
+  initialStock?: number;
+  prepared?: number;
+  received?: number | null;
+  counted?: number | null;
+}): boolean {
+  return (
+    (Number(line.initialStock) || 0) > 0 ||
+    (Number(line.prepared) || 0) > 0 ||
+    (Number(line.received) || 0) > 0 ||
+    (line.counted !== null &&
+      line.counted !== undefined &&
+      (Number(line.counted) || 0) > 0)
+  );
 }
 
 /**
@@ -176,7 +207,17 @@ function gbegameyDocNeedsStockHeal(doc: GbegameyDoc): boolean {
     const n = normalizeLocalLine(l);
     return n.sold > 0 || n.prepared > 0;
   });
-  if (worked || localWorked || doc.status === "cloturee") return false;
+  if (doc.status === "cloturee") return false;
+  // Ventes enregistrées sans aucune entrée de stock ce jour-là (ni suivi) :
+  // le stock saisi la veille reprend la main, les ventes sont conservées.
+  const allLines = [...(doc.transferLines ?? []), ...(doc.localLines ?? [])];
+  if (
+    !allLines.some((l) => lineHasStockEntry(l)) &&
+    !allLines.some((l) => l.stockTracked === true)
+  ) {
+    return true;
+  }
+  if (worked || localWorked) return false;
   // Journée entièrement vide (auto-créée) : laisser la main au report du
   // dernier stock réel.
   if (transferEmpty && localEmpty) return true;
@@ -203,8 +244,23 @@ export async function getGbegameyDayPayload(
     const leftovers = await leftoversForDate(date, localDishes);
     const has =
       leftoverMapHasStock(leftovers.transfer) ||
-      leftoverMapHasStock(leftovers.local);
+      leftoverMapHasStock(leftovers.local) ||
+      leftovers.trackedTransfer.size > 0 ||
+      leftovers.trackedLocal.size > 0;
     if (!has) return null;
+    // Ventes / pertes déjà enregistrées ce jour : conservées lors du report.
+    const heldTransfer = new Map(
+      (existing?.transferLines ?? []).map((l) => [
+        l.productId,
+        normalizeTransferLine(l),
+      ]),
+    );
+    const heldLocal = new Map(
+      (existing?.localLines ?? []).map((l) => [
+        l.productId,
+        normalizeLocalLine(l),
+      ]),
+    );
 
     const day = createEmptyGbegameyDay(
       date,
@@ -215,18 +271,36 @@ export async function getGbegameyDayPayload(
     );
     const updatedAt = new Date().toISOString();
     // Non signé : counted reste null pour que le théorique suive les ventes.
-    const localLines = day.localLines.map((l) => ({
-      ...l,
-      counted: null,
-      observations:
-        l.initialStock > 0 ? "Report stock veille (non inventorié)" : "",
-    }));
-    const transferLines = day.transferLines.map((l) => ({
-      ...l,
-      counted: null,
-      observations:
-        l.initialStock > 0 ? "Report stock veille (non inventorié)" : "",
-    }));
+    // Un produit dont le stock a été saisi reste plafonné au stock le
+    // lendemain : le suivi (`stockTracked`) est reporté avec le reste.
+    const localLines = day.localLines.map((l) => {
+      const held = heldLocal.get(l.productId);
+      return {
+        ...l,
+        sold: held?.sold ?? l.sold,
+        pertes: held?.pertes ?? l.pertes,
+        counted: null,
+        observations:
+          l.initialStock > 0 ? "Report stock veille (non inventorié)" : "",
+        ...(leftovers.trackedLocal.has(l.productId)
+          ? { stockTracked: true }
+          : {}),
+      };
+    });
+    const transferLines = day.transferLines.map((l) => {
+      const held = heldTransfer.get(l.productId);
+      return {
+        ...l,
+        sold: held?.sold ?? l.sold,
+        pertes: held?.pertes ?? l.pertes,
+        counted: null,
+        observations:
+          l.initialStock > 0 ? "Report stock veille (non inventorié)" : "",
+        ...(leftovers.trackedTransfer.has(l.productId)
+          ? { stockTracked: true }
+          : {}),
+      };
+    });
     await col.updateOne(
       { _id: date },
       {
