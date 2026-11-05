@@ -565,12 +565,14 @@ function BaseDishesCatalogue({
       editingId={editingId}
       onEditingId={setEditingId}
       addLabel="Ajouter un plat de base"
-      onAdd={() =>
-        onChange([
-          ...rows,
-          { id: newId("base"), name: "Nouveau plat", unitPrice: 1500 },
-        ])
-      }
+      onAdd={() => {
+        // Le nouveau plat s’ouvre tout de suite en modification, sur sa page.
+        const id = newId("base");
+        onChange([...rows, { id, name: "Nouveau plat", unitPrice: 1500 }]);
+        setSearch("");
+        setPage(Math.ceil((rows.length + 1) / PAGE_SIZE));
+        setEditingId(id);
+      }}
     />
   );
 }
@@ -713,12 +715,14 @@ function LocalDishesCatalogue({
       editingId={editingId}
       onEditingId={setEditingId}
       addLabel="Ajouter un accompagnement"
-      onAdd={() =>
-        onChange([
-          ...rows,
-          { id: newId("local"), name: "Nouvel accompagnement", unitPrice: 500 },
-        ])
-      }
+      onAdd={() => {
+        // Le nouvel accompagnement s’ouvre tout de suite en modification.
+        const id = newId("local");
+        onChange([...rows, { id, name: "Nouvel accompagnement", unitPrice: 500 }]);
+        setSearch("");
+        setPage(Math.ceil((rows.length + 1) / PAGE_SIZE));
+        setEditingId(id);
+      }}
     />
   );
 }
@@ -1125,18 +1129,24 @@ function DrinksCatalogue({
         <button
           type="button"
           className="btn btn-add"
-          onClick={() =>
+          onClick={() => {
+            // La nouvelle boisson s’ouvre tout de suite en modification.
+            const id = newId("drink");
             onChange([
               ...rows,
               {
-                id: newId("drink"),
+                id,
                 name: "Nouvelle boisson",
                 purchasePrice: 500,
                 salePrice: null,
                 unitsPerCasier: 12,
               },
-            ])
-          }
+            ]);
+            setSearch("");
+            setFilterNoPrice(false);
+            setPage(Math.ceil((rows.length + 1) / PAGE_SIZE));
+            setEditingId(id);
+          }}
         >
           + Ajouter une boisson
         </button>

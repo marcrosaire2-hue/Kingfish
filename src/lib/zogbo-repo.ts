@@ -58,19 +58,21 @@ export function syncZogboAccompanimentLines(
   catalog: LocalDish[],
 ): GbegameyLocalLine[] {
   const byId = new Map(lines.map((l) => [l.productId, normalizeAccompanimentLine(l)]));
-  return catalog.map(
-    (d) =>
-      byId.get(d.id) ?? {
-        productId: d.id,
-        name: d.name,
-        initialStock: 0,
-        prepared: 0,
-        sold: 0,
-        pertes: 0,
-        counted: null,
-        observations: "",
-      },
-  );
+  return catalog.map((d) => {
+    // Le nom suit toujours le catalogue (produit renommé).
+    const existing = byId.get(d.id);
+    if (existing) return { ...existing, name: d.name };
+    return {
+      productId: d.id,
+      name: d.name,
+      initialStock: 0,
+      prepared: 0,
+      sold: 0,
+      pertes: 0,
+      counted: null,
+      observations: "",
+    };
+  });
 }
 
 function toDay(doc: ZogboDoc, accompanimentLines?: GbegameyLocalLine[]): ZogboDay {
