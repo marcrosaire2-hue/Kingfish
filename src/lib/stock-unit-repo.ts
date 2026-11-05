@@ -570,6 +570,7 @@ export async function generatePlatQrUnits(input: {
         ),
         localLines: gbegamey.day.localLines,
         status: gbegamey.day.status,
+        stockSaisie: true,
       });
     }
   }
@@ -990,10 +991,25 @@ export async function saveAccompanimentStock(input: {
   const site: VenteSite = input.site === "gbegamey" ? "gbegamey" : "zogbo";
   if (site === "gbegamey") {
     const gbegamey = await getGbegameyDayPayload(input.date);
+    // Un accompagnement dont le stock est saisi (préparé ou stock réel) est
+    // désormais plafonné à ce stock : on ne vend que ce qui est entré.
+    const trackedBefore = new Set(
+      gbegamey.day.localLines
+        .filter((l) => l.stockTracked === true)
+        .map((l) => l.productId),
+    );
+    const localLines = input.accompanimentLines.map((l) => {
+      const entered =
+        (Number(l.prepared) || 0) > 0 ||
+        (l.counted !== null && l.counted !== undefined);
+      return entered || trackedBefore.has(l.productId)
+        ? { ...l, stockTracked: true }
+        : l;
+    });
     await saveGbegameyDay({
       date: input.date,
       transferLines: gbegamey.day.transferLines,
-      localLines: input.accompanimentLines,
+      localLines,
       stockSaisie: true,
       status: gbegamey.day.status,
     });
@@ -1052,6 +1068,7 @@ export async function registerProductStock(input: {
           needed: prepared,
         }),
         status: gbegamey.day.status,
+        stockSaisie: true,
       });
     } else {
       const zogbo = await getZogboDayPayload(input.date);
@@ -1119,6 +1136,7 @@ export async function registerProductStock(input: {
       transferLines: nextLines,
       localLines: gbegamey.day.localLines,
       status: gbegamey.day.status,
+      stockSaisie: true,
     });
   }
 

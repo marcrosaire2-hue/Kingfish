@@ -4,7 +4,11 @@ import { isPlanningEquipeAccount } from "@/lib/equipe-planning-access";
 import { adjustCaisseVenteAmount } from "@/lib/caisse-repo";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
-import { physicalBoissonsStockForSite, DEFAULT_UNITS_PER_CASIER } from "@/lib/boissons-calc";
+import {
+  physicalBoissonsStockForSite,
+  DEFAULT_UNITS_PER_CASIER,
+  normalizeBoissonsLine,
+} from "@/lib/boissons-calc";
 import { getBoissonsDayPayload, saveBoissonsDay } from "@/lib/boissons-repo";
 import { newId } from "@/lib/format";
 import { computeTransferLine } from "@/lib/gbegamey-calc";
@@ -1211,6 +1215,39 @@ async function applySoldDelta(input: {
   await ensureLinePresent(target, input);
 
   const { arrayField, soldField } = target;
+
+  // Gbégamey : la page Stock ne compte les ventes qu'à partir du moment où le
+  // stock du produit a été saisi. Avant, la vente reste au journal (CA)
+  // mais ne touche pas le compteur « Vendu » du stock.
+  if (input.site === "gbegamey") {
+    const current = await (await getDb())
+      .collection<DayCounterDoc>(target.collection)
+      .findOne({ _id: input.date }, { projection: { [arrayField]: 1 } });
+    const currentLines = ((current as Record<string, unknown> | null)?.[
+      arrayField
+    ] ?? []) as Record<string, unknown>[];
+    const currentLine = currentLines.find(
+      (l) => l.productId === input.productId,
+    );
+    const tracked =
+      target.collection === "boissons_jours"
+        ? isDrinkStockTracked(
+            currentLine
+              ? normalizeBoissonsLine(currentLine as never)
+              : null,
+            "gbegamey",
+          )
+        : isLineStockTracked(currentLine as { stockTracked?: boolean });
+    if (!tracked) {
+      return {
+        name: target.name,
+        unitPrice: target.unitPrice,
+        costPrice: target.costPrice,
+        soldToday: Math.max(0, Number(currentLine?.[soldField]) || 0),
+      };
+    }
+  }
+
   const upper =
     input.maxSold === null || input.maxSold === undefined
       ? null

@@ -226,7 +226,44 @@ function gbegameyDocNeedsStockHeal(doc: GbegameyDoc): boolean {
   return isPureAquaproProjection(doc);
 }
 
+/**
+ * Réglage « vente libre / vente selon le stock » hérité : celui de la
+ * dernière journée Gbégamey qui en porte un. Une fois le stock saisi, la vente
+ * selon le stock reste active les jours suivants sans réactivation manuelle ;
+ * l'admin peut toujours repasser un jour en vente libre.
+ */
+async function inheritedFreeSale(date: string): Promise<boolean> {
+  const db = await getDb();
+  const prev = await db
+    .collection<GbegameyDoc>("gbegamey_jours")
+    .find(
+      { _id: { $lt: date }, ventesSansStock: { $type: "bool" } },
+      { projection: { ventesSansStock: 1 } },
+    )
+    .sort({ _id: -1 })
+    .limit(1)
+    .next();
+  return typeof prev?.ventesSansStock === "boolean"
+    ? prev.ventesSansStock
+    : true;
+}
+
 export async function getGbegameyDayPayload(
+  date: string,
+): Promise<GbegameyDayPayload> {
+  const payload = await buildGbegameyDayPayload(date);
+  const db = await getDb();
+  const doc = await db
+    .collection<GbegameyDoc>("gbegamey_jours")
+    .findOne({ _id: date }, { projection: { ventesSansStock: 1 } });
+  const ventesSansStock =
+    typeof doc?.ventesSansStock === "boolean"
+      ? doc.ventesSansStock
+      : await inheritedFreeSale(date);
+  return { ...payload, day: { ...payload.day, ventesSansStock } };
+}
+
+async function buildGbegameyDayPayload(
   date: string,
 ): Promise<GbegameyDayPayload> {
   if (!isValidDate(date)) {
@@ -444,10 +481,19 @@ export async function saveGbegameyDay(
       const status = input.status ?? "ouverte";
       const sentByProductId = await loadSentMap(input.date);
       const receipts = existing?.receipts ?? [];
+      // Saisie de stock → vente selon le stock, sauf choix explicite de
+      // l'admin pour ce jour. Sans saisie, le réglage hérité de la veille
+      // n'est pas figé dans le document : une saisie plus tard dans la
+      // journée peut encore activer la vente selon le stock.
+      const explicit = typeof existing?.ventesSansStock === "boolean";
       const ventesSansStock = mergeVentesSansStockOnSave({
         stockSaisie: input.stockSaisie,
         existing,
+        fallback: input.stockSaisie
+          ? false
+          : await inheritedFreeSale(input.date),
       });
+      const persistPolicy = explicit || input.stockSaisie === true;
 
       return {
         set: {
@@ -456,7 +502,7 @@ export async function saveGbegameyDay(
           localLines,
           receipts,
           updatedAt,
-          ventesSansStock,
+          ...(persistPolicy ? { ventesSansStock } : {}),
         },
         result: {
           day: {
@@ -669,4 +715,20 @@ export async function cancelGbegameyReceipt(input: {
       };
     },
   );
+}
+
+/**
+ * Entrée de stock Gbégamey hors grille plats / accompagnements (ex. achat de
+ * boissons) : active la vente selon le stock pour la journée, sauf choix
+ * explicite de l'admin.
+ */
+export async function markGbegameyStockEntry(date: string): Promise<void> {
+  const { day } = await getGbegameyDayPayload(date);
+  await saveGbegameyDay({
+    date,
+    transferLines: day.transferLines,
+    localLines: day.localLines,
+    status: day.status,
+    stockSaisie: true,
+  });
 }
