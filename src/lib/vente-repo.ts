@@ -309,9 +309,13 @@ export function accompanimentAvailability(
   line: GbegameyLocalLine | null | undefined,
   site: VenteSite = "gbegamey",
 ): { tracked: boolean; stockLeft: number | null; maxSold: number | null } {
-  if (!line || !accompanimentTracked(line)) {
+  if (!line) {
     return { tracked: false, stockLeft: null, maxSold: null };
   }
+  // Le stock se calcule toujours depuis la ligne, suivie ou non : quand la
+  // journée est en vente selon le stock, un accompagnement préparé mais non
+  // marqué « suivi » ne doit pas être compté à 0 (il bloquait tout le ticket).
+  const tracked = accompanimentTracked(line);
   // Les deux sites : le comptage mesure l’écart, la vente suit
   // ouverture + entrées − vendus − pertes (règle de stock commune).
   void site;
@@ -321,7 +325,7 @@ export function accompanimentAvailability(
   );
   const stockLeft = Math.max(0, stock - line.sold);
   return {
-    tracked: true,
+    tracked,
     stockLeft,
     maxSold: stock,
   };
