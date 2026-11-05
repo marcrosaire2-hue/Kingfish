@@ -287,6 +287,15 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view"],
   },
   {
+    id: "journal-stock",
+    navKey: "journal-stock",
+    label: "Journal de stock",
+    path: "/journal-stock",
+    category: "pilotage",
+    description: "Stock jour par jour : initial, entrées, ventes, pertes, théorique, comptage, écart.",
+    actions: ["access", "view"],
+  },
+  {
     id: "historique",
     navKey: "historique",
     label: "Registre d’activité",

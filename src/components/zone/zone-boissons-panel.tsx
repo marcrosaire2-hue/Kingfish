@@ -30,6 +30,8 @@ type Payload = {
   caJournal?: number;
   /** SI fixe en bouteilles par boisson. */
   si?: Record<string, number>;
+  /** Vendus cumulés depuis le SI (bouteilles). */
+  vendusCumul?: Record<string, number>;
 };
 
 function formatTime(iso: string): string {
@@ -62,6 +64,7 @@ export function ZoneBoissonsPanel({
   const [exits, setExits] = useState<VenteLogEntry[]>([]);
   const [caJournal, setCaJournal] = useState(0);
   const [siByDrink, setSiByDrink] = useState<Record<string, number>>({});
+  const [vendusCumul, setVendusCumul] = useState<Record<string, number>>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -91,6 +94,7 @@ export function ZoneBoissonsPanel({
       setExits(body.exits ?? []);
       setCaJournal(Number(body.caJournal) || 0);
       setSiByDrink(body.si ?? {});
+      setVendusCumul(body.vendusCumul ?? {});
       setDirty(false);
       setDraftBuy({});
     } catch (e) {
@@ -524,7 +528,14 @@ export function ZoneBoissonsPanel({
                     // Écart = Stock physique − Stock théorique.
                     const ecart = counted === null ? null : counted - theoBt;
                     const siBt = siByDrink[line.productId];
-                    const disponibleBt = Math.round(available * upc);
+                    // Depuis le début : SI + entrées cumulées − vendus cumulés = restant.
+                    const cumul =
+                      siBt !== undefined && vendusCumul[line.productId] !== undefined;
+                    const vendusBt = cumul ? vendusCumul[line.productId]! : qty;
+                    const entreesBt = cumul
+                      ? Math.max(0, theoBt + vendusBt - siBt)
+                      : Math.round(purchases * upc);
+                    const disponibleBt = cumul ? siBt + entreesBt : Math.round(available * upc);
                     const missingPv = line.salePrice === null;
                     const buyBusy = busyId === `buy-${line.productId}`;
                     return (
@@ -554,7 +565,7 @@ export function ZoneBoissonsPanel({
                         <td>
                           <div className="stock-prepared-cell">
                             <span className="catalogue-qty-badge">
-                              {Math.round(purchases * upc)}
+                              {entreesBt}
                             </span>
                             {readOnly ? null : (
                               <div className="mvt-entry catalogue-inline-qr">
@@ -602,7 +613,7 @@ export function ZoneBoissonsPanel({
                           <span className="catalogue-qty-badge">{disponibleBt}</span>
                         </td>
                         <td>
-                          <span className="catalogue-qty-badge">{qty}</span>
+                          <span className="catalogue-qty-badge">{vendusBt}</span>
                         </td>
                         <td>
                           <span

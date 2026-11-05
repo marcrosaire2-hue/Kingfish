@@ -391,6 +391,11 @@ export function StockZogboPage({
     () => new Map(accStats.map((s) => [s.productId, s.si])),
     [accStats],
   );
+  /** Cumul depuis le début (SI fixe) : entrées, disponible, vendus, théorique. */
+  const accCumulByProduct = useMemo(
+    () => new Map(accStats.map((s) => [s.productId, s])),
+    [accStats],
+  );
 
   const patchDraftQr = (key: string, value: string) => {
     setDraftQr((d) => ({ ...d, [key]: value }));
@@ -804,29 +809,36 @@ export function StockZogboPage({
                               <span className="catalogue-qty-badge">{accSiByProduct.get(row.productId) ?? "—"}</span>
                             </td>
                             <td>
-                              {readOnly ? (
-                                <span className="catalogue-qty-badge">{row.prepared}</span>
-                              ) : (
-                                <QtyInput
-                                  value={row.prepared}
-                                  ariaLabel={`Entrées ${row.name}`}
-                                  onChange={(prepared) => patchAcc(row.productId, { prepared: prepared ?? 0 })}
-                                />
-                              )}
+                              <div className="stock-prepared-cell">
+                                <span className="catalogue-qty-badge">
+                                  {accCumulByProduct.get(row.productId)?.entrees ?? row.prepared}
+                                </span>
+                                {readOnly ? null : (
+                                  <QtyInput
+                                    value={row.prepared}
+                                    ariaLabel={`Entrées du jour ${row.name}`}
+                                    onChange={(prepared) => patchAcc(row.productId, { prepared: prepared ?? 0 })}
+                                  />
+                                )}
+                              </div>
                             </td>
                             <td>
-                              <span className="catalogue-qty-badge">{row.available}</span>
+                              <span className="catalogue-qty-badge">
+                                {accCumulByProduct.get(row.productId)?.disponible ?? row.available}
+                              </span>
                             </td>
                             <td>
-                              <span className="catalogue-qty-badge">{row.sold}</span>
+                              <span className="catalogue-qty-badge">
+                                {accCumulByProduct.get(row.productId)?.soldAggregate ?? row.sold}
+                              </span>
                             </td>
                             <td>
                               <span
                                 className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
-                                  row.theoreticalRemaining <= 0 ? " is-empty" : ""
+                                  (accCumulByProduct.get(row.productId)?.theoretical ?? row.theoreticalRemaining) <= 0 ? " is-empty" : ""
                                 }`}
                               >
-                                {row.theoreticalRemaining}
+                                {accCumulByProduct.get(row.productId)?.theoretical ?? row.theoreticalRemaining}
                               </span>
                             </td>
                             <td>
@@ -877,10 +889,10 @@ export function StockZogboPage({
                         </div>
                         <div className="stock-mobile-metrics">
                           <Metric label="Stock initial" value={accSiByProduct.get(row.productId) ?? "—"} />
-                          <Metric label="Entrées" value={row.prepared} />
-                          <Metric label="Stock disponible" value={row.available} />
-                          <Metric label="Vendus" value={row.sold} />
-                          <Metric label="Stock théorique" value={row.theoreticalRemaining} accent />
+                          <Metric label="Entrées" value={accCumulByProduct.get(row.productId)?.entrees ?? row.prepared} />
+                          <Metric label="Stock disponible" value={accCumulByProduct.get(row.productId)?.disponible ?? row.available} />
+                          <Metric label="Vendus" value={accCumulByProduct.get(row.productId)?.soldAggregate ?? row.sold} />
+                          <Metric label="Stock théorique" value={accCumulByProduct.get(row.productId)?.theoretical ?? row.theoreticalRemaining} accent />
                           <Metric label="Stock physique" value={row.counted ?? "—"} />
                           <Metric label="Écart" value={formatEcart(row.variance)} />
                         </div>
