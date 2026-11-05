@@ -389,3 +389,58 @@ export async function lireStocksInitiaux(
 
   return resolveStocksInitiauxAsOf(docs, counts, date);
 }
+
+/** Date de la première saisie (SI) de chaque produit d'un site, par `kind:productId`. */
+export async function lireDatesStocksInitiaux(
+  site: VenteSite,
+): Promise<Map<string, string>> {
+  const db = await getDb();
+  const docs = await db.collection<StockSiDoc>("stock_si").find({ site }).toArray();
+  return new Map(docs.map((d) => [`${d.kind}:${d.productId}`, d.date]));
+}
+
+
+/** SI enregistrés d'un site (valeur et date de la première saisie), par `kind:productId`. */
+export async function lireStocksInitiauxBruts(
+  site: VenteSite,
+): Promise<Map<string, { si: number; date: string }>> {
+  const db = await getDb();
+  const docs = await db.collection<StockSiDoc>("stock_si").find({ site }).toArray();
+  return new Map(
+    docs.map((d) => [`${d.kind}:${d.productId}`, { si: Math.max(0, Number(d.si) || 0), date: d.date }]),
+  );
+}
+
+/**
+ * Lecture « depuis le début » avec comptages : on part du SI ; chaque
+ * comptage (stock réel) d'une journée antérieure devient le nouveau stock
+ * initial, et les ventes se cumulent à partir du lendemain de ce comptage.
+ * Le comptage du jour consulté, lui, reste le stock physique (écart).
+ */
+export function stockInitialDepuisComptages(input: {
+  si: number;
+  siDate: string;
+  date: string;
+  jours: Array<{ date: string; vendus: number; pertes: number; compte: number | null }>;
+}): { stockInitial: number; depuis: string; vendus: number; pertes: number } {
+  const jours = [...input.jours]
+    .filter((j) => j.date >= input.siDate && j.date <= input.date)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  let stockInitial = input.si;
+  let depuis = input.siDate;
+  let vendus = 0;
+  let pertes = 0;
+  for (const j of jours) {
+    vendus += j.vendus;
+    pertes += j.pertes;
+    if (j.compte !== null && j.date < input.date) {
+      // Le stock réel compté ce jour devient le stock initial ; on repart
+      // de zéro vente à partir du lendemain.
+      stockInitial = j.compte;
+      depuis = j.date;
+      vendus = 0;
+      pertes = 0;
+    }
+  }
+  return { stockInitial, depuis, vendus, pertes };
+}

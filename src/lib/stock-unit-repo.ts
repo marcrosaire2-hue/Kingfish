@@ -1,5 +1,10 @@
 import { ObjectId } from "mongodb";
-import { lireStocksInitiaux, noterStockInitial } from "@/lib/stock-si-repo";
+import {
+  lireStocksInitiaux,
+  lireStocksInitiauxBruts,
+  stockInitialDepuisComptages,
+  noterStockInitial,
+} from "@/lib/stock-si-repo";
 import { randomBytes } from "crypto";
 import { getDb } from "@/lib/mongodb";
 import { isValidDate } from "@/lib/day-doc";
@@ -253,6 +258,68 @@ export async function getStockZogboPayload(
   return getStockSitePayload(date, "zogbo");
 }
 
+/**
+ * Lecture « depuis le début », comme les fiches d'inventaire :
+ * Stock initial (SI fixe, celui par lequel tout a commencé) + Entrées
+ * cumulées − Vendus cumulés depuis la date du SI = Stock théorique, qui est
+ * le stock restant à la date consultée. Les produits sans SI gardent la
+ * lecture du jour.
+ */
+async function appliquerCumulDepuisDebut(
+  site: VenteSite,
+  date: string,
+  plats: PlatUnitStats[],
+  accStats: PlatUnitStats[],
+): Promise<void> {
+  const sis = await lireStocksInitiauxBruts(site);
+  const debut = [...sis.values()].map((v) => v.date).filter((d) => d <= date).sort()[0];
+  if (!debut) return;
+  const db = await getDb();
+  const col = site === "gbegamey" ? "gbegamey_jours" : "zogbo_jours";
+  const champPlats = site === "gbegamey" ? "transferLines" : "lines";
+  const champAcc = site === "gbegamey" ? "localLines" : "accompanimentLines";
+  const jours = await db
+    .collection<{ _id: string } & Record<string, unknown>>(col)
+    .find({ _id: { $gte: debut, $lte: date } })
+    .project({ [champPlats]: 1, [champAcc]: 1 })
+    .toArray();
+
+  const cumuler = (rows: PlatUnitStats[], kind: "plat" | "local", champ: string) => {
+    for (const r of rows) {
+      const base = sis.get(`${kind}:${r.productId}`);
+      if (!base || base.date > date) continue;
+      const parJour = jours.map((j) => {
+        const lignes = (j[champ] ?? []) as Array<{
+          productId?: string;
+          sold?: number;
+          pertes?: number;
+          counted?: number | null;
+        }>;
+        const l = lignes.find((x) => x.productId === r.productId);
+        return {
+          date: j._id,
+          vendus: Math.max(0, Number(l?.sold) || 0),
+          pertes: Math.max(0, Number(l?.pertes) || 0),
+          compte:
+            l?.counted === null || l?.counted === undefined
+              ? null
+              : Math.max(0, Number(l.counted) || 0),
+        };
+      });
+      const c = stockInitialDepuisComptages({ si: base.si, siDate: base.date, date, jours: parJour });
+      const theorique = r.theoretical ?? 0;
+      const entrees = Math.max(0, theorique + c.vendus + c.pertes - c.stockInitial);
+      r.si = c.stockInitial;
+      r.entrees = entrees;
+      r.disponible = c.stockInitial + entrees;
+      r.soldAggregate = c.vendus;
+      r.pertesAggregate = c.pertes;
+    }
+  };
+  cumuler(plats, "plat", champPlats);
+  cumuler(accStats, "local", champAcc);
+}
+
 export async function getStockSitePayload(
   date: string,
   site: VenteSite = "zogbo",
@@ -360,6 +427,7 @@ export async function getStockSitePayload(
       });
     });
 
+    await appliquerCumulDepuisDebut(site, date, plats, accStats);
     return {
       date,
       plats,
@@ -440,6 +508,7 @@ export async function getStockSitePayload(
     });
   });
 
+  await appliquerCumulDepuisDebut(site, date, plats, accStats);
   return {
     date,
     plats,

@@ -1,5 +1,10 @@
 import { withLiveBump } from "@/lib/live-route";
-import { lireStocksInitiaux } from "@/lib/stock-si-repo";
+import { getDb } from "@/lib/mongodb";
+import {
+  lireStocksInitiaux,
+  lireStocksInitiauxBruts,
+  stockInitialDepuisComptages,
+} from "@/lib/stock-si-repo";
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
 import type { BoissonsLine } from "@/lib/types";
@@ -68,12 +73,49 @@ export async function GET(request: Request) {
         if (k.startsWith("boisson:")) si[k.slice("boisson:".length)] = v;
       }
     }
+    // Lecture « depuis le début » : SI, puis dernier comptage antérieur
+    // comme nouveau stock initial ; vendus cumulés à partir de là (bouteilles).
+    const vendusCumul: Record<string, number> = {};
+    if (site === "zogbo" || site === "gbegamey") {
+      const sis = [...(await lireStocksInitiauxBruts(site))]
+        .filter(([k, v]) => k.startsWith("boisson:") && v.date <= date)
+        .map(([k, v]) => [k.slice("boisson:".length), v] as const);
+      if (sis.length > 0) {
+        const debut = sis.map(([, v]) => v.date).sort()[0]!;
+        const db = await getDb();
+        const jours = await db
+          .collection<{ _id: string; lines?: Array<Record<string, unknown>> }>("boissons_jours")
+          .find({ _id: { $gte: debut, $lte: date } })
+          .project({ lines: 1 })
+          .toArray();
+        const champVendu = site === "zogbo" ? "soldZogbo" : "soldGbegamey";
+        const champPertes = site === "zogbo" ? "pertesZogbo" : "pertesGbegamey";
+        const champCompte = site === "zogbo" ? "countedZogbo" : "countedGbegamey";
+        for (const [id, v] of sis) {
+          const parJour = jours.map((j) => {
+            const lignes = (j.lines ?? []) as Array<Record<string, unknown>>;
+            const l = lignes.find((x) => x.productId === id);
+            const compte = l?.[champCompte];
+            return {
+              date: j._id,
+              vendus: Math.max(0, Number(l?.[champVendu]) || 0),
+              pertes: Math.max(0, Number(l?.[champPertes]) || 0),
+              compte: compte === null || compte === undefined ? null : Math.max(0, Number(compte) || 0),
+            };
+          });
+          const c = stockInitialDepuisComptages({ si: v.si, siDate: v.date, date, jours: parJour });
+          si[id] = c.stockInitial;
+          vendusCumul[id] = c.vendus;
+        }
+      }
+    }
     return NextResponse.json({
       ...payload,
       exits,
       caJournal,
       qrGeneratedByProduct,
       si,
+      vendusCumul,
     });
   } catch (error) {
     return authErrorResponse(error);

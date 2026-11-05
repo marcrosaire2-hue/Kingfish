@@ -242,10 +242,6 @@ export async function middleware(request: NextRequest) {
     return res;
   }
 
-  if (pathname === "/journal-stock" || pathname.startsWith("/journal-stock/")) {
-    return NextResponse.redirect(new URL("/historique", request.url));
-  }
-
   const site = effectiveSite(user.role, user.site);
   if (
     !canAccessPath(user.role, pathname, site, user.username, user.nav)

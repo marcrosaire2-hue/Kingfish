@@ -35,6 +35,7 @@ describe("rôle Comptable", () => {
       "journal-ventes",
       "quantites-vendues",
       "point-ventes",
+      "journal-stock",
       "rapport-quotidien",
 
     ]);

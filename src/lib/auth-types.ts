@@ -287,6 +287,7 @@ export type NavKey =
   | "alertes"
   | "quantites-vendues"
   | "point-ventes"
+  | "journal-stock"
   | "immobilisations"
   | "stock"
   | "admin"
@@ -313,6 +314,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     // Volumes vendus par article (période).
     "quantites-vendues",
     "point-ventes",
+    "journal-stock",
     "rapport-quotidien",
   ],
   // Finance + consultation des stocks. Pas d’analyse, ni registre.
@@ -334,6 +336,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "journal-ventes",
     "quantites-vendues",
     "point-ventes",
+    "journal-stock",
     "rapport-quotidien",
   ],
   // Finance + consultation des stocks. Pas de vente, pertes, registre,
@@ -355,6 +358,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "journal-ventes",
     "quantites-vendues",
     "point-ventes",
+    "journal-stock",
     "stock",
     "immobilisations",
     "rapport-quotidien",
@@ -378,6 +382,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "journal-ventes",
     "quantites-vendues",
     "point-ventes",
+    "journal-stock",
     "stock",
     "immobilisations",
     "historique",
@@ -618,6 +623,9 @@ function canAccessPathWithAllowed(
   }
   if (pathname.startsWith("/point-ventes")) {
     return allowed.includes("point-ventes");
+  }
+  if (pathname.startsWith("/journal-stock")) {
+    return allowed.includes("journal-stock");
   }
   if (pathname.startsWith("/immobilisations")) {
     return allowed.includes("immobilisations");
