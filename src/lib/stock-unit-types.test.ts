@@ -22,6 +22,10 @@ function stats(partial: Partial<PlatUnitStats> & Pick<PlatUnitStats, "productId"
     counted: null,
     theoretical: null,
     ecart: null,
+    si: null,
+    ouverture: 0,
+    entrees: 0,
+    disponible: 0,
     ...partial,
   };
 }

@@ -28,6 +28,8 @@ type Payload = {
   drinks: Drink[];
   exits?: VenteLogEntry[];
   caJournal?: number;
+  /** SI fixe en bouteilles par boisson. */
+  si?: Record<string, number>;
 };
 
 function formatTime(iso: string): string {
@@ -59,6 +61,7 @@ export function ZoneBoissonsPanel({
   const [drinks, setDrinks] = useState<Drink[]>([]);
   const [exits, setExits] = useState<VenteLogEntry[]>([]);
   const [caJournal, setCaJournal] = useState(0);
+  const [siByDrink, setSiByDrink] = useState<Record<string, number>>({});
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);
@@ -87,6 +90,7 @@ export function ZoneBoissonsPanel({
       setDrinks(body.drinks);
       setExits(body.exits ?? []);
       setCaJournal(Number(body.caJournal) || 0);
+      setSiByDrink(body.si ?? {});
       setDirty(false);
       setDraftBuy({});
     } catch (e) {
@@ -461,33 +465,27 @@ export function ZoneBoissonsPanel({
           <div className="catalogue-table-wrap">
             <table className="catalogue-table stock-zogbo-table">
               <thead>
-                <tr className="stock-grp">
-                  <th aria-hidden="true"></th>
-                  <th colSpan={2} className="is-input">
-                    À saisir
-                  </th>
-                  <th colSpan={4}>Calculé</th>
-                </tr>
                 <tr>
                   <th scope="col">Boisson</th>
-                  <th scope="col">Quantité achetée (bt)</th>
-                  <th scope="col">Stock réel (bt)</th>
+                  <th scope="col">Stock initial (bt)</th>
+                  <th scope="col">Entrées (bt)</th>
+                  <th scope="col">Stock disponible (bt)</th>
+                  <th scope="col">Vendus (bt)</th>
                   <th scope="col">Stock théorique (bt)</th>
-                  <th scope="col">Stock restant (bt)</th>
+                  <th scope="col">Stock physique (bt)</th>
                   <th scope="col">Écart (bt)</th>
-                  <th scope="col">Vendu {siteLabel} (bt)</th>
                 </tr>
               </thead>
               <tbody>
                 {loading || !computed ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <BrandLoader variant="ligne" label="Chargement…" />
                     </td>
                   </tr>
                 ) : computed.lines.length === 0 ? (
                   <tr>
-                    <td colSpan={7}>
+                    <td colSpan={8}>
                       <div className="catalogue-empty">
                         <p className="catalogue-empty-title">
                           Aucune boisson
@@ -503,10 +501,6 @@ export function ZoneBoissonsPanel({
                     const upc = line.unitsPerCasier;
                     const qty =
                       site === "zogbo" ? line.soldZogbo : line.soldGbegamey;
-                    const initialStock =
-                      site === "zogbo"
-                        ? line.initialStockZogbo
-                        : line.initialStockGbegamey;
                     const purchases =
                       site === "zogbo"
                         ? line.purchasesZogbo
@@ -527,8 +521,10 @@ export function ZoneBoissonsPanel({
                       0,
                       Math.round(theoreticalRemaining * upc),
                     );
-                    const restantBt = counted ?? theoBt;
+                    // Écart = Stock physique − Stock théorique.
                     const ecart = counted === null ? null : counted - theoBt;
+                    const siBt = siByDrink[line.productId];
+                    const disponibleBt = Math.round(available * upc);
                     const missingPv = line.salePrice === null;
                     const buyBusy = busyId === `buy-${line.productId}`;
                     return (
@@ -547,13 +543,13 @@ export function ZoneBoissonsPanel({
                               <div className="catalogue-product-name">
                                 {line.name}
                               </div>
-                              <span className="cell-sub mono">
-                                init. {Math.round(initialStock * upc)} bt ·
-                                achats {Math.round(purchases * upc)} bt · solde{" "}
-                                {Math.round(available * upc)} bt
-                              </span>
                             </div>
                           </div>
+                        </td>
+                        <td>
+                          <span className="catalogue-qty-badge">
+                            {siBt ?? "—"}
+                          </span>
                         </td>
                         <td>
                           <div className="stock-prepared-cell">
@@ -603,16 +599,31 @@ export function ZoneBoissonsPanel({
                           </div>
                         </td>
                         <td>
+                          <span className="catalogue-qty-badge">{disponibleBt}</span>
+                        </td>
+                        <td>
+                          <span className="catalogue-qty-badge">{qty}</span>
+                        </td>
+                        <td>
+                          <span
+                            className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
+                              theoBt <= 0 ? " is-empty" : ""
+                            }`}
+                          >
+                            {theoBt}
+                          </span>
+                        </td>
+                        <td>
                           {readOnly ? (
                             <span className="catalogue-qty-badge">
-                              {counted ?? (site === "zogbo" ? 0 : "—")}
+                              {counted ?? "—"}
                             </span>
                           ) : (
                             <input
                               className="qty-input"
                               inputMode="numeric"
-                              aria-label={`Stock réel bouteilles ${line.name}`}
-                              placeholder={site === "zogbo" ? "0" : String(theoBt)}
+                              aria-label={`Stock physique bouteilles ${line.name}`}
+                              placeholder={String(theoBt)}
                               value={counted ?? ""}
                               onChange={(e) => {
                                 const raw = e.target.value
@@ -633,22 +644,7 @@ export function ZoneBoissonsPanel({
                           )}
                         </td>
                         <td>
-                          <span className="catalogue-qty-badge">{theoBt}</span>
-                        </td>
-                        <td>
-                          <span
-                            className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
-                              restantBt <= 0 ? " is-empty" : ""
-                            }`}
-                          >
-                            {restantBt}
-                          </span>
-                        </td>
-                        <td>
                           <EcartBadge value={ecart} />
-                        </td>
-                        <td>
-                          <span className="catalogue-qty-badge">{qty}</span>
                         </td>
                       </tr>
                     );

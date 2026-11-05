@@ -221,7 +221,7 @@ export function StockZogboPage({
 
   const totals = useMemo(
     () => ({
-      prepared: sumPlats(plats, "prepared"),
+      prepared: sumPlats(plats, "entrees"),
       remaining: sumPlats(plats, "stockRemaining"),
       sold: sumPlats(plats, "soldAggregate"),
     }),
@@ -387,12 +387,8 @@ export function StockZogboPage({
     [filteredAcc, accPage],
   );
 
-  const accTheoryByProduct = useMemo(
-    () => new Map(accStats.map((s) => [s.productId, s.theoretical])),
-    [accStats],
-  );
-  const accEcartByProduct = useMemo(
-    () => new Map(accStats.map((s) => [s.productId, s.ecart])),
+  const accSiByProduct = useMemo(
+    () => new Map(accStats.map((s) => [s.productId, s.si])),
     [accStats],
   );
 
@@ -436,12 +432,13 @@ export function StockZogboPage({
                   subtitle: `${siteTitle} · ${date}`,
                   rows: plats.map((p) => ({
                     Plat: p.productName,
-                    "Quantité préparée": p.prepared,
-                    "Stock réel": p.counted ?? "",
+                    "Stock initial": p.si ?? "",
+                    Entrées: p.entrees,
+                    "Stock disponible": p.disponible,
+                    Vendus: p.soldAggregate,
                     "Stock théorique": p.theoretical ?? "",
-                    "Stock restant": p.stockRemaining,
+                    "Stock physique": p.counted ?? "",
                     Écart: p.ecart ?? "",
-                    Vendu: p.soldAggregate,
                   })),
                 },
                 {
@@ -449,12 +446,13 @@ export function StockZogboPage({
                   subtitle: `${siteTitle} · ${date}`,
                   rows: accComputed.map((r) => ({
                     Accompagnement: r.name,
-                    "Quantité préparée": r.prepared,
-                    "Stock réel": r.counted ?? "",
-                    "Stock théorique": accTheoryByProduct.get(r.productId) ?? "",
-                    "Stock restant": r.theoreticalRemaining,
-                    Écart: accEcartByProduct.get(r.productId) ?? "",
-                    Vendu: r.sold,
+                    "Stock initial": accSiByProduct.get(r.productId) ?? "",
+                    Entrées: r.prepared,
+                    "Stock disponible": r.available,
+                    Vendus: r.sold,
+                    "Stock théorique": r.theoreticalRemaining,
+                    "Stock physique": r.counted ?? "",
+                    Écart: r.variance ?? "",
                   })),
                 },
               ]);
@@ -526,17 +524,17 @@ export function StockZogboPage({
           <>
             <div className="catalogue-kpi-grid" aria-label="Totaux du jour">
               <div className="catalogue-kpi">
-                <span className="catalogue-kpi-label">Préparé</span>
+                <span className="catalogue-kpi-label">Entrées</span>
                 <strong className="catalogue-kpi-value">{totals.prepared}</strong>
               </div>
               <div className="catalogue-kpi catalogue-kpi-accent">
                 <span className="catalogue-kpi-label">
-                  {isGbegamey ? "Stock restant Gbé" : "Stock restant"}
+                  Stock théorique
                 </span>
                 <strong className="catalogue-kpi-value">{totals.remaining}</strong>
               </div>
               <div className="catalogue-kpi">
-                <span className="catalogue-kpi-label">Vendu</span>
+                <span className="catalogue-kpi-label">Vendus</span>
                 <strong className="catalogue-kpi-value">{totals.sold}</strong>
               </div>
             </div>
@@ -583,35 +581,17 @@ export function StockZogboPage({
                 ) : (
                   <>
                     <div className="catalogue-table-wrap stock-zogbo-desktop-table">
-                      <table className="catalogue-table stock-zogbo-table">
+                      <table className="catalogue-table stock-zogbo-table stock-modele-table">
                         <thead>
-                          <tr className="stock-grp">
-                            <th aria-hidden="true"></th>
-                            <th colSpan={2} className="is-input">
-                              À saisir
-                            </th>
-                            <th colSpan={4}>Calculé</th>
-                          </tr>
                           <tr>
                             <th scope="col">Plat</th>
-                            <th scope="col" className="col-qty">
-                              Quantité préparée
-                            </th>
-                            <th scope="col" className="col-qty">
-                              Stock réel
-                            </th>
-                            <th scope="col" className="col-qty">
-                              Stock théorique
-                            </th>
-                            <th scope="col" className="col-qty">
-                              Stock restant
-                            </th>
-                            <th scope="col" className="col-qty">
-                              Écart
-                            </th>
-                            <th scope="col" className="col-qty">
-                              Vendu
-                            </th>
+                            <th scope="col" className="col-qty">Stock initial</th>
+                            <th scope="col" className="col-qty">Entrées</th>
+                            <th scope="col" className="col-qty">Stock disponible</th>
+                            <th scope="col" className="col-qty">Vendus</th>
+                            <th scope="col" className="col-qty">Stock théorique</th>
+                            <th scope="col" className="col-qty">Stock physique</th>
+                            <th scope="col" className="col-qty">Écart</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -619,20 +599,16 @@ export function StockZogboPage({
                             <tr key={row.productId}>
                               <td>
                                 <div className="catalogue-product-cell">
-                                  <ProductIcon
-                                    kind="plat"
-                                    name={row.productName}
-                                  />
-                                  <span className="catalogue-product-name">
-                                    {row.productName}
-                                  </span>
+                                  <ProductIcon kind="plat" name={row.productName} />
+                                  <span className="catalogue-product-name">{row.productName}</span>
                                 </div>
                               </td>
                               <td>
+                                <span className="catalogue-qty-badge">{row.si ?? "—"}</span>
+                              </td>
+                              <td>
                                 <div className="stock-prepared-cell">
-                                  <span className="catalogue-qty-badge">
-                                    {row.prepared}
-                                  </span>
+                                  <span className="catalogue-qty-badge">{row.entrees}</span>
                                   {readOnly ? null : (
                                     <StockAddControls
                                       productId={row.productId}
@@ -647,42 +623,34 @@ export function StockZogboPage({
                                 </div>
                               </td>
                               <td>
-                                {readOnly ? (
-                                  <span className="catalogue-qty-badge">
-                                    {row.counted ?? "—"}
-                                  </span>
-                                ) : (
-                                  <QtyInput
-                                    value={row.counted}
-                                    allowEmpty
-                                    ariaLabel={`Stock réel ${row.productName}`}
-                                    onChange={(counted) =>
-                                      void saveCounted(row.productId, counted)
-                                    }
-                                  />
-                                )}
+                                <span className="catalogue-qty-badge">{row.disponible}</span>
                               </td>
                               <td>
-                                <span className="catalogue-qty-badge">
-                                  {row.theoretical ?? "—"}
-                                </span>
+                                <span className="catalogue-qty-badge">{row.soldAggregate}</span>
                               </td>
                               <td>
                                 <span
                                   className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
-                                    row.stockRemaining <= 0 ? " is-empty" : ""
+                                    (row.theoretical ?? 0) <= 0 ? " is-empty" : ""
                                   }`}
                                 >
-                                  {row.stockRemaining}
+                                  {row.theoretical ?? 0}
                                 </span>
+                              </td>
+                              <td>
+                                {readOnly ? (
+                                  <span className="catalogue-qty-badge">{row.counted ?? "—"}</span>
+                                ) : (
+                                  <QtyInput
+                                    value={row.counted}
+                                    allowEmpty
+                                    ariaLabel={`Stock physique ${row.productName}`}
+                                    onChange={(counted) => void saveCounted(row.productId, counted)}
+                                  />
+                                )}
                               </td>
                               <td>
                                 <EcartBadge value={row.ecart} />
-                              </td>
-                              <td>
-                                <span className="catalogue-qty-badge">
-                                  {row.soldAggregate}
-                                </span>
                               </td>
                             </tr>
                           ))}
@@ -704,50 +672,21 @@ export function StockZogboPage({
                             </span>
                           </div>
                           <div className="stock-mobile-metrics">
-                            <div className="stock-mobile-metric">
-                              <span className="stock-mobile-metric-label">
-                                Quantité préparée
-                              </span>
-                              <strong>{row.prepared}</strong>
-                            </div>
-                            <div className="stock-mobile-metric">
-                              <span className="stock-mobile-metric-label">
-                                Stock réel
-                              </span>
-                              <strong>{row.counted ?? "—"}</strong>
-                            </div>
-                            <div className="stock-mobile-metric">
-                              <span className="stock-mobile-metric-label">
-                                Stock théorique
-                              </span>
-                              <strong>{row.theoretical ?? "—"}</strong>
-                            </div>
-                            <div className="stock-mobile-metric stock-mobile-metric-accent">
-                              <span className="stock-mobile-metric-label">
-                                Stock restant
-                              </span>
-                              <strong>{row.stockRemaining}</strong>
-                            </div>
-                            <div className="stock-mobile-metric">
-                              <span className="stock-mobile-metric-label">
-                                Écart
-                              </span>
-                              <strong>{formatEcart(row.ecart)}</strong>
-                            </div>
-                            <div className="stock-mobile-metric">
-                              <span className="stock-mobile-metric-label">
-                                Vendu
-                              </span>
-                              <strong>{row.soldAggregate}</strong>
-                            </div>
+                            <Metric label="Stock initial" value={row.si ?? "—"} />
+                            <Metric label="Entrées" value={row.entrees} />
+                            <Metric label="Stock disponible" value={row.disponible} />
+                            <Metric label="Vendus" value={row.soldAggregate} />
+                            <Metric label="Stock théorique" value={row.theoretical ?? 0} accent />
+                            <Metric label="Stock physique" value={row.counted ?? "—"} />
+                            <Metric label="Écart" value={formatEcart(row.ecart)} />
                           </div>
                           {readOnly ? null : (
                             <div className="stock-mobile-actions">
                               <QtyInput
                                 value={row.counted}
                                 allowEmpty
-                                placeholder="Stock réel"
-                                ariaLabel={`Stock réel ${row.productName}`}
+                                placeholder="Stock physique"
+                                ariaLabel={`Stock physique ${row.productName}`}
                                 onChange={(counted) =>
                                   void saveCounted(row.productId, counted)
                                 }
@@ -836,27 +775,19 @@ export function StockZogboPage({
               ) : (
                 <>
                   <div className="catalogue-table-wrap stock-zogbo-desktop-table">
-                    <table className="catalogue-table stock-zogbo-table">
+                    <table className="catalogue-table stock-zogbo-table stock-modele-table">
                       <thead>
-                        <tr className="stock-grp">
-                          <th aria-hidden="true"></th>
-                          <th colSpan={2} className="is-input">
-                            À saisir
-                          </th>
-                          <th colSpan={4}>Calculé</th>
-                        </tr>
                         <tr>
                           <th scope="col">Accompagnement</th>
-                          <th scope="col">Quantité préparée</th>
-                          <th scope="col">Stock réel</th>
+                          <th scope="col">Stock initial</th>
+                          <th scope="col">Entrées</th>
+                          <th scope="col">Stock disponible</th>
+                          <th scope="col">Vendus</th>
                           <th scope="col">Stock théorique</th>
-                          <th scope="col">Stock restant</th>
+                          <th scope="col">Stock physique</th>
                           <th scope="col">Écart</th>
-                          <th scope="col">Vendu</th>
                           {readOnly ? null : (
-                            <th scope="col" className="col-action">
-                              Stock initial
-                            </th>
+                            <th scope="col" className="col-action">Ajouter</th>
                           )}
                         </tr>
                       </thead>
@@ -866,48 +797,28 @@ export function StockZogboPage({
                             <td>
                               <div className="catalogue-product-cell">
                                 <ProductIcon kind="local" name={row.name} />
-                                <span className="catalogue-product-name">
-                                  {row.name}
-                                </span>
+                                <span className="catalogue-product-name">{row.name}</span>
                               </div>
                             </td>
                             <td>
+                              <span className="catalogue-qty-badge">{accSiByProduct.get(row.productId) ?? "—"}</span>
+                            </td>
+                            <td>
                               {readOnly ? (
-                                <span className="catalogue-qty-badge">
-                                  {row.prepared}
-                                </span>
+                                <span className="catalogue-qty-badge">{row.prepared}</span>
                               ) : (
                                 <QtyInput
                                   value={row.prepared}
-                                  ariaLabel={`Quantité préparée ${row.name}`}
-                                  onChange={(prepared) =>
-                                    patchAcc(row.productId, {
-                                      prepared: prepared ?? 0,
-                                    })
-                                  }
+                                  ariaLabel={`Entrées ${row.name}`}
+                                  onChange={(prepared) => patchAcc(row.productId, { prepared: prepared ?? 0 })}
                                 />
                               )}
                             </td>
                             <td>
-                              {readOnly ? (
-                                <span className="catalogue-qty-badge">
-                                  {row.counted ?? "—"}
-                                </span>
-                              ) : (
-                                <QtyInput
-                                  value={row.counted}
-                                  allowEmpty
-                                  ariaLabel={`Stock réel ${row.name}`}
-                                  onChange={(counted) =>
-                                    patchAcc(row.productId, { counted })
-                                  }
-                                />
-                              )}
+                              <span className="catalogue-qty-badge">{row.available}</span>
                             </td>
                             <td>
-                              <span className="catalogue-qty-badge">
-                                {accTheoryByProduct.get(row.productId) ?? "—"}
-                              </span>
+                              <span className="catalogue-qty-badge">{row.sold}</span>
                             </td>
                             <td>
                               <span
@@ -919,18 +830,19 @@ export function StockZogboPage({
                               </span>
                             </td>
                             <td>
-                              <EcartBadge
-                                value={
-                                  isGbegamey
-                                    ? (accEcartByProduct.get(row.productId) ?? null)
-                                    : row.variance
-                                }
-                              />
+                              {readOnly ? (
+                                <span className="catalogue-qty-badge">{row.counted ?? "—"}</span>
+                              ) : (
+                                <QtyInput
+                                  value={row.counted}
+                                  allowEmpty
+                                  ariaLabel={`Stock physique ${row.name}`}
+                                  onChange={(counted) => patchAcc(row.productId, { counted })}
+                                />
+                              )}
                             </td>
                             <td>
-                              <span className="catalogue-qty-badge">
-                                {row.sold}
-                              </span>
+                              <EcartBadge value={row.variance} />
                             </td>
                             {readOnly ? null : (
                               <td className="col-action">
@@ -964,48 +876,25 @@ export function StockZogboPage({
                           </span>
                         </div>
                         <div className="stock-mobile-metrics">
-                          <div className="stock-mobile-metric">
-                            <span className="stock-mobile-metric-label">
-                              Stock théorique
-                            </span>
-                            <strong>{accTheoryByProduct.get(row.productId) ?? "—"}</strong>
-                          </div>
-                          <div className="stock-mobile-metric stock-mobile-metric-accent">
-                            <span className="stock-mobile-metric-label">
-                              Stock restant
-                            </span>
-                            <strong>{row.theoreticalRemaining}</strong>
-                          </div>
-                          <div className="stock-mobile-metric">
-                            <span className="stock-mobile-metric-label">
-                              Écart
-                            </span>
-                            <strong>
-                              {formatEcart(
-                                isGbegamey
-                                  ? (accEcartByProduct.get(row.productId) ?? null)
-                                  : row.variance,
-                              )}
-                            </strong>
-                          </div>
-                          <div className="stock-mobile-metric">
-                            <span className="stock-mobile-metric-label">
-                              Vendu
-                            </span>
-                            <strong>{row.sold}</strong>
-                          </div>
+                          <Metric label="Stock initial" value={accSiByProduct.get(row.productId) ?? "—"} />
+                          <Metric label="Entrées" value={row.prepared} />
+                          <Metric label="Stock disponible" value={row.available} />
+                          <Metric label="Vendus" value={row.sold} />
+                          <Metric label="Stock théorique" value={row.theoreticalRemaining} accent />
+                          <Metric label="Stock physique" value={row.counted ?? "—"} />
+                          <Metric label="Écart" value={formatEcart(row.variance)} />
                         </div>
                         <div className="stock-mobile-card-prices catalogue-mobile-card-prices">
                           <div>
                             <span className="catalogue-mobile-price-label">
-                              Quantité préparée
+                              Entrées
                             </span>
                             {readOnly ? (
                               <strong>{row.prepared}</strong>
                             ) : (
                               <QtyInput
                                 value={row.prepared}
-                                ariaLabel={`Quantité préparée ${row.name}`}
+                                ariaLabel={`Entrées ${row.name}`}
                                 onChange={(prepared) =>
                                   patchAcc(row.productId, {
                                     prepared: prepared ?? 0,
@@ -1016,7 +905,7 @@ export function StockZogboPage({
                           </div>
                           <div>
                             <span className="catalogue-mobile-price-label">
-                              Stock réel
+                              Stock physique
                             </span>
                             {readOnly ? (
                               <strong>{row.counted ?? "—"}</strong>
@@ -1024,7 +913,7 @@ export function StockZogboPage({
                               <QtyInput
                                 value={row.counted}
                                 allowEmpty
-                                ariaLabel={`Stock réel ${row.name}`}
+                                ariaLabel={`Stock physique ${row.name}`}
                                 onChange={(counted) =>
                                   patchAcc(row.productId, { counted })
                                 }
@@ -1071,5 +960,22 @@ export function StockZogboPage({
         )}
       </div>
     </AppShell>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  accent?: boolean;
+}) {
+  return (
+    <div className={`stock-mobile-metric${accent ? " stock-mobile-metric-accent" : ""}`}>
+      <span className="stock-mobile-metric-label">{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }

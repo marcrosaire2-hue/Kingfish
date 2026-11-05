@@ -193,7 +193,11 @@ export function AchatsPage() {
       productId,
       name: mat ? mat.name : "",
       // Prix catalogue proposé, toujours modifiable.
-      price: mat && mat.purchasePrice > 0 ? String(mat.purchasePrice) : d.price,
+      price: mat
+        ? mat.purchasePrice > 0
+          ? String(mat.purchasePrice)
+          : ""
+        : d.price,
     }));
   }
 
@@ -431,6 +435,10 @@ export function AchatsPage() {
                     <option key={m.id} value={m.id}>
                       {m.name}
                       {m.unit ? ` (${m.unit})` : ""}
+                      {" — "}
+                      {m.purchasePrice > 0
+                        ? `${formatFcfa(m.purchasePrice)} / u`
+                        : "Prix non renseigné"}
                     </option>
                   ))}
                 </select>

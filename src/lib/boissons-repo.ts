@@ -1,4 +1,5 @@
 import { assertDayOpen, isValidDate, updateDayDocument } from "@/lib/day-doc";
+import { noterStockInitial } from "@/lib/stock-si-repo";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import type {
@@ -17,6 +18,7 @@ import {
   normalizeBoissonsLine,
   normalizeBoissonsMovement,
   syncBoissonsLines,
+  unitsPerCasierOf,
 } from "@/lib/boissons-calc";
 import { loadAquaBoissonOpeningCasiers } from "@/lib/aquapro-opening-stock";
 import { previousIsoDate } from "@/lib/zogbo-calc";
@@ -96,12 +98,6 @@ async function trackedGbegameyForDate(date: string): Promise<Set<string>> {
   );
 }
 
-/** Comptage d'ouverture en bouteilles ; `null` quand il ne reste rien à reporter. */
-function openingCount(casiers: number, upc: number): number | null {
-  const bottles = Math.max(0, Math.round(casiers * upc));
-  return bottles > 0 ? bottles : null;
-}
-
 export async function getBoissonsDayPayload(
   date: string,
 ): Promise<BoissonsDayPayload> {
@@ -139,11 +135,9 @@ export async function getBoissonsDayPayload(
           // Zogbo : le stock réel reste vide tant que personne n'a compté. Le
           // reste de la veille est déjà reporté dans le stock initial.
           countedZogbo: null,
-          // Un reste à zéro n'est pas un comptage : le poser à 0 écraserait
-          // ensuite les achats du jour (le comptage prévaut sur le théorique).
-          countedGbegamey: hasGbegamey
-            ? openingCount(leftovers.gbegamey.get(l.productId)!, upc)
-            : null,
+          // Le reste de la veille est déjà l’ouverture (stock initial du
+          // jour) ; le comptage reste vide jusqu’au prochain inventaire.
+          countedGbegamey: null,
           observations:
             hasZogbo || hasGbegamey ? "Ouverture (dernier inventaire)" : "",
           ...(trackedGbegamey.has(l.productId)
@@ -344,6 +338,14 @@ export async function applyBoissonsPurchase(input: {
     },
   );
   // Suivi produit × site uniquement — Zogbo et Gbégamey restent indépendants.
+  // Premier achat de la boisson sur ce site : il devient son SI (bouteilles).
+  await noterStockInitial({
+    site: input.site,
+    kind: "boisson",
+    productId: input.productId,
+    qty: Math.round(input.qty * unitsPerCasierOf(drink)),
+    date: input.date,
+  });
   // Gbégamey : un achat est une entrée de stock → vente selon le stock.
   if (input.site === "gbegamey") {
     await markGbegameyStockEntry(input.date);

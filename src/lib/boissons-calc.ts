@@ -370,11 +370,11 @@ export function computeBoissonsLine(
   const varianceZogbo =
     normalized.countedZogbo === null
       ? null
-      : theoreticalRemainingZogbo - normalized.countedZogbo / upc;
+      : normalized.countedZogbo / upc - theoreticalRemainingZogbo;
   const varianceGbegamey =
     normalized.countedGbegamey === null
       ? null
-      : theoreticalRemainingGbegamey - normalized.countedGbegamey / upc;
+      : normalized.countedGbegamey / upc - theoreticalRemainingGbegamey;
 
   return {
     ...normalized,
@@ -426,11 +426,10 @@ export function physicalBoissonsStockForSite(
   const sold = site === "zogbo" ? line.soldZogbo : line.soldGbegamey;
   const pertes = site === "zogbo" ? line.pertesZogbo : line.pertesGbegamey;
   const counted = site === "zogbo" ? line.countedZogbo : line.countedGbegamey;
-  // Comptage saisi en bouteilles : le stock physique prévaut sur le théorique.
-  const stockBottles =
-    counted !== null && counted !== undefined
-      ? Math.max(0, Number(counted) || 0)
-      : (initialStock + purchases) * upc;
+  // Le comptage ne remplace plus le stock : il mesure l’écart (règle de
+  // stock commune). Le stock vendable suit Ouverture + Entrées − Vendus.
+  void counted;
+  const stockBottles = (initialStock + purchases) * upc;
   const bottles = stockBottles - sold - Math.max(0, Number(pertes) || 0);
   return Math.max(0, Math.round(bottles));
 }

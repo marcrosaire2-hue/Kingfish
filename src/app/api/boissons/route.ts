@@ -1,4 +1,5 @@
 import { withLiveBump } from "@/lib/live-route";
+import { lireStocksInitiaux } from "@/lib/stock-si-repo";
 import { NextResponse } from "next/server";
 import { reportError } from "@/lib/report-error";
 import type { BoissonsLine } from "@/lib/types";
@@ -52,11 +53,19 @@ export async function GET(request: Request) {
       site === "zogbo" || site === "gbegamey"
         ? await countQrGeneratedByProduct(date, site, "boisson")
         : {};
+    // SI fixe (bouteilles) par boisson pour le site consulté.
+    const si: Record<string, number> = {};
+    if (site === "zogbo" || site === "gbegamey") {
+      for (const [k, v] of await lireStocksInitiaux(site)) {
+        if (k.startsWith("boisson:")) si[k.slice("boisson:".length)] = v;
+      }
+    }
     return NextResponse.json({
       ...payload,
       exits,
       caJournal,
       qrGeneratedByProduct,
+      si,
     });
   } catch (error) {
     return authErrorResponse(error);

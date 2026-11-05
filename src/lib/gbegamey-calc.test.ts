@@ -84,59 +84,47 @@ describe("computeTransferLine", () => {
     expect(c.theoreticalRemaining).toBe(6);
   });
 
-  it("le comptage saisi devient le stock initial (plus d'écart mesurable)", () => {
+  it("le comptage ne remplace pas le stock : il mesure l'écart", () => {
+    // Entrées 10, 4 vendus → théorique 6 ; comptage 5 → écart −1.
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 10, sold: 4, counted: 5 }),
-      10,
+      0,
       1000,
     );
-    // Le compté 5 EST le stock initial : plus d'écart à signaler.
-    expect(c.variance).toBeNull();
+    expect(c.available).toBe(10);
+    expect(c.theoreticalRemaining).toBe(6);
+    expect(c.variance).toBe(-1);
   });
 
-  it("le comptage saisi devient le stock initial et prévaut sur le théorique", () => {
-    // Inventaire d'ouverture : 10 reçus attendus, 5 comptés réellement.
-    const c = computeTransferLine(
-      transfert({ initialStock: 0, received: 10, sold: 0, counted: 5 }),
-      10,
-      1000,
-    );
-    expect(c.available).toBe(5);
-    expect(c.theoreticalRemaining).toBe(5);
-    expect(c.prevalentRemaining).toBe(5);
-    expect(c.prevalentMaxSold).toBe(5);
-  });
-
-  it("les ventes décrementent le stock compté", () => {
+  it("le comptage ne change ni le plafond de vente ni le restant", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 10, sold: 2, counted: 5 }),
-      10,
+      0,
       1000,
     );
-    expect(c.prevalentMaxSold).toBe(5);
-    expect(c.prevalentRemaining).toBe(3);
+    expect(c.prevalentMaxSold).toBe(10);
+    expect(c.prevalentRemaining).toBe(8);
   });
 
-  it("sans comptage, le théorique reste le stock prévalent", () => {
+  it("le restant est le théorique", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 2, received: 8, sold: 3, pertes: 1 }),
-      8,
+      0,
       1000,
     );
+    expect(c.theoreticalRemaining).toBe(6);
     expect(c.prevalentRemaining).toBe(c.theoreticalRemaining);
     expect(c.prevalentMaxSold).toBe(9);
   });
 
-  it("le comptage à zéro rend le plat indisponible malgré un théorique positif", () => {
+  it("un comptage à zéro donne un écart, sans bloquer le stock théorique", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 10, sold: 2, counted: 0 }),
-      10,
+      0,
       1000,
     );
-    expect(c.available).toBe(0);
-    expect(c.theoreticalRemaining).toBe(0);
-    expect(c.prevalentRemaining).toBe(0);
-    expect(c.prevalentMaxSold).toBe(0);
+    expect(c.theoreticalRemaining).toBe(8);
+    expect(c.variance).toBe(-8);
   });
 
   it("valorise les ventes au prix unitaire", () => {
@@ -163,33 +151,24 @@ describe("computeLocalLine", () => {
     expect(c.theoreticalRemaining).toBe(3);
   });
 
-  it("le comptage saisi devient le stock initial", () => {
-    // Inventaire d'ouverture : 10 attendus, 2 comptés réellement.
+  it("le comptage mesure l'écart sans remplacer le stock", () => {
+    // Ouverture 4 + préparé 6 = 10, rien vendu ; comptage 2 → écart −8.
     const c = computeLocalLine(
       local({ initialStock: 4, prepared: 6, sold: 0, counted: 2 }),
       1000,
     );
-    expect(c.available).toBe(2);
-    expect(c.theoreticalRemaining).toBe(2);
-    expect(c.prevalentRemaining).toBe(2);
-    expect(c.prevalentMaxSold).toBe(2);
+    expect(c.available).toBe(10);
+    expect(c.theoreticalRemaining).toBe(10);
+    expect(c.variance).toBe(-8);
   });
 
-  it("les ventes décrementent le stock compté", () => {
+  it("les ventes sortent du théorique, pas du comptage", () => {
     const c = computeLocalLine(
       local({ initialStock: 4, prepared: 6, sold: 1, counted: 2 }),
       1000,
     );
-    expect(c.prevalentRemaining).toBe(1);
-  });
-
-  it("le comptage à zéro prime sur un théorique positif", () => {
-    const c = computeLocalLine(
-      local({ initialStock: 4, prepared: 6, counted: 0 }),
-      1000,
-    );
-    expect(c.theoreticalRemaining).toBe(0);
-    expect(c.prevalentRemaining).toBe(0);
+    expect(c.prevalentRemaining).toBe(9);
+    expect(c.variance).toBe(-7);
   });
 });
 
@@ -211,9 +190,9 @@ describe("reports au lendemain", () => {
         ["b", 10],
       ]),
     );
-    // "a" : théorique 10 − 4 vendus ; "b" : compté 5 − 4 vendus.
+    // "a" : sans comptage, théorique 10 − 4 ; "b" : comptage de la veille 5.
     expect(map.get("a")).toBe(6);
-    expect(map.get("b")).toBe(1);
+    expect(map.get("b")).toBe(5);
   });
 
   it("reporte le reste des plats préparés sur place", () => {

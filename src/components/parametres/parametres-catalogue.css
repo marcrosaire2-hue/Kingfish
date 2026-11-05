@@ -1641,3 +1641,81 @@
   color: var(--ink-soft);
   font-weight: 400;
 }
+
+/* ==========================================================================
+   Tableau stock — modèle SI | Entrées | Disponible | Vendus | Théorique |
+   Physique | Écart : bande d’en-tête nette, chiffres centrés.
+   ========================================================================== */
+.stock-modele-table {
+  table-layout: fixed;
+  min-width: 56rem;
+}
+
+.stock-modele-table thead tr th {
+  padding: 0.85rem 0.5rem;
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.2;
+  color: color-mix(in srgb, var(--sidebar-mid, #003399) 70%, var(--ink));
+  background: color-mix(in srgb, var(--sidebar-mid, #003399) 7%, var(--surface));
+  border-bottom: 2px solid color-mix(in srgb, var(--sidebar-mid, #003399) 25%, var(--line));
+  border-left: none;
+}
+
+.stock-modele-table thead tr th:first-child {
+  width: 26%;
+  min-width: 0;
+  padding-left: 1.1rem;
+  text-align: left;
+  border-top-left-radius: 10px;
+}
+
+.stock-modele-table thead tr th:last-child {
+  border-top-right-radius: 10px;
+}
+
+/* Colonnes à saisir : Entrées (3) et Stock physique (7). */
+.stock-modele-table thead tr th:nth-child(3),
+.stock-modele-table thead tr th:nth-child(7) {
+  color: var(--sidebar-mid, #003399);
+  box-shadow: inset 0 -3px 0 var(--sidebar-mid, #003399);
+}
+
+/* Stock théorique (6) : la colonne de référence. */
+.stock-modele-table thead tr th:nth-child(6) {
+  color: #0f5132;
+  background: color-mix(in srgb, #1f7a4d 12%, var(--surface));
+}
+
+.stock-modele-table tbody td:nth-child(6) {
+  background: color-mix(in srgb, #1f7a4d 5%, transparent);
+}
+
+.stock-modele-table tbody td {
+  text-align: center;
+  border-left: none;
+}
+
+.stock-modele-table tbody td:first-child {
+  text-align: left;
+}
+
+/* Ancien filet du groupe « Calculé » : retiré sur ce modèle. */
+.stock-modele-table thead tr:not(.stock-grp) th:nth-child(4),
+.stock-modele-table tbody td:nth-child(4) {
+  border-left: none;
+}
+
+.stock-modele-table .stock-prepared-cell {
+  justify-content: center;
+}
+
+.stock-modele-table .qty-input,
+.stock-modele-table .input-qty {
+  margin: 0 auto;
+}

@@ -145,7 +145,8 @@ export function computeZogboLine(
     available - normalized.sold - normalized.pertes,
   );
   const prevalentMaxSold = Math.max(0, available - normalized.pertes);
-  const variance = counted === null ? null : Math.round(counted - available);
+  // Écart = Comptage − Théorique (règle de stock commune).
+  const variance = counted === null ? null : Math.round(counted - theoreticalRemaining);
 
   return {
     ...normalized,
@@ -185,7 +186,13 @@ export function computeZogboAccompanimentLine(
     ),
     prevalentRemaining: Math.max(0, prevalentMaxSold - normalized.sold),
     prevalentMaxSold,
-    variance: counted === null ? null : Math.round(counted - available),
+    // Écart = Comptage − Théorique (règle de stock commune).
+    variance:
+      counted === null
+        ? null
+        : Math.round(
+            counted - Math.max(0, available - normalized.sold - normalized.pertes),
+          ),
   };
 }
 
@@ -373,13 +380,16 @@ export function leftoverFromZogboLines(
   // jour, le théorique en tient déjà compte.
   _options?: { useCounted?: boolean },
 ): Map<string, number> {
-  // Report au lendemain : le comptage, s'il existe, reste la base physique
-  // (compté − vendu − pertes) ; sinon le restant mouvementé.
   const out = new Map<string, number>();
   for (const line of lines) {
     const n = normalizeZogboLine(line);
-    const base = n.counted !== null ? Math.max(0, n.counted) : n.stock;
-    out.set(line.productId, Math.max(0, base - n.sold - n.pertes));
+    // Ouverture du lendemain : comptage de la veille, sinon théorique.
+    out.set(
+      line.productId,
+      n.counted !== null
+        ? Math.max(0, n.counted)
+        : Math.max(0, n.stock - n.sold - n.pertes),
+    );
   }
   return out;
 }

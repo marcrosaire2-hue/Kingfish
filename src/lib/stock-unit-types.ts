@@ -84,6 +84,14 @@ export type PlatUnitStats = {
   theoretical: number | null;
   /** Écart = stock réel − stock théorique ; `null` si non mesurable. */
   ecart: number | null;
+  /** SI : stock initial fixé à la première saisie du produit (`null` sinon). */
+  si: number | null;
+  /** Stock d'ouverture du jour (comptage ou théorique de la veille). */
+  ouverture: number;
+  /** Entrées du jour. */
+  entrees: number;
+  /** Stock disponible = ouverture + entrées. */
+  disponible: number;
 };
 
 export type StockZogboPayload = {

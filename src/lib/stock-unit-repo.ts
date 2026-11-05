@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { lireStocksInitiaux, noterStockInitial } from "@/lib/stock-si-repo";
 import { randomBytes } from "crypto";
 import { getDb } from "@/lib/mongodb";
 import { isValidDate } from "@/lib/day-doc";
@@ -233,6 +234,10 @@ function statsFromCounts(
     counted: extra.counted ?? null,
     theoretical: extra.theoretical ?? null,
     ecart: extra.ecart ?? null,
+    si: extra.si ?? null,
+    ouverture: extra.ouverture ?? 0,
+    entrees: extra.entrees ?? prepared,
+    disponible: extra.disponible ?? prepared,
   };
 }
 
@@ -259,6 +264,8 @@ export async function getStockSitePayload(
     countUnitsByProduct(date, site),
   ]);
 
+  const siMap = await lireStocksInitiaux(site);
+
   if (site === "gbegamey") {
     const gbegamey = await getGbegameyDayPayload(date);
     const plats: PlatUnitStats[] = gbegamey.baseDishes.map((dish) => {
@@ -273,10 +280,17 @@ export async function getStockSitePayload(
         (counts?.perdu ?? 0);
       const remaining = (counts?.prepare ?? 0) + (counts?.envoye ?? 0);
       const sent = gbegamey.sentByProductId[dish.id] ?? 0;
-      const stockRemaining = line
-        ? computeTransferLine(line, sent, dish.unitPrice).prevalentRemaining
-        : 0;
-      return statsFromCounts(dish.id, dish.name, qrGenerated, counts, {
+      const calc = line ? computeTransferLine(line, sent, dish.unitPrice) : null;
+      const stockRemaining = calc?.prevalentRemaining ?? 0;
+      const ouverture = calc?.initialStock ?? 0;
+      const entrees = calc ? calc.available - calc.initialStock : 0;
+      return statsFromCounts(dish.id, dish.name, entrees, counts, {
+        si: siMap.get(`plat:${dish.id}`) ?? null,
+        ouverture,
+        entrees,
+        disponible: calc?.available ?? 0,
+        theoretical: calc?.theoreticalRemaining ?? null,
+        ecart: calc?.variance ?? null,
         sentAggregate: line?.received ?? (counts?.envoye ?? 0) + (counts?.vendu ?? 0),
         soldAggregate: line?.sold ?? counts?.vendu ?? 0,
         pertesAggregate: line?.pertes ?? 0,
@@ -290,9 +304,7 @@ export async function getStockSitePayload(
     const accLines = gbegamey.day.localLines ?? [];
     const accStats = gbegamey.localDishes.map((dish) => {
       const line = accLines.find((l) => l.productId === dish.id);
-      const stockRemaining = line
-        ? computeLocalLine(line, dish.unitPrice).prevalentRemaining
-        : 0;
+      const calc = line ? computeLocalLine(line, dish.unitPrice) : null;
       return statsFromCounts(
         dish.id,
         dish.name,
@@ -301,12 +313,14 @@ export async function getStockSitePayload(
         {
           soldAggregate: line?.sold ?? 0,
           pertesAggregate: line?.pertes ?? 0,
-          stockRemaining,
+          stockRemaining: calc?.prevalentRemaining ?? 0,
           counted: line?.counted ?? null,
-          theoretical: line ? line.initialStock + line.prepared : null,
-          ecart: line
-            ? ecartOf(line.counted, line.initialStock + line.prepared)
-            : null,
+          si: siMap.get(`local:${dish.id}`) ?? null,
+          ouverture: line?.initialStock ?? 0,
+          entrees: line?.prepared ?? 0,
+          disponible: calc?.available ?? 0,
+          theoretical: calc?.theoreticalRemaining ?? null,
+          ecart: calc?.variance ?? null,
         },
       );
     });
@@ -344,9 +358,8 @@ export async function getStockSitePayload(
   const plats: PlatUnitStats[] = zogbo.baseDishes.map((dish) => {
     const line = zogbo.day.lines.find((l) => l.productId === dish.id);
     const prepared = line?.prepared ?? 0;
-    const stockRemaining = line
-      ? computeZogboLine(line, 0).prevalentRemaining
-      : 0;
+    const calc = line ? computeZogboLine(line, 0) : null;
+    const stockRemaining = calc?.prevalentRemaining ?? 0;
     return statsFromCounts(
       dish.id,
       dish.name,
@@ -359,17 +372,20 @@ export async function getStockSitePayload(
         stockAggregate: line?.stock ?? 0,
         stockRemaining,
         counted: line?.counted ?? null,
-        theoretical: line?.stock ?? null,
-        ecart: line ? ecartOf(line.counted, line.stock) : null,
+        si: siMap.get(`plat:${dish.id}`) ?? null,
+        ouverture: Math.max(0, (line?.stock ?? 0) - prepared),
+        entrees: prepared,
+        disponible: calc?.available ?? 0,
+        theoretical: calc?.theoreticalRemaining ?? null,
+        ecart: calc?.variance ?? null,
       },
     );
   });
   const accLines = zogbo.day.accompanimentLines ?? [];
   const accStats = zogbo.localDishes.map((dish) => {
     const line = accLines.find((l) => l.productId === dish.id);
-    const stockRemaining = line
-      ? computeZogboAccompanimentLine(line, dish.unitPrice).prevalentRemaining
-      : 0;
+    const calc = line ? computeZogboAccompanimentLine(line, dish.unitPrice) : null;
+    const stockRemaining = calc?.prevalentRemaining ?? 0;
     return statsFromCounts(
       dish.id,
       dish.name,
@@ -380,10 +396,12 @@ export async function getStockSitePayload(
         pertesAggregate: line?.pertes ?? 0,
         stockRemaining,
         counted: line?.counted ?? null,
-        theoretical: line ? line.initialStock + line.prepared : null,
-        ecart: line
-          ? ecartOf(line.counted, line.initialStock + line.prepared)
-          : null,
+        si: siMap.get(`local:${dish.id}`) ?? null,
+        ouverture: line?.initialStock ?? 0,
+        entrees: line?.prepared ?? 0,
+        disponible: calc?.available ?? 0,
+        theoretical: calc?.theoreticalRemaining ?? null,
+        ecart: calc?.variance ?? null,
       },
     );
   });
@@ -989,6 +1007,15 @@ export async function saveAccompanimentStock(input: {
   site?: VenteSite;
 }): Promise<StockZogboPayload> {
   const site: VenteSite = input.site === "gbegamey" ? "gbegamey" : "zogbo";
+  for (const l of input.accompanimentLines) {
+    await noterStockInitial({
+      site,
+      kind: "local",
+      productId: l.productId,
+      qty: Number(l.prepared) || 0,
+      date: input.date,
+    });
+  }
   if (site === "gbegamey") {
     const gbegamey = await getGbegameyDayPayload(input.date);
     // Un accompagnement dont le stock est saisi (préparé ou stock réel) est
@@ -1104,13 +1131,12 @@ export async function registerProductStock(input: {
     const dish = parametres.baseDishes.find((d) => d.id === input.productId);
     if (!dish) throw new Error("Plat introuvable dans le catalogue.");
     const gbegamey = await getGbegameyDayPayload(input.date);
+    // Saisie = entrée de stock (« received ») : le comptage, lui, reste le
+    // stock physique et ne sert qu’à l’écart (règle de stock commune).
     const lines = gbegamey.day.transferLines.map((l) => {
       if (l.productId !== input.productId) return l;
-      const counted =
-        l.counted !== null && l.counted !== undefined
-          ? Math.max(0, Number(l.counted) || 0) + qty
-          : qty;
-      return { ...l, counted, stockTracked: true };
+      const received = Math.max(0, Number(l.received) || 0) + qty;
+      return { ...l, received, stockTracked: true };
     });
     const hasLine = gbegamey.day.transferLines.some(
       (l) => l.productId === input.productId,
@@ -1123,10 +1149,10 @@ export async function registerProductStock(input: {
             productId: dish.id,
             name: dish.name,
             initialStock: 0,
-            received: null,
+            received: qty,
             sold: 0,
             pertes: 0,
-            counted: qty,
+            counted: null,
             observations: "",
             stockTracked: true,
           },
@@ -1139,6 +1165,15 @@ export async function registerProductStock(input: {
       stockSaisie: true,
     });
   }
+
+  // Première saisie du produit sur ce site : elle devient son SI fixe.
+  await noterStockInitial({
+    site,
+    kind: kind === "local" ? "local" : "plat",
+    productId: input.productId,
+    qty,
+    date: input.date,
+  });
 
   if (!input.generateQr) {
     return {
