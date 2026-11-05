@@ -312,17 +312,9 @@ export function accompanimentAvailability(
   if (!line || !accompanimentTracked(line)) {
     return { tracked: false, stockLeft: null, maxSold: null };
   }
-  // Gbégamey : le comptage saisi prévaut sur le théorique. Zogbo : le
-  // comptage mesure l'écart, la vente suit init. + préparé.
-  if (site === "gbegamey" && line.counted !== null && line.counted !== undefined) {
-    const prevalent = Math.max(0, Number(line.counted) || 0);
-    const stockLeft = Math.max(0, prevalent - line.sold);
-    return {
-      tracked: true,
-      stockLeft,
-      maxSold: prevalent,
-    };
-  }
+  // Les deux sites : le comptage mesure l’écart, la vente suit
+  // ouverture + entrées − vendus − pertes (règle de stock commune).
+  void site;
   const stock = Math.max(
     0,
     line.initialStock + line.prepared - Math.max(0, Number(line.pertes) || 0),
@@ -1430,10 +1422,9 @@ export async function recordVente(input: {
           input.site === "zogbo" ? line.purchasesZogbo : line.purchasesGbegamey;
         const pertes =
           input.site === "zogbo" ? line.pertesZogbo : line.pertesGbegamey;
-        const stockBottles =
-          countedThisSite !== null && countedThisSite !== undefined
-            ? Math.max(0, Number(countedThisSite) || 0)
-            : (initialStock + purchases) * upcResolved;
+        // Le comptage ne plafonne plus la vente : il mesure l’écart.
+        void countedThisSite;
+        const stockBottles = (initialStock + purchases) * upcResolved;
         maxSold = Math.max(
           0,
           stockBottles - Math.max(0, Number(pertes) || 0),

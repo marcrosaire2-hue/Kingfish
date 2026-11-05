@@ -35,11 +35,11 @@ function ligne(patch: Partial<ZogboLine> = {}): ZogboLine {
 
 describe("stock Zogbo et comptage", () => {
   it("un stock ajouté après le comptage entre tout de suite dans le restant", () => {
-    // Comptage 8 alors que le stock mouvementé est 10, puis +5 : stock 15.
+    // Stock 15, 3 vendus → théorique 12 ; comptage 8 → écart 8 − 12 = −4.
     const c = computeZogboLine(ligne({ stock: 15, prepared: 15, sold: 3, counted: 8 }), 0);
     expect(c.prevalentRemaining).toBe(12);
     expect(c.counted).toBe(8);
-    expect(c.variance).toBe(-7);
+    expect(c.variance).toBe(-4);
   });
 
   it("sans comptage, pas d'écart", () => {
@@ -62,15 +62,16 @@ describe("stock Zogbo et comptage", () => {
       },
       0,
     );
+    // Théorique 2 + 10 − 4 = 8 ; comptage 11 → écart +3.
     expect(c.prevalentRemaining).toBe(8);
-    expect(c.variance).toBe(-1);
+    expect(c.variance).toBe(3);
   });
 
-  it("le report au lendemain part toujours du comptage s'il existe", () => {
+  it("le lendemain repart du comptage de la veille s'il existe", () => {
     const report = leftoverFromZogboLines([
       ligne({ stock: 15, prepared: 15, sold: 3, counted: 8 }),
     ]);
-    expect(report.get("base-poisson")).toBe(5);
+    expect(report.get("base-poisson")).toBe(8);
   });
 });
 
@@ -196,9 +197,8 @@ describe("leftoverFromZogboLines", () => {
       ligne({ productId: "b", stock: 10, sold: 3, counted: 5 }),
     ]);
     expect(map.get("a")).toBe(7);
-    // Le comptage étant le stock initial, il est aussi le reste du jour :
-    // compté − vendu.
-    expect(map.get("b")).toBe(2);
+    // Avec comptage, le lendemain repart du comptage de la veille.
+    expect(map.get("b")).toBe(5);
   });
 
   it("détecte une journée vide vs une journée reportable", () => {

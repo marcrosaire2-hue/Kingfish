@@ -1,3 +1,4 @@
+import { calculStock } from "@/lib/stock-formule";
 import type {
   BaseDish,
   GbegameyDay,
@@ -144,35 +145,29 @@ export function computeTransferLine(
 ): GbegameyTransferComputed {
   const normalized = normalizeTransferLine(line);
 
-  // Le reçu constaté (si saisi) sert uniquement à mesurer l'écart de
-  // transport. Ce qui entre réellement en stock, c'est l'envoi déclaré par
-  // Zogbo : un nouvel envoi s'additionne à l'ancien stock (et les ventes le
-  // décrementent) même si un constaté plus ancien existe.
+  // Règle de stock (stock-formule) : Disponible = Ouverture + Entrées,
+  // Théorique = Disponible − Vendus − Pertes, Écart = Comptage − Théorique.
+  // Les entrées du jour sont saisies dans « received ». Le comptage ne
+  // remplace jamais le stock : il mesure l’écart et sert d’ouverture au
+  // lendemain.
+  // Ancien circuit Zogbo → Gbégamey (données historiques) : l’envoi déclaré
+  // est l’entrée et « received » n’en est que le constat.
   const receivedFromZogbo = sentFromZogbo;
   const transportVariance =
-    normalized.received === null ? null : sentFromZogbo - normalized.received;
-  const counted = normalized.counted;
-
-  const available =
-    counted !== null
-      ? Math.max(0, counted)
-      : normalized.initialStock + sentFromZogbo;
-  // Le comptage saisi devient le stock initial du jour : la vérité physique
-  // remplace init.+reçu dès qu'elle est saisie. Les ventes et pertes le
-  // décrementent ensuite.
-  const theoreticalRemaining = Math.max(
-    0,
-    available - normalized.sold - normalized.pertes,
-  );
-  // Stock qui prévaut : le comptage (stock initial) s'il existe, sinon le
-  // théorique. Le comptage est la vérité physique : les ventes suivantes le
-  // décrementent, sans recompter le vendu antérieur.
-  const prevalentMaxSold =
-    counted !== null
-      ? Math.max(0, counted)
-      : Math.max(0, available - normalized.pertes);
-  // Plus d'écart mesurable : le comptage EST le stock initial.
-  const variance = null;
+    sentFromZogbo > 0 && normalized.received !== null
+      ? sentFromZogbo - normalized.received
+      : null;
+  const calc = calculStock({
+    ouverture: normalized.initialStock,
+    entrees: sentFromZogbo > 0 ? sentFromZogbo : (normalized.received ?? 0),
+    vendus: normalized.sold,
+    pertes: normalized.pertes,
+    compte: normalized.counted,
+  });
+  const available = calc.disponible;
+  const theoreticalRemaining = calc.theorique;
+  const prevalentMaxSold = Math.max(0, available - normalized.pertes);
+  const variance = calc.ecart;
 
   return {
     ...normalized,
@@ -195,25 +190,18 @@ export function computeLocalLine(
   unitPrice: number,
 ): GbegameyLocalComputed {
   const normalized = normalizeLocalLine(line);
-  const counted = normalized.counted;
-  // Le comptage saisi devient le stock initial du jour : la vérité physique
-  // remplace init.+préparé dès qu'elle est saisie.
-  const available =
-    counted !== null
-      ? Math.max(0, counted)
-      : normalized.initialStock + normalized.prepared;
-  const theoreticalRemaining = Math.max(
-    0,
-    available - normalized.sold - normalized.pertes,
-  );
-  // Stock qui prévaut : le comptage (stock initial) s'il existe, sinon le
-  // théorique.
-  const prevalentMaxSold =
-    counted !== null
-      ? Math.max(0, counted)
-      : Math.max(0, available - normalized.pertes);
-  // Plus d'écart mesurable : le comptage EST le stock initial.
-  const variance = null;
+  // Règle de stock (stock-formule) : les entrées du jour sont « prepared ».
+  const calc = calculStock({
+    ouverture: normalized.initialStock,
+    entrees: normalized.prepared,
+    vendus: normalized.sold,
+    pertes: normalized.pertes,
+    compte: normalized.counted,
+  });
+  const available = calc.disponible;
+  const theoreticalRemaining = calc.theorique;
+  const prevalentMaxSold = Math.max(0, available - normalized.pertes);
+  const variance = calc.ecart;
 
   return {
     ...normalized,
@@ -241,7 +229,10 @@ export function leftoverFromTransferLines(
     );
     // Le comptage étant le stock initial, le reste du jour l'est aussi :
     // compté − vendu − pertes, même si la journée n'est pas clôturée.
-    out.set(line.productId, Math.max(0, computed.theoreticalRemaining));
+    out.set(
+      line.productId,
+      computed.counted !== null ? Math.max(0, computed.counted) : computed.theoreticalRemaining,
+    );
   }
   return out;
 }
@@ -256,7 +247,10 @@ export function leftoverFromLocalLines(
       line,
       unitPriceById?.get(line.productId) ?? 0,
     );
-    out.set(line.productId, Math.max(0, computed.theoreticalRemaining));
+    out.set(
+      line.productId,
+      computed.counted !== null ? Math.max(0, computed.counted) : computed.theoreticalRemaining,
+    );
   }
   return out;
 }

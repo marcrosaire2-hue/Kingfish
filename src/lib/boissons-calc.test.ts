@@ -75,10 +75,8 @@ describe("physicalBoissonsStockForSite", () => {
     ).toBe(0);
   });
 
-  it("le comptage saisi prévaut sur le théorique", () => {
+  it("le comptage ne change pas le stock vendable (il mesure l'écart)", () => {
     // Théorique : 3 casiers de 12 = 36 bt, moins 5 vendues = 31.
-    // Compté 24 bouteilles, moins 5 vendues = 19 : c'est le comptage
-    // qui fait foi.
     expect(
       physicalBoissonsStockForSite(
         ligne({
@@ -90,10 +88,10 @@ describe("physicalBoissonsStockForSite", () => {
         "zogbo",
         12,
       ),
-    ).toBe(19);
+    ).toBe(31);
   });
 
-  it("le comptage à zéro vide le stock même si le théorique est positif", () => {
+  it("un comptage à zéro ne vide pas le stock vendable", () => {
     expect(
       physicalBoissonsStockForSite(
         ligne({
@@ -105,7 +103,7 @@ describe("physicalBoissonsStockForSite", () => {
         "zogbo",
         12,
       ),
-    ).toBe(0);
+    ).toBe(35);
   });
 
   it("retombe sur le conditionnement par défaut si la valeur est absurde", () => {
@@ -125,8 +123,10 @@ describe("achat après comptage", () => {
       [],
       { productId: "drink-beaufort", site: "zogbo", qty: 2, unitsPerCasier: 12 },
     );
+    // Le comptage suit l'achat (bouteilles physiquement présentes) ; le
+    // stock vendable, lui, suit ouverture + achats − vendus.
     expect(achat.lines[0]!.countedZogbo).toBe(34);
-    expect(physicalBoissonsStockForSite(achat.lines[0]!, "zogbo", 12)).toBe(34);
+    expect(physicalBoissonsStockForSite(achat.lines[0]!, "zogbo", 12)).toBe(36);
 
     const annule = cancelBoissonsMovementInState(
       achat.lines,
@@ -216,12 +216,12 @@ describe("computeBoissonsLine", () => {
       }),
       boisson(),
     );
-    // 10 casiers − 1 casier vendu = 9 théoriques ; 96 bt comptées = 8 casiers.
+    // Écart = comptage − théorique. 9 théoriques, 8 comptés → −1.
     expect(c.theoreticalRemainingZogbo).toBe(9);
-    expect(c.varianceZogbo).toBe(1);
-    // 5 casiers − 0,5 casier vendu = 4,5 théoriques ; 48 bt comptées = 4 casiers.
+    expect(c.varianceZogbo).toBe(-1);
+    // 4,5 théoriques, 4 comptés → −0,5.
     expect(c.theoreticalRemainingGbegamey).toBe(4.5);
-    expect(c.varianceGbegamey).toBe(0.5);
+    expect(c.varianceGbegamey).toBe(-0.5);
   });
 
   it("reporte le comptage en casiers pour le jour suivant, par site", () => {
