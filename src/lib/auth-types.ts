@@ -86,6 +86,11 @@ export type SessionUser = {
    * Absent des sessions anciennes → repli sur navForUser.
    */
   nav?: NavKey[];
+  /**
+   * Pages accessibles en « Consulter seulement » (autorisations) : aucune
+   * écriture n'y est acceptée côté API. Absent = toutes modifiables.
+   */
+  ro?: NavKey[];
 };
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -281,6 +286,7 @@ export type NavKey =
   | "droits"
   | "alertes"
   | "quantites-vendues"
+  | "point-ventes"
   | "immobilisations"
   | "stock"
   | "admin"
@@ -306,6 +312,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "journal-ventes",
     // Volumes vendus par article (période).
     "quantites-vendues",
+    "point-ventes",
     "rapport-quotidien",
   ],
   // Finance + consultation des stocks. Pas d’analyse, ni registre.
@@ -326,6 +333,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "immobilisations",
     "journal-ventes",
     "quantites-vendues",
+    "point-ventes",
     "rapport-quotidien",
   ],
   // Finance + consultation des stocks. Pas de vente, pertes, registre,
@@ -346,6 +354,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "compteur",
     "journal-ventes",
     "quantites-vendues",
+    "point-ventes",
     "stock",
     "immobilisations",
     "rapport-quotidien",
@@ -368,6 +377,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "reglages",
     "journal-ventes",
     "quantites-vendues",
+    "point-ventes",
     "stock",
     "immobilisations",
     "historique",
@@ -606,6 +616,9 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/quantites-vendues")) {
     return allowed.includes("quantites-vendues");
   }
+  if (pathname.startsWith("/point-ventes")) {
+    return allowed.includes("point-ventes");
+  }
   if (pathname.startsWith("/immobilisations")) {
     return allowed.includes("immobilisations");
   }
@@ -747,4 +760,21 @@ export function resolveRequiredSiteScope(
   }
   // Multi-sites : un seul site à la fois, jamais un total consolidé.
   return { ok: true, site: "zogbo" };
+}
+
+/**
+ * Écriture refusée par les autorisations : l'écran visé n'est couvert que par
+ * des pages réglées en « Consulter seulement » pour ce compte.
+ */
+export function estEcritureEnConsultation(
+  user: Pick<SessionUser, "nav" | "ro">,
+  ecran: string,
+): boolean {
+  const ro = user.ro ?? [];
+  if (ro.length === 0) return false;
+  const modifiables = (user.nav ?? []).filter((k) => !ro.includes(k));
+  return (
+    ro.some((k) => canAccessPathWithAllowed([k], ecran)) &&
+    !canAccessPathWithAllowed(modifiables, ecran)
+  );
 }

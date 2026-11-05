@@ -61,6 +61,11 @@ export async function getQuantitesVendues(input: {
   site: "all" | VenteSite;
   kind?: "all" | VenteKind;
   q?: string;
+  /**
+   * Inclut les corrections de saisie (quantités négatives du mode rapide)
+   * pour obtenir des quantités nettes. Par défaut : ventes positives seules.
+   */
+  avecCorrections?: boolean;
 }): Promise<QuantitesVenduesPayload> {
   const from = isValidDate(input.from) ? input.from : input.to;
   const to = isValidDate(input.to) ? input.to : from;
@@ -70,7 +75,7 @@ export async function getQuantitesVendues(input: {
   const match: Filter<Record<string, unknown>> = {
     ...ACTIVE,
     date: { $gte: from, $lte: to },
-    qty: { $gt: 0 },
+    qty: input.avecCorrections ? { $ne: 0 } : { $gt: 0 },
   };
   if (input.site !== "all") {
     match.site = input.site;

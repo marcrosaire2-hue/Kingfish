@@ -20,6 +20,8 @@ import {
 } from "@/lib/boissons-calc";
 import { loadAquaBoissonOpeningCasiers } from "@/lib/aquapro-opening-stock";
 import { previousIsoDate } from "@/lib/zogbo-calc";
+import { isDrinkStockTracked } from "@/lib/stock-tracked";
+import { markGbegameyStockEntry } from "@/lib/gbegamey-repo";
 
 type BoissonsDoc = Omit<BoissonsDay, "date"> & { _id: string; rev?: number };
 
@@ -72,6 +74,28 @@ async function leftoversForDate(
   }
 }
 
+/**
+ * Boissons dont le stock Gbégamey est suivi la veille : le suivi est reporté,
+ * sans quoi une boisson épuisée redevenait vendable sans stock le lendemain.
+ */
+async function trackedGbegameyForDate(date: string): Promise<Set<string>> {
+  const prev = previousIsoDate(date);
+  if (!prev) return new Set();
+  const db = await getDb();
+  const prevDoc = await db
+    .collection<BoissonsDoc>("boissons_jours")
+    .find({ _id: { $lte: prev } })
+    .sort({ _id: -1 })
+    .limit(1)
+    .next();
+  return new Set(
+    (prevDoc?.lines ?? [])
+      .map((l) => normalizeBoissonsLine(l))
+      .filter((l) => isDrinkStockTracked(l, "gbegamey"))
+      .map((l) => l.productId),
+  );
+}
+
 /** Comptage d'ouverture en bouteilles ; `null` quand il ne reste rien à reporter. */
 function openingCount(casiers: number, upc: number): number | null {
   const bottles = Math.max(0, Math.round(casiers * upc));
@@ -91,6 +115,7 @@ export async function getBoissonsDayPayload(
 
   if (!existing) {
     const leftovers = await leftoversForDate(date, drinks);
+    const trackedGbegamey = await trackedGbegameyForDate(date);
     const day = createEmptyBoissonsDay(date, drinks, leftovers);
     if (leftovers.zogbo.size > 0 || leftovers.gbegamey.size > 0) {
       const updatedAt = new Date().toISOString();
@@ -121,6 +146,9 @@ export async function getBoissonsDayPayload(
             : null,
           observations:
             hasZogbo || hasGbegamey ? "Ouverture (dernier inventaire)" : "",
+          ...(trackedGbegamey.has(l.productId)
+            ? { stockTrackedGbegamey: true }
+            : {}),
         };
       });
       await db.collection<BoissonsDoc>("boissons_jours").updateOne(
@@ -316,6 +344,10 @@ export async function applyBoissonsPurchase(input: {
     },
   );
   // Suivi produit × site uniquement — Zogbo et Gbégamey restent indépendants.
+  // Gbégamey : un achat est une entrée de stock → vente selon le stock.
+  if (input.site === "gbegamey") {
+    await markGbegameyStockEntry(input.date);
+  }
   return saved;
 }
 

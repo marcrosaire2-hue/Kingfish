@@ -4,6 +4,7 @@ import {
   canWriteStock,
   effectiveSite,
   homeForRole,
+  estEcritureEnConsultation,
 } from "@/lib/auth-types";
 import { SESSION_COOKIE, verifySessionToken } from "@/lib/auth-token";
 import {
@@ -186,6 +187,18 @@ export async function middleware(request: NextRequest) {
         { status: 403 },
       );
     }
+    // Autorisations : page réglée en « Consulter seulement » pour ce compte.
+    // Une écriture n'est refusée que si aucune page modifiable ne la couvre.
+    if (
+      request.method !== "GET" &&
+      request.method !== "HEAD" &&
+      estEcritureEnConsultation(user, pageEquivalent(pathname))
+    ) {
+      return NextResponse.json(
+        { error: "Consultation uniquement : vous ne pouvez pas modifier sur cette page." },
+        { status: 403 },
+      );
+    }
     if (
       !canAccessPath(
         user.role,
@@ -227,10 +240,6 @@ export async function middleware(request: NextRequest) {
       });
     }
     return res;
-  }
-
-  if (pathname === "/autorisations" || pathname.startsWith("/autorisations/")) {
-    return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   if (pathname === "/journal-stock" || pathname.startsWith("/journal-stock/")) {

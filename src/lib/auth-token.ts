@@ -44,6 +44,8 @@ export async function createSessionToken(
     tv: tokenVersion,
     // Menu effectif (autorisations) — lu par le middleware edge sans Mongo.
     ...(user.nav && user.nav.length ? { nav: user.nav } : {}),
+    // Pages en consultation seule — lues par le middleware sans Mongo.
+    ...(user.ro && user.ro.length ? { ro: user.ro } : {}),
   })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
@@ -64,6 +66,9 @@ function extractPayload(payload: Record<string, unknown>): SessionUser | null {
   const nav = Array.isArray(payload.nav)
     ? (payload.nav.filter((k) => typeof k === "string") as NavKey[])
     : undefined;
+  const ro = Array.isArray(payload.ro)
+    ? (payload.ro.filter((k) => typeof k === "string") as NavKey[])
+    : undefined;
   return {
     id: payload.id,
     username: payload.username,
@@ -74,6 +79,7 @@ function extractPayload(payload: Record<string, unknown>): SessionUser | null {
     // vente sera simplement rattachée à « hors équipe ».
     shift: effectiveShift(payload.shift as SessionUser["shift"]),
     ...(nav && nav.length ? { nav } : {}),
+    ...(ro && ro.length ? { ro } : {}),
   };
 }
 

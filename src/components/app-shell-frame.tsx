@@ -137,6 +137,12 @@ const NAV_ITEMS: {
     groupLabel: "Pilotage",
   },
   {
+    href: "/point-ventes",
+    label: "Point des ventes",
+    key: "point-ventes",
+    group: "pilot",
+  },
+  {
     href: "/journal-direction",
     label: "Journal direction",
     key: "journal-direction",
@@ -203,6 +209,7 @@ const NAV_ICON_PATHS: Partial<Record<NavKey, string>> = {
   immobilisations: "M4 20h16M6 20V9l6-5 6 5v11M10 20v-6h4v6",
   stock: "M4 7l8-4 8 4v10l-8 4-8-4V7Zm8 4v10M4 7l8 4 8-4",
   "journal-ventes": "M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6M9 12h6",
+  "point-ventes": "M4 20h16M7 20v-6M12 20V8M17 20v-9M5 9l5-5 4 3 5-4",
   "journal-direction": "M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6M9 12h6",
   historique: "M12 7v5l3 2M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4",
   reglages: "M5 6h14M5 12h14M5 18h14M9 4v4M15 10v4M8 16v4",

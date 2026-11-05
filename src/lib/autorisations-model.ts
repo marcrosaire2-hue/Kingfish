@@ -278,6 +278,15 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view"],
   },
   {
+    id: "point-ventes",
+    navKey: "point-ventes",
+    label: "Point des ventes",
+    path: "/point-ventes",
+    category: "pilotage",
+    description: "Mieux vendus et moins vendus : plats, accompagnements, boissons.",
+    actions: ["access", "view"],
+  },
+  {
     id: "historique",
     navKey: "historique",
     label: "Registre d’activité",
@@ -326,6 +335,16 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     sensitive: true,
   },
 ];
+
+/**
+ * Une page où l'on peut enregistrer quelque chose (créer, modifier, supprimer,
+ * administrer) : on peut alors la régler en « Consulter seulement ».
+ */
+export function resourceHasWrite(resource: PermissionResource): boolean {
+  return resource.actions.some(
+    (a) => a === "create" || a === "update" || a === "delete" || a === "admin",
+  );
+}
 
 /** Équipe + matrice : toujours allumées pour le rôle administrateur. */
 export function isAdminEquipeResource(resourceId: string): boolean {
