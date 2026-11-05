@@ -259,12 +259,33 @@ export async function getStockSitePayload(
 ): Promise<StockZogboPayload> {
   if (!isValidDate(date)) throw new Error("Date invalide (attendu YYYY-MM-DD)");
 
-  const [{ drinks }, unitCounts] = await Promise.all([
+  const [parametres, unitCounts] = await Promise.all([
     getParametres(),
     countUnitsByProduct(date, site),
   ]);
 
-  const siMap = await lireStocksInitiaux(site);
+  const { drinks } = parametres;
+  const siMap = await lireStocksInitiaux(
+    site,
+    site === "zogbo"
+      ? [
+          ...parametres.baseDishes.map((dish) => ({
+            kind: "plat" as const,
+            productId: dish.id,
+          })),
+          ...parametres.localDishes.map((dish) => ({
+            kind: "local" as const,
+            productId: dish.id,
+          })),
+          ...parametres.drinks.map((drink) => ({
+            kind: "boisson" as const,
+            productId: drink.id,
+            unitsPerCasier: drink.unitsPerCasier,
+          })),
+        ]
+      : [],
+    date,
+  );
 
   if (site === "gbegamey") {
     const gbegamey = await getGbegameyDayPayload(date);
@@ -451,6 +472,14 @@ export async function preparePlatUnits(input: {
     productId: input.productId,
     type: "prepare",
     qty,
+  });
+
+  await noterStockInitial({
+    site: "zogbo",
+    kind: "plat",
+    productId: input.productId,
+    qty,
+    date: input.date,
   });
 
   return getStockZogboPayload(input.date);

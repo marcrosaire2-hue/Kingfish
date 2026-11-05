@@ -56,7 +56,15 @@ export async function GET(request: Request) {
     // SI fixe (bouteilles) par boisson pour le site consulté.
     const si: Record<string, number> = {};
     if (site === "zogbo" || site === "gbegamey") {
-      for (const [k, v] of await lireStocksInitiaux(site)) {
+      for (const [k, v] of await lireStocksInitiaux(
+        site,
+        payload.drinks.map((drink) => ({
+          kind: "boisson" as const,
+          productId: drink.id,
+          unitsPerCasier: unitsPerCasierOf(drink),
+        })),
+        date,
+      )) {
         if (k.startsWith("boisson:")) si[k.slice("boisson:".length)] = v;
       }
     }
