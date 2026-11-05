@@ -12,6 +12,7 @@ import {
 } from "@/lib/autorisations-model";
 import {
   bumpAllSessionTokenVersions,
+  bumpSessionTokenVersions,
   getAutorisationsConfig,
   listAutorisationsHistory,
   resolveActionDecision,
@@ -156,12 +157,29 @@ export const PUT = withLiveBump(async function PUT(request: Request) {
       );
     }
 
+    const previous = await getAutorisationsConfig();
     const saved = await saveAutorisationsConfig({
       overrides,
       actor: user,
       summary: body.summary,
     });
-    const revoked = await bumpAllSessionTokenVersions();
+    // Seuls les comptes dont les droits changent doivent se reconnecter :
+    // régler Ben ne déconnecte plus tout le personnel. Un changement sur un
+    // rôle entier, lui, concerne tous les comptes.
+    const keyOf = (o: PermissionOverride) =>
+      `${o.targetType}:${o.targetId}:${o.resourceId}`;
+    const sig = (o: PermissionOverride | undefined) =>
+      o ? JSON.stringify(Object.entries(o.actions).sort()) : "";
+    const before = new Map(previous.overrides.map((o) => [keyOf(o), o]));
+    const after = new Map(saved.overrides.map((o) => [keyOf(o), o]));
+    const changed = [...new Set([...before.keys(), ...after.keys()])]
+      .filter((k) => sig(before.get(k)) !== sig(after.get(k)))
+      .map((k) => (after.get(k) ?? before.get(k))!);
+    const revoked = changed.some((o) => o.targetType === "role")
+      ? await bumpAllSessionTokenVersions()
+      : await bumpSessionTokenVersions([
+          ...new Set(changed.map((o) => o.targetId)),
+        ]);
 
     await logActivity({
       user,
@@ -175,7 +193,7 @@ export const PUT = withLiveBump(async function PUT(request: Request) {
       config: saved,
       sessionsRevoked: revoked,
       message:
-        "Modifications enregistrées. Chaque compte devra se reconnecter pour appliquer le nouveau menu.",
+        "Modifications enregistrées. Les comptes concernés devront se reconnecter pour appliquer leurs nouveaux droits.",
     });
   } catch (error) {
     return authErrorResponse(error);

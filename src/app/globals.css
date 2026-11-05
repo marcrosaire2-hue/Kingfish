@@ -10489,6 +10489,117 @@ html.nav-open body {
   color: #b42318;
 }
 
+.authz-grid-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.9rem;
+}
+
+.authz-grid-toolbar .select-input {
+  max-width: 20rem;
+}
+
+/* Une ligne par utilisateur, une colonne par page : la page défile
+   horizontalement pour atteindre une colonne, le tableau garde sa taille. */
+.authz-grid-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.authz-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9rem;
+  min-width: 100%;
+}
+
+.authz-grid th,
+.authz-grid td {
+  padding: 0.65rem 0.6rem;
+  border-bottom: 1px solid var(--line);
+  border-right: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  text-align: center;
+  vertical-align: middle;
+  background: var(--surface);
+}
+
+.authz-grid thead th {
+  min-width: 8.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--ink) 4%, var(--surface));
+}
+
+.authz-grid .authz-grid-user {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  min-width: 13rem;
+  text-align: left;
+  box-shadow: 1px 0 0 var(--line);
+}
+
+.authz-grid tbody .authz-grid-user strong {
+  display: block;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.authz-grid tbody .authz-grid-user .muted {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.authz-grid tr.is-inactive .authz-grid-user strong {
+  opacity: 0.6;
+}
+
+.authz-grid-na {
+  color: color-mix(in srgb, var(--ink-soft) 60%, transparent);
+}
+
+.authz-cell {
+  flex: 0 0 auto;
+  min-width: 6.4rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.authz-cell.is-on {
+  background: color-mix(in srgb, #1f7a4d 16%, var(--paper));
+  border-color: color-mix(in srgb, #1f7a4d 40%, var(--line));
+  color: #145a38;
+}
+
+.authz-cell.is-off {
+  background: color-mix(in srgb, #b42318 8%, var(--paper));
+  border-color: color-mix(in srgb, #b42318 30%, var(--line));
+  color: #9b1c13;
+}
+
+.authz-cell:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.authz-cell:focus-visible {
+  outline: 2px solid #1f7a4d;
+  outline-offset: 1px;
+}
+
 .authz-history {
   margin: 0;
   padding-left: 1.1rem;
@@ -10858,4 +10969,192 @@ html.nav-open body {
 .category-title .name-input {
   flex: 1;
   font-weight: 600;
+}
+
+/* ── Point des ventes ─────────────────────────────────────────── */
+.pv-resume {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.pv-card .panel-head {
+  margin-bottom: 0.6rem;
+}
+
+.pv-card.is-top .panel-title {
+  color: #145a38;
+}
+
+.pv-card.is-flop .panel-title {
+  color: #9a5b00;
+}
+
+.pv-card.is-zero .panel-title {
+  color: #9b1c13;
+}
+
+.pv-rank {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.pv-rank-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: 0.6rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.pv-rank-row:first-child {
+  border-top: none;
+  padding-top: 0.15rem;
+}
+
+.pv-rank-num {
+  flex: 0 0 1.7rem;
+  height: 1.7rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--ink-soft);
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+}
+
+.pv-card.is-top .pv-rank-row:nth-child(-n + 3) .pv-rank-num {
+  color: #fff;
+  background: #1f7a4d;
+}
+
+.pv-rank-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.pv-rank-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.pv-rank-name {
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+.pv-rank-qty {
+  flex: 0 0 auto;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.pv-rank-amount {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+}
+
+.pv-bar-track {
+  flex: 1 1 auto;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 7%, transparent);
+  overflow: hidden;
+}
+
+.pv-bar {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #1f7a4d;
+}
+
+.pv-card.is-flop .pv-bar {
+  background: #d97706;
+}
+
+.pv-zero-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: 0.4rem 1rem;
+}
+
+.pv-zero-list li {
+  padding: 0.45rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: color-mix(in srgb, #b42318 6%, var(--paper));
+  border: 1px solid color-mix(in srgb, #b42318 18%, var(--line));
+}
+
+@media (max-width: 900px) {
+  .pv-card + .pv-card {
+    margin-top: 0;
+  }
+}
+
+/* Point des ventes : les filtres défilent avec la page (pas collés en haut). */
+.main-point-ventes .dash-toolbar {
+  position: static;
+  top: auto;
+}
+
+.main-point-ventes .dash-period-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+.main-point-ventes .dash-period-tabs .section-tab {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.main-point-ventes .dash-kpi-copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.main-point-ventes .dash-section-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+  overflow: visible;
+}
+
+.main-point-ventes .dash-section-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: 0;
+  white-space: normal;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .main-point-ventes .dash-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .main-point-ventes .dash-section-tab {
+    flex-direction: column;
+    gap: 0.2rem;
+    font-size: 0.8rem;
+  }
 }

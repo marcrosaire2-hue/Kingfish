@@ -14,6 +14,7 @@ import {
   PERMISSION_RESOURCES,
   isAdminEquipeResource,
   resourceById,
+  resourceHasWrite,
   type AutorisationsConfig,
   type AutorisationsHistoryEntry,
   type PermissionAction,
@@ -355,6 +356,50 @@ export async function bumpAllSessionTokenVersions(): Promise<number> {
   const db = await getDb();
   const result = await db.collection("users").updateMany(
     {},
+    { $inc: { tokenVersion: 1 } },
+  );
+  invalidateCache(":auth:");
+  return result.modifiedCount;
+}
+
+/**
+ * Pages réglées en « Consulter seulement » pour ce compte : la page reste
+ * ouverte mais aucune écriture n'y est acceptée. Par défaut (aucune règle),
+ * une page accessible est modifiable — les limites propres au rôle (DAF,
+ * comptable…) continuent de s'appliquer en plus.
+ */
+export async function resolveEffectiveReadOnly(
+  user: Pick<SessionUser, "id" | "role">,
+  nav: NavKey[],
+): Promise<NavKey[]> {
+  const config = await getAutorisationsConfig();
+  const out: NavKey[] = [];
+  for (const resource of PERMISSION_RESOURCES) {
+    if (!resource.navKey || !nav.includes(resource.navKey)) continue;
+    if (!resourceHasWrite(resource)) continue;
+    if (user.role === "admin" && isAdminEquipeResource(resource.id)) continue;
+    const decision = resolveActionDecision({
+      config,
+      role: user.role,
+      userId: user.id,
+      resourceId: resource.id,
+      action: "update",
+      defaultAllowed: true,
+    });
+    if (decision.value === "deny") out.push(resource.navKey);
+  }
+  return out;
+}
+
+/** Oblige seulement ces comptes à se reconnecter (nouveaux droits). */
+export async function bumpSessionTokenVersions(
+  userIds: string[],
+): Promise<number> {
+  const ids = userIds.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id));
+  if (ids.length === 0) return 0;
+  const db = await getDb();
+  const result = await db.collection("users").updateMany(
+    { _id: { $in: ids } },
     { $inc: { tokenVersion: 1 } },
   );
   invalidateCache(":auth:");

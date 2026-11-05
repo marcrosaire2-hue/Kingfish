@@ -123,10 +123,13 @@ export async function POST(request: Request) {
       site: user.site,
       shift: user.shift,
     };
-    const { resolveEffectiveNav } = await import("@/lib/autorisations-repo");
+    const { resolveEffectiveNav, resolveEffectiveReadOnly } = await import(
+      "@/lib/autorisations-repo"
+    );
     const nav = await resolveEffectiveNav(sessionUser);
+    const ro = await resolveEffectiveReadOnly(sessionUser, nav);
     const token = await createSessionToken(
-      { ...sessionUser, nav },
+      { ...sessionUser, nav, ro },
       user.tokenVersion,
     );
 
