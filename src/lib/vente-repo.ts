@@ -9,7 +9,10 @@ import {
   DEFAULT_UNITS_PER_CASIER,
   normalizeBoissonsLine,
 } from "@/lib/boissons-calc";
-import { getBoissonsDayPayload, saveBoissonsDay } from "@/lib/boissons-repo";
+import {
+  getBoissonsDayPayload,
+  saveBoissonsDay,
+} from "@/lib/boissons-repo";
 import { newId } from "@/lib/format";
 import { computeTransferLine } from "@/lib/gbegamey-calc";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
@@ -20,6 +23,7 @@ import { assertGbegameyPlanningSale } from "@/lib/gbegamey-planning-comptes";
 import { assertGbegameyEmployeeVentePlanning } from "@/lib/gbegamey-employee-planning";
 import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
+import { withStockCarry } from "@/lib/stock-carry";
 import { parseFiniteAmount } from "@/lib/security-policy";
 import type {
   GbegameyLocalLine,
@@ -1193,7 +1197,19 @@ async function ensureBoissonsDay(date: string): Promise<void> {
  * la même écriture (stock − pertes) : le contrôle et l’incrément sont
  * inséparables — pas de course possible sur la dernière portion.
  */
-async function applySoldDelta(input: {
+async function applySoldDelta(
+  input: Parameters<typeof applySoldDeltaRaw>[0],
+): ReturnType<typeof applySoldDeltaRaw> {
+  // Vente / annulation sur un jour passé : le reste reporté sur les
+  // journées suivantes suit (boissons, plats, accompagnements).
+  return input.kind === "boisson"
+    ? withStockCarry("boissons", input.date, () => applySoldDeltaRaw(input))
+    : input.kind === "plat" || input.kind === "local"
+      ? withStockCarry(input.site, input.date, () => applySoldDeltaRaw(input))
+      : applySoldDeltaRaw(input);
+}
+
+async function applySoldDeltaRaw(input: {
   date: string;
   site: VenteSite;
   kind: VenteKind;

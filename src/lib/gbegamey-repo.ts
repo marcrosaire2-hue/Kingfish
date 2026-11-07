@@ -2,6 +2,9 @@ import { ObjectId } from "mongodb";
 import { assertDayOpen, isValidDate, updateDayDocument } from "@/lib/day-doc";
 import { mergeVentesSansStockOnSave, dayVentesSansStock } from "@/lib/ventes-sans-stock";
 import { getDb } from "@/lib/mongodb";
+import { withStockCarry } from "@/lib/stock-carry";
+
+type Tail<T extends unknown[]> = T extends [unknown, ...infer R] ? R : never;
 import { getParametres } from "@/lib/parametres-repo";
 import type {
   BaseDish,
@@ -399,6 +402,13 @@ async function buildGbegameyDayPayload(
 }
 
 export async function saveGbegameyDay(
+  input: Parameters<typeof saveGbegameyDayRaw>[0],
+  ...rest: Tail<Parameters<typeof saveGbegameyDayRaw>>
+): ReturnType<typeof saveGbegameyDayRaw> {
+  return withStockCarry("gbegamey", input.date, () => saveGbegameyDayRaw(input, ...rest));
+}
+
+async function saveGbegameyDayRaw(
   input: {
     date: string;
     status?: GbegameyDay["status"];
@@ -530,7 +540,14 @@ export type ReceiptActor = { id: string; name: string };
  * Confirme la réception d’un plat envoyé par Zogbo.
  * Statut : en_attente (received null) → reçu (received saisi) + écart journalisé.
  */
-export async function confirmGbegameyReceipt(input: {
+export async function confirmGbegameyReceipt(
+  input: Parameters<typeof confirmGbegameyReceiptRaw>[0],
+  ...rest: Tail<Parameters<typeof confirmGbegameyReceiptRaw>>
+): ReturnType<typeof confirmGbegameyReceiptRaw> {
+  return withStockCarry("gbegamey", input.date, () => confirmGbegameyReceiptRaw(input, ...rest));
+}
+
+async function confirmGbegameyReceiptRaw(input: {
   date: string;
   productId: string;
   qty: number;
@@ -635,7 +652,14 @@ export async function confirmGbegameyReceipt(input: {
 }
 
 /** Annule une confirmation de réception (remet le constaté au précédent actif). */
-export async function cancelGbegameyReceipt(input: {
+export async function cancelGbegameyReceipt(
+  input: Parameters<typeof cancelGbegameyReceiptRaw>[0],
+  ...rest: Tail<Parameters<typeof cancelGbegameyReceiptRaw>>
+): ReturnType<typeof cancelGbegameyReceiptRaw> {
+  return withStockCarry("gbegamey", input.date, () => cancelGbegameyReceiptRaw(input, ...rest));
+}
+
+async function cancelGbegameyReceiptRaw(input: {
   date: string;
   receiptId: string;
   bypassClosedDay?: boolean;

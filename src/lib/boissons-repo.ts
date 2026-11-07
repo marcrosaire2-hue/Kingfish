@@ -24,6 +24,7 @@ import { loadAquaBoissonOpeningCasiers } from "@/lib/aquapro-opening-stock";
 import { previousIsoDate } from "@/lib/zogbo-calc";
 import { isDrinkStockTracked } from "@/lib/stock-tracked";
 import { markGbegameyStockEntry } from "@/lib/gbegamey-repo";
+import { withStockCarry } from "@/lib/stock-carry";
 
 type BoissonsDoc = Omit<BoissonsDay, "date"> & { _id: string; rev?: number };
 
@@ -172,6 +173,13 @@ export async function getBoissonsDayPayload(
 }
 
 export async function saveBoissonsDay(
+  input: Parameters<typeof saveBoissonsDayRaw>[0],
+  options?: Parameters<typeof saveBoissonsDayRaw>[1],
+): Promise<BoissonsDayPayload> {
+  return withStockCarry("boissons", input.date, () => saveBoissonsDayRaw(input, options));
+}
+
+async function saveBoissonsDayRaw(
   input: {
     date: string;
     /**
@@ -275,7 +283,13 @@ export async function saveBoissonsDay(
   return saved;
 }
 
-export async function applyBoissonsPurchase(input: {
+export async function applyBoissonsPurchase(
+  input: Parameters<typeof applyBoissonsPurchaseRaw>[0],
+): ReturnType<typeof applyBoissonsPurchaseRaw> {
+  return withStockCarry("boissons", input.date, () => applyBoissonsPurchaseRaw(input));
+}
+
+async function applyBoissonsPurchaseRaw(input: {
   date: string;
   site: VenteSite;
   productId: string;
@@ -353,7 +367,13 @@ export async function applyBoissonsPurchase(input: {
   return saved;
 }
 
-export async function cancelBoissonsMovement(input: {
+export async function cancelBoissonsMovement(
+  input: Parameters<typeof cancelBoissonsMovementRaw>[0],
+): ReturnType<typeof cancelBoissonsMovementRaw> {
+  return withStockCarry("boissons", input.date, () => cancelBoissonsMovementRaw(input));
+}
+
+async function cancelBoissonsMovementRaw(input: {
   date: string;
   movementId: string;
   /** Périmètre du compte : un mouvement d'un autre point de vente est traité comme introuvable. */
