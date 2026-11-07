@@ -1,4 +1,7 @@
 import { getDb } from "@/lib/mongodb";
+import { withStockCarry } from "@/lib/stock-carry";
+
+type Tail<T extends unknown[]> = T extends [unknown, ...infer R] ? R : never;
 import { isValidDate, updateDayDocument } from "@/lib/day-doc";
 import { getParametres } from "@/lib/parametres-repo";
 import type {
@@ -305,6 +308,13 @@ export async function getZogboDayPayload(
 }
 
 export async function saveZogboDay(
+  input: Parameters<typeof saveZogboDayRaw>[0],
+  ...rest: Tail<Parameters<typeof saveZogboDayRaw>>
+): ReturnType<typeof saveZogboDayRaw> {
+  return withStockCarry("zogbo", input.date, () => saveZogboDayRaw(input, ...rest));
+}
+
+async function saveZogboDayRaw(
   input: {
     date: string;
     status?: ZogboDay["status"];
@@ -488,7 +498,14 @@ async function mutateZogboDay(
   });
 }
 
-export async function applyZogboMovement(input: {
+export async function applyZogboMovement(
+  input: Parameters<typeof applyZogboMovementRaw>[0],
+  ...rest: Tail<Parameters<typeof applyZogboMovementRaw>>
+): ReturnType<typeof applyZogboMovementRaw> {
+  return withStockCarry("zogbo", input.date, () => applyZogboMovementRaw(input, ...rest));
+}
+
+async function applyZogboMovementRaw(input: {
   date: string;
   productId: string;
   type: ZogboMovementType;
@@ -507,7 +524,14 @@ export async function applyZogboMovement(input: {
  * Annule une préparation ou un envoi. Pour un envoi, on refuse si Gbégamey
  * a déjà vendu la marchandise — sinon on rendrait leur stock incohérent.
  */
-export async function cancelZogboMovement(input: {
+export async function cancelZogboMovement(
+  input: Parameters<typeof cancelZogboMovementRaw>[0],
+  ...rest: Tail<Parameters<typeof cancelZogboMovementRaw>>
+): ReturnType<typeof cancelZogboMovementRaw> {
+  return withStockCarry("zogbo", input.date, () => cancelZogboMovementRaw(input, ...rest));
+}
+
+async function cancelZogboMovementRaw(input: {
   date: string;
   movementId: string;
 }): Promise<ZogboDayPayload & { movement: ZogboMovement }> {

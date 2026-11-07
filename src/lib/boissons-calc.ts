@@ -650,3 +650,87 @@ export function computeBoissonsDay(
 
   return { lines, movements, totals };
 }
+
+/** Reste reporté (casiers) par site et par boisson — voir `leftoverFromBoissonsLines`. */
+export type BoissonsLeftover = {
+  zogbo: Map<string, number>;
+  gbegamey: Map<string, number>;
+};
+
+const CARRY_EPSILON = 1e-6;
+
+function roundCasiers(value: number): number {
+  return Math.round(value * 10000) / 10000;
+}
+
+/** Écart de reste (après − avant), par site ; les écarts nuls sont omis. */
+export function boissonsLeftoverDelta(
+  before: BoissonsLeftover,
+  after: BoissonsLeftover,
+): BoissonsLeftover {
+  const diff = (b: Map<string, number>, a: Map<string, number>) => {
+    const out = new Map<string, number>();
+    for (const id of new Set([...b.keys(), ...a.keys()])) {
+      const d = (a.get(id) ?? 0) - (b.get(id) ?? 0);
+      if (Math.abs(d) > CARRY_EPSILON) out.set(id, d);
+    }
+    return out;
+  };
+  return {
+    zogbo: diff(before.zogbo, after.zogbo),
+    gbegamey: diff(before.gbegamey, after.gbegamey),
+  };
+}
+
+export function isEmptyBoissonsDelta(delta: BoissonsLeftover): boolean {
+  return delta.zogbo.size === 0 && delta.gbegamey.size === 0;
+}
+
+/**
+ * Report d'une correction de reste sur la journée suivante.
+ *
+ * Une vente, un achat ou une perte saisi après coup sur un jour passé
+ * modifie le reste de ce jour ; l'ouverture du jour suivant (créée plus tôt
+ * à partir de l'ancien reste) doit bouger d'autant. On ajoute l'écart à
+ * l'ouverture, sans écraser une ouverture corrigée à la main.
+ *
+ * Un comptage saisi sur la journée fige son propre reste (le report se fait
+ * depuis le comptage) : l'écart s'arrête là pour ce site et cette boisson.
+ */
+export function applyBoissonsCarryToDay(
+  lines: BoissonsLine[],
+  delta: BoissonsLeftover,
+): { lines: BoissonsLine[]; next: BoissonsLeftover; changed: boolean } {
+  const next: BoissonsLeftover = {
+    zogbo: new Map(delta.zogbo),
+    gbegamey: new Map(delta.gbegamey),
+  };
+  let changed = false;
+  const out = lines.map((raw) => {
+    const line = normalizeBoissonsLine(raw);
+    const dz = delta.zogbo.get(line.productId) ?? 0;
+    const dg = delta.gbegamey.get(line.productId) ?? 0;
+    if (dz === 0 && dg === 0) return raw;
+    const patched: BoissonsLine = { ...raw };
+    if (dz !== 0) {
+      patched.initialStockZogbo = roundCasiers(
+        Math.max(0, line.initialStockZogbo + dz),
+      );
+      if (line.countedZogbo !== null) next.zogbo.delete(line.productId);
+    }
+    if (dg !== 0) {
+      patched.initialStockGbegamey = roundCasiers(
+        Math.max(0, line.initialStockGbegamey + dg),
+      );
+      if (line.countedGbegamey !== null) next.gbegamey.delete(line.productId);
+    }
+    if (
+      patched.initialStockZogbo !== raw.initialStockZogbo ||
+      patched.initialStockGbegamey !== raw.initialStockGbegamey
+    ) {
+      changed = true;
+    }
+    return patched;
+  });
+  return { lines: out, next, changed };
+}

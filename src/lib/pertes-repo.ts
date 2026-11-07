@@ -3,7 +3,11 @@ import { assertDayOpen, isValidDate } from "@/lib/day-doc";
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import { unitsPerCasierOf } from "@/lib/boissons-calc";
-import { getBoissonsDayPayload, saveBoissonsDay } from "@/lib/boissons-repo";
+import {
+  getBoissonsDayPayload,
+  saveBoissonsDay,
+} from "@/lib/boissons-repo";
+import { withStockCarry } from "@/lib/stock-carry";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
 import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import {
@@ -204,7 +208,17 @@ type DayDoc = { _id: string; rev?: number };
  * s'écraser, et le filtre garantit qu'une annulation ne fait jamais passer le
  * compteur sous zéro.
  */
-async function applyPerteDelta(input: {
+async function applyPerteDelta(
+  input: Parameters<typeof applyPerteDeltaRaw>[0],
+): ReturnType<typeof applyPerteDeltaRaw> {
+  return input.kind === "boisson"
+    ? withStockCarry("boissons", input.date, () => applyPerteDeltaRaw(input))
+    : input.kind === "plat" || input.kind === "local"
+      ? withStockCarry(input.site, input.date, () => applyPerteDeltaRaw(input))
+      : applyPerteDeltaRaw(input);
+}
+
+async function applyPerteDeltaRaw(input: {
   date: string;
   site: VenteSite;
   kind: PerteKind;

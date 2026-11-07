@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  applyBoissonsCarryToDay,
   applyBoissonsPurchaseToState,
+  boissonsLeftoverDelta,
   cancelBoissonsMovementInState,
   computeBoissonsLine,
   formatCasiers,
@@ -336,5 +338,83 @@ describe("formatCasiers", () => {
 
   it("garde la fraction quand elle existe", () => {
     expect(formatCasiers(2.5)).toContain("2");
+  });
+});
+
+describe("report d'une correction sur les jours suivants", () => {
+  const drinks = [boisson()];
+
+  it("une vente saisie en retard réduit l'ouverture du lendemain", () => {
+    // Jour J : 2 casiers ouverts, 0 vendu → reste 2 casiers (24 bt).
+    const avant = leftoverFromBoissonsLines(
+      [ligne({ initialStockZogbo: 2 })],
+      drinks,
+    );
+    // Saisie après coup : 6 bouteilles vendues le jour J.
+    const apres = leftoverFromBoissonsLines(
+      [ligne({ initialStockZogbo: 2, soldZogbo: 6 })],
+      drinks,
+    );
+    const delta = boissonsLeftoverDelta(avant, apres);
+    expect(delta.zogbo.get("drink-beaufort")).toBeCloseTo(-0.5);
+    expect(delta.gbegamey.size).toBe(0);
+
+    // Lendemain ouvert plus tôt avec l'ancien reste (2 casiers).
+    const { lines, next, changed } = applyBoissonsCarryToDay(
+      [ligne({ initialStockZogbo: 2 })],
+      delta,
+    );
+    expect(changed).toBe(true);
+    expect(lines[0]!.initialStockZogbo).toBeCloseTo(1.5);
+    expect(physicalBoissonsStockForSite(lines[0]!, "zogbo", 12)).toBe(18);
+    // Pas de comptage le lendemain : l'écart continue vers J+2.
+    expect(next.zogbo.get("drink-beaufort")).toBeCloseTo(-0.5);
+  });
+
+  it("garde une ouverture corrigée à la main et ajoute seulement l'écart", () => {
+    const delta = {
+      zogbo: new Map([["drink-beaufort", -0.25]]),
+      gbegamey: new Map<string, number>(),
+    };
+    const { lines } = applyBoissonsCarryToDay(
+      [ligne({ initialStockZogbo: 3 })],
+      delta,
+    );
+    expect(lines[0]!.initialStockZogbo).toBeCloseTo(2.75);
+  });
+
+  it("s'arrête au jour qui porte un comptage pour ce site", () => {
+    const delta = {
+      zogbo: new Map([["drink-beaufort", -0.5]]),
+      gbegamey: new Map([["drink-beaufort", 1]]),
+    };
+    const { lines, next } = applyBoissonsCarryToDay(
+      [ligne({ initialStockZogbo: 2, countedZogbo: 20, initialStockGbegamey: 1 })],
+      delta,
+    );
+    expect(lines[0]!.initialStockZogbo).toBeCloseTo(1.5);
+    expect(lines[0]!.initialStockGbegamey).toBeCloseTo(2);
+    expect(next.zogbo.has("drink-beaufort")).toBe(false);
+    expect(next.gbegamey.get("drink-beaufort")).toBeCloseTo(1);
+  });
+
+  it("ne descend jamais sous zéro et ne touche pas l'autre site", () => {
+    const delta = {
+      zogbo: new Map([["drink-beaufort", -5]]),
+      gbegamey: new Map<string, number>(),
+    };
+    const { lines } = applyBoissonsCarryToDay(
+      [ligne({ initialStockZogbo: 1, initialStockGbegamey: 4 })],
+      delta,
+    );
+    expect(lines[0]!.initialStockZogbo).toBe(0);
+    expect(lines[0]!.initialStockGbegamey).toBe(4);
+  });
+
+  it("aucun écart : rien ne change", () => {
+    const l = leftoverFromBoissonsLines([ligne({ initialStockZogbo: 2 })], drinks);
+    const delta = boissonsLeftoverDelta(l, l);
+    const { changed } = applyBoissonsCarryToDay([ligne({ initialStockZogbo: 2 })], delta);
+    expect(changed).toBe(false);
   });
 });
