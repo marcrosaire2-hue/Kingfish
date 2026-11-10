@@ -15,6 +15,7 @@ import { ProductIcon } from "@/components/product-icon";
 import { QtyInput } from "@/components/qty-input";
 import { EcartBadge, formatEcart } from "@/components/stock-ecart";
 import { ZoneBoissonsPanel } from "@/components/zone/zone-boissons-panel";
+import { CondimentsPanel } from "@/components/condiments/condiments-panel";
 import {
   CataloguePaginationBar,
   CatalogueSkeleton,
@@ -22,26 +23,24 @@ import {
 import { useSession } from "@/components/session-provider";
 import "@/components/parametres/parametres-catalogue.css";
 import { canWriteStock } from "@/lib/auth-types";
-import type { GbegameyLocalLine, LocalDish, VenteSite } from "@/lib/types";
+import type { VenteSite } from "@/lib/types";
 import type {
   PlatUnitStats,
   StockUnit,
   StockUnitKind,
   StockZogboPayload,
 } from "@/lib/stock-unit-types";
-import { computeLocalLine } from "@/lib/gbegamey-calc";
 import {
-  computeZogboAccompanimentLine,
   formatDisplayDate,
   todayIsoDate,
 } from "@/lib/zogbo-calc";
 
-type TabKey = "plats" | "acc" | "boissons";
+type TabKey = "plats" | "boissons" | "condiments";
 
 const PAGE_SIZE = 6;
 
 function parseTab(raw: string | null): TabKey {
-  if (raw === "acc" || raw === "boissons") return raw;
+  if (raw === "boissons" || raw === "condiments") return raw;
   return "plats";
 }
 
@@ -194,7 +193,9 @@ export function StockZogboPage({
   const router = useRouter();
   const { user } = useSession();
   const readOnly = Boolean(user && !canWriteStock(user.role));
-  const tab = parseTab(searchParams.get("tab"));
+  const tabDemande = parseTab(searchParams.get("tab"));
+  // Le magasin de condiments n'est ouvert qu'à Gbégamey pour l'instant.
+  const tab = tabDemande === "condiments" && !isGbegamey ? "plats" : tabDemande;
   const dateFromUrl = searchParams.get("date");
   const [date, setDate] = useState(() => {
     if (dateFromUrl && /^\d{4}-\d{2}-\d{2}$/.test(dateFromUrl)) return dateFromUrl;
@@ -205,19 +206,12 @@ export function StockZogboPage({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [draftQr, setDraftQr] = useState<Record<string, string>>({});
-  const [accLines, setAccLines] = useState<GbegameyLocalLine[]>([]);
-  const [accDirty, setAccDirty] = useState(false);
-  const [localDishes, setLocalDishes] = useState<LocalDish[]>([]);
   const [platSearch, setPlatSearch] = useState("");
   const [platPage, setPlatPage] = useState(1);
-  const [accSearch, setAccSearch] = useState("");
-  const [accPage, setAccPage] = useState(1);
 
   const debouncedPlatSearch = useDebouncedValue(platSearch);
-  const debouncedAccSearch = useDebouncedValue(accSearch);
 
   const plats = payload?.plats ?? [];
-  const accStats = payload?.accStats ?? [];
 
   const totals = useMemo(
     () => ({
@@ -248,9 +242,6 @@ export function StockZogboPage({
       const body = (await res.json()) as StockZogboPayload & { error?: string };
       if (!res.ok) throw new Error(body.error ?? "Chargement impossible.");
       setPayload(body);
-      setAccLines(body.accompanimentLines ?? []);
-      setLocalDishes(body.localDishes ?? []);
-      setAccDirty(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Erreur réseau.");
     } finally {
@@ -276,7 +267,6 @@ export function StockZogboPage({
     const next = body.payload as StockZogboPayload;
     if (next) {
       setPayload(next);
-      setAccLines(next.accompanimentLines ?? []);
     }
     return next;
   }
@@ -326,7 +316,6 @@ export function StockZogboPage({
       if (!res.ok) throw new Error(body.error ?? "Opération refusée.");
       if (body.payload) {
         setPayload(body.payload as StockZogboPayload);
-        setAccLines(body.payload.accompanimentLines ?? []);
       }
       setDraftQr((d) => ({ ...d, [draftKey]: "" }));
     } catch (e) {
@@ -335,36 +324,6 @@ export function StockZogboPage({
       setBusy(null);
     }
   }
-
-  async function saveAcc() {
-    if (readOnly) return;
-    setBusy("acc");
-    setError(null);
-    try {
-      const res = await fetch(apiBase, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, accompanimentLines: accLines }),
-      });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error);
-      setPayload(body.payload);
-      setAccDirty(false);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erreur enregistrement.");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  const accComputed = useMemo(() => {
-    const priceById = new Map(localDishes.map((d) => [d.id, d.unitPrice]));
-    // Zogbo : le comptage mesure l'écart sans remplacer le stock.
-    const compute = isGbegamey ? computeLocalLine : computeZogboAccompanimentLine;
-    return accLines.map((l) =>
-      compute(l, priceById.get(l.productId) ?? 0),
-    );
-  }, [accLines, localDishes, isGbegamey]);
 
   const filteredPlats = useMemo(
     () =>
@@ -377,25 +336,7 @@ export function StockZogboPage({
     [filteredPlats, platPage],
   );
 
-  const filteredAcc = useMemo(
-    () => accComputed.filter((r) => matchesSearch(r.name, debouncedAccSearch)),
-    [accComputed, debouncedAccSearch],
-  );
-
-  const pagedAcc = useMemo(
-    () => paginate(filteredAcc, accPage, PAGE_SIZE),
-    [filteredAcc, accPage],
-  );
-
-  const accSiByProduct = useMemo(
-    () => new Map(accStats.map((s) => [s.productId, s.si])),
-    [accStats],
-  );
   /** Cumul depuis le début (SI fixe) : entrées, disponible, vendus, théorique. */
-  const accCumulByProduct = useMemo(
-    () => new Map(accStats.map((s) => [s.productId, s])),
-    [accStats],
-  );
 
   const patchDraftQr = (key: string, value: string) => {
     setDraftQr((d) => ({ ...d, [key]: value }));
@@ -405,28 +346,17 @@ export function StockZogboPage({
     setPlatPage(1);
   }, [debouncedPlatSearch]);
 
-  useEffect(() => {
-    setAccPage(1);
-  }, [debouncedAccSearch]);
-
-  function patchAcc(productId: string, patch: Partial<GbegameyLocalLine>) {
-    setAccLines((lines) =>
-      lines.map((l) => (l.productId === productId ? { ...l, ...patch } : l)),
-    );
-    setAccDirty(true);
-  }
-
   return (
     <AppShell
       title={siteTitle}
       subtitle={
         readOnly
           ? "Consultation du stock — aucune saisie."
-          : "Saisie du stock — plats, accompagnements et boissons."
+          : "Saisie du stock — plats et boissons."
       }
       mainClassName="main-stock-zogbo"
       actions={
-        tab === "boissons" ? undefined : (
+        tab === "boissons" || tab === "condiments" ? undefined : (
           <ExportExcelButton
             disabled={loading || !payload}
             className="btn btn-ghost"
@@ -444,20 +374,6 @@ export function StockZogboPage({
                     "Stock théorique": p.theoretical ?? "",
                     "Stock physique": p.counted ?? "",
                     Écart: p.ecart ?? "",
-                  })),
-                },
-                {
-                  name: "Accompagnements",
-                  subtitle: `${siteTitle} · ${date}`,
-                  rows: accComputed.map((r) => ({
-                    Accompagnement: r.name,
-                    "Stock initial": accSiByProduct.get(r.productId) ?? "",
-                    Entrées: r.prepared,
-                    "Stock disponible": r.available,
-                    Vendus: r.sold,
-                    "Stock théorique": r.theoreticalRemaining,
-                    "Stock physique": r.counted ?? "",
-                    Écart: r.variance ?? "",
                   })),
                 },
               ]);
@@ -492,22 +408,23 @@ export function StockZogboPage({
           <button
             type="button"
             role="tab"
-            aria-selected={tab === "acc"}
-            className={`section-tab${tab === "acc" ? " is-active" : ""}`}
-            onClick={() => setTab("acc")}
-          >
-            Accompagnements
-            <span className="section-count">{accLines.length}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
             aria-selected={tab === "boissons"}
             className={`section-tab${tab === "boissons" ? " is-active" : ""}`}
             onClick={() => setTab("boissons")}
           >
             Boissons
           </button>
+          {isGbegamey ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "condiments"}
+              className={`section-tab${tab === "condiments" ? " is-active" : ""}`}
+              onClick={() => setTab("condiments")}
+            >
+              Condiments
+            </button>
+          ) : null}
         </div>
 
         {error ? (
@@ -523,7 +440,9 @@ export function StockZogboPage({
           </div>
         ) : null}
 
-        {loading ? (
+        {tab === "condiments" ? (
+          <CondimentsPanel readOnly={readOnly} />
+        ) : loading ? (
           <CatalogueSkeleton />
         ) : tab === "plats" ? (
           <>
@@ -723,244 +642,6 @@ export function StockZogboPage({
                 )}
               </section>
             </div>
-          </>
-        ) : tab === "acc" ? (
-          <>
-            <p className="catalogue-meta">
-              <span className="catalogue-meta-icon" aria-hidden>
-                📅
-              </span>
-              <strong>{formatDisplayDate(date)}</strong>
-              {" · "}
-              Stock local {isGbegamey ? "Gbégamey" : "Zogbo"}
-              {isGbegamey
-                ? " — plats reçus ou préparés sur place."
-                : " — pas de transfert vers Gbégamey."}
-            </p>
-
-            <div className="catalogue-info" role="note">
-              <span className="catalogue-info-mark" aria-hidden>
-                i
-              </span>
-              <p>
-                {readOnly
-                  ? "Stock des accompagnements — consultation uniquement."
-                  : "Saisissez le préparé et le comptage (stock initial du jour). Les ventes sont mises à jour par la caisse."}
-              </p>
-            </div>
-
-            <section className="catalogue-panel">
-              <div className="catalogue-toolbar">
-                <StockSearch
-                  value={accSearch}
-                  onChange={setAccSearch}
-                  placeholder="Rechercher un accompagnement…"
-                />
-                {readOnly ? null : (
-                  <button
-                    type="button"
-                    className={`btn btn-primary${!accDirty ? " btn-saved" : ""}`}
-                    disabled={!accDirty || busy === "acc"}
-                    onClick={() => void saveAcc()}
-                  >
-                    {busy === "acc" ? "Enregistrement…" : "Enregistrer"}
-                  </button>
-                )}
-              </div>
-
-              {filteredAcc.length === 0 ? (
-                <div className="catalogue-empty">
-                  <p className="catalogue-empty-title">
-                    Aucun accompagnement trouvé
-                  </p>
-                  <p className="catalogue-empty-hint">
-                    Modifiez votre recherche.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <div className="catalogue-table-wrap stock-zogbo-desktop-table">
-                    <table className="catalogue-table stock-zogbo-table stock-modele-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Accompagnement</th>
-                          <th scope="col">Stock initial</th>
-                          <th scope="col">Entrées</th>
-                          <th scope="col">Stock disponible</th>
-                          <th scope="col">Vendus</th>
-                          <th scope="col">Stock théorique</th>
-                          <th scope="col">Stock physique</th>
-                          <th scope="col">Écart</th>
-                          {readOnly ? null : (
-                            <th scope="col" className="col-action">Ajouter</th>
-                          )}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {pagedAcc.items.map((row) => (
-                          <tr key={row.productId}>
-                            <td>
-                              <div className="catalogue-product-cell">
-                                <ProductIcon kind="local" name={row.name} />
-                                <span className="catalogue-product-name">{row.name}</span>
-                              </div>
-                            </td>
-                            <td>
-                              <span className="catalogue-qty-badge">{accSiByProduct.get(row.productId) ?? "—"}</span>
-                            </td>
-                            <td>
-                              <div className="stock-prepared-cell">
-                                <span className="catalogue-qty-badge">
-                                  {accCumulByProduct.get(row.productId)?.entrees ?? row.prepared}
-                                </span>
-                                {readOnly ? null : (
-                                  <QtyInput
-                                    value={row.prepared}
-                                    ariaLabel={`Entrées du jour ${row.name}`}
-                                    onChange={(prepared) => patchAcc(row.productId, { prepared: prepared ?? 0 })}
-                                  />
-                                )}
-                              </div>
-                            </td>
-                            <td>
-                              <span className="catalogue-qty-badge">
-                                {accCumulByProduct.get(row.productId)?.disponible ?? row.available}
-                              </span>
-                            </td>
-                            <td>
-                              <span className="catalogue-qty-badge">
-                                {accCumulByProduct.get(row.productId)?.soldAggregate ?? row.sold}
-                              </span>
-                            </td>
-                            <td>
-                              <span
-                                className={`catalogue-qty-badge catalogue-qty-badge-accent stock-remaining-badge${
-                                  (accCumulByProduct.get(row.productId)?.theoretical ?? row.theoreticalRemaining) <= 0 ? " is-empty" : ""
-                                }`}
-                              >
-                                {accCumulByProduct.get(row.productId)?.theoretical ?? row.theoreticalRemaining}
-                              </span>
-                            </td>
-                            <td>
-                              {readOnly ? (
-                                <span className="catalogue-qty-badge">{row.counted ?? "—"}</span>
-                              ) : (
-                                <QtyInput
-                                  value={row.counted}
-                                  allowEmpty
-                                  ariaLabel={`Stock physique ${row.name}`}
-                                  onChange={(counted) => patchAcc(row.productId, { counted })}
-                                />
-                              )}
-                            </td>
-                            <td>
-                              <EcartBadge value={row.variance} />
-                            </td>
-                            {readOnly ? null : (
-                              <td className="col-action">
-                                <StockAddControls
-                                  productId={row.productId}
-                                  productName={row.name}
-                                  kind="local"
-                                  draftQr={draftQr}
-                                  onDraft={patchDraftQr}
-                                  busy={busy}
-                                  onAdd={registerStock}
-                                />
-                              </td>
-                            )}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  <div className="stock-zogbo-mobile-list">
-                    {pagedAcc.items.map((row) => (
-                      <article
-                        key={row.productId}
-                        className="stock-mobile-card"
-                      >
-                        <div className="stock-mobile-card-head">
-                          <ProductIcon kind="local" name={row.name} size="lg" />
-                          <span className="catalogue-product-name">
-                            {row.name}
-                          </span>
-                        </div>
-                        <div className="stock-mobile-metrics">
-                          <Metric label="Stock initial" value={accSiByProduct.get(row.productId) ?? "—"} />
-                          <Metric label="Entrées" value={accCumulByProduct.get(row.productId)?.entrees ?? row.prepared} />
-                          <Metric label="Stock disponible" value={accCumulByProduct.get(row.productId)?.disponible ?? row.available} />
-                          <Metric label="Vendus" value={accCumulByProduct.get(row.productId)?.soldAggregate ?? row.sold} />
-                          <Metric label="Stock théorique" value={accCumulByProduct.get(row.productId)?.theoretical ?? row.theoreticalRemaining} accent />
-                          <Metric label="Stock physique" value={row.counted ?? "—"} />
-                          <Metric label="Écart" value={formatEcart(row.variance)} />
-                        </div>
-                        <div className="stock-mobile-card-prices catalogue-mobile-card-prices">
-                          <div>
-                            <span className="catalogue-mobile-price-label">
-                              Entrées
-                            </span>
-                            {readOnly ? (
-                              <strong>{row.prepared}</strong>
-                            ) : (
-                              <QtyInput
-                                value={row.prepared}
-                                ariaLabel={`Entrées ${row.name}`}
-                                onChange={(prepared) =>
-                                  patchAcc(row.productId, {
-                                    prepared: prepared ?? 0,
-                                  })
-                                }
-                              />
-                            )}
-                          </div>
-                          <div>
-                            <span className="catalogue-mobile-price-label">
-                              Stock physique
-                            </span>
-                            {readOnly ? (
-                              <strong>{row.counted ?? "—"}</strong>
-                            ) : (
-                              <QtyInput
-                                value={row.counted}
-                                allowEmpty
-                                ariaLabel={`Stock physique ${row.name}`}
-                                onChange={(counted) =>
-                                  patchAcc(row.productId, { counted })
-                                }
-                              />
-                            )}
-                          </div>
-                        </div>
-                        {readOnly ? null : (
-                          <div className="stock-mobile-actions">
-                            <StockAddControls
-                              productId={row.productId}
-                              productName={row.name}
-                              kind="local"
-                              draftQr={draftQr}
-                              onDraft={patchDraftQr}
-                              busy={busy}
-                              onAdd={registerStock}
-                            />
-                          </div>
-                        )}
-                      </article>
-                    ))}
-                  </div>
-
-                  <CataloguePaginationBar
-                    from={pagedAcc.from}
-                    to={pagedAcc.to}
-                    total={pagedAcc.total}
-                    page={pagedAcc.page}
-                    totalPages={pagedAcc.totalPages}
-                    onPage={setAccPage}
-                  />
-                </>
-              )}
-            </section>
           </>
         ) : (
           <ZoneBoissonsPanel

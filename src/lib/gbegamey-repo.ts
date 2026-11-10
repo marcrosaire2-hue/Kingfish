@@ -402,16 +402,6 @@ export async function saveGbegameyDay(
     }),
     "Journal stock · comptage Gbégamey plats",
   );
-  await recordStockEvents(
-    comptageEventsFromLines({
-      site: "gbegamey",
-      date: input.date,
-      family: "local",
-      unit: "portion",
-      lines: saved.day.localLines,
-    }),
-    "Journal stock · comptage Gbégamey accompagnements",
-  );
   return saved;
 }
 

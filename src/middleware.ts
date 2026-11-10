@@ -35,6 +35,8 @@ const API_VERS_ECRAN: Record<string, string> = {
   "/api/pos": "/vente",
   "/api/pos-config": "/reglages",
   "/api/ventes/totaux-jour": "/versements",
+  "/api/magasin": "/stock-gbegamey",
+  "/api/composition": "/composition-plat",
 };
 
 /**
@@ -72,6 +74,8 @@ function estEcritureDeStock(pathname: string): boolean {
     pathname === "/api/stock-gbegamey" ||
     pathname.startsWith("/api/stock-gbegamey/") ||
     pathname.startsWith("/api/stock-units") ||
+    pathname === "/api/magasin" ||
+    pathname === "/api/composition" ||
     pathname === "/api/boissons" ||
     pathname.startsWith("/api/boissons/")
   );

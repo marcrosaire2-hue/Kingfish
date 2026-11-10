@@ -9,15 +9,12 @@ import {
 import { canCorrectClosedFinancialData } from "@/lib/security-policy";
 import { logActivity } from "@/lib/log-activity";
 import { getPosConfig } from "@/lib/pos-config-repo";
-import {
-  addCaisseMouvement,
-  resolveCaisseForDepense,
-} from "@/lib/caisse-repo";
+import { attachDepense } from "@/lib/achat-depense";
+import { resolveCaisseForDepense } from "@/lib/caisse-repo";
 import {
   applyMatieresOtherPurchase,
   applyMatieresPurchase,
   getMatieresDayPayload,
-  linkMatieresMovementDepense,
   listMatieresMovements,
   saveMatieresDay,
 } from "@/lib/matieres-repo";
@@ -57,50 +54,6 @@ function managerBypass(
   date: string,
 ): boolean {
   return canManagePastVentes(user.role) && date < todayIsoDate();
-}
-
-async function attachDepense(input: {
-  user: SessionUser;
-  date: string;
-  movementId: string;
-  name: string;
-  qty: number;
-  fournisseurNom: string | null;
-  montant: number;
-  bypassPast: boolean;
-  site: VenteSite;
-}): Promise<{ id: string; montant: number } | { error: string } | null> {
-  if (input.montant <= 0) return null;
-  try {
-    const { session, allowClosed } = await resolveCaisseForDepense({
-      site: input.site,
-      date: input.date,
-      allowPastClosed: input.bypassPast,
-    });
-    if (!session) return null;
-    const res = await addCaisseMouvement({
-      caisseId: session.id,
-      user: input.user,
-      kind: "depense",
-      nature: `Achat stock · ${input.name} +${input.qty}`,
-      beneficiaire: input.fournisseurNom ?? "Fournisseur non précisé",
-      montant: input.montant,
-      allowClosed,
-    });
-    await linkMatieresMovementDepense({
-      site: input.site,
-      date: input.date,
-      movementId: input.movementId,
-      depenseId: res.mouvement.id,
-    });
-    return { id: res.mouvement.id, montant: input.montant };
-  } catch (e) {
-    // Plus de silence : l'appelant prévient l'utilisateur et le journal.
-    return {
-      error:
-        e instanceof Error ? e.message : "Sortie de caisse non enregistrée.",
-    };
-  }
 }
 
 export async function GET(request: Request) {

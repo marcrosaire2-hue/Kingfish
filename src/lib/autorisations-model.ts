@@ -123,6 +123,15 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "update"],
   },
   {
+    id: "composition-plat",
+    navKey: "composition-plat",
+    label: "Composition plat",
+    path: "/composition-plat",
+    category: "quotidien",
+    description: "Ingrédients de chaque plat et accompagnement.",
+    actions: ["access", "view", "update"],
+  },
+  {
     id: "caisse",
     navKey: "caisse",
     label: "Caisse",

@@ -719,6 +719,8 @@ export type VenteProduct = {
   qrRequired?: boolean;
   /** Catégorie personnalisée (kind « extra » du catalogue, sans stock). */
   categoryId?: string;
+  /** Retiré de la vente par l'administrateur, quel que soit le stock. */
+  griseAdmin?: boolean;
 };
 
 export type VenteLogEntry = {

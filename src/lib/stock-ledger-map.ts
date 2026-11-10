@@ -29,7 +29,6 @@ export function ledgerFamilyOfVente(
   kind: VenteKind,
 ): StockLedgerFamily | null {
   if (kind === "plat") return "plat";
-  if (kind === "local") return "local";
   if (kind === "boisson") return "boisson";
   return null;
 }
@@ -136,7 +135,6 @@ export function ledgerFamilyOfPerte(
   kind: string,
 ): StockLedgerFamily | null {
   if (kind === "plat") return "plat";
-  if (kind === "local") return "local";
   if (kind === "boisson") return "boisson";
   if (kind === "matiere") return "matiere";
   // Immobilisations et achats libres n'ont pas de ligne de stock suivie ici.

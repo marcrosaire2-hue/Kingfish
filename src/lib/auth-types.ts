@@ -288,6 +288,7 @@ export type NavKey =
   | "quantites-vendues"
   | "point-ventes"
   | "journal-stock"
+  | "composition-plat"
   | "immobilisations"
   | "stock"
   | "admin"
@@ -315,6 +316,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "quantites-vendues",
     "point-ventes",
     "journal-stock",
+    "composition-plat",
     "rapport-quotidien",
   ],
   // Finance + consultation des stocks. Pas d’analyse, ni registre.
@@ -383,6 +385,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "quantites-vendues",
     "point-ventes",
     "journal-stock",
+    "composition-plat",
     "stock",
     "immobilisations",
     "historique",
@@ -486,7 +489,9 @@ export function filterNavKeysBySite(
   const withoutRoleDenied = stripRoleDeniedNavKeys(keys, role);
   const scoped = effectiveSite(role, site);
   if (scoped === "zogbo") {
-    return withoutRoleDenied.filter((k) => k !== "gbegamey");
+    return withoutRoleDenied.filter(
+      (k) => k !== "gbegamey" && k !== "composition-plat",
+    );
   }
   if (scoped === "gbegamey") {
     return withoutRoleDenied.filter((k) => k !== "zogbo");
@@ -626,6 +631,9 @@ function canAccessPathWithAllowed(
   }
   if (pathname.startsWith("/journal-stock")) {
     return allowed.includes("journal-stock");
+  }
+  if (pathname.startsWith("/composition-plat")) {
+    return allowed.includes("composition-plat");
   }
   if (pathname.startsWith("/immobilisations")) {
     return allowed.includes("immobilisations");

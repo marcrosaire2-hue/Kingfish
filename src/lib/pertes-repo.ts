@@ -218,7 +218,7 @@ async function applyPerteDelta(
     ? withStockCarry(boissonsScope(input.site), input.date, () =>
         applyPerteDeltaRaw(input),
       )
-    : input.kind === "plat" || input.kind === "local"
+    : input.kind === "plat"
       ? withStockCarry(input.site, input.date, () => applyPerteDeltaRaw(input))
       : applyPerteDeltaRaw(input);
 }
@@ -312,6 +312,9 @@ export async function recordPerte(input: {
 }): Promise<PerteEntry> {
   if (!isValidDate(input.date)) throw new Error("Date invalide");
   if (!MOTIFS.includes(input.motif)) throw new Error("Motif invalide");
+  if (input.kind === "local") {
+    throw new Error("Les accompagnements sont hors stock : aucune perte à déclarer.");
+  }
 
   const qty = Math.round(Number(input.qty) || 0);
   if (!Number.isFinite(qty) || qty <= 0) {

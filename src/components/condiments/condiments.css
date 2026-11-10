@@ -1,0 +1,159 @@
+.mag-page {
+  display: grid;
+  gap: 16px;
+}
+
+.mag-card {
+  padding: 16px;
+}
+
+.mag-card h3 {
+  margin: 0 0 4px;
+}
+
+.mag-hint {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.mag-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.mag-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.mag-input {
+  width: 100%;
+  min-width: 72px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.mag-input:disabled {
+  opacity: 0.6;
+}
+
+.mag-table-wrap {
+  overflow-x: auto;
+}
+
+.mag-table-wrap .data-table {
+  min-width: 640px;
+}
+
+.mag-row-action {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.mag-row-action .mag-input {
+  width: 84px;
+}
+
+.mag-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mag-chip {
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 0.84rem;
+}
+
+.mag-alert {
+  color: #b42318;
+  font-weight: 700;
+}
+
+.mag-line {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.mag-check {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  color: var(--ink);
+}
+
+.compo-layout {
+  display: grid;
+  grid-template-columns: minmax(220px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.compo-list {
+  display: grid;
+  gap: 4px;
+  max-height: 65vh;
+  margin: 10px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.compo-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.compo-item:hover,
+.compo-item.is-active {
+  border-color: var(--line);
+  background: var(--paper);
+}
+
+.compo-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@media (max-width: 760px) {
+  .compo-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .compo-list {
+    max-height: 240px;
+  }
+
+  .mag-line {
+    grid-template-columns: minmax(0, 1fr) 96px;
+  }
+}

@@ -11,7 +11,11 @@ import { ContextBar } from "@/components/context-bar";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import { ProductIcon } from "@/components/product-icon";
 import { RegistreDrawer } from "@/components/registre-drawer";
+import { VenteAjustementsPanel } from "@/components/vente/vente-ajustements";
+import { ProduitsGrisesPanel } from "@/components/vente/produits-grises-panel";
 import { formatFcfa } from "@/lib/format";
+import { magasinActif, type VenteAjustements } from "@/lib/magasin-calc";
+import type { FicheCaisse } from "@/lib/magasin-repo";
 import {
   ajouterEnAttente,
   installerSupportHorsLigne,
@@ -60,6 +64,7 @@ type CartLine = {
   name: string;
   unitPrice: number;
   qty: number;
+  ajustements?: VenteAjustements;
 };
 
 type BuiltinCatKey = "plat" | "accompagnement" | "boisson";
@@ -240,21 +245,26 @@ export const ProductGrid = memo(function ProductGrid({
       {products.map((p) => {
         const disabledPv =
           (p.kind === "boisson" || p.kind === "extra") && p.unitPrice <= 0;
+        const grise = p.griseAdmin === true;
         const stockBlocked =
+          !grise &&
           !ignoreStock &&
           p.stockLeft !== null &&
           p.stockLeft !== undefined &&
           p.stockLeft <= 0;
-        const blocked = disabledPv || stockBlocked || !canSell;
-        const reason = !canSell
-          ? "Ouvrez la caisse pour vendre"
-          : disabledPv
-            ? p.blockReason || "Prix de vente manquant"
-            : stockBlocked
-              ? p.blockReason || p.hint || "Stock insuffisant"
-              : null;
-        const badgeLabel =
-          stockBlocked && p.blockReason?.toLowerCase().includes("pas encore reçu")
+        const blocked = grise || disabledPv || stockBlocked || !canSell;
+        const reason = grise
+          ? p.blockReason
+          : !canSell
+            ? "Ouvrez la caisse pour vendre"
+            : disabledPv
+              ? p.blockReason || "Prix de vente manquant"
+              : stockBlocked
+                ? p.blockReason || p.hint || "Stock insuffisant"
+                : null;
+        const badgeLabel = grise
+          ? "Grisé"
+          : stockBlocked && p.blockReason?.toLowerCase().includes("pas encore reçu")
             ? "PAS REÇU"
             : stockBlocked &&
                 p.blockReason?.toLowerCase().includes("pas encore préparé")
@@ -392,10 +402,11 @@ export const MealComposer = memo(function MealComposer({
                 <option value="">— Choisir —</option>
                 {plats.map((p) => {
                   const platEpuise =
-                    !ignoreStock &&
-                    p.stockLeft !== null &&
-                    p.stockLeft !== undefined &&
-                    p.stockLeft <= 0;
+                    p.griseAdmin === true ||
+                    (!ignoreStock &&
+                      p.stockLeft !== null &&
+                      p.stockLeft !== undefined &&
+                      p.stockLeft <= 0);
                   const suffix = platEpuise
                     ? ` · ${p.blockReason || "épuisé"}`
                     : !ignoreStock
@@ -536,11 +547,13 @@ export const MealComposer = memo(function MealComposer({
 type CartLinesProps = {
   cart: CartLine[];
   onChangeQty: (key: string, delta: number) => void;
+  renderExtra?: (line: CartLine) => React.ReactNode;
 };
 
 export const CartLines = memo(function CartLines({
   cart,
   onChangeQty,
+  renderExtra,
 }: CartLinesProps) {
   return (
     <ul className="pos-cart-list">
@@ -571,6 +584,7 @@ export const CartLines = memo(function CartLines({
               +
             </button>
           </div>
+          {renderExtra?.(l)}
         </li>
       ))}
     </ul>
@@ -724,6 +738,9 @@ export function VentePage({
   const [openingCaisse, setOpeningCaisse] = useState(false);
   const [tickets, setTickets] = useState<PosTicket[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
+  const [fichesCaisse, setFichesCaisse] = useState<Map<string, FicheCaisse>>(
+    () => new Map(),
+  );
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
   const [venteOrigine, setVenteOrigine] = useState<VenteOrigine>("client");
   /** Site d'une vente direction : l'admin (deux sites) doit le préciser. */
@@ -997,6 +1014,53 @@ export function VentePage({
   // Tickets et chiffres à jour dès qu'un autre poste vend, annule ou valide.
   useLiveRefresh(() => void load());
 
+  // Compositions du site : sans réponse, la vente continue sans ce panneau.
+  useEffect(() => {
+    if (!magasinActif(site)) return;
+    let annule = false;
+    async function chargerFiches() {
+      try {
+        const res = await fetch(`/api/vente/fiches?site=${site}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const body = (await res.json()) as { fiches?: FicheCaisse[] };
+        if (annule) return;
+        setFichesCaisse(new Map((body.fiches ?? []).map((f) => [f.key, f])));
+      } catch {
+        /* hors ligne : pas de déclaration de manque */
+      }
+    }
+    void chargerFiches();
+    return () => {
+      annule = true;
+    };
+  }, [site]);
+
+  const setCartAjustements = useCallback(
+    (key: string, ajustements: VenteAjustements | undefined) => {
+      setCart((prev) =>
+        prev.map((l) => (l.key === key ? { ...l, ajustements } : l)),
+      );
+    },
+    [],
+  );
+
+  const renderCartExtra = useCallback(
+    (line: CartLine) => {
+      if (!magasinActif(site)) return null;
+      const fiche = fichesCaisse.get(`${line.kind}:${line.productId}`);
+      if (!fiche) return null;
+      return (
+        <VenteAjustementsPanel
+          fiche={fiche}
+          qty={line.qty}
+          value={line.ajustements}
+          onChange={(next) => setCartAjustements(line.key, next)}
+        />
+      );
+    },
+    [fichesCaisse, setCartAjustements, site],
+  );
+
   /** Encaissement possible : caisse du jour, ou correction gérant (backdate). */
   // Administrateur : articles jamais grisés (ni caisse fermée, ni stock épuisé).
   const canSell = Boolean(caisse) || backdateMode || isAdmin;
@@ -1116,9 +1180,10 @@ export function VentePage({
     // on propose tous ceux du jour. Seuls les plats du catalogue statique
     // restreignent à leur liste.
     const plat = platDefStatic;
-    if (!plat) return accompagnements;
+    const disponibles = accompagnements.filter((p) => !p.griseAdmin);
+    if (!plat) return disponibles;
     const allowed = new Set(plat.accompanimentIds);
-    return accompagnements.filter((p) => allowed.has(p.productId));
+    return disponibles.filter((p) => allowed.has(p.productId));
   }, [composerPlatId, platDefStatic, accompagnements]);
 
   /** Prix d'un accompagnement : grille « plat + accompagnement » si le plat
@@ -1326,6 +1391,7 @@ export function VentePage({
         name: l.name,
         qty: l.qty,
         unitPrice: l.unitPrice,
+        ajustements: l.ajustements,
       })),
     };
     try {
@@ -2043,6 +2109,14 @@ export function VentePage({
               ))}
             </div>
 
+            {isAdmin && !backdateMode && board ? (
+              <ProduitsGrisesPanel
+                products={board.products}
+                site={site}
+                onChanged={() => load(date, site)}
+              />
+            ) : null}
+
             {loading && !board ? (
               <BrandLoader variant="ligne" label="Chargement du catalogue…" />
             ) : cat === "plat" ? (
@@ -2108,7 +2182,11 @@ export function VentePage({
                   <span>Le panier apparaîtra ici.</span>
                 </div>
               ) : (
-                <CartLines cart={cart} onChangeQty={changeCartQty} />
+                <CartLines
+                  cart={cart}
+                  onChangeQty={changeCartQty}
+                  renderExtra={renderCartExtra}
+                />
               )}
 
               <div className="pos-meta">

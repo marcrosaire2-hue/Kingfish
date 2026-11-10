@@ -36,6 +36,8 @@ import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
+type VenteAjustements = import("@/lib/magasin-calc").VenteAjustements;
+
 async function tooMany(
   key: string,
   limit: number,
@@ -124,6 +126,7 @@ export const POST = withLiveBump(async function POST(request: Request) {
         qty: number;
         unitPrice?: number;
         qrId?: string | null;
+        ajustements?: VenteAjustements | null;
       }>;
       reason?: string;
       confirm?: boolean;

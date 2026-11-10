@@ -201,6 +201,8 @@ export async function listValidTicketsForDate(
   return docs.map(toTicket);
 }
 
+type VenteAjustements = import("@/lib/magasin-calc").VenteAjustements;
+
 export async function validatePosTicket(input: {
   date: string;
   site: VenteSite;
@@ -222,6 +224,7 @@ export async function validatePosTicket(input: {
     qty: number;
     unitPrice?: number;
     qrId?: string | null;
+    ajustements?: VenteAjustements | null;
   }>;
 }): Promise<{
   ticket: PosTicket;
@@ -401,6 +404,7 @@ export async function validatePosTicket(input: {
             bypassStock: manager || Boolean(qrId),
             qrId,
             directionPending,
+            ajustements: line.ajustements,
           });
           createdLogIds.push(result.entry.id);
           ticketLines.push({

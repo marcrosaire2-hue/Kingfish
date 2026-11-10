@@ -23,6 +23,10 @@ const vente = {
 };
 
 describe("traduction en événements de stock", () => {
+  it("un accompagnement vendu ne produit aucun mouvement de stock", () => {
+    expect(mapVenteToStockEvents({ ...vente, kind: "local" })).toEqual([]);
+  });
+
   it("une vente sort du stock", () => {
     const [event] = mapVenteToStockEvents(vente);
     expect(event!.type).toBe("vente");

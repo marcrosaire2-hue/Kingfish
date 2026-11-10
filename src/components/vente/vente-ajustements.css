@@ -1,0 +1,67 @@
+.pos-cart-list li:has(.vente-ajust) {
+  flex-wrap: wrap;
+}
+
+.vente-ajust {
+  flex-basis: 100%;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+.vente-ajust-toggle {
+  padding: 2px 0;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 0.8rem;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.vente-ajust-toggle.is-set {
+  color: #b42318;
+  font-weight: 700;
+}
+
+.vente-ajust-body {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 0.86rem;
+}
+
+.vente-ajust-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.vente-ajust-row label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  min-width: 0;
+}
+
+.vente-ajust-nb input {
+  width: 52px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.vente-ajust-title {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-weight: 700;
+}

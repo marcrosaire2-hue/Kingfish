@@ -1,9 +1,6 @@
 import { getParametres } from "@/lib/parametres-repo";
 import { computeGbegameyDay } from "@/lib/gbegamey-calc";
-import {
-  computeZogboAccompanimentLine,
-  computeZogboDay,
-} from "@/lib/zogbo-calc";
+import { computeZogboDay } from "@/lib/zogbo-calc";
 import {
   physicalBoissonsStockForSite,
   correctionBoissonCasiers,
@@ -35,9 +32,7 @@ export type {
 
 const ZONE_LABELS: Record<StockZone, string> = {
   "zogbo-plats": "Zogbo · plats",
-  "zogbo-accompagnements": "Zogbo · accompagnements",
   "gbegamey-plats": "Gbégamey · plats reçus",
-  "gbegamey-accompagnements": "Gbégamey · accompagnements",
   "zogbo-boissons": "Boissons · Zogbo",
   "gbegamey-boissons": "Boissons · Gbégamey",
   matieres: "Matières premières",
@@ -219,7 +214,7 @@ export async function getStockPayload(input: {
   /** false = tout le catalogue ; true = lignes avec stock ou mouvement */
   onlyActive?: boolean;
   /**
-   * Familles à inclure. Par défaut plats + accompagnements (comportement
+   * Familles à inclure. Par défaut les plats (comportement
    * historique, consommé par le tableau « épuisés » de la synthèse) ;
    * la page Stock demande explicitement tout.
    */
@@ -229,17 +224,13 @@ export async function getStockPayload(input: {
   if (!isValidDate(date)) throw new Error("Date invalide (attendu YYYY-MM-DD)");
 
   const wanted = new Set<StockFamily>(
-    input.families ?? ["plats", "accompagnements"],
+    input.families ?? ["plats"],
   );
 
   const [parametresZogbo, parametresGbegamey] = await Promise.all([
     getParametres("zogbo"),
     getParametres("gbegamey"),
   ]);
-  const priceLocal = new Map(
-    parametresZogbo.localDishes.map((d) => [d.id, d.unitPrice]),
-  );
-
   const rows: StockRow[] = [];
   let zogboStatus: string | null = null;
   let gbegameyStatus: string | null = null;
@@ -279,37 +270,6 @@ export async function getStockPayload(input: {
       }
     }
 
-    if (wanted.has("accompagnements")) {
-      const accLines = day.accompanimentLines ?? [];
-      for (const raw of accLines) {
-        const line = computeZogboAccompanimentLine(
-          raw,
-          priceLocal.get(raw.productId) ?? 0,
-        );
-        const theorique = line.theoreticalRemaining;
-        const row: StockRow = {
-          zone: "zogbo-accompagnements",
-          zoneLabel: ZONE_LABELS["zogbo-accompagnements"],
-          productId: line.productId,
-          name: line.name,
-          kind: "local",
-          opening: line.initialStock,
-          entrees: line.prepared,
-          envoye: 0,
-          vendu: line.sold,
-          pertes: line.pertes,
-          theorique,
-          stockFinal: line.theoreticalRemaining,
-          stockVendable: line.theoreticalRemaining,
-          compte: line.counted,
-          ecart: line.variance,
-          unit: "portions",
-          threshold: null,
-          belowThreshold: false,
-        };
-        pushRow(rows, row, onlyActive);
-      }
-    }
   }
 
   if (scopeSite !== "zogbo") {
@@ -348,32 +308,6 @@ export async function getStockPayload(input: {
       }
     }
 
-    if (wanted.has("accompagnements")) {
-      for (const line of computed.locals) {
-        const theorique = line.theoreticalRemaining;
-        const row: StockRow = {
-          zone: "gbegamey-accompagnements",
-          zoneLabel: ZONE_LABELS["gbegamey-accompagnements"],
-          productId: line.productId,
-          name: line.name,
-          kind: "local",
-          opening: line.initialStock,
-          entrees: line.prepared,
-          envoye: 0,
-          vendu: line.sold,
-          pertes: line.pertes,
-          theorique,
-          stockFinal: line.theoreticalRemaining,
-          stockVendable: line.theoreticalRemaining,
-          compte: line.counted,
-          ecart: line.variance,
-          unit: "portions",
-          threshold: null,
-          belowThreshold: false,
-        };
-        pushRow(rows, row, onlyActive);
-      }
-    }
   }
 
   if (wanted.has("boissons")) {

@@ -546,7 +546,7 @@ export function PertesPage() {
           role="tablist"
           aria-label="Famille"
         >
-          {FAMILLES.map((f) => (
+          {FAMILLES.filter((f) => f.key !== "local").map((f) => (
             <button
               key={f.key}
               type="button"

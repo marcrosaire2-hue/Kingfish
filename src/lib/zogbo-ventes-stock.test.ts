@@ -1,42 +1,17 @@
 import { describe, expect, it } from "vitest";
-import { accompanimentAvailability } from "@/lib/vente-repo";
+import { accompanimentBoardProduct } from "@/lib/vente-repo";
 import { syncZogboAccompanimentLines } from "@/lib/zogbo-repo";
 
 describe("Zogbo — ventes et stock des accompagnements", () => {
-  it("un accompagnement préparé mais non « suivi » compte son vrai stock (pas 0)", () => {
-    // Cas réel du 05/11 : Riz préparé 15, jamais marqué suivi.
-    const dispo = accompanimentAvailability(
-      {
-        productId: "local-riz",
-        name: "RIZ",
-        initialStock: 0,
-        prepared: 15,
-        sold: 0,
-        pertes: 0,
-        counted: null,
-        observations: "",
-      },
-      "zogbo",
-    );
-    expect(dispo.stockLeft).toBe(15);
-    expect(dispo.maxSold).toBe(15);
-  });
-
-  it("le stock restant suit les ventes et les pertes", () => {
-    const dispo = accompanimentAvailability(
-      {
-        productId: "local-riz",
-        name: "RIZ",
-        initialStock: 2,
-        prepared: 10,
-        sold: 5,
-        pertes: 1,
-        counted: null,
-        observations: "",
-      },
-      "zogbo",
-    );
-    expect(dispo.stockLeft).toBe(6);
+  it("un accompagnement à stock nul reste vendable (vente hors stock)", () => {
+    const produit = accompanimentBoardProduct({
+      dish: { id: "local-riz", name: "RIZ", unitPrice: 500 },
+      line: { sold: 15 },
+      qrRequired: false,
+    });
+    expect(produit.stockLeft).toBeNull();
+    expect(produit.blockReason).toBeNull();
+    expect(produit.soldToday).toBe(15);
   });
 
   it("un produit renommé dans le catalogue apparaît sous son nouveau nom", () => {

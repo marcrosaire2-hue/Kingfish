@@ -327,16 +327,6 @@ export async function saveZogboDay(
     }),
     "Journal stock · comptage Zogbo plats",
   );
-  await recordStockEvents(
-    comptageEventsFromLines({
-      site: "zogbo",
-      date: input.date,
-      family: "local",
-      unit: "portion",
-      lines: saved.day.accompanimentLines ?? [],
-    }),
-    "Journal stock · comptage Zogbo accompagnements",
-  );
   return saved;
 }
 

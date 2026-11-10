@@ -3,8 +3,8 @@ import { getParametres } from "@/lib/parametres-repo";
 import { collectionBoissons } from "@/lib/site-collections";
 import { lireStocksInitiauxBruts } from "@/lib/stock-si-repo";
 import { computeBoissonsLine, normalizeBoissonsLine } from "@/lib/boissons-calc";
-import { computeLocalLine, computeTransferLine } from "@/lib/gbegamey-calc";
-import { computeZogboAccompanimentLine, computeZogboLine } from "@/lib/zogbo-calc";
+import { computeTransferLine } from "@/lib/gbegamey-calc";
+import { computeZogboLine } from "@/lib/zogbo-calc";
 import type { VenteSite } from "@/lib/types";
 
 /**
@@ -13,7 +13,7 @@ import type { VenteSite } from "@/lib/types";
  * Disponible − Vendus − Pertes = Stock théorique ; Écart = Physique − Théorique.
  * Boissons en bouteilles. Seules les lignes non vides sont gardées.
  */
-export type JournalFamille = "plat" | "local" | "boisson";
+export type JournalFamille = "plat" | "boisson";
 
 export type JournalStockJour = {
   date: string;
@@ -56,7 +56,7 @@ export async function getJournalStockJours(input: {
   const range = { _id: { $gte: input.from, $lte: input.to } };
   const out: JournalStockJour[] = [];
 
-  if (input.site === "gbegamey" && (veut("plat") || veut("local"))) {
+  if (input.site === "gbegamey" && veut("plat")) {
     const jours = await db
       .collection<{ _id: string; transferLines?: never[]; localLines?: never[] }>("gbegamey_jours")
       .find(range)
@@ -81,29 +81,10 @@ export async function getJournalStockJours(input: {
           });
         }
       }
-      if (veut("local")) {
-        for (const line of j.localLines ?? []) {
-          const c = computeLocalLine(line, 0);
-          out.push({
-            date: j._id,
-            famille: "local",
-            productId: c.productId,
-            name: c.name,
-            ouverture: arrondi(c.initialStock),
-            entrees: arrondi(c.prepared),
-            disponible: arrondi(c.available),
-            vendus: c.sold,
-            pertes: c.pertes,
-            theorique: arrondi(c.theoreticalRemaining),
-            physique: c.counted,
-            ecart: c.variance,
-          });
-        }
-      }
     }
   }
 
-  if (input.site === "zogbo" && (veut("plat") || veut("local"))) {
+  if (input.site === "zogbo" && veut("plat")) {
     const jours = await db
       .collection<{ _id: string; lines?: never[]; accompanimentLines?: never[] }>("zogbo_jours")
       .find(range)
@@ -118,25 +99,6 @@ export async function getJournalStockJours(input: {
             productId: c.productId,
             name: c.name,
             ouverture: arrondi(Math.max(0, c.stock - c.prepared)),
-            entrees: arrondi(c.prepared),
-            disponible: arrondi(c.available),
-            vendus: c.sold,
-            pertes: c.pertes,
-            theorique: arrondi(c.theoreticalRemaining),
-            physique: c.counted,
-            ecart: c.variance,
-          });
-        }
-      }
-      if (veut("local")) {
-        for (const line of j.accompanimentLines ?? []) {
-          const c = computeZogboAccompanimentLine(line, 0);
-          out.push({
-            date: j._id,
-            famille: "local",
-            productId: c.productId,
-            name: c.name,
-            ouverture: arrondi(c.initialStock),
             entrees: arrondi(c.prepared),
             disponible: arrondi(c.available),
             vendus: c.sold,
