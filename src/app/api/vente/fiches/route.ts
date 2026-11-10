@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/api-auth";
 import { canUseSite, effectiveSite } from "@/lib/auth-types";
-import { fichesPourCaisse } from "@/lib/magasin-repo";
+import { fichesPourCaisse, supplementsPourCaisse } from "@/lib/magasin-repo";
 
 export const runtime = "nodejs";
 
@@ -16,7 +16,11 @@ export async function GET(request: Request) {
     if (!canUseSite(effectiveSite(user.role, user.site), site)) {
       return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
     }
-    return NextResponse.json({ fiches: await fichesPourCaisse(site) });
+    const [fiches, supplements] = await Promise.all([
+      fichesPourCaisse(site),
+      supplementsPourCaisse(site),
+    ]);
+    return NextResponse.json({ fiches, supplements });
   } catch (error) {
     return authErrorResponse(error);
   }

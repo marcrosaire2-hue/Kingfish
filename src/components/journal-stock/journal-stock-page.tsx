@@ -14,6 +14,7 @@ type FamilleFiltre = "toutes" | JournalFamille;
 
 const FAMILLE_LABELS: Record<JournalFamille, string> = {
   plat: "Plat",
+  local: "Accompagnement",
   boisson: "Boisson (bt)",
 };
 
@@ -152,6 +153,7 @@ export function JournalStockPage() {
                 >
                   <option value="toutes">Toutes</option>
                   <option value="plat">Plats</option>
+                  <option value="local">Accompagnements</option>
                   <option value="boisson">Boissons</option>
                 </select>
               </label>

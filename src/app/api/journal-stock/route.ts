@@ -8,7 +8,7 @@ import { shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 
 export const runtime = "nodejs";
 
-const FAMILLES = ["toutes", "plat", "boisson"] as const;
+const FAMILLES = ["toutes", "plat", "local", "boisson"] as const;
 
 export const GET = withReadCache(async function GET(request: Request) {
   try {

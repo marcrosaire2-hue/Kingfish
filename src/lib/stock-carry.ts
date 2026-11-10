@@ -8,7 +8,10 @@ import {
   leftoverFromBoissonsLines,
   type BoissonsLeftover,
 } from "@/lib/boissons-calc";
-import { leftoverFromTransferLines } from "@/lib/gbegamey-calc";
+import {
+  leftoverFromLocalLines,
+  leftoverFromTransferLines,
+} from "@/lib/gbegamey-calc";
 import {
   LEFTOVER_LOOKBACK_DAYS,
   leftoverFromZogboLines,
@@ -28,7 +31,7 @@ import type { VenteSite } from "@/lib/types";
 /**
  * Report des corrections de stock vers les journées suivantes.
  *
- * L'ouverture de chaque journée (plats, boissons) est figée
+ * L'ouverture de chaque journée (plats, accompagnements, boissons) est figée
  * à sa création, à partir du reste de la veille. Une vente, une perte, un
  * achat ou un comptage saisi après coup sur un jour passé change ce reste,
  * mais l'ouverture des jours suivants ne bougeait pas : le stock restait
@@ -49,7 +52,7 @@ const COLLECTION: Record<StockCarryScope, string> = {
   gbegamey: "gbegamey_jours",
 };
 
-/** Plats : un écart par tableau de lignes. */
+/** Plats / accompagnements : un écart par tableau de lignes. */
 type DishDelta = Record<string, Map<string, number>>;
 
 type Snapshot =
@@ -59,7 +62,7 @@ type Snapshot =
 /** Champ d'ouverture de chaque tableau de lignes. */
 const DISH_ARRAYS: Record<"zogbo" | "gbegamey", Record<string, string>> = {
   // Plat Zogbo : l'ouverture est fondue dans `stock` (ouverture + préparé − envoyé).
-  zogbo: { lines: "stock" },
+  zogbo: { lines: "stock", accompanimentLines: "initialStock" },
   gbegamey: { transferLines: "initialStock" },
 };
 
@@ -84,6 +87,9 @@ async function snapshot(
       scope,
       leftover: {
         lines: leftoverFromZogboLines(day.lines),
+        accompanimentLines: leftoverFromLocalLines(
+          day.accompanimentLines ?? [],
+        ),
       },
     };
   }

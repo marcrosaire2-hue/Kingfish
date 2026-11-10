@@ -15,7 +15,7 @@ import { VenteAjustementsPanel } from "@/components/vente/vente-ajustements";
 import { ProduitsGrisesPanel } from "@/components/vente/produits-grises-panel";
 import { formatFcfa } from "@/lib/format";
 import { magasinActif, type VenteAjustements } from "@/lib/magasin-calc";
-import type { FicheCaisse } from "@/lib/magasin-repo";
+import type { FicheCaisse, SupplementCaisse } from "@/lib/magasin-repo";
 import {
   ajouterEnAttente,
   installerSupportHorsLigne,
@@ -273,7 +273,9 @@ export const ProductGrid = memo(function ProductGrid({
                 ? "Épuisé"
                 : null;
         const stockLabel =
-          p.stockLeft === null || p.stockLeft === undefined
+          p.portionsRestantes !== undefined
+            ? `Préparés : ${p.portionsRestantes}`
+            : p.stockLeft === null || p.stockLeft === undefined
             ? "Libre"
             : `Reste ${p.stockLeft}${p.kind === "boisson" ? " bt" : ""}`;
         return (
@@ -409,10 +411,10 @@ export const MealComposer = memo(function MealComposer({
                       p.stockLeft <= 0);
                   const suffix = platEpuise
                     ? ` · ${p.blockReason || "épuisé"}`
-                    : !ignoreStock
-                      ? ""
-                      : p.stockLeft != null && p.stockLeft <= 0
-                        ? " · sans stock (correction)"
+                    : ignoreStock && p.stockLeft != null && p.stockLeft <= 0
+                      ? " · sans stock (correction)"
+                      : p.portionsRestantes !== undefined
+                        ? ` · préparés : ${p.portionsRestantes}`
                         : "";
                   return (
                     <option
@@ -741,6 +743,7 @@ export function VentePage({
   const [fichesCaisse, setFichesCaisse] = useState<Map<string, FicheCaisse>>(
     () => new Map(),
   );
+  const [supplementsCaisse, setSupplementsCaisse] = useState<SupplementCaisse[]>([]);
   const [saleType, setSaleType] = useState<SaleType>("Sur place");
   const [venteOrigine, setVenteOrigine] = useState<VenteOrigine>("client");
   /** Site d'une vente direction : l'admin (deux sites) doit le préciser. */
@@ -1022,9 +1025,13 @@ export function VentePage({
       try {
         const res = await fetch(`/api/vente/fiches?site=${site}`, { cache: "no-store" });
         if (!res.ok) return;
-        const body = (await res.json()) as { fiches?: FicheCaisse[] };
+        const body = (await res.json()) as {
+          fiches?: FicheCaisse[];
+          supplements?: SupplementCaisse[];
+        };
         if (annule) return;
         setFichesCaisse(new Map((body.fiches ?? []).map((f) => [f.key, f])));
+        setSupplementsCaisse(body.supplements ?? []);
       } catch {
         /* hors ligne : pas de déclaration de manque */
       }
@@ -1047,18 +1054,20 @@ export function VentePage({
   const renderCartExtra = useCallback(
     (line: CartLine) => {
       if (!magasinActif(site)) return null;
-      const fiche = fichesCaisse.get(`${line.kind}:${line.productId}`);
-      if (!fiche) return null;
+      if (line.kind !== "plat" && line.kind !== "local") return null;
+      const fiche = fichesCaisse.get(`${line.kind}:${line.productId}`) ?? null;
+      if (!fiche && supplementsCaisse.length === 0) return null;
       return (
         <VenteAjustementsPanel
           fiche={fiche}
+          supplements={supplementsCaisse}
           qty={line.qty}
           value={line.ajustements}
           onChange={(next) => setCartAjustements(line.key, next)}
         />
       );
     },
-    [fichesCaisse, setCartAjustements, site],
+    [fichesCaisse, supplementsCaisse, setCartAjustements, site],
   );
 
   /** Encaissement possible : caisse du jour, ou correction gérant (backdate). */

@@ -116,6 +116,8 @@ import {
   enregistrerEntree,
   etatMagasin,
   lireConsommationVente,
+  preparationPlat,
+  preparationsPlats,
   saveArticle,
   saveFiche,
   transfererConsommationVente,
@@ -312,6 +314,44 @@ describe("flux du magasin", () => {
     await enregistrerEntree({ site, articleId: piment, qty: 2, reference: "achat-1", unitPrice: 2500, actor });
     expect(await stock(piment)).toBe(3);
     expect((await etatMagasin(site)).articles.find((a) => a.id === piment)!.unitPrice).toBe(2500);
+  });
+
+  it("donne à la caisse les portions restantes des seuls plats préparés", async () => {
+    const fiche = (await etatMagasin(site)).fichesLot[0]!;
+    expect(await preparationPlat(site, "sauce")).toBe(0);
+    expect(await preparationPlat(site, "tilapia")).toBeNull();
+    expect(await preparationPlat(site, "inconnu")).toBeNull();
+
+    await declarerProduction({ site, ficheId: fiche.id, lots: 1, actor });
+    await enregistrerConsommationVente(vente("v1", "sauce", 3));
+
+    expect(await preparationPlat(site, "sauce")).toBe(17);
+    const preparations = await preparationsPlats(site);
+    expect(preparations.get("sauce")).toEqual({ stock: 17, production: 20 });
+    expect(preparations.has("tilapia")).toBe(false);
+  });
+
+  it("le piment coché sort du stock, même sur un plat sans fiche", async () => {
+    const pili = await saveArticle({ site, name: "Piment rouge", unit: "kg", supplement: true, dose: 0.005 });
+    await enregistrerEntree({ site, articleId: pili.id, qty: 1, actor });
+
+    await enregistrerConsommationVente(vente("v1", "sans-fiche", 2));
+    expect(await stock(pili.id)).toBe(1);
+
+    await enregistrerConsommationVente({
+      ...vente("v2", "sans-fiche", 2),
+      ajustements: { supplements: [{ articleId: pili.id, qty: 1 }] },
+    });
+    expect(await stock(pili.id)).toBe(0.995);
+
+    await annulerConsommationVente({ venteId: "v2", site, date: "2026-11-10" });
+    expect(await stock(pili.id)).toBe(1);
+  });
+
+  it("refuse un supplément sans quantité par plat", async () => {
+    await expect(
+      saveArticle({ site, name: "Mayonnaise", unit: "kg", supplement: true }),
+    ).rejects.toThrow(/quantité/);
   });
 
   it("ne touche à rien sans fiche, ni pour Zogbo", async () => {

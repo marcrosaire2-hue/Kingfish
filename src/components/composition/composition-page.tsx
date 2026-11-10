@@ -22,10 +22,11 @@ const API = `/api/composition?site=${SITE}`;
 
 type Produit = { kind: FicheProductKind; id: string; name: string };
 type Donnees = { articles: MagasinArticle[]; fiches: Fiche[]; produits: Produit[] };
-type LigneDraft = { articleId: string; qty: string; supplement: boolean };
+type LigneDraft = { articleId: string; qty: string };
 type Draft = { mode: FicheMode; portions: string; lines: LigneDraft[] };
 
-const VIDE: Draft = { mode: "commande", portions: "", lines: [] };
+// Par défaut, une portion par préparation : le plat apparaît dans Plats préparés.
+const VIDE: Draft = { mode: "lot", portions: "1", lines: [] };
 
 function brouillon(fiche: Fiche | undefined, articles: MagasinArticle[]): Draft {
   if (!fiche) return VIDE;
@@ -36,7 +37,6 @@ function brouillon(fiche: Fiche | undefined, articles: MagasinArticle[]): Draft 
     lines: fiche.lines.map((l) => ({
       articleId: l.articleId,
       qty: String(baseVersRecette(l.qty, unites.get(l.articleId) ?? "u")),
-      supplement: l.supplement,
     })),
   };
 }
@@ -134,7 +134,6 @@ export function CompositionPage() {
           lines: draft.lines.map((l) => ({
             articleId: l.articleId,
             qty: recetteVersBase(Number(l.qty) || 0, unites.get(l.articleId) ?? "u"),
-            supplement: l.supplement,
           })),
         }),
       },
@@ -158,7 +157,7 @@ export function CompositionPage() {
   return (
     <AppShell
       title="Composition plat"
-      subtitle="Les ingrédients de chaque plat et accompagnement de Gbégamey."
+      subtitle="Les condiments de chaque plat et accompagnement de Gbégamey."
     >
       <div className="mag-page">
         {error ? (
@@ -207,7 +206,7 @@ export function CompositionPage() {
                   <h3>{selected.name}</h3>
                   {articles.length === 0 ? (
                     <p className="mag-hint">
-                      Ajoutez d’abord vos ingrédients dans Stock Gbégamey, onglet Condiments.
+                      Ajoutez d’abord vos condiments dans Stock Gbégamey, onglet Condiments.
                     </p>
                   ) : null}
                   <div className="mag-form">
@@ -221,13 +220,13 @@ export function CompositionPage() {
                           setDraft((d) => ({ ...d, mode: e.target.value as FicheMode }))
                         }
                       >
+                        <option value="lot">Plat préparé à l’avance</option>
                         <option value="commande">À la commande</option>
-                        <option value="lot">En lot (marmite)</option>
                       </select>
                     </label>
                     {draft.mode === "lot" ? (
                       <label className="mag-field">
-                        Portions par lot
+                        Portions par préparation (1 si la fiche est par plat)
                         <input
                           className="mag-input"
                           type="number"
@@ -243,15 +242,15 @@ export function CompositionPage() {
                   </div>
                   <p className="mag-hint" style={{ marginTop: 12 }}>
                     {draft.mode === "lot"
-                      ? "Quantités pour un lot complet. Les ingrédients sortent quand la cuisine déclare la production."
-                      : "Quantités pour une portion. Les ingrédients sortent à chaque vente."}
+                      ? "Quantités pour une préparation. Les condiments sortent quand la cuisine enregistre les plats préparés."
+                      : "Quantités pour une portion. Les condiments sortent à chaque vente du plat."}
                   </p>
 
                   {draft.lines.map((line, index) => (
                     <div className="mag-line" key={index}>
                       <select
                         className="select-input"
-                        aria-label="Ingrédient"
+                        aria-label="Condiment"
                         value={line.articleId}
                         disabled={readOnly}
                         onChange={(e) => majLigne(index, { articleId: e.target.value })}
@@ -273,15 +272,6 @@ export function CompositionPage() {
                           disabled={readOnly}
                           onChange={(e) => majLigne(index, { qty: e.target.value })}
                         />
-                      </label>
-                      <label className="mag-check">
-                        <input
-                          type="checkbox"
-                          checked={line.supplement}
-                          disabled={readOnly}
-                          onChange={(e) => majLigne(index, { supplement: e.target.checked })}
-                        />
-                        Supplément
                       </label>
                       {readOnly ? null : (
                         <button
@@ -311,12 +301,12 @@ export function CompositionPage() {
                             ...d,
                             lines: [
                               ...d.lines,
-                              { articleId: articles[0]!.id, qty: "", supplement: false },
+                              { articleId: articles[0]!.id, qty: "" },
                             ],
                           }))
                         }
                       >
-                        Ajouter un ingrédient
+                        Ajouter un condiment
                       </button>
                       <button
                         type="button"

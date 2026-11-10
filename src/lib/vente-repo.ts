@@ -15,7 +15,6 @@ import {
   saveBoissonsDay,
 } from "@/lib/boissons-repo";
 import { newId } from "@/lib/format";
-import { computeTransferLine } from "@/lib/gbegamey-calc";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
 import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import { computeZogboLine, shiftIsoDate } from "@/lib/zogbo-calc";
@@ -26,14 +25,21 @@ import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
 import { boissonsScope, withStockCarry } from "@/lib/stock-carry";
 import { COLLECTION_BOISSONS } from "@/lib/site-collections";
+import { correctionComptage } from "@/lib/stock-comptage";
 import { mapVenteToStockEvents } from "@/lib/stock-ledger-map";
 import { recordStockEvents } from "@/lib/stock-ledger-write";
-import { normalizeAjustements, type VenteAjustements } from "@/lib/magasin-calc";
+import {
+  normalizeAjustements,
+  statutPlatCaisse,
+  type VenteAjustements,
+} from "@/lib/magasin-calc";
 import {
   ajusterConsommationVente,
   annulerConsommationVente,
   enregistrerConsommationVente,
   lireConsommationVente,
+  preparationPlat,
+  preparationsPlats,
   transfererConsommationVente,
 } from "@/lib/magasin-repo";
 import { marquerProduitsGrises } from "@/lib/produits-grises-calc";
@@ -43,6 +49,7 @@ import {
 } from "@/lib/produits-grises-repo";
 import { parseFiniteAmount } from "@/lib/security-policy";
 import type {
+  GbegameyLocalLine,
   ProductCategory,
   VenteKind,
   VenteLogEntry,
@@ -216,55 +223,6 @@ function zogboPlatStatus(input: {
   };
 }
 
-/** Libellés clairs pour un plat reçu à Gbégamey. */
-function gbegameyPlatStatus(input: {
-  stockLeft: number;
-  received: number;
-  initialStock: number;
-  sold: number;
-  counted: number | null;
-}): {
-  hint: string;
-  blockReason: string | null;
-  badge: "epuise" | "pas-recu";
-} {
-  const { stockLeft, received, initialStock, sold, counted } = input;
-  if (stockLeft > 0) {
-    return {
-      hint: `Entrée ${received} · reste ${stockLeft}`,
-      blockReason: null,
-      badge: "epuise",
-    };
-  }
-  if (counted === 0) {
-    return {
-      hint: "Inventaire saisi à 0 — corrigez le comptage sur Gbégamey",
-      blockReason: "Inventaire à 0",
-      badge: "epuise",
-    };
-  }
-  // Jamais de stock ce jour (ni report, ni entrée) : ce n'est pas une « rupture ».
-  if (received <= 0 && initialStock <= 0 && sold <= 0) {
-    return {
-      hint: "Aucun stock saisi — saisissez le stock d’ouverture sur Gbégamey",
-      blockReason: "Pas encore de stock",
-      badge: "pas-recu",
-    };
-  }
-  if (sold > 0) {
-    return {
-      hint: `Épuisé · ${sold} vendu(s) · entrée ${received}`,
-      blockReason: "Stock épuisé",
-      badge: "epuise",
-    };
-  }
-  return {
-    hint: `Entrée ${received} · reste 0 — saisissez une nouvelle entrée`,
-    blockReason: "Stock à zéro",
-    badge: "epuise",
-  };
-}
-
 /**
  * Stock restant vendable d’un plat de base (Zogbo ou reçu Gbégamey).
  * `left` sert d’avertissement au client ; `maxSold` borne la vente de façon
@@ -294,27 +252,61 @@ async function getBaseDishStockLeft(
       maxSold: computed.prevalentMaxSold,
     };
   }
+  // Gbégamey : le plafond vient des plats préparés. Un plat sans préparation
+  // reste libre, son ancien stock n'étant plus saisissable.
+  const libre = { left: Number.MAX_SAFE_INTEGER, maxSold: null };
+  if (dayFreeSale) return libre;
+  const portions = await preparationPlat(site, productId);
+  if (portions === null) return libre;
   const { day } = await getGbegameyDayPayload(date);
   const line = day.transferLines.find((l) => l.productId === productId);
-  if (
-    !shouldEnforceProductStock({
-      dayFreeSale,
-      productTracked: isLineStockTracked(line),
-    })
-  ) {
-    return { left: Number.MAX_SAFE_INTEGER, maxSold: null };
+  const left = Math.max(0, Math.floor(portions));
+  // `maxSold` borne le compteur des vendus : déjà vendus + portions restantes.
+  return { left, maxSold: (line?.sold ?? 0) + left };
+}
+
+/** Un accompagnement est suivi seulement après saisie stock explicite. */
+export function accompanimentTracked(line: GbegameyLocalLine): boolean {
+  return isLineStockTracked(line);
+}
+
+/**
+ * Disponibilité d'un accompagnement : si suivi, les ventes dépendent du stock
+ * (blocage à zéro). Sinon vente libre.
+ */
+export function accompanimentAvailability(
+  line: GbegameyLocalLine | null | undefined,
+  site: VenteSite = "gbegamey",
+): { tracked: boolean; stockLeft: number | null; maxSold: number | null } {
+  if (!line) {
+    return { tracked: false, stockLeft: null, maxSold: null };
   }
-  if (!line) return { left: 0, maxSold: 0 };
-  const computed = computeTransferLine(line, 0);
+  // Le stock se calcule toujours depuis la ligne, suivie ou non : quand la
+  // journée est en vente selon le stock, un accompagnement préparé mais non
+  // marqué « suivi » ne doit pas être compté à 0 (il bloquait tout le ticket).
+  const tracked = accompanimentTracked(line);
+  // Les deux sites : la vente part du dernier comptage, puis suit
+  // ouverture + entrées − vendus − pertes (règle de stock commune).
+  void site;
+  const pertes = Math.max(0, Number(line.pertes) || 0);
+  const available = line.initialStock + line.prepared;
+  const stock = Math.max(
+    0,
+    available -
+      pertes +
+      correctionComptage(line.counted, line.comptage, available - line.sold - pertes),
+  );
+  const stockLeft = Math.max(0, stock - line.sold);
   return {
-    left: computed.prevalentRemaining,
-    maxSold: computed.prevalentMaxSold,
+    tracked,
+    stockLeft,
+    maxSold: stock,
   };
 }
 
 /**
- * Ligne de vente d'un accompagnement : toujours vendu hors stock, sur les deux
- * sites et quel que soit le réglage « vente selon le stock » de la journée.
+ * Ligne de vente d'un accompagnement à Gbégamey : toujours vendu hors stock,
+ * quel que soit le réglage « vente selon le stock » de la journée.
  */
 export function accompanimentBoardProduct(input: {
   dish: { id: string; name: string; unitPrice: number };
@@ -423,46 +415,55 @@ export async function getVenteBoard(
       (zogbo!.day.accompanimentLines ?? []).map((l) => [l.productId, l]),
     );
     for (const dish of parametres.localDishes) {
-      products.push(
-        accompanimentBoardProduct({
-          dish,
-          line: accById.get(dish.id),
-          qrRequired: qrProductIds.has(dish.id),
-        }),
-      );
+      const line = accById.get(dish.id);
+      const { tracked, stockLeft } = accompanimentAvailability(line, "zogbo");
+      const enforce = shouldEnforceProductStock({
+        dayFreeSale: ventesSansStock,
+        productTracked: tracked,
+      });
+      products.push({
+        kind: "local",
+        productId: dish.id,
+        name: dish.name,
+        unitPrice: dish.unitPrice,
+        soldToday: line?.sold ?? 0,
+        stockLeft: enforce ? stockLeft : null,
+        blockReason:
+          enforce && stockLeft !== null && stockLeft <= 0
+            ? "Stock épuisé"
+            : null,
+        hint: enforce
+          ? stockLeft !== null && stockLeft <= 0
+            ? "Stock épuisé"
+            : `Reste ${stockLeft}`
+          : "Vente libre — stock non saisi",
+        qrRequired: qrProductIds.has(dish.id),
+      });
     }
   } else {
+    const preparations = await preparationsPlats(site);
     for (const dish of parametres.baseDishes) {
       const line = gbegamey!.day.transferLines.find(
         (l) => l.productId === dish.id,
       );
-      const computed = line ? computeTransferLine(line, dish.unitPrice) : null;
-      const enforce = shouldEnforceProductStock({
-        dayFreeSale: ventesSansStock,
-        productTracked: isLineStockTracked(line),
+      const statut = statutPlatCaisse({
+        preparation: preparations.get(dish.id),
+        venteLibre: ventesSansStock,
       });
-      const stockLeft = enforce ? (computed?.prevalentRemaining ?? 0) : null;
-      const status = !enforce
-        ? { hint: "Vente libre — stock non saisi", blockReason: null }
-        : gbegameyPlatStatus({
-            stockLeft: computed?.prevalentRemaining ?? 0,
-            received: line?.received ?? 0,
-            initialStock: line?.initialStock ?? 0,
-            sold: line?.sold ?? 0,
-            counted: line?.counted ?? null,
-          });
       products.push({
         kind: "plat",
         productId: dish.id,
         name: dish.name,
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
-        stockLeft,
-        lowStock: enforce
-          ? isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold)
-          : false,
-        hint: status.hint,
-        blockReason: status.blockReason,
+        stockLeft: statut.stockLeft,
+        portionsRestantes: statut.portionsRestantes,
+        lowStock:
+          statut.stockLeft !== null
+            ? isLowStock(statut.stockLeft, dish.alertThreshold)
+            : false,
+        hint: statut.hint,
+        blockReason: statut.blockReason,
         qrRequired: qrProductIds.has(dish.id),
       });
     }
@@ -1165,12 +1166,12 @@ async function applySoldDelta(
   input: Parameters<typeof applySoldDeltaRaw>[0],
 ): ReturnType<typeof applySoldDeltaRaw> {
   // Vente / annulation sur un jour passé : le reste reporté sur les
-  // journées suivantes suit (boissons, plats).
+  // journées suivantes suit (boissons, plats, accompagnements Zogbo).
   return input.kind === "boisson"
     ? withStockCarry(boissonsScope(input.site), input.date, () =>
         applySoldDeltaRaw(input),
       )
-    : input.kind === "plat"
+    : input.kind === "plat" || (input.kind === "local" && input.site === "zogbo")
       ? withStockCarry(input.site, input.date, () => applySoldDeltaRaw(input))
       : applySoldDeltaRaw(input);
 }
@@ -1359,6 +1360,24 @@ export async function recordVente(input: {
       maxSold = max;
       if (max !== null && left < qty) {
         throw new Error(`Stock insuffisant (reste ${left})`);
+      }
+    } else if (input.kind === "local" && input.site === "zogbo") {
+      const { day } = await getZogboDayPayload(input.date);
+      const line = (day.accompanimentLines ?? []).find(
+        (l) => l.productId === input.productId,
+      );
+      const avail = accompanimentAvailability(line ?? null, input.site);
+      const enforce = shouldEnforceProductStock({
+        dayFreeSale,
+        productTracked: avail.tracked,
+      });
+      if (enforce) {
+        maxSold = avail.maxSold;
+        if ((avail.stockLeft ?? 0) < qty) {
+          throw new Error(`Stock insuffisant (reste ${avail.stockLeft ?? 0})`);
+        }
+      } else {
+        maxSold = null;
       }
     } else if (input.kind === "boisson") {
       const { day, drinks } = await getBoissonsDayPayload(input.date, input.site);

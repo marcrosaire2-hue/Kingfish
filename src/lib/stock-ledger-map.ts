@@ -27,8 +27,11 @@ export type VenteSourceLike = {
 
 export function ledgerFamilyOfVente(
   kind: VenteKind,
+  site: VenteSite,
 ): StockLedgerFamily | null {
   if (kind === "plat") return "plat";
+  // Gbégamey vend ses accompagnements hors stock.
+  if (kind === "local") return site === "zogbo" ? "local" : null;
   if (kind === "boisson") return "boisson";
   return null;
 }
@@ -72,7 +75,7 @@ function baseEvent(input: {
 }
 
 export function mapVenteToStockEvents(vente: VenteSourceLike): StockEvent[] {
-  const family = ledgerFamilyOfVente(vente.kind);
+  const family = ledgerFamilyOfVente(vente.kind, vente.site);
   if (!family || !Number.isFinite(vente.qty) || vente.qty === 0) return [];
 
   const unit = unitOfFamily(family);
@@ -133,8 +136,11 @@ export type PerteSourceLike = {
 
 export function ledgerFamilyOfPerte(
   kind: string,
+  site: VenteSite,
 ): StockLedgerFamily | null {
   if (kind === "plat") return "plat";
+  // Gbégamey vend ses accompagnements hors stock.
+  if (kind === "local") return site === "zogbo" ? "local" : null;
   if (kind === "boisson") return "boisson";
   if (kind === "matiere") return "matiere";
   // Immobilisations et achats libres n'ont pas de ligne de stock suivie ici.
@@ -142,7 +148,7 @@ export function ledgerFamilyOfPerte(
 }
 
 export function mapPerteToStockEvents(perte: PerteSourceLike): StockEvent[] {
-  const family = ledgerFamilyOfPerte(perte.kind);
+  const family = ledgerFamilyOfPerte(perte.kind, perte.site);
   if (!family || !Number.isFinite(perte.qty) || perte.qty <= 0) return [];
 
   const events: StockEvent[] = [

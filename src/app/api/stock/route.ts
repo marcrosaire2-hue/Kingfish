@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     const payload = await getStockPayload({
       date,
       scopeSite,
-      families: ["plats", "boissons", "matieres"],
+      families: ["plats", "accompagnements", "boissons", "matieres"],
     });
     return NextResponse.json(payload);
   } catch (error) {

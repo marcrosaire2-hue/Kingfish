@@ -50,6 +50,10 @@ export type MagasinArticle = {
   /** Seuil d'alerte, dans l'unité de l'article. */
   threshold: number;
   active: boolean;
+  /** Proposé en caisse sur tous les plats, hors composition (ex. piment). */
+  supplement?: boolean;
+  /** Quantité retirée par plat servi avec ce supplément, unité de l'article. */
+  dose?: number;
 };
 
 export type FicheMode = "lot" | "commande";
@@ -188,9 +192,11 @@ export type ConsommationVente = {
  * nombre de plats vendus : un envoi incohérent ne peut pas fausser le stock.
  */
 export function computeConsommationVente(input: {
-  fiche: Fiche;
+  fiche: Fiche | null;
   qty: number;
   ajustements?: VenteAjustements | null;
+  /** Condiments proposés en supplément sur tous les plats. */
+  supplementsCatalogue?: ReadonlyArray<{ id: string; dose: number }>;
 }): ConsommationVente {
   const { fiche } = input;
   const vendus = Math.abs(Math.round(Number(input.qty) || 0));
@@ -200,6 +206,24 @@ export function computeConsommationVente(input: {
 
   const absents = indexer(input.ajustements?.manquants);
   const choisis = indexer(input.ajustements?.supplements);
+
+  const retirerSupplements = () => {
+    for (const s of input.supplementsCatalogue ?? []) {
+      // Déjà traité si la fiche le déclare elle-même en supplément.
+      if (fiche?.lines.some((l) => l.supplement && l.articleId === s.id)) continue;
+      const nombre = quantiteBornee(choisis.get(s.id), vendus);
+      if (nombre <= 0) continue;
+      const qty = round4(s.dose * nombre);
+      const existante = lignes.find((l) => l.family === "magasin" && l.itemId === s.id);
+      if (existante) existante.qty = round4(existante.qty + qty);
+      else lignes.push({ family: "magasin", itemId: s.id, qty });
+    }
+  };
+
+  if (!fiche) {
+    retirerSupplements();
+    return { lignes, manquants };
+  }
 
   if (fiche.mode === "lot") {
     const absentes = quantiteBornee(input.ajustements?.portionsManquantes, vendus);
@@ -237,7 +261,44 @@ export function computeConsommationVente(input: {
       manquants.push({ family: "magasin", itemId: line.articleId, qty: absent });
     }
   }
+  retirerSupplements();
   return { lignes, manquants };
+}
+
+/**
+ * État d'un plat à la caisse. Sans préparation enregistrable, il reste libre :
+ * son ancien stock n'est plus saisissable et ne doit jamais le bloquer.
+ */
+export function statutPlatCaisse(input: {
+  preparation: { stock: number; production: number } | undefined;
+  venteLibre: boolean;
+}): {
+  stockLeft: number | null;
+  portionsRestantes?: number;
+  hint: string;
+  blockReason: string | null;
+} {
+  const { preparation, venteLibre } = input;
+  if (!preparation) {
+    return { stockLeft: null, hint: "Vente libre", blockReason: null };
+  }
+  const restant = preparation.stock;
+  const hint = `Préparés : reste ${restant}`;
+  if (venteLibre) {
+    return { stockLeft: null, portionsRestantes: restant, hint, blockReason: null };
+  }
+  const stockLeft = Math.max(0, Math.floor(restant));
+  return {
+    stockLeft,
+    portionsRestantes: restant,
+    hint,
+    blockReason:
+      stockLeft > 0
+        ? null
+        : preparation.production > 0
+          ? "Stock épuisé"
+          : "Pas encore préparé",
+  };
 }
 
 /** Retire de l'envoi navigateur tout ce qui n'est pas une exception utile. */

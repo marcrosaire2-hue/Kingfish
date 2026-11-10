@@ -3,13 +3,18 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BrandLoader } from "@/components/brand-loader";
 import "./condiments.css";
-import type { MagasinUnit, ProductionSaisie } from "@/lib/magasin-calc";
+import {
+  recetteVersBase,
+  uniteRecette,
+  type MagasinUnit,
+  type ProductionSaisie,
+} from "@/lib/magasin-calc";
 import type { EtatMagasin, LigneStockMagasin } from "@/lib/magasin-repo";
 import { useLiveRefresh } from "@/lib/use-live-refresh";
 
 const API = "/api/magasin?site=gbegamey";
 
-type Vue = "stock" | "production" | "manquants";
+type Vue = "stock" | "manquants";
 type Action = Record<string, unknown> & { action: string };
 
 const nombre = (n: number) =>
@@ -65,7 +70,10 @@ function LigneStock({
 
   return (
     <tr>
-      <td>{ligne.name}</td>
+      <td>
+        {ligne.name}
+        {ligne.supplement ? <span className="muted"> · supplément</span> : null}
+      </td>
       <td className={`mono${ligne.alerte ? " mag-alert" : ""}`}>
         {nombre(ligne.stock)} {ligne.unit}
       </td>
@@ -87,7 +95,7 @@ function LigneStock({
                   type="number"
                   min="0"
                   step="any"
-                  aria-label={`Entrée ${ligne.name}`}
+                  aria-label={`Quantité achetée de ${ligne.name}`}
                   placeholder="Qté"
                   value={entree}
                   onChange={(e) => setEntree(e.target.value)}
@@ -108,7 +116,7 @@ function LigneStock({
                   disabled={busy || !(Number(entree) > 0) || !(prixRetenu > 0)}
                   onClick={() => void ajouter()}
                 >
-                  Ajouter
+                  Acheter
                 </button>
               </div>
             ) : null}
@@ -156,13 +164,13 @@ function TableStock({
       <table className="data-table">
         <thead>
           <tr>
-            <th>Article</th>
+            <th>{lignes[0]?.family === "portion" ? "Plat" : "Condiment"}</th>
             <th>Stock théorique</th>
             <th>Dernier comptage</th>
             <th>Écart</th>
             {readOnly ? null : (
               <>
-                <th>Entrée</th>
+                <th>{lignes[0]?.family === "portion" ? "" : "Achat"}</th>
                 <th>Comptage</th>
               </>
             )}
@@ -178,7 +186,7 @@ function TableStock({
   );
 }
 
-function VueProduction({
+export function VueProduction({
   etat,
   readOnly,
   busy,
@@ -233,18 +241,18 @@ function VueProduction({
     <div className="mag-page">
       {readOnly ? null : (
         <form className="panel mag-card" onSubmit={(e) => void declarer(e)}>
-          <h3>Déclarer une production</h3>
+          <h3>Enregistrer les plats préparés</h3>
           <p className="mag-hint">
-            Une déclaration par marmite. Décochez un ingrédient absent ou corrigez la quantité réelle.
+            Les condiments utilisés sortent du stock et les plats préparés y entrent. Décochez un condiment absent ou corrigez la quantité réelle.
           </p>
           {etat.fichesLot.length === 0 ? (
             <p className="mag-hint">
-              Aucune fiche « en lot » pour l’instant. Créez-la dans Composition plat.
+              Aucun plat à préparer pour l’instant. Créez sa fiche dans Composition plat.
             </p>
           ) : (
             <div className="mag-form">
               <label className="mag-field">
-                Préparation
+                Plat
                 <select
                   className="select-input"
                   value={ficheId}
@@ -262,7 +270,7 @@ function VueProduction({
                 </select>
               </label>
               <label className="mag-field">
-                Lots
+                {fiche && fiche.portions > 1 ? "Nombre de marmites" : "Nombre de plats préparés"}
                 <input
                   className="mag-input"
                   type="number"
@@ -272,18 +280,20 @@ function VueProduction({
                   onChange={(e) => setLots(e.target.value)}
                 />
               </label>
-              <label className="mag-field">
-                Portions obtenues
-                <input
-                  className="mag-input"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder={fiche ? String(fiche.portions * nbLots) : ""}
-                  value={portions}
-                  onChange={(e) => setPortions(e.target.value)}
-                />
-              </label>
+              {fiche && fiche.portions > 1 ? (
+                <label className="mag-field">
+                  Portions obtenues
+                  <input
+                    className="mag-input"
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder={String(fiche.portions * nbLots)}
+                    value={portions}
+                    onChange={(e) => setPortions(e.target.value)}
+                  />
+                </label>
+              ) : null}
             </div>
           )}
 
@@ -330,7 +340,7 @@ function VueProduction({
                   className="btn btn-primary"
                   disabled={busy || nbLots <= 0}
                 >
-                  {busy ? "…" : "Déclarer"}
+                  {busy ? "…" : "Enregistrer"}
                 </button>
               </div>
             </div>
@@ -339,24 +349,24 @@ function VueProduction({
       )}
 
       <section className="panel mag-card">
-        <h3>Portions préparées</h3>
+        <h3>Portions de plats disponibles</h3>
         {etat.portions.length ? (
           <TableStock lignes={etat.portions} readOnly={readOnly} busy={busy} onAction={onAction} />
         ) : (
-          <p className="mag-hint">Aucune préparation en lot.</p>
+          <p className="mag-hint">Aucun plat produit en lot.</p>
         )}
       </section>
 
       <section className="panel mag-card">
-        <h3>Dernières productions</h3>
+        <h3>Dernières préparations</h3>
         {etat.productions.length ? (
           <div className="mag-table-wrap">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Date</th>
-                  <th>Préparation</th>
-                  <th>Lots</th>
+                  <th>Plat</th>
+                  <th>Plats ou marmites</th>
                   <th>Portions</th>
                   <th>Rendement</th>
                   <th>Par</th>
@@ -384,7 +394,7 @@ function VueProduction({
                           className="btn btn-ghost"
                           disabled={busy}
                           onClick={() => {
-                            if (window.confirm(`Annuler cette production de ${p.productName} ?`)) {
+                            if (window.confirm(`Annuler cette préparation de ${p.productName} ?`)) {
                               void onAction({ action: "annuler-production", id: p.id });
                             }
                           }}
@@ -399,22 +409,18 @@ function VueProduction({
             </table>
           </div>
         ) : (
-          <p className="mag-hint">Aucune production déclarée.</p>
+          <p className="mag-hint">Aucun plat préparé enregistré.</p>
         )}
       </section>
     </div>
   );
 }
 
-export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
+/** État du magasin et écriture, partagés par Condiments et Plats préparés. */
+export function useMagasin() {
   const [etat, setEtat] = useState<EtatMagasin | null>(null);
-  const [vue, setVue] = useState<Vue>("stock");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [nom, setNom] = useState("");
-  const [unite, setUnite] = useState<MagasinUnit>("kg");
-  const [prix, setPrix] = useState("");
-  const [seuil, setSeuil] = useState("");
 
   const charger = useCallback(async () => {
     try {
@@ -463,6 +469,19 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
     }
   }, []);
 
+  return { etat, busy, error, action };
+}
+
+export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
+  const { etat, busy, error, action } = useMagasin();
+  const [vue, setVue] = useState<Vue>("stock");
+  const [nom, setNom] = useState("");
+  const [unite, setUnite] = useState<MagasinUnit>("kg");
+  const [prix, setPrix] = useState("");
+  const [seuil, setSeuil] = useState("");
+  const [supplement, setSupplement] = useState(false);
+  const [dose, setDose] = useState("");
+
   async function ajouterArticle(e: FormEvent) {
     e.preventDefault();
     const ok = await action({
@@ -471,11 +490,15 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
       unit: unite,
       unitPrice: Number(prix) || 0,
       threshold: Number(seuil) || 0,
+      supplement,
+      dose: supplement ? recetteVersBase(Number(dose) || 0, unite) : 0,
     });
     if (ok) {
       setNom("");
       setPrix("");
       setSeuil("");
+      setSupplement(false);
+      setDose("");
     }
   }
 
@@ -493,8 +516,7 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
       <div className="section-tabs" role="tablist" aria-label="Condiments">
         {(
           [
-            ["stock", "Stock"],
-            ["production", "Production"],
+            ["stock", "Stock et achats"],
             ["manquants", alertes ? `Manquants (${alertes})` : "Manquants"],
           ] as const
         ).map(([key, label]) => (
@@ -534,7 +556,7 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
 
           {readOnly ? null : (
             <form className="panel mag-card" onSubmit={(e) => void ajouterArticle(e)}>
-              <h3>Nouvel article</h3>
+              <h3>Nouveau condiment</h3>
               <div className="mag-form">
                 <label className="mag-field">
                   Nom
@@ -574,7 +596,32 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
                     onChange={(e) => setSeuil(e.target.value)}
                   />
                 </label>
-                <button type="submit" className="btn btn-primary" disabled={busy || !nom.trim()}>
+                <label className="mag-check">
+                  <input
+                    type="checkbox"
+                    checked={supplement}
+                    onChange={(e) => setSupplement(e.target.checked)}
+                  />
+                  Supplément à la caisse
+                </label>
+                {supplement ? (
+                  <label className="mag-field">
+                    Quantité par plat ({uniteRecette(unite)})
+                    <input
+                      className="mag-input"
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={dose}
+                      onChange={(e) => setDose(e.target.value)}
+                    />
+                  </label>
+                ) : null}
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={busy || !nom.trim() || (supplement && !(Number(dose) > 0))}
+                >
                   {busy ? "…" : "Ajouter"}
                 </button>
               </div>
@@ -586,14 +633,10 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
             {etat.stock.length ? (
               <TableStock lignes={etat.stock} readOnly={readOnly} busy={busy} onAction={action} />
             ) : (
-              <p className="mag-hint">Aucun article pour l’instant.</p>
+              <p className="mag-hint">Aucun condiment pour l’instant.</p>
             )}
           </section>
         </>
-      ) : null}
-
-      {etat && vue === "production" ? (
-        <VueProduction etat={etat} readOnly={readOnly} busy={busy} onAction={action} />
       ) : null}
 
       {etat && vue === "manquants" ? (
@@ -607,7 +650,7 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
               <table className="data-table">
                 <thead>
                   <tr>
-                    <th>Article</th>
+                    <th>Condiment ou plat</th>
                     <th>Déclarations</th>
                     <th>Quantité</th>
                     <th>Avec stock disponible</th>

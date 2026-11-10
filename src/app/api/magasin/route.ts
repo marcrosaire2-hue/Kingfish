@@ -65,6 +65,8 @@ export const POST = withLiveBump(async function POST(request: Request) {
           unitPrice: body.unitPrice,
           threshold: body.threshold,
           active: body.active,
+          supplement: body.supplement,
+          dose: body.dose,
         });
         await logActivity({ user, kind: "gbegamey", title: `Magasin · article ${saved.name}`, detail: `unité ${saved.unit}`, site });
         break;

@@ -102,12 +102,19 @@ export async function saveArticle(input: {
   unitPrice?: unknown;
   threshold?: unknown;
   active?: unknown;
+  supplement?: unknown;
+  dose?: unknown;
 }): Promise<MagasinArticle> {
   const name = String(input.name ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
   if (!name) throw new Error("Indiquez le nom de l'article.");
   if (!isMagasinUnit(input.unit)) throw new Error("Unité invalide.");
   const unitPrice = Math.max(0, Number(input.unitPrice) || 0);
   const threshold = Math.max(0, Number(input.threshold) || 0);
+  const supplement = input.supplement === true;
+  const dose = supplement ? Math.max(0, Number(input.dose) || 0) : 0;
+  if (supplement && dose <= 0) {
+    throw new Error("Indiquez la quantité retirée par plat pour ce supplément.");
+  }
 
   const db = await getDb();
   const col = db.collection<ArticleDoc>(ARTICLES);
@@ -131,6 +138,8 @@ export async function saveArticle(input: {
     unitPrice,
     threshold,
     active: input.active !== false,
+    supplement,
+    dose,
   };
   await col.updateOne({ _id: id }, { $set: doc }, { upsert: true });
   return { id, ...doc };
@@ -166,8 +175,23 @@ export type FicheCaisse = {
   key: string;
   mode: Fiche["mode"];
   ingredients: Array<{ articleId: string; name: string }>;
-  supplements: Array<{ articleId: string; name: string }>;
 };
+
+export type SupplementCaisse = { articleId: string; name: string };
+
+const estSupplement = (a: MagasinArticle) =>
+  a.active && a.supplement === true && (a.dose ?? 0) > 0;
+
+/** Condiments proposés en supplément sur tous les plats. */
+export async function supplementsPourCaisse(
+  site: VenteSite,
+): Promise<SupplementCaisse[]> {
+  if (!magasinActif(site)) return [];
+  const articles = await listArticles(site);
+  return articles
+    .filter(estSupplement)
+    .map((a) => ({ articleId: a.id, name: a.name }));
+}
 
 /** Ce dont la caisse a besoin pour déclarer un manque ou un supplément. */
 export async function fichesPourCaisse(site: VenteSite): Promise<FicheCaisse[]> {
@@ -186,7 +210,6 @@ export async function fichesPourCaisse(site: VenteSite): Promise<FicheCaisse[]> 
       f.mode === "commande"
         ? f.lines.filter((l) => !l.supplement).map((l) => ligne(l.articleId))
         : [],
-    supplements: f.lines.filter((l) => l.supplement).map((l) => ligne(l.articleId)),
   }));
 }
 
@@ -536,18 +559,24 @@ export async function enregistrerConsommationVente(input: {
     const doc = await db
       .collection<FicheDoc>(FICHES)
       .findOne({ _id: ficheId(input.site, input.kind, input.productId) });
-    if (!doc) return;
-    const fiche = fromFiche(doc);
+    // Un plat sans fiche peut quand même recevoir un supplément.
+    if (!doc && !input.ajustements?.supplements?.length) return;
+    const fiche = doc ? fromFiche(doc) : null;
+    const liste = await listArticles(input.site);
     const { lignes, manquants } = computeConsommationVente({
       fiche,
       qty: input.qty,
       ajustements: input.ajustements,
+      supplementsCatalogue: liste
+        .filter(estSupplement)
+        .map((a) => ({ id: a.id, dose: a.dose ?? 0 })),
     });
     if (!lignes.length && !manquants.length) return;
 
-    const articles = new Map((await listArticles(input.site)).map((a) => [a.id, a]));
+    const articles = new Map(liste.map((a) => [a.id, a]));
+    const nomPlat = fiche?.productName ?? "Plat";
     const nom = (family: string, itemId: string) =>
-      family === "portion" ? fiche.productName : (articles.get(itemId)?.name ?? "Ingrédient");
+      family === "portion" ? nomPlat : (articles.get(itemId)?.name ?? "Ingrédient");
     const prefix = venteKey(input.venteId);
     // Une correction négative rend au stock ce qu'une vente aurait retiré.
     const sortie = input.qty > 0;
@@ -581,7 +610,7 @@ export async function enregistrerConsommationVente(input: {
           at: input.at,
           source: "vente" as const,
           refId: input.venteId,
-          productName: fiche.productName,
+          productName: nomPlat,
           family: m.family,
           itemId: m.itemId,
           name: nom(m.family, m.itemId),
@@ -698,6 +727,40 @@ export async function ajusterConsommationVente(input: {
   }
 }
 
+/** Plats préparés à l'avance et leurs portions, par identifiant de plat. */
+export async function preparationsPlats(
+  site: VenteSite,
+): Promise<Map<string, { stock: number; production: number }>> {
+  const out = new Map<string, { stock: number; production: number }>();
+  if (!magasinActif(site)) return out;
+  const [fiches, events] = await Promise.all([
+    listFiches(site),
+    readStockEvents({ site, family: "portion" }),
+  ]);
+  const soldes = applyStockEvents(events);
+  for (const fiche of fiches) {
+    if (fiche.mode !== "lot" || fiche.productKind !== "plat") continue;
+    const solde = soldes.get(`${site}:portion:${fiche.id}`);
+    out.set(fiche.productId, {
+      stock: solde?.stock ?? 0,
+      production: solde?.production ?? 0,
+    });
+  }
+  return out;
+}
+
+/** Portions restantes d'un plat ; `null` s'il n'est pas préparé à l'avance. */
+export async function preparationPlat(
+  site: VenteSite,
+  productId: string,
+): Promise<number | null> {
+  const db = await getDb();
+  const id = ficheId(site, "plat", productId);
+  const fiche = await db.collection<FicheDoc>(FICHES).findOne({ _id: id });
+  if (!fiche || fiche.mode !== "lot") return null;
+  return (await getStockBalance({ site, family: "portion", productId: id }))?.stock ?? 0;
+}
+
 export type ConsommationEnregistree = Array<{
   family: "magasin" | "portion";
   productId: string;
@@ -797,6 +860,7 @@ export type LigneStockMagasin = {
   unit: string;
   unitPrice: number;
   threshold: number;
+  supplement?: boolean;
   stock: number;
   alerte: boolean;
   lastCounted: number | null;
@@ -852,7 +916,7 @@ export async function etatMagasin(site: VenteSite): Promise<EtatMagasin> {
 
   const ligne = (
     balance: StockBalance | undefined,
-    base: Pick<LigneStockMagasin, "id" | "family" | "name" | "unit" | "unitPrice" | "threshold">,
+    base: Pick<LigneStockMagasin, "id" | "family" | "name" | "unit" | "unitPrice" | "threshold" | "supplement">,
   ): LigneStockMagasin => {
     const stock = balance?.stock ?? 0;
     return {
@@ -878,6 +942,7 @@ export async function etatMagasin(site: VenteSite): Promise<EtatMagasin> {
           unit: a.unit,
           unitPrice: a.unitPrice,
           threshold: a.threshold,
+          supplement: a.supplement === true,
         }),
       ),
     portions: fichesLot.map((f) =>

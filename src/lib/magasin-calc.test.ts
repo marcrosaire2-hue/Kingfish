@@ -10,6 +10,7 @@ import {
   normalizeAjustements,
   normalizeFiche,
   recetteVersBase,
+  statutPlatCaisse,
   syntheseManquants,
   type Fiche,
   type MagasinArticle,
@@ -168,6 +169,48 @@ describe("vente à la commande", () => {
   });
 });
 
+describe("supplément du catalogue (piment)", () => {
+  const supplementsCatalogue = [{ id: "pili", dose: 0.005 }];
+
+  it("ne retire rien s'il n'est pas coché", () => {
+    const { lignes } = computeConsommationVente({ fiche: null, qty: 2, supplementsCatalogue });
+    expect(lignes).toEqual([]);
+  });
+
+  it("se retire même sur un plat sans fiche, selon le nombre de plats", () => {
+    const { lignes } = computeConsommationVente({
+      fiche: null,
+      qty: 3,
+      supplementsCatalogue,
+      ajustements: { supplements: [{ articleId: "pili", qty: 2 }] },
+    });
+    expect(lignes).toEqual([{ family: "magasin", itemId: "pili", qty: 0.01 }]);
+  });
+
+  it("s'ajoute aux ingrédients d'une fiche et reste borné aux plats vendus", () => {
+    const { lignes } = computeConsommationVente({
+      fiche: commande,
+      qty: 2,
+      supplementsCatalogue,
+      ajustements: { supplements: [{ articleId: "pili", qty: 99 }] },
+    });
+    expect(lignes).toContainEqual({ family: "magasin", itemId: "pili", qty: 0.01 });
+    expect(lignes).toContainEqual({ family: "magasin", itemId: "poisson", qty: 2 });
+  });
+
+  it("additionne s'il est aussi ingrédient, sans perdre de ligne", () => {
+    const { lignes } = computeConsommationVente({
+      fiche: commande,
+      qty: 1,
+      supplementsCatalogue: [{ id: "huile", dose: 0.01 }],
+      ajustements: { supplements: [{ articleId: "huile", qty: 1 }] },
+    });
+    expect(lignes.filter((l) => l.itemId === "huile")).toEqual([
+      { family: "magasin", itemId: "huile", qty: 0.03 },
+    ]);
+  });
+});
+
 describe("vente d'une fiche en lot", () => {
   it("retire des portions, jamais les ingrédients", () => {
     const { lignes } = computeConsommationVente({ fiche: lot, qty: 4 });
@@ -191,6 +234,35 @@ describe("vente d'une fiche en lot", () => {
       ajustements: { supplements: [{ articleId: "piment", qty: 1 }] },
     });
     expect(lignes).toContainEqual({ family: "magasin", itemId: "piment", qty: 0.01 });
+  });
+});
+
+describe("plat à la caisse", () => {
+  it("laisse libre un plat sans préparation, même en vente selon le stock", () => {
+    expect(statutPlatCaisse({ preparation: undefined, venteLibre: false })).toEqual({
+      stockLeft: null,
+      hint: "Vente libre",
+      blockReason: null,
+    });
+  });
+
+  it("affiche le reste sans bloquer en vente libre", () => {
+    const s = statutPlatCaisse({ preparation: { stock: -2, production: 5 }, venteLibre: true });
+    expect(s).toMatchObject({ stockLeft: null, portionsRestantes: -2, blockReason: null });
+  });
+
+  it("plafonne au reste en vente selon le stock", () => {
+    const s = statutPlatCaisse({ preparation: { stock: 7, production: 10 }, venteLibre: false });
+    expect(s).toMatchObject({ stockLeft: 7, portionsRestantes: 7, blockReason: null });
+  });
+
+  it("explique le blocage selon qu'il y a eu une préparation ou non", () => {
+    expect(
+      statutPlatCaisse({ preparation: { stock: 0, production: 0 }, venteLibre: false }).blockReason,
+    ).toBe("Pas encore préparé");
+    expect(
+      statutPlatCaisse({ preparation: { stock: 0, production: 4 }, venteLibre: false }).blockReason,
+    ).toBe("Stock épuisé");
   });
 });
 

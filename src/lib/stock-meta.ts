@@ -7,11 +7,13 @@
 
 export type StockFamily =
   | "plats"
+  | "accompagnements"
   | "boissons"
   | "matieres";
 
 export type StockZone =
   | "zogbo-plats"
+  | "zogbo-accompagnements"
   | "gbegamey-plats"
   | "zogbo-boissons"
   | "gbegamey-boissons"
@@ -33,6 +35,11 @@ export const STOCK_FAMILY_META: {
     family: "plats",
     label: "Plats",
     zones: ["zogbo-plats", "gbegamey-plats"],
+  },
+  {
+    family: "accompagnements",
+    label: "Accompagnements",
+    zones: ["zogbo-accompagnements"],
   },
   {
     family: "boissons",
@@ -57,6 +64,7 @@ export function zoneFamily(zone: StockZone): StockFamily {
 export function zoneRoute(zone: StockZone, date: string): string {
   switch (zone) {
     case "zogbo-plats":
+    case "zogbo-accompagnements":
       return `/stock-zogbo?date=${date}`;
     case "gbegamey-plats":
       return `/stock-gbegamey?date=${date}`;

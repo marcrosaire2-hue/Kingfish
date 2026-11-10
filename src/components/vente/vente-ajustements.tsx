@@ -3,7 +3,7 @@
 import { useState } from "react";
 import "./vente-ajustements.css";
 import type { VenteAjustements } from "@/lib/magasin-calc";
-import type { FicheCaisse } from "@/lib/magasin-repo";
+import type { FicheCaisse, SupplementCaisse } from "@/lib/magasin-repo";
 
 type Ligne = { articleId: string; qty: number };
 
@@ -53,14 +53,16 @@ function Nombre({
   );
 }
 
-/** Exceptions d'une ligne de panier : rien à faire si tout est normal. */
+/** Manques et suppléments d'une ligne de panier : rien à faire si tout est normal. */
 export function VenteAjustementsPanel({
   fiche,
+  supplements,
   qty,
   value,
   onChange,
 }: {
-  fiche: FicheCaisse;
+  fiche: FicheCaisse | null;
+  supplements: SupplementCaisse[];
   qty: number;
   value?: VenteAjustements;
   onChange: (next: VenteAjustements | undefined) => void;
@@ -79,11 +81,17 @@ export function VenteAjustementsPanel({
         aria-expanded={ouvert}
         onClick={() => setOuvert((o) => !o)}
       >
-        {actif ? "Manque ou supplément indiqué" : "Ingrédient manquant ou supplément"}
+        {actif
+          ? "Manque ou supplément indiqué"
+          : fiche && supplements.length
+            ? "Ingrédient manquant ou supplément"
+            : fiche
+              ? "Ingrédient manquant"
+              : "Supplément"}
       </button>
       {ouvert ? (
         <div className="vente-ajust-body">
-          {fiche.mode === "lot" ? (
+          {fiche?.mode === "lot" ? (
             <div className="vente-ajust-row">
               <label>
                 <input
@@ -106,7 +114,7 @@ export function VenteAjustementsPanel({
             </div>
           ) : null}
 
-          {fiche.ingredients.map((i) => {
+          {(fiche?.ingredients ?? []).map((i) => {
             const absent = lire(courant.manquants, i.articleId);
             return (
               <div className="vente-ajust-row" key={i.articleId}>
@@ -140,10 +148,10 @@ export function VenteAjustementsPanel({
             );
           })}
 
-          {fiche.supplements.length ? (
+          {supplements.length ? (
             <p className="vente-ajust-title">Suppléments</p>
           ) : null}
-          {fiche.supplements.map((s) => {
+          {supplements.map((s) => {
             const choisi = lire(courant.supplements, s.articleId);
             return (
               <div className="vente-ajust-row" key={s.articleId}>
