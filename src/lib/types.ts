@@ -1,3 +1,4 @@
+import type { ComptageRef } from "@/lib/stock-comptage";
 import type { UserShift } from "@/lib/auth-types";
 
 export type ProductId = string;
@@ -120,6 +121,20 @@ export type CategoryProduct = {
   costPrice?: number;
 };
 
+/** Listes de vente propres à un site. */
+export type SiteCatalogue = Pick<
+  Parametres,
+  | "baseDishes"
+  | "drinks"
+  | "localDishes"
+  | "combos"
+  | "categories"
+  | "categoryProducts"
+  | "rawMaterials"
+  | "recipes"
+  | "updatedAt"
+>;
+
 export type Parametres = {
   baseDishes: BaseDish[];
   drinks: Drink[];
@@ -132,6 +147,8 @@ export type Parametres = {
   combos?: ComboDish[];
   rawMaterials?: RawMaterial[];
   recipes?: Recipe[];
+  /** Vue consolidée seulement : fiches boissons de Gbégamey. */
+  drinksGbegamey?: Drink[];
   updatedAt: string | null;
 };
 
@@ -232,6 +249,8 @@ export type ZogboLine = {
   /** Sorties déclarées hors vente (gâté, casse, test…) */
   pertes: number;
   counted: number | null;
+  /** État du stock au moment du comptage. */
+  comptage?: ComptageRef;
   observations: string;
   /**
    * Stock saisi pour ce produit sur ce site : la caisse décrémente /
@@ -303,6 +322,8 @@ export type GbegameyTransferLine = {
   /** Sorties déclarées hors vente */
   pertes: number;
   counted: number | null;
+  /** État du stock au moment du comptage. */
+  comptage?: ComptageRef;
   observations: string;
   /** Stock saisi pour ce plat à Gbégamey — indépendant de Zogbo. */
   stockTracked?: boolean;
@@ -319,6 +340,8 @@ export type GbegameyLocalLine = {
   /** Sorties déclarées hors vente */
   pertes: number;
   counted: number | null;
+  /** État du stock au moment du comptage. */
+  comptage?: ComptageRef;
   observations: string;
   /** Stock saisi pour cet accompagnement sur ce site uniquement. */
   stockTracked?: boolean;
@@ -336,11 +359,11 @@ export type GbegameyDay = {
 };
 
 export type GbegameyTransferComputed = GbegameyTransferLine & {
-  /** Ce que Zogbo a déclaré envoyer */
+  /** Ancien circuit Zogbo → Gbégamey : toujours 0, les sites sont indépendants. */
   sentFromZogbo: number;
-  /** Ce qui entre en stock : toujours l'envoi déclaré (le constaté ne sert qu'à l'écart) */
+  /** Ce qui entre en stock : la quantité saisie sur Gbégamey. */
   receivedFromZogbo: number;
-  /** Envoyé − constaté : la perte sur le trajet (null si non vérifié) */
+  /** Ancien écart de transport : toujours null (plus de transfert). */
   transportVariance: number | null;
   unitPrice: number;
   /** Stock de référence du jour : compté saisi sinon init.+reçu (auto) */
@@ -505,6 +528,8 @@ export type BoissonsLine = {
   pertesZogbo: number;
   /** Comptage physique à Zogbo, en bouteilles */
   countedZogbo: number | null;
+  /** État du stock Zogbo (casiers) au moment du comptage. */
+  comptageZogbo?: ComptageRef;
   /** Stock reporté en casiers, côté Gbégamey */
   initialStockGbegamey: number;
   /** Achats du jour en casiers, côté Gbégamey */
@@ -515,6 +540,8 @@ export type BoissonsLine = {
   pertesGbegamey: number;
   /** Comptage physique à Gbégamey, en bouteilles */
   countedGbegamey: number | null;
+  /** État du stock Gbégamey (casiers) au moment du comptage. */
+  comptageGbegamey?: ComptageRef;
   observations: string;
   /** Stock suivi à Zogbo (indépendant de Gbégamey). */
   stockTrackedZogbo?: boolean;

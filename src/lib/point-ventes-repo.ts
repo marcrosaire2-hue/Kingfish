@@ -27,7 +27,7 @@ export async function getPointVentes(input: {
   const limite = Math.min(50, Math.max(3, Math.round(input.limite ?? 10)));
   const [ventes, parametres] = await Promise.all([
     getQuantitesVendues({ from: input.from, to: input.to, site: input.site, kind: "all", avecCorrections: true }),
-    getParametres(),
+    getParametres(input.site === "all" ? null : input.site),
   ]);
 
   const deFamille = (kind: VenteKind) =>

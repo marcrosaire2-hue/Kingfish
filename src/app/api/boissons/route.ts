@@ -12,6 +12,7 @@ import { authErrorResponse, requireStockWrite, requireUser } from "@/lib/api-aut
 import { canUseSite, effectiveSite } from "@/lib/auth-types";
 import { logActivity } from "@/lib/log-activity";
 import { unitsPerCasierOf } from "@/lib/boissons-calc";
+import { collectionBoissons } from "@/lib/site-collections";
 import {
   applyBoissonsPurchase,
   cancelBoissonsMovement,
@@ -43,7 +44,10 @@ export async function GET(request: Request) {
     ) {
       return NextResponse.json({ error: "Site non autorisé." }, { status: 403 });
     }
-    const payload = await getBoissonsDayPayload(date);
+    const payload =
+      site === "all"
+        ? await getBoissonsDayPayload(date)
+        : await getBoissonsDayPayload(date, site);
     const exits = await listVentesByKind({
       date,
       kind: "boisson",
@@ -84,7 +88,9 @@ export async function GET(request: Request) {
         const debut = sis.map(([, v]) => v.date).sort()[0]!;
         const db = await getDb();
         const jours = await db
-          .collection<{ _id: string; lines?: Array<Record<string, unknown>> }>("boissons_jours")
+          .collection<{ _id: string; lines?: Array<Record<string, unknown>> }>(
+            await collectionBoissons(site),
+          )
           .find({ _id: { $gte: debut, $lte: date } })
           .project({ lines: 1 })
           .toArray();
@@ -96,11 +102,16 @@ export async function GET(request: Request) {
             const lignes = (j.lines ?? []) as Array<Record<string, unknown>>;
             const l = lignes.find((x) => x.productId === id);
             const compte = l?.[champCompte];
+            const repere = l?.[site === "zogbo" ? "comptageZogbo" : "comptageGbegamey"] as
+              | { vendu?: number; pertes?: number }
+              | undefined;
             return {
               date: j._id,
               vendus: Math.max(0, Number(l?.[champVendu]) || 0),
               pertes: Math.max(0, Number(l?.[champPertes]) || 0),
               compte: compte === null || compte === undefined ? null : Math.max(0, Number(compte) || 0),
+              vendusAuComptage: repere?.vendu,
+              pertesAuComptage: repere?.pertes,
             };
           });
           const c = stockInitialDepuisComptages({ si: v.si, siDate: v.date, date, jours: parJour });

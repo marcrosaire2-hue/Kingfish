@@ -683,14 +683,14 @@
 /* Barre de date */
 .vente-context-wrap .context-bar {
   border: 1px solid #dce8f3;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
 }
 
 .vente-context-wrap .btn-ghost {
   border: 1px solid #dce8f3;
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   color: #075ea8;
   font-weight: 700;
 }

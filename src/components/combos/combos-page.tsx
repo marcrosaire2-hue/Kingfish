@@ -5,7 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { BrandLoader } from "@/components/brand-loader";
 import { formatFcfa } from "@/lib/format";
 import { newComboId } from "@/lib/combos-model";
-import type { ComboComponent, ComboDish } from "@/lib/types";
+import type { ComboComponent, ComboDish, VenteSite } from "@/lib/types";
 
 type CatalogItem = { id: string; name: string; unitPrice: number };
 type ComboView = ComboDish & {
@@ -24,6 +24,8 @@ type Board = {
     boissons: CatalogItem[];
   };
   canEdit: boolean;
+  site: VenteSite;
+  canChooseSite: boolean;
 };
 
 const EMPTY_DRAFT = (): ComboDish => ({
@@ -46,11 +48,13 @@ export function CombosPage() {
   const [pickId, setPickId] = useState("");
   const [pickQty, setPickQty] = useState("1");
 
-  async function load() {
+  async function load(demande: VenteSite | null = board?.site ?? null) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch("/api/combos", { cache: "no-store" });
+      const res = await fetch(`/api/combos${demande ? `?site=${demande}` : ""}`, {
+        cache: "no-store",
+      });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || "Erreur");
       setBoard(body as Board);
@@ -151,7 +155,7 @@ export function CombosPage() {
         name: editing.name.trim(),
         unitPrice: Math.max(0, Math.round(Number(editing.unitPrice) || 0)),
       });
-      const res = await fetch("/api/combos", {
+      const res = await fetch(`/api/combos?site=${board?.site ?? ""}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ combos: nextList }),
@@ -197,7 +201,7 @@ export function CombosPage() {
               alertThreshold: x.alertThreshold,
             },
       );
-      const res = await fetch("/api/combos", {
+      const res = await fetch(`/api/combos?site=${board?.site ?? ""}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ combos: nextList }),
@@ -230,7 +234,7 @@ export function CombosPage() {
           costPrice: x.costPrice,
           alertThreshold: x.alertThreshold,
         }));
-      const res = await fetch("/api/combos", {
+      const res = await fetch(`/api/combos?site=${board?.site ?? ""}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ combos: nextList }),
@@ -266,9 +270,25 @@ export function CombosPage() {
       subtitle="Formules multi-produits · stock des composants décrémenté à la vente"
       actions={
         board?.canEdit ? (
+          <>
+          {board.canChooseSite ? (
+            <select
+              aria-label="Catalogue du site"
+              value={board.site}
+              disabled={loading || busy}
+              onChange={(e) => {
+                setEditing(null);
+                void load(e.target.value as VenteSite);
+              }}
+            >
+              <option value="zogbo">Zogbo</option>
+              <option value="gbegamey">Gbégamey</option>
+            </select>
+          ) : null}
           <button type="button" className="btn btn-primary" onClick={startCreate}>
             Nouveau combo
           </button>
+          </>
         ) : undefined
       }
     >

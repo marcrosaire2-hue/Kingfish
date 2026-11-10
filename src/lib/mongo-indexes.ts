@@ -14,6 +14,22 @@ export type MongoIndexDef = {
 
 export const MONGO_INDEXES: MongoIndexDef[] = [
   {
+    collection: "stock_events",
+    index: { site: 1, idempotencyKey: 1 },
+    name: "site_idempotence",
+    unique: true,
+  },
+  {
+    collection: "stock_events",
+    index: { site: 1, family: 1, productId: 1, at: 1 },
+    name: "site_produit_at",
+  },
+  {
+    collection: "stock_events",
+    index: { site: 1, date: 1 },
+    name: "site_jour",
+  },
+  {
     collection: "ventes_log",
     index: { date: 1, site: 1, cancelledAt: 1, at: -1 },
     name: "jour_site_actives",

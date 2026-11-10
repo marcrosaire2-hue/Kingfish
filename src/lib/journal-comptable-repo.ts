@@ -13,6 +13,7 @@ import {
 import { COMPTE_CHARGE_MANUELLE, COMPTES, compteDepense } from "@/lib/plan-comptable";
 import { listAcquisitionsSansCaisse, sumAmortissementsByDate } from "@/lib/immobilisations-repo";
 import { getParametres } from "@/lib/parametres-repo";
+import { lireJoursMatieresConsolides } from "@/lib/matieres-repo";
 import { sumPertesCost } from "@/lib/pertes-repo";
 import { listChargesManuellesByDateRange } from "@/lib/synthese-repo";
 import { getDb } from "@/lib/mongodb";
@@ -378,15 +379,9 @@ async function loadMatieresJournal(
   const priceById = new Map(
     (parametres.rawMaterials ?? []).map((m) => [m.id, m.purchasePrice]),
   );
-  const db = await getDb();
-  const docs = await db
-    .collection<{
-      _id: string;
-      lines?: MatieresLine[];
-      movements?: MatieresMovement[];
-    }>("matieres_jours")
-    .find({ _id: { $gte: from, $lte: to } })
-    .toArray();
+  const docs = await lireJoursMatieresConsolides({
+    _id: { $gte: from, $lte: to },
+  });
 
   for (const doc of docs) {
     const consumed = valueMatieresConsumed(

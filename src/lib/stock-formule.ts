@@ -1,3 +1,4 @@
+import { correctionComptage, type ComptageRef } from "@/lib/stock-comptage";
 /**
  * Règle de stock commune (plats, accompagnements, boissons — deux sites).
  *
@@ -7,16 +8,19 @@
  *   s'il a été saisi, sinon théorique de la veille.
  * - Stock disponible = Ouverture + Entrées du jour.
  * - Stock théorique  = Disponible − Vendus − Pertes.
- * - Stock physique   = comptage saisi ; il ne remplace jamais le stock.
- * - Écart            = Physique − Théorique.
+ * - Stock physique   = comptage saisi : il remplace le stock à l'instant de la
+ *   saisie ; les ventes, pertes et entrées suivantes partent de lui.
+ * - Écart            = Physique − stock calculé au moment du comptage.
  */
 export type StockCalcul = {
   disponible: number;
   theorique: number;
   /** null tant qu'aucun comptage n'est saisi. */
   ecart: number | null;
-  /** Stock d'ouverture du lendemain : comptage s'il existe, sinon théorique. */
+  /** Stock d'ouverture du lendemain : le stock restant. */
   report: number;
+  /** Ajustement apporté par le comptage (0 sans comptage). */
+  correction: number;
 };
 
 export function calculStock(input: {
@@ -25,16 +29,29 @@ export function calculStock(input: {
   vendus: number;
   pertes?: number;
   compte: number | null | undefined;
+  comptage?: ComptageRef | null;
 }): StockCalcul {
-  const n = (v: unknown) => Math.max(0, Number(v) || 0);
-  const disponible = n(input.ouverture) + n(input.entrees);
-  const theorique = Math.max(0, disponible - n(input.vendus) - n(input.pertes));
+  // Seules les quantités de mouvement sont positives par nature. L'ouverture
+  // peut être négative (survente reportée) : on ne la borne pas, sinon le
+  // négatif disparaît et ressort plus tard en faux écart.
+  const num = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const qty = (v: unknown) => Math.max(0, num(v));
+  const disponible = num(input.ouverture) + qty(input.entrees);
+  const brut = disponible - qty(input.vendus) - qty(input.pertes);
   const compte =
-    input.compte === null || input.compte === undefined ? null : n(input.compte);
+    input.compte === null || input.compte === undefined ? null : qty(input.compte);
+  const correction = correctionComptage(compte, input.comptage, brut);
+  // Pas de plancher à 0 : un théorique négatif est une alerte, pas un zéro.
+  const theorique = brut + correction;
+  const reference = input.comptage?.theorique ?? brut;
   return {
     disponible,
     theorique,
-    ecart: compte === null ? null : Math.round((compte - theorique) * 100) / 100,
-    report: compte ?? theorique,
+    ecart: compte === null ? null : Math.round((compte - reference) * 100) / 100,
+    report: theorique,
+    correction,
   };
 }

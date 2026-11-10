@@ -8,7 +8,6 @@ import {
   lookupStockUnit,
   markUnitLost,
   scanStockUnit,
-  sendPlatQrUnits,
 } from "@/lib/stock-unit-repo";
 
 export const runtime = "nodejs";

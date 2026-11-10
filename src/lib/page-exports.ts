@@ -208,7 +208,6 @@ export async function exportGbegameyExcel(date: string): Promise<void> {
       day: GbegameyDay;
       baseDishes: BaseDish[];
       localDishes: LocalDish[];
-      sentByProductId: Record<string, number>;
     }>(`/api/gbegamey?date=${encodeURIComponent(date)}`),
     fetchJson<{ day: BoissonsDay; drinks: Drink[] }>(
       `/api/boissons?date=${encodeURIComponent(date)}&site=gbegamey`,
@@ -218,11 +217,7 @@ export async function exportGbegameyExcel(date: string): Promise<void> {
   const priceById = new Map(gbe.baseDishes.map((d) => [d.id, d.unitPrice]));
   const localPrice = new Map(gbe.localDishes.map((d) => [d.id, d.unitPrice]));
   const transfer = gbe.day.transferLines.map((l) =>
-    computeTransferLine(
-      l,
-      gbe.sentByProductId[l.productId] ?? 0,
-      priceById.get(l.productId) ?? 0,
-    ),
+    computeTransferLine(l, priceById.get(l.productId) ?? 0),
   );
   const local = gbe.day.localLines.map((l) =>
     computeLocalLine(l, localPrice.get(l.productId) ?? 0),
@@ -235,8 +230,7 @@ export async function exportGbegameyExcel(date: string): Promise<void> {
       rows: transfer.map((l) => ({
         Plat: l.name,
         "Stock init.": l.initialStock,
-        "Envoyé Zogbo": l.sentFromZogbo,
-        Reçu: l.receivedFromZogbo,
+        Entrées: l.receivedFromZogbo,
         Vendu: l.sold,
         Dispo: l.available,
         "Reste théorique": l.theoreticalRemaining,

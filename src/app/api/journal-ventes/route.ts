@@ -60,7 +60,7 @@ export const GET = withReadCache(async function GET(request: Request) {
         q,
       }),
       getSiteRolesConfig(),
-      user.role === "admin" ? getParametres() : Promise.resolve(null),
+      user.role === "admin" ? getParametres(siteDecision.site !== "all" ? (siteDecision.site as VenteSite) : null) : Promise.resolve(null),
     ]);
 
     const rolePerms = permissionsForRole(siteRoles, user.role);

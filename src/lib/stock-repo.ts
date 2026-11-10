@@ -6,6 +6,7 @@ import {
 } from "@/lib/zogbo-calc";
 import {
   physicalBoissonsStockForSite,
+  correctionBoissonCasiers,
   DEFAULT_UNITS_PER_CASIER,
 } from "@/lib/boissons-calc";
 import { computeMatieresDay } from "@/lib/matieres-calc";
@@ -231,9 +232,12 @@ export async function getStockPayload(input: {
     input.families ?? ["plats", "accompagnements"],
   );
 
-  const parametres = await getParametres();
+  const [parametresZogbo, parametresGbegamey] = await Promise.all([
+    getParametres("zogbo"),
+    getParametres("gbegamey"),
+  ]);
   const priceLocal = new Map(
-    parametres.localDishes.map((d) => [d.id, d.unitPrice]),
+    parametresZogbo.localDishes.map((d) => [d.id, d.unitPrice]),
   );
 
   const rows: StockRow[] = [];
@@ -245,13 +249,12 @@ export async function getStockPayload(input: {
   if (scopeSite !== "gbegamey") {
     const { day } = await getZogboDayPayload(date);
     zogboStatus = day.status;
-    const computed = computeZogboDay(day, parametres.baseDishes);
+    const computed = computeZogboDay(day, parametresZogbo.baseDishes);
 
     if (wanted.has("plats")) {
       for (const line of computed.lines) {
         const opening = zogboOpeningStock(line);
-        const theorique =
-          opening - line.sentToGbegamey + line.prepared - line.sold - line.pertes;
+        const theorique = line.theoreticalRemaining;
         const row: StockRow = {
           zone: "zogbo-plats",
           zoneLabel: ZONE_LABELS["zogbo-plats"],
@@ -267,7 +270,7 @@ export async function getStockPayload(input: {
           stockFinal: line.theoreticalRemaining,
           stockVendable: line.prevalentRemaining,
           compte: line.counted,
-          ecart: ecartDe(line.counted, theorique),
+          ecart: line.variance,
           unit: "portions",
           threshold: null,
           belowThreshold: false,
@@ -283,8 +286,7 @@ export async function getStockPayload(input: {
           raw,
           priceLocal.get(raw.productId) ?? 0,
         );
-        const theorique =
-          line.initialStock + line.prepared - line.sold - line.pertes;
+        const theorique = line.theoreticalRemaining;
         const row: StockRow = {
           zone: "zogbo-accompagnements",
           zoneLabel: ZONE_LABELS["zogbo-accompagnements"],
@@ -300,7 +302,7 @@ export async function getStockPayload(input: {
           stockFinal: line.theoreticalRemaining,
           stockVendable: line.theoreticalRemaining,
           compte: line.counted,
-          ecart: ecartDe(line.counted, theorique),
+          ecart: line.variance,
           unit: "portions",
           threshold: null,
           belowThreshold: false,
@@ -315,18 +317,13 @@ export async function getStockPayload(input: {
     gbegameyStatus = gb.day.status;
     const computed = computeGbegameyDay(
       gb.day,
-      parametres.baseDishes,
-      parametres.localDishes,
-      new Map(Object.entries(gb.sentByProductId)),
+      parametresGbegamey.baseDishes,
+      parametresGbegamey.localDishes,
     );
 
     if (wanted.has("plats")) {
       for (const line of computed.transfers) {
-        const theorique =
-          line.initialStock +
-          line.receivedFromZogbo -
-          line.sold -
-          line.pertes;
+        const theorique = line.theoreticalRemaining;
         const row: StockRow = {
           zone: "gbegamey-plats",
           zoneLabel: ZONE_LABELS["gbegamey-plats"],
@@ -342,7 +339,7 @@ export async function getStockPayload(input: {
           stockFinal: line.theoreticalRemaining,
           stockVendable: line.theoreticalRemaining,
           compte: line.counted,
-          ecart: ecartDe(line.counted, theorique),
+          ecart: line.variance,
           unit: "portions",
           threshold: null,
           belowThreshold: false,
@@ -353,8 +350,7 @@ export async function getStockPayload(input: {
 
     if (wanted.has("accompagnements")) {
       for (const line of computed.locals) {
-        const theorique =
-          line.initialStock + line.prepared - line.sold - line.pertes;
+        const theorique = line.theoreticalRemaining;
         const row: StockRow = {
           zone: "gbegamey-accompagnements",
           zoneLabel: ZONE_LABELS["gbegamey-accompagnements"],
@@ -370,7 +366,7 @@ export async function getStockPayload(input: {
           stockFinal: line.theoreticalRemaining,
           stockVendable: line.theoreticalRemaining,
           compte: line.counted,
-          ecart: ecartDe(line.counted, theorique),
+          ecart: line.variance,
           unit: "portions",
           threshold: null,
           belowThreshold: false,
@@ -381,7 +377,7 @@ export async function getStockPayload(input: {
   }
 
   if (wanted.has("boissons")) {
-    const { day, drinks } = await getBoissonsDayPayload(date);
+    const { day, drinksBySite } = await getBoissonsDayPayload(date);
     boissonsStatus = day.status;
 
     const sites: VenteSite[] =
@@ -389,7 +385,8 @@ export async function getStockPayload(input: {
     for (const site of sites) {
       const isZogbo = site === "zogbo";
       for (const line of day.lines) {
-        const drink = drinks.find((d) => d.id === line.productId);
+        const drink = drinksBySite[site].find((d) => d.id === line.productId);
+        if (!drink) continue;
         const upc = Math.max(
           1,
           Math.round(drink?.unitsPerCasier || DEFAULT_UNITS_PER_CASIER),
@@ -406,7 +403,8 @@ export async function getStockPayload(input: {
           countedRaw === null || countedRaw === undefined ? null : Math.max(0, Number(countedRaw) || 0);
         const openingBt = round2(initial * upc);
         const entreesBt = round2(purchases * upc);
-        const theorique = round2(openingBt + entreesBt - sold - pertes);
+        const correction = correctionBoissonCasiers(line, site, upc) * upc;
+        const theorique = round2(openingBt + entreesBt - sold - pertes + correction);
         const finalBt = physicalBoissonsStockForSite(line, site, upc);
         const threshold =
           drink?.alertThreshold && drink.alertThreshold > 0
@@ -418,7 +416,7 @@ export async function getStockPayload(input: {
             ? ZONE_LABELS["zogbo-boissons"]
             : ZONE_LABELS["gbegamey-boissons"],
           productId: line.productId,
-          name: line.name,
+          name: drink.name,
           kind: "boisson",
           opening: openingBt,
           entrees: entreesBt,
@@ -429,7 +427,7 @@ export async function getStockPayload(input: {
           stockFinal: finalBt,
           stockVendable: finalBt,
           compte: counted,
-          ecart: ecartDe(counted, theorique),
+          ecart: counted === null ? null : round2(correction),
           unit: "bt",
           threshold,
           belowThreshold:
@@ -443,8 +441,13 @@ export async function getStockPayload(input: {
     }
   }
 
-  if (wanted.has("matieres") && scopeSite !== "gbegamey") {
-    const { day, materials } = await getMatieresDayPayload(date);
+  const sitesMatieres: VenteSite[] = wanted.has("matieres")
+    ? scopeSite === null
+      ? ["zogbo", "gbegamey"]
+      : [scopeSite]
+    : [];
+  for (const siteMatieres of sitesMatieres) {
+    const { day, materials } = await getMatieresDayPayload(date, siteMatieres);
     matieresStatus = day.status;
     const computed = computeMatieresDay(day, materials);
 

@@ -12,6 +12,8 @@ import {
 } from "@/lib/combos-model";
 import { logActivity } from "@/lib/log-activity";
 import { getParametres, saveParametresToDb } from "@/lib/parametres-repo";
+import { effectiveSite } from "@/lib/auth-types";
+import { resolveCatalogueSite } from "@/lib/catalogue-sites";
 import type { ComboDish } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -30,11 +32,23 @@ function assertCombosAccess(user: SessionUser) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await requireUser();
     assertCombosAccess(user);
-    const parametres = await getParametres();
+    const perimetre = effectiveSite(user.role, user.site);
+    const decision = resolveCatalogueSite(
+      new URL(request.url).searchParams.get("site"),
+      perimetre,
+    );
+    if (!decision.ok) {
+      return NextResponse.json(
+        { error: decision.error },
+        { status: decision.status },
+      );
+    }
+    const site = decision.site ?? "zogbo";
+    const parametres = await getParametres(site);
     const combos = normalizeCombos(parametres.combos).map((c) => ({
       ...c,
       prixNormal: comboPrixNormal(c, parametres),
@@ -64,6 +78,8 @@ export async function GET() {
     }));
     return NextResponse.json({
       combos,
+      site,
+      canChooseSite: perimetre === "tous",
       catalog: {
         plats: parametres.baseDishes.map((d) => ({
           id: d.id,
@@ -126,7 +142,24 @@ export const PUT = withLiveBump(async function PUT(request: Request) {
       );
     }
 
-    const parametres = await getParametres();
+    const decision = resolveCatalogueSite(
+      new URL(request.url).searchParams.get("site"),
+      effectiveSite(user.role, user.site),
+    );
+    if (!decision.ok) {
+      return NextResponse.json(
+        { error: decision.error },
+        { status: decision.status },
+      );
+    }
+    if (!decision.site) {
+      return NextResponse.json(
+        { error: "Rechargez la page, puis choisissez le site à modifier." },
+        { status: 400 },
+      );
+    }
+    const site = decision.site;
+    const parametres = await getParametres(site);
     const combos = body.combos.map((c) =>
       normalizeComboDish({
         ...c,
@@ -154,17 +187,14 @@ export const PUT = withLiveBump(async function PUT(request: Request) {
       }
     }
 
-    const saved = await saveParametresToDb({
-      ...parametres,
-      combos,
-    });
+    const saved = await saveParametresToDb({ ...parametres, combos }, site);
 
     await logActivity({
       user,
       kind: "parametres",
       title: "Combos / formules",
       detail: `${combos.length} formule(s) enregistrée(s)`,
-      site: user.site === "tous" ? "tous" : user.site,
+      site,
     });
 
     return NextResponse.json({ combos: saved.combos ?? [] });

@@ -39,77 +39,68 @@ function local(patch: Partial<GbegameyLocalLine> = {}): GbegameyLocalLine {
 }
 
 describe("computeTransferLine", () => {
-  it("fait confiance à l'envoi déclaré par Zogbo tant que rien n'est vérifié", () => {
-    const c = computeTransferLine(transfert({ initialStock: 2 }), 10, 1000);
+  it("n'utilise que le stock saisi sur Gbégamey", () => {
+    const c = computeTransferLine(transfert({ initialStock: 2 }), 1000);
     expect(c.received).toBeNull();
-    expect(c.theoreticalRemaining).toBe(12);
+    expect(c.theoreticalRemaining).toBe(2);
   });
 
-  it("un constaté n'est qu'un contrôle : l'envoi déclaré alimente toujours le stock", () => {
-    // Zogbo déclare 10 envoyés, Gbégamey n'en constate que 8 : l'écart est
-    // signalé, mais le stock reste alimenté par l'envoi (init + 10).
+  it("le constaté est la seule entrée : plus d'envoi Zogbo", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 8 }),
-      10,
       1000,
     );
-    expect(c.theoreticalRemaining).toBe(10);
-    expect(c.transportVariance).toBe(2);
+    expect(c.available).toBe(8);
+    expect(c.theoreticalRemaining).toBe(8);
+    expect(c.transportVariance).toBeNull();
   });
 
-  it("un nouvel envoi après un constaté s'additionne quand même au stock", () => {
-    // Constaté 15 puis Zogbo envoie 5 de plus : le stock suit l'envoi (20),
-    // l'ancien constaté ne fige pas la somme.
+  it("les entrées s'additionnent au stock du site", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 15, sold: 4 }),
-      20,
       1000,
     );
-    expect(c.available).toBe(20);
-    expect(c.theoreticalRemaining).toBe(16);
+    expect(c.available).toBe(15);
+    expect(c.theoreticalRemaining).toBe(11);
   });
 
   it("ne signale aucun écart de transport quand rien n'est vérifié", () => {
     expect(
-      computeTransferLine(transfert(), 10, 1000).transportVariance,
+      computeTransferLine(transfert(), 1000).transportVariance,
     ).toBeNull();
   });
 
   it("retranche les ventes du solde disponible", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 3, received: 7, sold: 4 }),
-      7,
       1000,
     );
     expect(c.theoreticalRemaining).toBe(6);
   });
 
-  it("le comptage ne remplace pas le stock : il mesure l'écart", () => {
-    // Entrées 10, 4 vendus → théorique 6 ; comptage 5 → écart −1.
+  it("le comptage remplace le stock et mesure l'écart", () => {
+    // Entrées 10, 4 vendus → calcul 6 ; comptage 5 → écart −1, reste 5.
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 10, sold: 4, counted: 5 }),
-      0,
       1000,
     );
     expect(c.available).toBe(10);
-    expect(c.theoreticalRemaining).toBe(6);
+    expect(c.theoreticalRemaining).toBe(5);
     expect(c.variance).toBe(-1);
   });
 
-  it("le comptage ne change ni le plafond de vente ni le restant", () => {
+  it("le comptage fixe le plafond de vente et le restant", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 10, sold: 2, counted: 5 }),
-      0,
       1000,
     );
-    expect(c.prevalentMaxSold).toBe(10);
-    expect(c.prevalentRemaining).toBe(8);
+    expect(c.prevalentMaxSold).toBe(7);
+    expect(c.prevalentRemaining).toBe(5);
   });
 
   it("le restant est le théorique", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 2, received: 8, sold: 3, pertes: 1 }),
-      0,
       1000,
     );
     expect(c.theoreticalRemaining).toBe(6);
@@ -117,20 +108,18 @@ describe("computeTransferLine", () => {
     expect(c.prevalentMaxSold).toBe(9);
   });
 
-  it("un comptage à zéro donne un écart, sans bloquer le stock théorique", () => {
+  it("un comptage à zéro vide le stock et donne l'écart", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 10, sold: 2, counted: 0 }),
-      0,
       1000,
     );
-    expect(c.theoreticalRemaining).toBe(8);
+    expect(c.theoreticalRemaining).toBe(0);
     expect(c.variance).toBe(-8);
   });
 
   it("valorise les ventes au prix unitaire", () => {
     const c = computeTransferLine(
       transfert({ initialStock: 0, received: 10, sold: 3 }),
-      10,
       1500,
     );
     expect(c.soldAmount).toBe(4500);
@@ -151,24 +140,30 @@ describe("computeLocalLine", () => {
     expect(c.theoreticalRemaining).toBe(3);
   });
 
-  it("le comptage mesure l'écart sans remplacer le stock", () => {
-    // Ouverture 4 + préparé 6 = 10, rien vendu ; comptage 2 → écart −8.
+  it("le comptage remplace le stock et mesure l'écart", () => {
+    // Ouverture 4 + préparé 6 = 10, rien vendu ; comptage 2 → écart −8, reste 2.
     const c = computeLocalLine(
       local({ initialStock: 4, prepared: 6, sold: 0, counted: 2 }),
       1000,
     );
     expect(c.available).toBe(10);
-    expect(c.theoreticalRemaining).toBe(10);
+    expect(c.theoreticalRemaining).toBe(2);
     expect(c.variance).toBe(-8);
   });
 
-  it("les ventes sortent du théorique, pas du comptage", () => {
+  it("les ventes après le comptage sortent du stock compté, l'écart reste fixe", () => {
     const c = computeLocalLine(
-      local({ initialStock: 4, prepared: 6, sold: 1, counted: 2 }),
+      local({
+        initialStock: 4,
+        prepared: 6,
+        sold: 1,
+        counted: 2,
+        comptage: { theorique: 10, vendu: 0, pertes: 0 },
+      }),
       1000,
     );
-    expect(c.prevalentRemaining).toBe(9);
-    expect(c.variance).toBe(-7);
+    expect(c.prevalentRemaining).toBe(1);
+    expect(c.variance).toBe(-8);
   });
 });
 
@@ -185,10 +180,6 @@ describe("reports au lendemain", () => {
           counted: 5,
         }),
       ],
-      new Map([
-        ["a", 10],
-        ["b", 10],
-      ]),
     );
     // "a" : sans comptage, théorique 10 − 4 ; "b" : comptage de la veille 5.
     expect(map.get("a")).toBe(6);

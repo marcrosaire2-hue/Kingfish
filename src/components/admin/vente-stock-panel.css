@@ -1,0 +1,27 @@
+.vente-stock-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+  margin-bottom: 16px;
+  padding: 16px 20px;
+}
+
+.vente-stock-copy {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.vente-stock-copy h3 {
+  margin: 0 0 4px;
+}
+
+.vente-stock-copy p {
+  margin: 0 0 2px;
+}
+
+.vente-stock-panel .error-banner {
+  flex-basis: 100%;
+  margin: 0;
+}

@@ -67,18 +67,33 @@ describe("physicalBoissonsStockForSite", () => {
     expect(physicalBoissonsStockForSite(l, "gbegamey", 12)).toBe(32);
   });
 
-  it("ne descend jamais sous zéro", () => {
+  it("conserve le négatif comme signal de survente", () => {
     expect(
       physicalBoissonsStockForSite(
         ligne({ initialStockZogbo: 1, soldZogbo: 50 }),
         "zogbo",
         12,
       ),
-    ).toBe(0);
+    ).toBe(-38);
   });
 
-  it("le comptage ne change pas le stock vendable (il mesure l'écart)", () => {
-    // Théorique : 3 casiers de 12 = 36 bt, moins 5 vendues = 31.
+  it("les ventes faites après un comptage partent du stock compté", () => {
+    // Compté 24 bt alors que le calcul donnait 3 casiers, puis 5 ventes.
+    expect(
+      physicalBoissonsStockForSite(
+        ligne({
+          initialStockZogbo: 3,
+          soldZogbo: 5,
+          countedZogbo: 24,
+          comptageZogbo: { theorique: 3, vendu: 0, pertes: 0 },
+        }),
+        "zogbo",
+        12,
+      ),
+    ).toBe(19);
+  });
+
+  it("un comptage sans repère vaut stock restant", () => {
     expect(
       physicalBoissonsStockForSite(
         ligne({
@@ -90,10 +105,10 @@ describe("physicalBoissonsStockForSite", () => {
         "zogbo",
         12,
       ),
-    ).toBe(31);
+    ).toBe(24);
   });
 
-  it("un comptage à zéro ne vide pas le stock vendable", () => {
+  it("un comptage à zéro vide le stock vendable", () => {
     expect(
       physicalBoissonsStockForSite(
         ligne({
@@ -105,7 +120,7 @@ describe("physicalBoissonsStockForSite", () => {
         "zogbo",
         12,
       ),
-    ).toBe(35);
+    ).toBe(0);
   });
 
   it("retombe sur le conditionnement par défaut si la valeur est absurde", () => {
@@ -125,10 +140,9 @@ describe("achat après comptage", () => {
       [],
       { productId: "drink-beaufort", site: "zogbo", qty: 2, unitsPerCasier: 12 },
     );
-    // Le comptage suit l'achat (bouteilles physiquement présentes) ; le
-    // stock vendable, lui, suit ouverture + achats − vendus.
+    // Comptage sans repère : il suit l'achat pour ne pas le perdre.
     expect(achat.lines[0]!.countedZogbo).toBe(34);
-    expect(physicalBoissonsStockForSite(achat.lines[0]!, "zogbo", 12)).toBe(36);
+    expect(physicalBoissonsStockForSite(achat.lines[0]!, "zogbo", 12)).toBe(34);
 
     const annule = cancelBoissonsMovementInState(
       achat.lines,
@@ -150,13 +164,19 @@ describe("achat après comptage", () => {
     expect(physicalBoissonsStockForSite(achat.lines[0]!, "zogbo", 12)).toBe(24);
   });
 
-  it("Gbégamey : le comptage n'est pas modifié par un achat", () => {
+  it("Gbégamey : l'achat s'ajoute au stock compté, sans réécrire le comptage", () => {
     const achat = applyBoissonsPurchaseToState(
-      [ligne({ countedGbegamey: 10 })],
+      [
+        ligne({
+          countedGbegamey: 10,
+          comptageGbegamey: { theorique: 0, vendu: 0, pertes: 0 },
+        }),
+      ],
       [],
       { productId: "drink-beaufort", site: "gbegamey", qty: 2, unitsPerCasier: 12 },
     );
     expect(achat.lines[0]!.countedGbegamey).toBe(10);
+    expect(physicalBoissonsStockForSite(achat.lines[0]!, "gbegamey", 12)).toBe(34);
   });
 });
 
@@ -218,11 +238,11 @@ describe("computeBoissonsLine", () => {
       }),
       boisson(),
     );
-    // Écart = comptage − théorique. 9 théoriques, 8 comptés → −1.
-    expect(c.theoreticalRemainingZogbo).toBe(9);
+    // Écart = comptage − théorique. 9 calculés, 8 comptés → −1, reste 8.
+    expect(c.theoreticalRemainingZogbo).toBe(8);
     expect(c.varianceZogbo).toBe(-1);
-    // 4,5 théoriques, 4 comptés → −0,5.
-    expect(c.theoreticalRemainingGbegamey).toBe(4.5);
+    // 4,5 calculés, 4 comptés → −0,5, reste 4.
+    expect(c.theoreticalRemainingGbegamey).toBe(4);
     expect(c.varianceGbegamey).toBe(-0.5);
   });
 
@@ -244,11 +264,11 @@ describe("computeBoissonsLine", () => {
 });
 
 describe("normalizeBoissonsLine", () => {
-  it("ramène les quantités négatives à zéro", () => {
+  it("garde l'ouverture négative, borne les mouvements", () => {
     const l = normalizeBoissonsLine(
       ligne({ initialStockZogbo: -4, purchasesZogbo: -1, soldZogbo: -9 }),
     );
-    expect(l.initialStockZogbo).toBe(0);
+    expect(l.initialStockZogbo).toBe(-4);
     expect(l.purchasesZogbo).toBe(0);
     expect(l.soldZogbo).toBe(0);
   });
@@ -398,7 +418,7 @@ describe("report d'une correction sur les jours suivants", () => {
     expect(next.gbegamey.get("drink-beaufort")).toBeCloseTo(1);
   });
 
-  it("ne descend jamais sous zéro et ne touche pas l'autre site", () => {
+  it("conserve le négatif et ne touche pas l'autre site", () => {
     const delta = {
       zogbo: new Map([["drink-beaufort", -5]]),
       gbegamey: new Map<string, number>(),
@@ -407,7 +427,7 @@ describe("report d'une correction sur les jours suivants", () => {
       [ligne({ initialStockZogbo: 1, initialStockGbegamey: 4 })],
       delta,
     );
-    expect(lines[0]!.initialStockZogbo).toBe(0);
+    expect(lines[0]!.initialStockZogbo).toBe(-4);
     expect(lines[0]!.initialStockGbegamey).toBe(4);
   });
 

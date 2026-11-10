@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/mongodb";
+import { collectionBoissons } from "@/lib/site-collections";
 import type { VenteSite } from "@/lib/types";
 
 /**
@@ -228,7 +229,7 @@ export async function lireStocksInitiaux(
               .collection<{
                 _id: string;
                 lines?: LegacyZogboStockLine[];
-              }>("boissons_jours")
+              }>(await collectionBoissons("zogbo"))
               .find({
                 lines: {
                   $elemMatch: { productId: { $in: beverageIds } },
@@ -359,7 +360,7 @@ export async function lireStocksInitiaux(
       .collection<{
         _id: string;
         lines?: LegacyZogboStockLine[];
-      }>("boissons_jours")
+      }>(await collectionBoissons("zogbo"))
       .find({
         _id: { $gte: ZOGBO_INITIAL_STOCK_START_DATE, $lte: date },
         lines: { $elemMatch: { productId: { $in: beverageIds } } },
@@ -413,15 +414,22 @@ export async function lireStocksInitiauxBruts(
 
 /**
  * Lecture « depuis le début » avec comptages : on part du SI ; chaque
- * comptage (stock réel) d'une journée antérieure devient le nouveau stock
- * initial, et les ventes se cumulent à partir du lendemain de ce comptage.
- * Le comptage du jour consulté, lui, reste le stock physique (écart).
+ * comptage (stock réel) devient le nouveau stock initial, et seules les
+ * ventes et pertes postérieures à ce comptage se cumulent.
  */
 export function stockInitialDepuisComptages(input: {
   si: number;
   siDate: string;
   date: string;
-  jours: Array<{ date: string; vendus: number; pertes: number; compte: number | null }>;
+  jours: Array<{
+    date: string;
+    vendus: number;
+    pertes: number;
+    compte: number | null;
+    /** Vendu et pertes du jour déjà passés au moment du comptage. */
+    vendusAuComptage?: number;
+    pertesAuComptage?: number;
+  }>;
 }): { stockInitial: number; depuis: string; vendus: number; pertes: number } {
   const jours = [...input.jours]
     .filter((j) => j.date >= input.siDate && j.date <= input.date)
@@ -433,13 +441,13 @@ export function stockInitialDepuisComptages(input: {
   for (const j of jours) {
     vendus += j.vendus;
     pertes += j.pertes;
-    if (j.compte !== null && j.date < input.date) {
-      // Le stock réel compté ce jour devient le stock initial ; on repart
-      // de zéro vente à partir du lendemain.
+    if (j.compte !== null) {
+      // Le stock réel compté devient le stock initial ; seules les ventes et
+      // pertes postérieures au comptage restent à déduire.
       stockInitial = j.compte;
       depuis = j.date;
-      vendus = 0;
-      pertes = 0;
+      vendus = Math.max(0, j.vendus - (j.vendusAuComptage ?? j.vendus));
+      pertes = Math.max(0, j.pertes - (j.pertesAuComptage ?? j.pertes));
     }
   }
   return { stockInitial, depuis, vendus, pertes };

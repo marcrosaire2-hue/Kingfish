@@ -223,7 +223,7 @@ select {
   object-fit: contain;
   flex-shrink: 0;
   border-radius: 14px;
-  background: #ffffff;
+  background: var(--surface);
   padding: 0.2rem;
   box-shadow: 0 4px 14px color-mix(in srgb, #000 18%, transparent);
 }
@@ -401,7 +401,7 @@ select {
   width: var(--kf-plate);
   height: var(--kf-plate);
   border-radius: 22%;
-  background: #ffffff;
+  background: var(--surface);
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -416,7 +416,7 @@ select {
   padding: 7%;
   border-radius: 18%;
   box-shadow: none;
-  background: #ffffff;
+  background: var(--surface);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -2882,7 +2882,7 @@ select {
   width: 1.15rem;
   height: 1.15rem;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--ink) 18%, var(--line));
 }
 
@@ -3446,7 +3446,7 @@ select {
 
 .admin-form .select-input:focus {
   outline: none;
-  background: #ffffff;
+  background: var(--surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 }
@@ -3830,7 +3830,7 @@ select {
 .admin-field textarea:focus,
 .admin-field .select-input:focus {
   outline: none;
-  background: #ffffff;
+  background: var(--surface);
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
 }
@@ -7283,7 +7283,7 @@ body {
 }
 
 .caisse-open-card input {
-  background: #fff;
+  background: var(--surface);
   color: var(--ink);
 }
 
@@ -10433,7 +10433,7 @@ html.nav-open body {
   width: 1.55rem;
   height: 1.55rem;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--ink) 18%, var(--line));
   box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
   transition: transform 0.15s ease, background 0.15s ease;
@@ -10682,7 +10682,7 @@ html.nav-open body {
   padding: 0.85rem 0.95rem;
   border: 1px solid var(--line, #d5e0ec);
   border-radius: 14px;
-  background: linear-gradient(180deg, #fff 0%, #f7fafc 100%);
+  background: linear-gradient(180deg, var(--surface) 0%, #f7fafc 100%);
   box-shadow: var(--shadow-sm, 0 1px 2px rgba(15, 40, 50, 0.04));
   min-width: 0;
 }

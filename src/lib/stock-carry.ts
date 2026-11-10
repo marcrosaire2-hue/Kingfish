@@ -18,9 +18,15 @@ import {
   shiftIsoDate,
 } from "@/lib/zogbo-calc";
 import { applyOpeningCarry, leftoverDelta } from "@/lib/stock-carry-calc";
+import { withStockLock } from "@/lib/stock-lock";
 import { getBoissonsDayPayload } from "@/lib/boissons-repo";
 import { getZogboDayPayload } from "@/lib/zogbo-repo";
 import { getGbegameyDayPayload } from "@/lib/gbegamey-repo";
+import {
+  assurerSeparationSites,
+  COLLECTION_BOISSONS,
+} from "@/lib/site-collections";
+import type { VenteSite } from "@/lib/types";
 
 /**
  * Report des corrections de stock vers les journées suivantes.
@@ -32,10 +38,16 @@ import { getGbegameyDayPayload } from "@/lib/gbegamey-repo";
  * faux jusqu'au prochain comptage. On mesure l'écart de reste produit par
  * l'écriture et on l'ajoute à l'ouverture des journées suivantes.
  */
-export type StockCarryScope = "boissons" | "zogbo" | "gbegamey";
+export type BoissonsCarryScope = "boissons-zogbo" | "boissons-gbegamey";
+export type StockCarryScope = BoissonsCarryScope | "zogbo" | "gbegamey";
+
+export function boissonsScope(site: VenteSite): BoissonsCarryScope {
+  return site === "zogbo" ? "boissons-zogbo" : "boissons-gbegamey";
+}
 
 const COLLECTION: Record<StockCarryScope, string> = {
-  boissons: "boissons_jours",
+  "boissons-zogbo": COLLECTION_BOISSONS.zogbo,
+  "boissons-gbegamey": COLLECTION_BOISSONS.gbegamey,
   zogbo: "zogbo_jours",
   gbegamey: "gbegamey_jours",
 };
@@ -61,9 +73,13 @@ async function snapshot(
   scope: StockCarryScope,
   date: string,
 ): Promise<Snapshot> {
-  if (scope === "boissons") {
-    const { day, drinks } = await getBoissonsDayPayload(date);
-    return { scope, leftover: leftoverFromBoissonsLines(day.lines, drinks) };
+  if (scope === "boissons-zogbo" || scope === "boissons-gbegamey") {
+    const site: VenteSite = scope === "boissons-zogbo" ? "zogbo" : "gbegamey";
+    const { day, drinks } = await getBoissonsDayPayload(date, site);
+    return {
+      scope: "boissons",
+      leftover: leftoverFromBoissonsLines(day.lines, drinks),
+    };
   }
   if (scope === "zogbo") {
     const { day } = await getZogboDayPayload(date);
@@ -81,7 +97,7 @@ async function snapshot(
   return {
     scope,
     leftover: {
-      transferLines: leftoverFromTransferLines(day.transferLines, new Map()),
+      transferLines: leftoverFromTransferLines(day.transferLines),
       localLines: leftoverFromLocalLines(day.localLines),
     },
   };
@@ -97,6 +113,7 @@ export async function withStockCarry<T>(
   date: string,
   write: () => Promise<T>,
 ): Promise<T> {
+  await assurerSeparationSites();
   const key = `${scope}:${date}`;
   const active = carryContext.getStore();
   // Écriture imbriquée (ex. `ensure` d'une vente) : le report est déjà
@@ -109,19 +126,22 @@ export async function withStockCarry<T>(
     .findOne({ _id: { $gt: date } }, { projection: { _id: 1 } });
   if (!hasLater) return write();
 
-  // Une écriture avec report à la fois par journée (dans ce processus) :
-  // deux écarts mesurés en parallèle se compteraient deux fois.
+  // Une écriture avec report à la fois par journée : le verrou mémoire
+  // sérialise les appels du processus, le verrou Mongo sérialise les
+  // instances (Render / serverless) qui partagent la même base.
   const previous = carryLocks.get(key) ?? Promise.resolve();
   const run = previous
     .catch(() => undefined)
     .then(() =>
-      carryContext.run(new Set([...(active ?? []), key]), async () => {
-        const before = await snapshot(scope, date);
-        const result = await write();
-        const after = await snapshot(scope, date);
-        await carryForward(scope, date, before, after);
-        return result;
-      }),
+      carryContext.run(new Set([...(active ?? []), key]), () =>
+        withStockLock(`stock-carry:${key}`, async () => {
+          const before = await snapshot(scope, date);
+          const result = await write();
+          const after = await snapshot(scope, date);
+          await carryForward(scope, date, before, after);
+          return result;
+        }),
+      ),
     );
   carryLocks.set(key, run);
   try {

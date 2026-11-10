@@ -34,10 +34,10 @@ function ligne(patch: Partial<ZogboLine> = {}): ZogboLine {
 }
 
 describe("stock Zogbo et comptage", () => {
-  it("un stock ajouté après le comptage entre tout de suite dans le restant", () => {
-    // Stock 15, 3 vendus → théorique 12 ; comptage 8 → écart 8 − 12 = −4.
+  it("le comptage devient le stock restant", () => {
+    // Stock 15, 3 vendus → calcul 12 ; comptage 8 → écart 8 − 12 = −4.
     const c = computeZogboLine(ligne({ stock: 15, prepared: 15, sold: 3, counted: 8 }), 0);
-    expect(c.prevalentRemaining).toBe(12);
+    expect(c.prevalentRemaining).toBe(8);
     expect(c.counted).toBe(8);
     expect(c.variance).toBe(-4);
   });
@@ -62,8 +62,8 @@ describe("stock Zogbo et comptage", () => {
       },
       0,
     );
-    // Théorique 2 + 10 − 4 = 8 ; comptage 11 → écart +3.
-    expect(c.prevalentRemaining).toBe(8);
+    // Calcul 2 + 10 − 4 = 8 ; comptage 11 → écart +3, reste 11.
+    expect(c.prevalentRemaining).toBe(11);
     expect(c.variance).toBe(3);
   });
 
@@ -88,9 +88,9 @@ describe("physicalStock", () => {
 });
 
 describe("normalizeZogboLine", () => {
-  it("ramène les quantités négatives à zéro", () => {
+  it("garde l'ouverture négative, borne les mouvements", () => {
     const l = normalizeZogboLine(ligne({ stock: -5, sold: -2 }));
-    expect(l.stock).toBe(0);
+    expect(l.stock).toBe(-5);
     expect(l.sold).toBe(0);
   });
 

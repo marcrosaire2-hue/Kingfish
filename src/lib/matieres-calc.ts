@@ -13,7 +13,7 @@ export function emptyMatieresLine(
   return {
     productId: mat.id,
     name: mat.name,
-    initialStock: Math.max(0, Number(openingStock) || 0),
+    initialStock: Number.isFinite(Number(openingStock)) ? Number(openingStock) : 0,
     purchases: 0,
     consumed: 0,
     pertes: 0,
@@ -29,7 +29,9 @@ export function normalizeMatieresLine(
   return {
     productId: line.productId,
     name: String(line.name ?? ""),
-    initialStock: Math.max(0, Number(line.initialStock) || 0),
+    initialStock: Number.isFinite(Number(line.initialStock))
+      ? Number(line.initialStock)
+      : 0,
     purchases: Math.max(0, Number(line.purchases) || 0),
     consumed: Math.max(0, Number(line.consumed) || 0),
     pertes: Math.max(0, Number(line.pertes) || 0),
@@ -66,12 +68,13 @@ export function normalizeMatieresMovement(
 }
 
 export function stockOf(line: MatieresLine): number {
-  return Math.max(
-    0,
+  // Pas de plancher à 0 : un stock négatif signale une consommation non
+  // couverte par les entrées, au lieu de la cacher.
+  return (
     line.initialStock +
-      line.purchases -
-      line.consumed -
-      Math.max(0, Number(line.pertes) || 0),
+    line.purchases -
+    line.consumed -
+    Math.max(0, Number(line.pertes) || 0)
   );
 }
 

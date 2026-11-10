@@ -7,7 +7,7 @@ export function ParametresPage() {
   return (
     <AppShell
       title="Paramètres"
-      subtitle="Catalogues classés par point — Zogbo et Gbégamey. Les boissons sont partagées ; les ventes restent séparées."
+      subtitle="Chaque point — Zogbo et Gbégamey — a son propre catalogue, ses matières et ses recettes."
     >
       <ParametresEditor />
     </AppShell>

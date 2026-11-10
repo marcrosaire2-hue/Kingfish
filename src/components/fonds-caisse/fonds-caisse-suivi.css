@@ -61,7 +61,7 @@
   padding: 0.5rem 1rem;
   border: 1px solid var(--fcs-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 2px 8px rgb(6 59 104 / 0.06);
   font-weight: 700;
   font-size: 0.92rem;
@@ -95,7 +95,7 @@
   padding: 1.1rem 1.25rem 1.25rem;
   border: 1px solid var(--fcs-line);
   border-radius: 16px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
   min-width: 0;
 }
@@ -178,7 +178,7 @@
   padding: 1.1rem 1.2rem;
   border: 1px solid var(--fcs-line);
   border-radius: 16px;
-  background: linear-gradient(135deg, #fff 45%, var(--tint));
+  background: linear-gradient(135deg, var(--surface) 45%, var(--tint));
   box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
   min-width: 0;
 }
@@ -210,7 +210,7 @@
   width: 3rem;
   height: 3rem;
   border-radius: 50%;
-  background: #fff;
+  background: var(--surface);
   color: var(--tone);
   box-shadow: 0 4px 12px rgb(6 59 104 / 0.12);
 }

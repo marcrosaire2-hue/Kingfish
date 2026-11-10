@@ -171,7 +171,9 @@ export function AchatsPage() {
     let annule = false;
     void (async () => {
       try {
-        const res = await fetch("/api/parametres", { cache: "no-store" });
+        const res = await fetch(`/api/parametres${site ? `?site=${site}` : ""}`, {
+          cache: "no-store",
+        });
         if (!res.ok) return;
         const params = (await res.json()) as { rawMaterials?: RawMaterial[] };
         if (!annule) setMaterials(params.rawMaterials ?? []);
@@ -182,7 +184,7 @@ export function AchatsPage() {
     return () => {
       annule = true;
     };
-  }, []);
+  }, [site]);
 
   const selectedMaterial = materials.find((m) => m.id === draftLibre.productId);
 

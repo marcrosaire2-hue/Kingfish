@@ -371,8 +371,13 @@ export function ZoneBoissonsPanel({
                           ),
                           "Stock réel (bt)": counted ?? "",
                           "Stock théorique (bt)": theo,
-                          "Stock restant (bt)": counted ?? theo,
-                          "Écart (bt)": counted === null ? "" : counted - theo,
+                          "Stock restant (bt)": theo,
+                          "Écart (bt)":
+                            counted === null
+                              ? ""
+                              : Math.round(
+                                  (zog ? line.varianceZogbo : line.varianceGbegamey)! * upc,
+                                ),
                           "Vendu (bt)": zog ? line.soldZogbo : line.soldGbegamey,
                         };
                       }),
@@ -526,7 +531,12 @@ export function ZoneBoissonsPanel({
                       Math.round(theoreticalRemaining * upc),
                     );
                     // Écart = Stock physique − Stock théorique.
-                    const ecart = counted === null ? null : counted - theoBt;
+                    const variance =
+                      site === "zogbo" ? line.varianceZogbo : line.varianceGbegamey;
+                    const ecart =
+                      counted === null || variance === null
+                        ? null
+                        : Math.round(variance * upc);
                     const siBt = siByDrink[line.productId];
                     // Depuis le début : SI + entrées cumulées − vendus cumulés = restant.
                     const cumul =

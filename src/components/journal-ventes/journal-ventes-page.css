@@ -898,7 +898,7 @@
 .jv-banner-actions .btn {
   border: 1px solid var(--jv-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   color: var(--jv-blue);
   font-weight: 700;
   box-shadow: 0 2px 8px rgb(6 59 104 / 0.06);
@@ -910,7 +910,7 @@
   gap: 0.4rem;
   padding: 0.35rem 0.8rem;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--jv-line);
   font-size: 0.82rem;
   font-weight: 700;
@@ -994,7 +994,7 @@
   padding: 1.1rem 1.3rem;
   border: 1px solid var(--jv-line);
   border-radius: 16px;
-  background: linear-gradient(135deg, #fff 40%, #e8f1fb);
+  background: linear-gradient(135deg, var(--surface) 40%, #e8f1fb);
   box-shadow: var(--jv-shadow);
 }
 
@@ -1043,7 +1043,7 @@
   padding: 0.85rem 1rem;
   border: 1px solid var(--jv-line);
   border-radius: 16px;
-  background: linear-gradient(135deg, #fff 40%, var(--tint));
+  background: linear-gradient(135deg, var(--surface) 40%, var(--tint));
   box-shadow: var(--jv-shadow);
 }
 
@@ -1122,7 +1122,7 @@
   padding: 0.6rem 0.85rem;
   border: 1px solid var(--jv-line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--jv-shadow);
   text-align: left;
 }
@@ -1170,7 +1170,7 @@
 /* Journal par jour */
 .main-journal-ventes .jv-day-summary {
   grid-template-columns: auto auto minmax(0, 1fr) auto;
-  background: #fff;
+  background: var(--surface);
 }
 
 .main-journal-ventes .jv-day-summary::before {
@@ -1452,7 +1452,7 @@
   padding: 0.4rem 1.1rem;
   border: 1px solid var(--jv-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   font-weight: 700;
   color: var(--jv-deep);
 }
@@ -1499,7 +1499,7 @@
   padding: 0 0.8rem;
   border: 1px solid var(--jv-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .main-journal-ventes .jv-toolbar .date-field input {
@@ -1547,7 +1547,7 @@
   padding: 0.4rem 1rem;
   border: 1px solid var(--jv-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   font-weight: 700;
   color: var(--jv-blue);
   box-shadow: 0 2px 8px rgb(6 59 104 / 0.05);
@@ -1699,7 +1699,7 @@
   display: grid;
   place-items: center;
   border: 0;
-  background: #fff;
+  background: var(--surface);
   color: var(--jv-blue);
 }
 
@@ -1903,7 +1903,7 @@
   justify-content: space-between;
   gap: 1rem 2rem;
   padding: 1rem 1.3rem;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid #e3eaf3;
   border-radius: 14px;
 }
@@ -1960,7 +1960,7 @@
   padding: 0.45rem 0.95rem;
   border: 1px solid #dce8f3;
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   font: inherit;
   font-size: 0.85rem;
   font-weight: 700;

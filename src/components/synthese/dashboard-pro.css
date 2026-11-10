@@ -121,7 +121,7 @@
 }
 
 .pd-tabs button.is-active {
-  background: #fff;
+  background: var(--surface);
   color: var(--pd-blue);
   box-shadow: 0 1px 3px rgb(11 37 69 / 0.14);
 }
@@ -139,7 +139,7 @@
   padding: 0.4rem 0.6rem;
   border: 1px solid var(--pd-line);
   border-radius: 9px;
-  background: #fff;
+  background: var(--surface);
   font: inherit;
   font-size: 0.86rem;
   color: var(--pd-ink);
@@ -182,7 +182,7 @@
   height: 2.3rem;
   border: 1px solid var(--pd-line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   color: var(--pd-blue);
   cursor: pointer;
   transition: transform 0.4s ease;

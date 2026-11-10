@@ -18,7 +18,7 @@
   padding: 0.65rem 0.85rem;
   border: 1px dashed var(--line);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
   transition:
     border-color 0.15s ease,
@@ -175,7 +175,7 @@
 .main-compteur .achats-composer {
   border: 1px solid #dce8f3;
   border-radius: 16px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: 0 4px 20px rgb(6 59 104 / 0.06);
 }
 
@@ -195,7 +195,7 @@
 .main-compteur .fcs-table .btn-ghost {
   border: 1px solid #dce8f3;
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   color: #075ea8;
   font-weight: 700;
 }

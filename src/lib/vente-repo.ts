@@ -6,6 +6,7 @@ import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
 import {
   physicalBoissonsStockForSite,
+  correctionBoissonCasiers,
   DEFAULT_UNITS_PER_CASIER,
   normalizeBoissonsLine,
 } from "@/lib/boissons-calc";
@@ -23,7 +24,11 @@ import { assertGbegameyPlanningSale } from "@/lib/gbegamey-planning-comptes";
 import { assertGbegameyEmployeeVentePlanning } from "@/lib/gbegamey-employee-planning";
 import { assertZogboPlanningSale } from "@/lib/zogbo-planning-comptes";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
-import { withStockCarry } from "@/lib/stock-carry";
+import { boissonsScope, withStockCarry } from "@/lib/stock-carry";
+import { COLLECTION_BOISSONS } from "@/lib/site-collections";
+import { correctionComptage } from "@/lib/stock-comptage";
+import { mapVenteToStockEvents } from "@/lib/stock-ledger-map";
+import { recordStockEvents } from "@/lib/stock-ledger-write";
 import { parseFiniteAmount } from "@/lib/security-policy";
 import type {
   GbegameyLocalLine,
@@ -148,7 +153,7 @@ async function assertDayNotClosed(
         : await getGbegameyDayPayload(date);
     status = payload.day.status;
   } else if (kind === "boisson") {
-    const payload = await getBoissonsDayPayload(date);
+    const payload = await getBoissonsDayPayload(date, site);
     status = payload.day.status;
   }
   if (status === "cloturee") {
@@ -203,7 +208,7 @@ function zogboPlatStatus(input: {
 /** Libellés clairs pour un plat reçu à Gbégamey. */
 function gbegameyPlatStatus(input: {
   stockLeft: number;
-  sent: number;
+  received: number;
   initialStock: number;
   sold: number;
   counted: number | null;
@@ -212,10 +217,10 @@ function gbegameyPlatStatus(input: {
   blockReason: string | null;
   badge: "epuise" | "pas-recu";
 } {
-  const { stockLeft, sent, initialStock, sold, counted } = input;
+  const { stockLeft, received, initialStock, sold, counted } = input;
   if (stockLeft > 0) {
     return {
-      hint: `Reçu ${sent} · reste ${stockLeft}`,
+      hint: `Entrée ${received} · reste ${stockLeft}`,
       blockReason: null,
       badge: "epuise",
     };
@@ -227,23 +232,23 @@ function gbegameyPlatStatus(input: {
       badge: "epuise",
     };
   }
-  // Jamais de stock ce jour (ni report, ni envoi) : ce n'est pas une « rupture ».
-  if (sent <= 0 && initialStock <= 0 && sold <= 0) {
+  // Jamais de stock ce jour (ni report, ni entrée) : ce n'est pas une « rupture ».
+  if (received <= 0 && initialStock <= 0 && sold <= 0) {
     return {
-      hint: "Aucun stock reçu de Zogbo — faites un envoi depuis Zogbo",
-      blockReason: "Pas encore reçu de Zogbo",
+      hint: "Aucun stock saisi — saisissez le stock d’ouverture sur Gbégamey",
+      blockReason: "Pas encore de stock",
       badge: "pas-recu",
     };
   }
   if (sold > 0) {
     return {
-      hint: `Épuisé · ${sold} vendu(s) · reçu ${sent}`,
+      hint: `Épuisé · ${sold} vendu(s) · entrée ${received}`,
       blockReason: "Stock épuisé",
       badge: "epuise",
     };
   }
   return {
-    hint: `Reçu ${sent} · reste 0 — en attente de réappro Zogbo`,
+    hint: `Entrée ${received} · reste 0 — saisissez une nouvelle entrée`,
     blockReason: "Stock à zéro",
     badge: "epuise",
   };
@@ -278,7 +283,7 @@ async function getBaseDishStockLeft(
       maxSold: computed.prevalentMaxSold,
     };
   }
-  const { day, sentByProductId } = await getGbegameyDayPayload(date);
+  const { day } = await getGbegameyDayPayload(date);
   const line = day.transferLines.find((l) => l.productId === productId);
   if (
     !shouldEnforceProductStock({
@@ -289,11 +294,7 @@ async function getBaseDishStockLeft(
     return { left: Number.MAX_SAFE_INTEGER, maxSold: null };
   }
   if (!line) return { left: 0, maxSold: 0 };
-  const computed = computeTransferLine(
-    line,
-    sentByProductId[productId] ?? 0,
-    0,
-  );
+  const computed = computeTransferLine(line, 0);
   return {
     left: computed.prevalentRemaining,
     maxSold: computed.prevalentMaxSold,
@@ -320,12 +321,16 @@ export function accompanimentAvailability(
   // journée est en vente selon le stock, un accompagnement préparé mais non
   // marqué « suivi » ne doit pas être compté à 0 (il bloquait tout le ticket).
   const tracked = accompanimentTracked(line);
-  // Les deux sites : le comptage mesure l’écart, la vente suit
+  // Les deux sites : la vente part du dernier comptage, puis suit
   // ouverture + entrées − vendus − pertes (règle de stock commune).
   void site;
+  const pertes = Math.max(0, Number(line.pertes) || 0);
+  const available = line.initialStock + line.prepared;
   const stock = Math.max(
     0,
-    line.initialStock + line.prepared - Math.max(0, Number(line.pertes) || 0),
+    available -
+      pertes +
+      correctionComptage(line.counted, line.comptage, available - line.sold - pertes),
   );
   const stockLeft = Math.max(0, stock - line.sold);
   return {
@@ -362,12 +367,12 @@ export async function getVenteBoard(
     Math.max(1, options?.recentLimit ?? 40),
   );
 
-  const parametres = await getParametres();
+  const parametres = await getParametres(site);
   const [zogbo, gbegamey, boissons, recent, caToday, qrProductIds] =
     await Promise.all([
-      getZogboDayPayload(date),
-      getGbegameyDayPayload(date),
-      getBoissonsDayPayload(date),
+      site === "zogbo" ? getZogboDayPayload(date) : null,
+      site === "gbegamey" ? getGbegameyDayPayload(date) : null,
+      getBoissonsDayPayload(date, site),
       listRecentVentes(date, site, recentLimit),
       sumCaForSite(date, site),
       listSellableQrProductIds(site),
@@ -377,8 +382,8 @@ export async function getVenteBoard(
 
   const ventesSansStock =
     site === "zogbo"
-      ? dayVentesSansStock(zogbo.day)
-      : dayVentesSansStock(gbegamey.day);
+      ? dayVentesSansStock(zogbo!.day)
+      : dayVentesSansStock(gbegamey!.day);
 
   const products: VenteProduct[] = [];
 
@@ -387,10 +392,10 @@ export async function getVenteBoard(
     // statique n'était pas maître de la base produits réelle — les articles
     // en stock (brochette, chawarma, choukouya…) n'apparaissaient pas.
     const soldById = new Map(
-      zogbo.day.lines.map((l) => [l.productId, l.sold]),
+      zogbo!.day.lines.map((l) => [l.productId, l.sold]),
     );
     for (const dish of parametres.baseDishes) {
-      const line = zogbo.day.lines.find((l) => l.productId === dish.id);
+      const line = zogbo!.day.lines.find((l) => l.productId === dish.id);
       const computed = line ? computeZogboLine(line, 0) : null;
       const enforce = shouldEnforceProductStock({
         dayFreeSale: ventesSansStock,
@@ -421,7 +426,7 @@ export async function getVenteBoard(
       });
     }
     const accById = new Map(
-      (zogbo.day.accompanimentLines ?? []).map((l) => [l.productId, l]),
+      (zogbo!.day.accompanimentLines ?? []).map((l) => [l.productId, l]),
     );
     for (const dish of parametres.localDishes) {
       const line = accById.get(dish.id);
@@ -451,13 +456,10 @@ export async function getVenteBoard(
     }
   } else {
     for (const dish of parametres.baseDishes) {
-      const line = gbegamey.day.transferLines.find(
+      const line = gbegamey!.day.transferLines.find(
         (l) => l.productId === dish.id,
       );
-      const sent = gbegamey.sentByProductId[dish.id] ?? 0;
-      const computed = line
-        ? computeTransferLine(line, sent, dish.unitPrice)
-        : null;
+      const computed = line ? computeTransferLine(line, dish.unitPrice) : null;
       const enforce = shouldEnforceProductStock({
         dayFreeSale: ventesSansStock,
         productTracked: isLineStockTracked(line),
@@ -467,7 +469,7 @@ export async function getVenteBoard(
         ? { hint: "Vente libre — stock non saisi", blockReason: null }
         : gbegameyPlatStatus({
             stockLeft: computed?.prevalentRemaining ?? 0,
-            sent,
+            received: line?.received ?? 0,
             initialStock: line?.initialStock ?? 0,
             sold: line?.sold ?? 0,
             counted: line?.counted ?? null,
@@ -489,7 +491,7 @@ export async function getVenteBoard(
     }
     // Même règle qu'à Zogbo : suivi seulement après saisie stock explicite.
     for (const dish of parametres.localDishes) {
-      const line = gbegamey.day.localLines.find((l) => l.productId === dish.id);
+      const line = gbegamey!.day.localLines.find((l) => l.productId === dish.id);
       const { tracked, stockLeft } = accompanimentAvailability(line);
       const enforce = shouldEnforceProductStock({
         dayFreeSale: ventesSansStock,
@@ -1038,7 +1040,7 @@ async function resolveSoldTarget(input: {
   productId: string;
 }): Promise<SoldTarget> {
   const { date, site, kind, productId } = input;
-  const parametres = await getParametres();
+  const parametres = await getParametres(site);
 
   if (kind === "plat") {
     const dish = parametres.baseDishes.find((d) => d.id === productId);
@@ -1095,13 +1097,13 @@ async function resolveSoldTarget(input: {
     throw new Error(`Prix de vente manquant pour « ${drink.name} » (Paramètres)`);
   }
   return {
-    collection: "boissons_jours",
+    collection: COLLECTION_BOISSONS[site],
     arrayField: "lines",
     soldField: site === "zogbo" ? "soldZogbo" : "soldGbegamey",
     name: drink.name,
     unitPrice: drink.salePrice,
     costPrice: drink.purchasePrice,
-    ensure: () => ensureBoissonsDay(date),
+    ensure: () => ensureBoissonsDay(date, site),
   };
 }
 
@@ -1133,7 +1135,7 @@ async function ensureZogboDay(date: string): Promise<void> {
 }
 
 async function ensureZogboAccompanimentDay(date: string): Promise<void> {
-  const parametres = await getParametres();
+  const parametres = await getParametres("zogbo");
   const { day } = await getZogboDayPayload(date);
   const db = await getDb();
   const lines =
@@ -1177,14 +1179,13 @@ async function ensureGbegameyDay(date: string): Promise<void> {
 
 
 
-async function ensureBoissonsDay(date: string): Promise<void> {
-  const { day } = await getBoissonsDayPayload(date);
+async function ensureBoissonsDay(date: string, site: VenteSite): Promise<void> {
+  const { day } = await getBoissonsDayPayload(date, site);
   // Réenregistrement à l'identique (juste pour garantir la présence de la
-  // ligne avant l'incrément atomique) : le site passé ici n'a pas d'effet,
-  // aucune valeur n'est modifiée.
+  // ligne avant l'incrément atomique) : aucune valeur n'est modifiée.
   await saveBoissonsDay({
     date,
-    site: "zogbo",
+    site,
     status: day.status,
     lines: day.lines,
   });
@@ -1203,7 +1204,9 @@ async function applySoldDelta(
   // Vente / annulation sur un jour passé : le reste reporté sur les
   // journées suivantes suit (boissons, plats, accompagnements).
   return input.kind === "boisson"
-    ? withStockCarry("boissons", input.date, () => applySoldDeltaRaw(input))
+    ? withStockCarry(boissonsScope(input.site), input.date, () =>
+        applySoldDeltaRaw(input),
+      )
     : input.kind === "plat" || input.kind === "local"
       ? withStockCarry(input.site, input.date, () => applySoldDeltaRaw(input))
       : applySoldDeltaRaw(input);
@@ -1228,10 +1231,10 @@ async function applySoldDeltaRaw(input: {
 
   const { arrayField, soldField } = target;
 
-  // Gbégamey : la page Stock ne compte les ventes qu'à partir du moment où le
-  // stock du produit a été saisi. Avant, la vente reste au journal (CA)
-  // mais ne touche pas le compteur « Vendu » du stock.
-  if (input.site === "gbegamey") {
+  // Toute vente encaissée retire le stock, que le produit soit suivi ou non.
+  // Seule exception : annuler une ancienne vente qui n'avait jamais été
+  // décomptée (avant cette règle) ne doit rien remettre en stock.
+  if (input.site === "gbegamey" && input.delta < 0) {
     const current = await (await getDb())
       .collection<DayCounterDoc>(target.collection)
       .findOne({ _id: input.date }, { projection: { [arrayField]: 1 } });
@@ -1241,21 +1244,13 @@ async function applySoldDeltaRaw(input: {
     const currentLine = currentLines.find(
       (l) => l.productId === input.productId,
     );
-    const tracked =
-      target.collection === "boissons_jours"
-        ? isDrinkStockTracked(
-            currentLine
-              ? normalizeBoissonsLine(currentLine as never)
-              : null,
-            "gbegamey",
-          )
-        : isLineStockTracked(currentLine as { stockTracked?: boolean });
-    if (!tracked) {
+    const vendu = Math.max(0, Number(currentLine?.[soldField]) || 0);
+    if (vendu < -input.delta) {
       return {
         name: target.name,
         unitPrice: target.unitPrice,
         costPrice: target.costPrice,
-        soldToday: Math.max(0, Number(currentLine?.[soldField]) || 0),
+        soldToday: vendu,
       };
     }
   }
@@ -1415,7 +1410,7 @@ export async function recordVente(input: {
         maxSold = null;
       }
     } else if (input.kind === "boisson") {
-      const { day, drinks } = await getBoissonsDayPayload(input.date);
+      const { day, drinks } = await getBoissonsDayPayload(input.date, input.site);
       const line = day.lines.find((l) => l.productId === input.productId);
       const drink = drinks.find((d) => d.id === input.productId);
       const upc = drink?.unitsPerCasier;
@@ -1427,8 +1422,6 @@ export async function recordVente(input: {
       if (untracked || !line) {
         maxSold = null;
       } else {
-        const countedThisSite =
-          input.site === "zogbo" ? line.countedZogbo : line.countedGbegamey;
         const left = physicalBoissonsStockForSite(line, input.site, upc);
         const upcResolved = Math.max(
           1,
@@ -1442,12 +1435,15 @@ export async function recordVente(input: {
           input.site === "zogbo" ? line.purchasesZogbo : line.purchasesGbegamey;
         const pertes =
           input.site === "zogbo" ? line.pertesZogbo : line.pertesGbegamey;
-        // Le comptage ne plafonne plus la vente : il mesure l’écart.
-        void countedThisSite;
         const stockBottles = (initialStock + purchases) * upcResolved;
+        // Le plafond part du dernier comptage saisi.
         maxSold = Math.max(
           0,
-          stockBottles - Math.max(0, Number(pertes) || 0),
+          Math.round(
+            stockBottles -
+              Math.max(0, Number(pertes) || 0) +
+              correctionBoissonCasiers(line, input.site, upcResolved) * upcResolved,
+          ),
         );
         if (left < qty) {
           throw new Error(`Stock insuffisant (reste ${left} bt)`);
@@ -1545,6 +1541,25 @@ export async function recordVente(input: {
     throw error;
   }
 
+  if (!input.directionPending) {
+    await recordStockEvents(
+      mapVenteToStockEvents({
+        id: insert.insertedId.toHexString(),
+        date: input.date,
+        site: input.site,
+        kind: input.kind,
+        productId: input.productId,
+        name: result.name,
+        qty,
+        at,
+        cancelledAt: null,
+        source: "vente",
+        actorId: input.actor?.id ?? null,
+      }),
+      "Journal stock · vente",
+    );
+  }
+
   const entry: VenteLogEntry = {
     id: insert.insertedId.toHexString(),
     date: input.date,
@@ -1580,7 +1595,7 @@ async function recordCategoryVente(input: {
   soldToday: number;
   board: Awaited<ReturnType<typeof getVenteBoard>>;
 }> {
-  const parametres = await getParametres();
+  const parametres = await getParametres(input.site);
   const item = (parametres.categoryProducts ?? []).find(
     (p) => p.id === input.productId,
   );
@@ -1867,11 +1882,12 @@ export async function undoVente(input: {
     bypassTeam: input.bypassTeam,
   });
 
+  const cancelledAt = new Date().toISOString();
   const marked = await db.collection<VenteLogDoc>("ventes_log").updateOne(
     { _id: doc._id, ...ACTIVE },
     {
       $set: {
-        cancelledAt: new Date().toISOString(),
+        cancelledAt,
         cancelledById: input.actor?.id ?? null,
         cancelledByName: input.actor?.name ?? null,
         cancelledByUsername: input.actor?.username ?? null,
@@ -1934,6 +1950,23 @@ export async function undoVente(input: {
     );
     throw error;
   }
+
+  await recordStockEvents(
+    mapVenteToStockEvents({
+      id: doc._id.toHexString(),
+      date: doc.date,
+      site: doc.site,
+      kind: doc.kind,
+      productId: doc.productId,
+      name: doc.name,
+      qty: doc.qty,
+      at: doc.at,
+      cancelledAt,
+      source: doc.source ?? "vente",
+      actorId: doc.actorId ?? null,
+    }),
+    "Journal stock · annulation vente",
+  );
 
   if (doc.qrId) {
     try {
@@ -2480,6 +2513,25 @@ export async function deleteVentePermanently(input: {
       productId: doc.productId,
       delta: -doc.qty,
     });
+    const at = new Date().toISOString();
+    await recordStockEvents(
+      mapVenteToStockEvents({
+        id: doc._id.toHexString(),
+        date: doc.date,
+        site: doc.site,
+        kind: doc.kind,
+        productId: doc.productId,
+        name: doc.name,
+        qty: doc.qty,
+        at: doc.at,
+        cancelledAt: at,
+        source: doc.source ?? "vente",
+        actorId: doc.actorId ?? null,
+      }).filter((event) =>
+        event.idempotencyKey.startsWith("annulation-vente:"),
+      ),
+      "Journal stock · suppression vente",
+    );
   }
 
   if (!input.skipPosUpdate) {
