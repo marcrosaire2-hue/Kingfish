@@ -128,13 +128,23 @@ describe("étanchéité des zones", () => {
     expect(navForUser("gerant", "gbegamey")).toContain("gbegamey");
   });
 
-  it("ouvre les pages de cuisine à un gérant connecté avant leur création", () => {
+  it("réserve Composition plat aux administrateurs, même avec une session qui l'indique", () => {
+    const session: NavKey[] = ["gbegamey", "composition-plat"];
+    expect(canAccessPath("admin", "/composition-plat", "tous")).toBe(true);
+    expect(canAccessPath("gerant", "/composition-plat", "gbegamey", "g1", session)).toBe(false);
+    expect(canAccessPath("comptable", "/composition-plat", "tous", "c1", session)).toBe(false);
+    expect(canAccessPath("daf", "/composition-plat", "tous", "d1", session)).toBe(false);
+    expect(
+      navForSession({ role: "gerant", site: "gbegamey", username: "g1", nav: session }),
+    ).not.toContain("composition-plat");
+    expect(navForUser("gerant", "gbegamey")).not.toContain("composition-plat");
+    expect(navForUser("admin", "tous")).toContain("composition-plat");
+  });
+
+  it("ouvre Plats préparés à un gérant connecté avant sa création", () => {
     const sessionAncienne: NavKey[] = ["synthese", "vente", "gbegamey"];
     expect(
       canAccessPath("gerant", "/plats-prepares", "gbegamey", "g1", sessionAncienne),
-    ).toBe(true);
-    expect(
-      canAccessPath("gerant", "/composition-plat", "gbegamey", "g1", sessionAncienne),
     ).toBe(true);
     expect(
       navForSession({ role: "gerant", site: "gbegamey", username: "g1", nav: sessionAncienne }),

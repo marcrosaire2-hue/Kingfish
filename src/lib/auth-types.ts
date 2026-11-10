@@ -317,7 +317,6 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "quantites-vendues",
     "point-ventes",
     "journal-stock",
-    "composition-plat",
     "plats-prepares",
     "rapport-quotidien",
   ],
@@ -458,13 +457,22 @@ const DAF_DENIED_NAV: readonly NavKey[] = [
   "historique",
   "reglages",
   "comptabilite",
+  "composition-plat",
 ];
 
 /** Pages refusées au comptable même si un JWT / une matrice les réintroduit. */
-const COMPTABLE_DENIED_NAV: readonly NavKey[] = ["analyse", "historique"];
+const COMPTABLE_DENIED_NAV: readonly NavKey[] = [
+  "analyse",
+  "historique",
+  "composition-plat",
+];
 
 /** Pages refusées au gérant même si un JWT / une matrice les réintroduit. */
-const GERANT_DENIED_NAV: readonly NavKey[] = ["analyse", "immobilisations"];
+const GERANT_DENIED_NAV: readonly NavKey[] = [
+  "analyse",
+  "immobilisations",
+  "composition-plat",
+];
 
 export function stripRoleDeniedNavKeys(
   keys: NavKey[],
@@ -487,10 +495,7 @@ export function stripRoleDeniedNavKeys(
  * Pages de cuisine rattachées au stock Gbégamey : le menu d'un gérant est figé
  * dans sa session, une page ajoutée depuis sa connexion doit quand même s'ouvrir.
  */
-const PAGES_CUISINE_GBEGAMEY: readonly NavKey[] = [
-  "composition-plat",
-  "plats-prepares",
-];
+const PAGES_CUISINE_GBEGAMEY: readonly NavKey[] = ["plats-prepares"];
 
 function avecPagesCuisine(keys: NavKey[], role: UserRole): NavKey[] {
   if ((role !== "gerant" && role !== "admin") || !keys.includes("gbegamey")) {
@@ -686,12 +691,13 @@ export function canAccessPath(
   ) {
     return false;
   }
-  // Journal direction, droits et alertes : administrateur uniquement.
+  // Journal direction, droits, alertes et compositions : administrateur uniquement.
   if (
     role !== "admin" &&
     (pathname.startsWith("/journal-direction") ||
       pathname.startsWith("/droits") ||
-      pathname.startsWith("/alertes"))
+      pathname.startsWith("/alertes") ||
+      pathname.startsWith("/composition-plat"))
   ) {
     return false;
   }

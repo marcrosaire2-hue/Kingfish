@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AuthError, authErrorResponse, requireStockWrite, requireUser } from "@/lib/api-auth";
+import { AuthError, authErrorResponse, requireUserManagementAdmin } from "@/lib/api-auth";
 import { withLiveBump } from "@/lib/live-route";
 import { logActivity } from "@/lib/log-activity";
 import { resoudreSiteMagasin } from "@/lib/magasin-acces";
@@ -39,7 +39,7 @@ async function charger(site: VenteSite) {
 
 export async function GET(request: Request) {
   try {
-    const user = await requireUser();
+    const user = await requireUserManagementAdmin();
     const resolu = resoudreSiteMagasin(user, new URL(request.url).searchParams.get("site"));
     if (!resolu.ok) return resolu.response;
     return NextResponse.json(await charger(resolu.site));
@@ -50,8 +50,7 @@ export async function GET(request: Request) {
 
 export const PUT = withLiveBump(async function PUT(request: Request) {
   try {
-    const user = await requireUser();
-    requireStockWrite(user);
+    const user = await requireUserManagementAdmin();
     const resolu = resoudreSiteMagasin(user, new URL(request.url).searchParams.get("site"));
     if (!resolu.ok) return resolu.response;
     const body = (await request.json()) as Record<string, unknown>;
@@ -76,8 +75,7 @@ export const PUT = withLiveBump(async function PUT(request: Request) {
 
 export const DELETE = withLiveBump(async function DELETE(request: Request) {
   try {
-    const user = await requireUser();
-    requireStockWrite(user);
+    const user = await requireUserManagementAdmin();
     const url = new URL(request.url);
     const resolu = resoudreSiteMagasin(user, url.searchParams.get("site"));
     if (!resolu.ok) return resolu.response;
