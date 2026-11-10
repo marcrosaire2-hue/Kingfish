@@ -12,6 +12,7 @@ import {
   recetteVersBase,
   statutPlatCaisse,
   syntheseManquants,
+  uniteRecette,
   type Fiche,
   type MagasinArticle,
 } from "@/lib/magasin-calc";
@@ -68,6 +69,12 @@ describe("périmètre et unités", () => {
     expect(recetteVersBase(500, "L")).toBe(0.5);
     expect(recetteVersBase(2, "u")).toBe(2);
     expect(baseVersRecette(0.02, "kg")).toBe(20);
+  });
+
+  it("garde les grammes tels quels pour un article suivi en grammes", () => {
+    expect(uniteRecette("g")).toBe("g");
+    expect(recetteVersBase(1.75, "g")).toBe(1.75);
+    expect(baseVersRecette(2.5, "g")).toBe(2.5);
   });
 });
 

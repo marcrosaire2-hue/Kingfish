@@ -15,6 +15,7 @@ import {
   type FicheMode,
   type FicheProductKind,
   type MagasinArticle,
+  type MagasinUnit,
 } from "@/lib/magasin-calc";
 
 const SITE = "gbegamey";
@@ -51,6 +52,42 @@ export function CompositionPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [nouveauNom, setNouveauNom] = useState("");
+  const [nouvelleUnite, setNouvelleUnite] = useState<MagasinUnit>("g");
+
+  /** Crée le condiment au magasin puis l'ajoute à la fiche en cours. */
+  async function creerCondiment() {
+    const nom = nouveauNom.trim();
+    if (!nom) return;
+    setBusy(true);
+    setError(null);
+    setFlash(null);
+    try {
+      const res = await fetch("/api/magasin?site=gbegamey", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "article", name: nom, unit: nouvelleUnite }),
+      });
+      const body = (await res.json()) as { error?: string; articles?: MagasinArticle[] };
+      if (!res.ok) throw new Error(body.error || "Création impossible.");
+      const cree = (body.articles ?? []).find(
+        (a) => a.name.toLowerCase() === nom.replace(/\s+/g, " ").toLowerCase(),
+      );
+      const rechargement = await fetch(API, { cache: "no-store" });
+      const donnees = await rechargement.json();
+      if (!rechargement.ok) throw new Error(donnees.error || "Rechargement impossible.");
+      setData(donnees as Donnees);
+      if (cree) {
+        setDraft((d) => ({ ...d, lines: [...d.lines, { articleId: cree.id, qty: "" }] }));
+      }
+      setNouveauNom("");
+      setFlash(`${nom} créé et ajouté : indiquez sa quantité, puis enregistrez.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Création impossible.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     let annule = false;
@@ -206,7 +243,7 @@ export function CompositionPage() {
                   <h3>{selected.name}</h3>
                   {articles.length === 0 ? (
                     <p className="mag-hint">
-                      Ajoutez d’abord vos condiments dans Stock Gbégamey, onglet Condiments.
+                      Aucun condiment pour l’instant : créez-le avec « Condiment absent de la liste ».
                     </p>
                   ) : null}
                   <div className="mag-form">
@@ -289,6 +326,41 @@ export function CompositionPage() {
                       )}
                     </div>
                   ))}
+
+                  {readOnly ? null : (
+                    <div className="mag-form" style={{ marginTop: 12 }}>
+                      <label className="mag-field">
+                        Condiment absent de la liste
+                        <input
+                          className="mag-input"
+                          placeholder="Ex. Huile d’arachide"
+                          value={nouveauNom}
+                          onChange={(e) => setNouveauNom(e.target.value)}
+                        />
+                      </label>
+                      <label className="mag-field">
+                        Compté en
+                        <select
+                          className="select-input"
+                          value={nouvelleUnite}
+                          onChange={(e) => setNouvelleUnite(e.target.value as MagasinUnit)}
+                        >
+                          <option value="g">Grammes (g)</option>
+                          <option value="kg">Kilos (kg)</option>
+                          <option value="L">Litres (L)</option>
+                          <option value="u">Pièces (u)</option>
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        disabled={busy || !nouveauNom.trim()}
+                        onClick={() => void creerCondiment()}
+                      >
+                        Créer et ajouter
+                      </button>
+                    </div>
+                  )}
 
                   {readOnly ? null : (
                     <div className="compo-actions">

@@ -570,6 +570,7 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
                     onChange={(e) => setUnite(e.target.value as MagasinUnit)}
                   >
                     <option value="kg">Kilo (kg)</option>
+                    <option value="g">Gramme (g)</option>
                     <option value="L">Litre (L)</option>
                     <option value="u">Pièce (u)</option>
                   </select>
