@@ -245,13 +245,7 @@ export async function exportGbegameyExcel(date: string): Promise<void> {
       name: "Sur place",
       rows: local.map((l) => ({
         Plat: l.name,
-        "Stock init.": l.initialStock,
-        Préparé: l.prepared,
         Vendu: l.sold,
-        Dispo: l.available,
-        "Reste théorique": l.theoreticalRemaining,
-        Compté: l.counted ?? "",
-        Écart: l.variance ?? "",
         "PU (FCFA)": l.unitPrice,
         "CA (FCFA)": l.soldAmount,
         Observations: l.observations,

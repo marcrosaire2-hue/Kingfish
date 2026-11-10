@@ -463,7 +463,10 @@ export function PertesPage() {
                 type="button"
                 role="tab"
                 className={`section-tab${site === "gbegamey" ? " is-active" : ""}`}
-                onClick={() => setSite("gbegamey")}
+                onClick={() => {
+                  setSite("gbegamey");
+                  if (famille === "local") setFamille("plat");
+                }}
               >
                 Gbégamey
               </button>
@@ -546,7 +549,7 @@ export function PertesPage() {
           role="tablist"
           aria-label="Famille"
         >
-          {FAMILLES.map((f) => (
+          {FAMILLES.filter((f) => site === "zogbo" || f.key !== "local").map((f) => (
             <button
               key={f.key}
               type="button"

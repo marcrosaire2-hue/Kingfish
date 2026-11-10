@@ -63,7 +63,7 @@ type Snapshot =
 const DISH_ARRAYS: Record<"zogbo" | "gbegamey", Record<string, string>> = {
   // Plat Zogbo : l'ouverture est fondue dans `stock` (ouverture + préparé − envoyé).
   zogbo: { lines: "stock", accompanimentLines: "initialStock" },
-  gbegamey: { transferLines: "initialStock", localLines: "initialStock" },
+  gbegamey: { transferLines: "initialStock" },
 };
 
 const carryContext = new AsyncLocalStorage<Set<string>>();
@@ -98,7 +98,6 @@ async function snapshot(
     scope,
     leftover: {
       transferLines: leftoverFromTransferLines(day.transferLines),
-      localLines: leftoverFromLocalLines(day.localLines),
     },
   };
 }

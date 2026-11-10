@@ -123,6 +123,15 @@ export const PERMISSION_RESOURCES: PermissionResource[] = [
     actions: ["access", "view", "update"],
   },
   {
+    id: "plats-prepares",
+    navKey: "plats-prepares",
+    label: "Plats préparés",
+    path: "/plats-prepares",
+    category: "quotidien",
+    description: "Nombre de plats préparés, qui fait sortir les condiments du stock.",
+    actions: ["access", "view", "update"],
+  },
+  {
     id: "caisse",
     navKey: "caisse",
     label: "Caisse",

@@ -719,6 +719,10 @@ export type VenteProduct = {
   qrRequired?: boolean;
   /** Catégorie personnalisée (kind « extra » du catalogue, sans stock). */
   categoryId?: string;
+  /** Retiré de la vente par l'administrateur, quel que soit le stock. */
+  griseAdmin?: boolean;
+  /** Plats préparés restants (peut être négatif), même en vente libre. */
+  portionsRestantes?: number;
 };
 
 export type VenteLogEntry = {

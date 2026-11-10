@@ -288,6 +288,8 @@ export type NavKey =
   | "quantites-vendues"
   | "point-ventes"
   | "journal-stock"
+  | "composition-plat"
+  | "plats-prepares"
   | "immobilisations"
   | "stock"
   | "admin"
@@ -315,6 +317,7 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "quantites-vendues",
     "point-ventes",
     "journal-stock",
+    "plats-prepares",
     "rapport-quotidien",
   ],
   // Finance + consultation des stocks. Pas d’analyse, ni registre.
@@ -383,6 +386,8 @@ const ROLE_NAV: Record<UserRole, NavKey[]> = {
     "quantites-vendues",
     "point-ventes",
     "journal-stock",
+    "composition-plat",
+    "plats-prepares",
     "stock",
     "immobilisations",
     "historique",
@@ -452,13 +457,22 @@ const DAF_DENIED_NAV: readonly NavKey[] = [
   "historique",
   "reglages",
   "comptabilite",
+  "composition-plat",
 ];
 
 /** Pages refusées au comptable même si un JWT / une matrice les réintroduit. */
-const COMPTABLE_DENIED_NAV: readonly NavKey[] = ["analyse", "historique"];
+const COMPTABLE_DENIED_NAV: readonly NavKey[] = [
+  "analyse",
+  "historique",
+  "composition-plat",
+];
 
 /** Pages refusées au gérant même si un JWT / une matrice les réintroduit. */
-const GERANT_DENIED_NAV: readonly NavKey[] = ["analyse", "immobilisations"];
+const GERANT_DENIED_NAV: readonly NavKey[] = [
+  "analyse",
+  "immobilisations",
+  "composition-plat",
+];
 
 export function stripRoleDeniedNavKeys(
   keys: NavKey[],
@@ -477,16 +491,34 @@ export function stripRoleDeniedNavKeys(
   return keys;
 }
 
+/**
+ * Pages de cuisine rattachées au stock Gbégamey : le menu d'un gérant est figé
+ * dans sa session, une page ajoutée depuis sa connexion doit quand même s'ouvrir.
+ */
+const PAGES_CUISINE_GBEGAMEY: readonly NavKey[] = ["plats-prepares"];
+
+function avecPagesCuisine(keys: NavKey[], role: UserRole): NavKey[] {
+  if ((role !== "gerant" && role !== "admin") || !keys.includes("gbegamey")) {
+    return keys;
+  }
+  return [...new Set([...keys, ...PAGES_CUISINE_GBEGAMEY])];
+}
+
 /** Retire l’autre zone du menu (Zogbo ↔ Gbégamey). */
 export function filterNavKeysBySite(
   keys: NavKey[],
   role: UserRole,
   site: UserSite,
 ): NavKey[] {
-  const withoutRoleDenied = stripRoleDeniedNavKeys(keys, role);
+  const withoutRoleDenied = avecPagesCuisine(
+    stripRoleDeniedNavKeys(keys, role),
+    role,
+  );
   const scoped = effectiveSite(role, site);
   if (scoped === "zogbo") {
-    return withoutRoleDenied.filter((k) => k !== "gbegamey");
+    return withoutRoleDenied.filter(
+      (k) => k !== "gbegamey" && k !== "composition-plat" && k !== "plats-prepares",
+    );
   }
   if (scoped === "gbegamey") {
     return withoutRoleDenied.filter((k) => k !== "zogbo");
@@ -627,6 +659,12 @@ function canAccessPathWithAllowed(
   if (pathname.startsWith("/journal-stock")) {
     return allowed.includes("journal-stock");
   }
+  if (pathname.startsWith("/composition-plat")) {
+    return allowed.includes("composition-plat");
+  }
+  if (pathname.startsWith("/plats-prepares")) {
+    return allowed.includes("plats-prepares");
+  }
   if (pathname.startsWith("/immobilisations")) {
     return allowed.includes("immobilisations");
   }
@@ -653,12 +691,13 @@ export function canAccessPath(
   ) {
     return false;
   }
-  // Journal direction, droits et alertes : administrateur uniquement.
+  // Journal direction, droits, alertes et compositions : administrateur uniquement.
   if (
     role !== "admin" &&
     (pathname.startsWith("/journal-direction") ||
       pathname.startsWith("/droits") ||
-      pathname.startsWith("/alertes"))
+      pathname.startsWith("/alertes") ||
+      pathname.startsWith("/composition-plat"))
   ) {
     return false;
   }

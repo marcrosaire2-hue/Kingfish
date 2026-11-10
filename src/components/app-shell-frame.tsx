@@ -68,6 +68,18 @@ const NAV_ITEMS: {
     group: "ops",
   },
   {
+    href: "/composition-plat",
+    label: "Composition plat",
+    key: "composition-plat",
+    group: "ops",
+  },
+  {
+    href: "/plats-prepares",
+    label: "Plats préparés",
+    key: "plats-prepares",
+    group: "ops",
+  },
+  {
     href: "/catalogue",
     label: "Catalogue",
     key: "parametres",
@@ -214,6 +226,8 @@ const NAV_ICON_PATHS: Partial<Record<NavKey, string>> = {
   compteur: "M12 21a9 9 0 1 1 9-9M12 12l4-4M12 3v2",
   immobilisations: "M4 20h16M6 20V9l6-5 6 5v11M10 20v-6h4v6",
   stock: "M4 7l8-4 8 4v10l-8 4-8-4V7Zm8 4v10M4 7l8 4 8-4",
+  "composition-plat": "M5 4v7a3 3 0 0 0 6 0V4M8 4v17M16 4c-2 2-2 7 0 9v8",
+  "plats-prepares": "M4 13h16a8 8 0 0 1-16 0ZM8 9V5M12 9V3M16 9V5",
   "journal-ventes": "M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6M9 12h6",
   "journal-stock": "M4 7l8-4 8 4v10l-8 4-8-4V7Zm8 4v10M4 7l8 4 8-4M8 13h2",
   "point-ventes": "M4 20h16M7 20v-6M12 20V8M17 20v-9M5 9l5-5 4 3 5-4",

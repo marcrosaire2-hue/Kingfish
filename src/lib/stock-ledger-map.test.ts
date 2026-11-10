@@ -23,6 +23,18 @@ const vente = {
 };
 
 describe("traduction en événements de stock", () => {
+  it("un accompagnement vendu à Gbégamey ne produit aucun mouvement", () => {
+    expect(
+      mapVenteToStockEvents({ ...vente, site: "gbegamey", kind: "local" }),
+    ).toEqual([]);
+  });
+
+  it("un accompagnement vendu à Zogbo produit toujours son mouvement", () => {
+    expect(
+      mapVenteToStockEvents({ ...vente, site: "zogbo", kind: "local" }).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("une vente sort du stock", () => {
     const [event] = mapVenteToStockEvents(vente);
     expect(event!.type).toBe("vente");

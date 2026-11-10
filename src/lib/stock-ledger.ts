@@ -12,9 +12,17 @@ import type { VenteSite } from "@/lib/types";
  * sortie non déclarée), pas une valeur à masquer.
  */
 
-export type StockLedgerFamily = "plat" | "local" | "boisson" | "matiere";
+export type StockLedgerFamily =
+  | "plat"
+  | "local"
+  | "boisson"
+  | "matiere"
+  /** Article du magasin (condiment, ingrédient). */
+  | "magasin"
+  /** Portions d'une fiche préparée en lot (sauce, pâte, riz). */
+  | "portion";
 
-export type StockLedgerUnit = "portion" | "bt" | "u";
+export type StockLedgerUnit = "portion" | "bt" | "u" | "kg" | "L";
 
 export type StockEventType =
   /** Stock initial (première entrée d'un produit). */
@@ -27,6 +35,8 @@ export type StockEventType =
   | "vente"
   /** Sortie par perte/casse. */
   | "perte"
+  /** Ingrédient utilisé par une production ou une vente. */
+  | "consommation"
   /** Reprise de stock (vente annulée, correction positive). */
   | "annulation"
   /** Retire une entrée saisie à tort (achat annulé, quantité corrigée à la baisse). */
@@ -124,6 +134,7 @@ export type StockBalance = {
   production: number;
   ventes: number;
   pertes: number;
+  consommations: number;
   annulations: number;
   /** Dernier comptage physique. */
   lastCounted: number | null;
@@ -147,6 +158,7 @@ function emptyBalance(event: StockEvent): StockBalance {
     production: 0,
     ventes: 0,
     pertes: 0,
+    consommations: 0,
     annulations: 0,
     lastCounted: null,
     lastCountAt: null,
@@ -211,6 +223,10 @@ export function applyStockEvents(
       case "perte":
         balance.stock = round4(balance.stock - event.qty);
         balance.pertes = round4(balance.pertes + event.qty);
+        break;
+      case "consommation":
+        balance.stock = round4(balance.stock - event.qty);
+        balance.consommations = round4(balance.consommations + event.qty);
         break;
       case "comptage":
         // Le comptage écrit le stock : l'écart est figé ici, une seule fois.

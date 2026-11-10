@@ -15,6 +15,7 @@ import { ProductIcon } from "@/components/product-icon";
 import { QtyInput } from "@/components/qty-input";
 import { EcartBadge, formatEcart } from "@/components/stock-ecart";
 import { ZoneBoissonsPanel } from "@/components/zone/zone-boissons-panel";
+import { CondimentsPanel } from "@/components/condiments/condiments-panel";
 import {
   CataloguePaginationBar,
   CatalogueSkeleton,
@@ -36,12 +37,12 @@ import {
   todayIsoDate,
 } from "@/lib/zogbo-calc";
 
-type TabKey = "plats" | "acc" | "boissons";
+type TabKey = "plats" | "acc" | "boissons" | "condiments";
 
 const PAGE_SIZE = 6;
 
 function parseTab(raw: string | null): TabKey {
-  if (raw === "acc" || raw === "boissons") return raw;
+  if (raw === "acc" || raw === "boissons" || raw === "condiments") return raw;
   return "plats";
 }
 
@@ -194,7 +195,15 @@ export function StockZogboPage({
   const router = useRouter();
   const { user } = useSession();
   const readOnly = Boolean(user && !canWriteStock(user.role));
-  const tab = parseTab(searchParams.get("tab"));
+  const tabDemande = parseTab(searchParams.get("tab"));
+  // À Gbégamey, Condiments remplace l'onglet Plats. Zogbo garde ses plats.
+  const tab: TabKey = isGbegamey
+    ? tabDemande === "boissons"
+      ? "boissons"
+      : "condiments"
+    : tabDemande === "condiments"
+      ? "plats"
+      : tabDemande;
   const dateFromUrl = searchParams.get("date");
   const [date, setDate] = useState(() => {
     if (dateFromUrl && /^\d{4}-\d{2}-\d{2}$/.test(dateFromUrl)) return dateFromUrl;
@@ -230,7 +239,7 @@ export function StockZogboPage({
 
   function setTab(next: TabKey) {
     const params = new URLSearchParams(searchParams.toString());
-    if (next === "plats") params.delete("tab");
+    if (next === (isGbegamey ? "condiments" : "plats")) params.delete("tab");
     else params.set("tab", next);
     const q = params.toString();
     const path = isGbegamey ? "/stock-gbegamey" : "/stock-zogbo";
@@ -422,11 +431,13 @@ export function StockZogboPage({
       subtitle={
         readOnly
           ? "Consultation du stock — aucune saisie."
-          : "Saisie du stock — plats, accompagnements et boissons."
+          : isGbegamey
+            ? "Saisie du stock — condiments et boissons."
+            : "Saisie du stock — plats, accompagnements et boissons."
       }
       mainClassName="main-stock-zogbo"
       actions={
-        tab === "boissons" ? undefined : (
+        tab === "boissons" || tab === "condiments" ? undefined : (
           <ExportExcelButton
             disabled={loading || !payload}
             className="btn btn-ghost"
@@ -479,26 +490,40 @@ export function StockZogboPage({
           role="tablist"
           aria-label={`Sections ${siteTitle}`}
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "plats"}
-            className={`section-tab${tab === "plats" ? " is-active" : ""}`}
-            onClick={() => setTab("plats")}
-          >
-            Plats
-            <span className="section-count">{plats.length}</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "acc"}
-            className={`section-tab${tab === "acc" ? " is-active" : ""}`}
-            onClick={() => setTab("acc")}
-          >
-            Accompagnements
-            <span className="section-count">{accLines.length}</span>
-          </button>
+          {isGbegamey ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "condiments"}
+              className={`section-tab${tab === "condiments" ? " is-active" : ""}`}
+              onClick={() => setTab("condiments")}
+            >
+              Condiments
+            </button>
+          ) : (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "plats"}
+              className={`section-tab${tab === "plats" ? " is-active" : ""}`}
+              onClick={() => setTab("plats")}
+            >
+              Plats
+              <span className="section-count">{plats.length}</span>
+            </button>
+          )}
+          {!isGbegamey ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "acc"}
+              className={`section-tab${tab === "acc" ? " is-active" : ""}`}
+              onClick={() => setTab("acc")}
+            >
+              Accompagnements
+              <span className="section-count">{accLines.length}</span>
+            </button>
+          ) : null}
           <button
             type="button"
             role="tab"
@@ -523,7 +548,9 @@ export function StockZogboPage({
           </div>
         ) : null}
 
-        {loading ? (
+        {tab === "condiments" ? (
+          <CondimentsPanel readOnly={readOnly} />
+        ) : loading ? (
           <CatalogueSkeleton />
         ) : tab === "plats" ? (
           <>

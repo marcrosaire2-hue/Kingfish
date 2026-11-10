@@ -37,7 +37,6 @@ const ZONE_LABELS: Record<StockZone, string> = {
   "zogbo-plats": "Zogbo · plats",
   "zogbo-accompagnements": "Zogbo · accompagnements",
   "gbegamey-plats": "Gbégamey · plats reçus",
-  "gbegamey-accompagnements": "Gbégamey · accompagnements",
   "zogbo-boissons": "Boissons · Zogbo",
   "gbegamey-boissons": "Boissons · Gbégamey",
   matieres: "Matières premières",
@@ -332,33 +331,6 @@ export async function getStockPayload(input: {
           kind: "plat",
           opening: line.initialStock,
           entrees: line.receivedFromZogbo,
-          envoye: 0,
-          vendu: line.sold,
-          pertes: line.pertes,
-          theorique,
-          stockFinal: line.theoreticalRemaining,
-          stockVendable: line.theoreticalRemaining,
-          compte: line.counted,
-          ecart: line.variance,
-          unit: "portions",
-          threshold: null,
-          belowThreshold: false,
-        };
-        pushRow(rows, row, onlyActive);
-      }
-    }
-
-    if (wanted.has("accompagnements")) {
-      for (const line of computed.locals) {
-        const theorique = line.theoreticalRemaining;
-        const row: StockRow = {
-          zone: "gbegamey-accompagnements",
-          zoneLabel: ZONE_LABELS["gbegamey-accompagnements"],
-          productId: line.productId,
-          name: line.name,
-          kind: "local",
-          opening: line.initialStock,
-          entrees: line.prepared,
           envoye: 0,
           vendu: line.sold,
           pertes: line.pertes,

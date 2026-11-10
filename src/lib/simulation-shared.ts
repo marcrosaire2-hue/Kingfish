@@ -52,6 +52,7 @@ const SIM_API_PREFIXES = [
   "/api/synthese",
   "/api/ventes/totaux-jour",
   "/api/admin/ventes-stock",
+  "/api/admin/produits-grises",
 ];
 
 export function estApiSimulable(pathname: string): boolean {

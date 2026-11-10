@@ -15,7 +15,6 @@ import {
   saveBoissonsDay,
 } from "@/lib/boissons-repo";
 import { newId } from "@/lib/format";
-import { computeTransferLine } from "@/lib/gbegamey-calc";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
 import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import { computeZogboLine, shiftIsoDate } from "@/lib/zogbo-calc";
@@ -29,6 +28,25 @@ import { COLLECTION_BOISSONS } from "@/lib/site-collections";
 import { correctionComptage } from "@/lib/stock-comptage";
 import { mapVenteToStockEvents } from "@/lib/stock-ledger-map";
 import { recordStockEvents } from "@/lib/stock-ledger-write";
+import {
+  normalizeAjustements,
+  statutPlatCaisse,
+  type VenteAjustements,
+} from "@/lib/magasin-calc";
+import {
+  ajusterConsommationVente,
+  annulerConsommationVente,
+  enregistrerConsommationVente,
+  lireConsommationVente,
+  preparationPlat,
+  preparationsPlats,
+  transfererConsommationVente,
+} from "@/lib/magasin-repo";
+import { marquerProduitsGrises } from "@/lib/produits-grises-calc";
+import {
+  assertProduitDisponible,
+  produitsGrisesPourDate,
+} from "@/lib/produits-grises-repo";
 import { parseFiniteAmount } from "@/lib/security-policy";
 import type {
   GbegameyLocalLine,
@@ -205,55 +223,6 @@ function zogboPlatStatus(input: {
   };
 }
 
-/** Libellés clairs pour un plat reçu à Gbégamey. */
-function gbegameyPlatStatus(input: {
-  stockLeft: number;
-  received: number;
-  initialStock: number;
-  sold: number;
-  counted: number | null;
-}): {
-  hint: string;
-  blockReason: string | null;
-  badge: "epuise" | "pas-recu";
-} {
-  const { stockLeft, received, initialStock, sold, counted } = input;
-  if (stockLeft > 0) {
-    return {
-      hint: `Entrée ${received} · reste ${stockLeft}`,
-      blockReason: null,
-      badge: "epuise",
-    };
-  }
-  if (counted === 0) {
-    return {
-      hint: "Inventaire saisi à 0 — corrigez le comptage sur Gbégamey",
-      blockReason: "Inventaire à 0",
-      badge: "epuise",
-    };
-  }
-  // Jamais de stock ce jour (ni report, ni entrée) : ce n'est pas une « rupture ».
-  if (received <= 0 && initialStock <= 0 && sold <= 0) {
-    return {
-      hint: "Aucun stock saisi — saisissez le stock d’ouverture sur Gbégamey",
-      blockReason: "Pas encore de stock",
-      badge: "pas-recu",
-    };
-  }
-  if (sold > 0) {
-    return {
-      hint: `Épuisé · ${sold} vendu(s) · entrée ${received}`,
-      blockReason: "Stock épuisé",
-      badge: "epuise",
-    };
-  }
-  return {
-    hint: `Entrée ${received} · reste 0 — saisissez une nouvelle entrée`,
-    blockReason: "Stock à zéro",
-    badge: "epuise",
-  };
-}
-
 /**
  * Stock restant vendable d’un plat de base (Zogbo ou reçu Gbégamey).
  * `left` sert d’avertissement au client ; `maxSold` borne la vente de façon
@@ -283,22 +252,17 @@ async function getBaseDishStockLeft(
       maxSold: computed.prevalentMaxSold,
     };
   }
+  // Gbégamey : le plafond vient des plats préparés. Un plat sans préparation
+  // reste libre, son ancien stock n'étant plus saisissable.
+  const libre = { left: Number.MAX_SAFE_INTEGER, maxSold: null };
+  if (dayFreeSale) return libre;
+  const portions = await preparationPlat(site, productId);
+  if (portions === null) return libre;
   const { day } = await getGbegameyDayPayload(date);
   const line = day.transferLines.find((l) => l.productId === productId);
-  if (
-    !shouldEnforceProductStock({
-      dayFreeSale,
-      productTracked: isLineStockTracked(line),
-    })
-  ) {
-    return { left: Number.MAX_SAFE_INTEGER, maxSold: null };
-  }
-  if (!line) return { left: 0, maxSold: 0 };
-  const computed = computeTransferLine(line, 0);
-  return {
-    left: computed.prevalentRemaining,
-    maxSold: computed.prevalentMaxSold,
-  };
+  const left = Math.max(0, Math.floor(portions));
+  // `maxSold` borne le compteur des vendus : déjà vendus + portions restantes.
+  return { left, maxSold: (line?.sold ?? 0) + left };
 }
 
 /** Un accompagnement est suivi seulement après saisie stock explicite. */
@@ -337,6 +301,28 @@ export function accompanimentAvailability(
     tracked,
     stockLeft,
     maxSold: stock,
+  };
+}
+
+/**
+ * Ligne de vente d'un accompagnement à Gbégamey : toujours vendu hors stock,
+ * quel que soit le réglage « vente selon le stock » de la journée.
+ */
+export function accompanimentBoardProduct(input: {
+  dish: { id: string; name: string; unitPrice: number };
+  line: { sold: number } | null | undefined;
+  qrRequired: boolean;
+}): VenteProduct {
+  return {
+    kind: "local",
+    productId: input.dish.id,
+    name: input.dish.name,
+    unitPrice: input.dish.unitPrice,
+    soldToday: input.line?.sold ?? 0,
+    stockLeft: null,
+    blockReason: null,
+    hint: "Vente hors stock",
+    qrRequired: input.qrRequired,
   };
 }
 
@@ -455,66 +441,40 @@ export async function getVenteBoard(
       });
     }
   } else {
+    const preparations = await preparationsPlats(site);
     for (const dish of parametres.baseDishes) {
       const line = gbegamey!.day.transferLines.find(
         (l) => l.productId === dish.id,
       );
-      const computed = line ? computeTransferLine(line, dish.unitPrice) : null;
-      const enforce = shouldEnforceProductStock({
-        dayFreeSale: ventesSansStock,
-        productTracked: isLineStockTracked(line),
+      const statut = statutPlatCaisse({
+        preparation: preparations.get(dish.id),
+        venteLibre: ventesSansStock,
       });
-      const stockLeft = enforce ? (computed?.prevalentRemaining ?? 0) : null;
-      const status = !enforce
-        ? { hint: "Vente libre — stock non saisi", blockReason: null }
-        : gbegameyPlatStatus({
-            stockLeft: computed?.prevalentRemaining ?? 0,
-            received: line?.received ?? 0,
-            initialStock: line?.initialStock ?? 0,
-            sold: line?.sold ?? 0,
-            counted: line?.counted ?? null,
-          });
       products.push({
         kind: "plat",
         productId: dish.id,
         name: dish.name,
         unitPrice: dish.unitPrice,
         soldToday: line?.sold ?? 0,
-        stockLeft,
-        lowStock: enforce
-          ? isLowStock(computed?.prevalentRemaining ?? 0, dish.alertThreshold)
-          : false,
-        hint: status.hint,
-        blockReason: status.blockReason,
+        stockLeft: statut.stockLeft,
+        portionsRestantes: statut.portionsRestantes,
+        lowStock:
+          statut.stockLeft !== null
+            ? isLowStock(statut.stockLeft, dish.alertThreshold)
+            : false,
+        hint: statut.hint,
+        blockReason: statut.blockReason,
         qrRequired: qrProductIds.has(dish.id),
       });
     }
-    // Même règle qu'à Zogbo : suivi seulement après saisie stock explicite.
     for (const dish of parametres.localDishes) {
-      const line = gbegamey!.day.localLines.find((l) => l.productId === dish.id);
-      const { tracked, stockLeft } = accompanimentAvailability(line);
-      const enforce = shouldEnforceProductStock({
-        dayFreeSale: ventesSansStock,
-        productTracked: tracked,
-      });
-      products.push({
-        kind: "local",
-        productId: dish.id,
-        name: dish.name,
-        unitPrice: dish.unitPrice,
-        soldToday: line?.sold ?? 0,
-        stockLeft: enforce ? stockLeft : null,
-        blockReason:
-          enforce && stockLeft !== null && stockLeft <= 0
-            ? "Stock épuisé"
-            : null,
-        hint: enforce
-          ? stockLeft !== null && stockLeft <= 0
-            ? "Stock épuisé"
-            : `Reste ${stockLeft}`
-          : "Vente libre — stock non saisi",
-        qrRequired: qrProductIds.has(dish.id),
-      });
+      products.push(
+        accompanimentBoardProduct({
+          dish,
+          line: gbegamey!.day.localLines.find((l) => l.productId === dish.id),
+          qrRequired: qrProductIds.has(dish.id),
+        }),
+      );
     }
   }
 
@@ -599,7 +559,11 @@ export async function getVenteBoard(
   return {
     date,
     site,
-    products,
+    products: marquerProduitsGrises(
+      products,
+      site,
+      await produitsGrisesPourDate(site, date),
+    ),
     recent,
     caToday,
     caParEquipe,
@@ -1202,12 +1166,12 @@ async function applySoldDelta(
   input: Parameters<typeof applySoldDeltaRaw>[0],
 ): ReturnType<typeof applySoldDeltaRaw> {
   // Vente / annulation sur un jour passé : le reste reporté sur les
-  // journées suivantes suit (boissons, plats, accompagnements).
+  // journées suivantes suit (boissons, plats, accompagnements Zogbo).
   return input.kind === "boisson"
     ? withStockCarry(boissonsScope(input.site), input.date, () =>
         applySoldDeltaRaw(input),
       )
-    : input.kind === "plat" || input.kind === "local"
+    : input.kind === "plat" || (input.kind === "local" && input.site === "zogbo")
       ? withStockCarry(input.site, input.date, () => applySoldDeltaRaw(input))
       : applySoldDeltaRaw(input);
 }
@@ -1328,6 +1292,8 @@ export async function recordVente(input: {
   qrId?: string | null;
   /** Vente direction : hors CA tant que l'admin ne l'a pas validée. */
   directionPending?: boolean;
+  /** Ingrédients manquants et suppléments déclarés à la caisse. */
+  ajustements?: VenteAjustements | null;
 }): Promise<{
   entry: VenteLogEntry;
   soldToday: number;
@@ -1344,6 +1310,16 @@ export async function recordVente(input: {
     throw new Error("Une unité QR ne peut être vendue qu'à la quantité 1.");
   }
   if (!isValidDate(input.date)) throw new Error("Date invalide");
+
+  // Contrôle serveur : une caisse restée ouverte ne peut pas vendre un article grisé.
+  if (qty > 0) {
+    await assertProduitDisponible({
+      site: input.site,
+      date: input.date,
+      kind: input.kind,
+      productId: input.productId,
+    });
+  }
 
   if (input.actor?.username) {
     assertZogboPlanningSale({
@@ -1385,17 +1361,11 @@ export async function recordVente(input: {
       if (max !== null && left < qty) {
         throw new Error(`Stock insuffisant (reste ${left})`);
       }
-    } else if (input.kind === "local") {
-      let line: GbegameyLocalLine | undefined;
-      if (input.site === "zogbo") {
-        const { day } = await getZogboDayPayload(input.date);
-        line = (day.accompanimentLines ?? []).find(
-          (l) => l.productId === input.productId,
-        );
-      } else {
-        const { day } = await getGbegameyDayPayload(input.date);
-        line = day.localLines.find((l) => l.productId === input.productId);
-      }
+    } else if (input.kind === "local" && input.site === "zogbo") {
+      const { day } = await getZogboDayPayload(input.date);
+      const line = (day.accompanimentLines ?? []).find(
+        (l) => l.productId === input.productId,
+      );
       const avail = accompanimentAvailability(line ?? null, input.site);
       const enforce = shouldEnforceProductStock({
         dayFreeSale,
@@ -1559,6 +1529,18 @@ export async function recordVente(input: {
       "Journal stock · vente",
     );
   }
+  // Une vente direction reste hors CA, mais le plat sort bien de la cuisine.
+  await enregistrerConsommationVente({
+    venteId: insert.insertedId.toHexString(),
+    site: input.site,
+    date: input.date,
+    at,
+    kind: input.kind,
+    productId: input.productId,
+    qty,
+    ajustements: normalizeAjustements(input.ajustements),
+    actor: input.actor,
+  });
 
   const entry: VenteLogEntry = {
     id: insert.insertedId.toHexString(),
@@ -1854,6 +1836,11 @@ export async function undoVente(input: {
         },
       },
     );
+    await annulerConsommationVente({
+      venteId: directionDoc._id.toHexString(),
+      site: directionDoc.site,
+      date: directionDoc.date,
+    });
     return {
       board: await getVenteBoard(input.date, input.site),
       entry: {
@@ -1967,6 +1954,11 @@ export async function undoVente(input: {
     }),
     "Journal stock · annulation vente",
   );
+  await annulerConsommationVente({
+    venteId: doc._id.toHexString(),
+    site: doc.site,
+    date: doc.date,
+  });
 
   if (doc.qrId) {
     try {
@@ -2134,6 +2126,14 @@ export async function editVenteQty(input: {
       await adjustCaisseVenteAmount(String(ticket.caisseId), deltaTicket);
     }
   }
+
+  await ajusterConsommationVente({
+    venteId: doc._id.toHexString(),
+    site: doc.site,
+    date: doc.date,
+    ancienneQty: oldQty,
+    nouvelleQty: newQty,
+  });
 
   const board = await getVenteBoard(doc.date, input.site);
   return {
@@ -2335,6 +2335,11 @@ export async function editVenteFull(input: {
     });
   }
 
+  // Même produit : la consommation et les manques suivent la vente déplacée.
+  const consommation = productChanged
+    ? null
+    : await lireConsommationVente({ venteId: input.id, site: doc.site });
+
   try {
     await deleteVentePermanently({
       id: input.id,
@@ -2389,6 +2394,29 @@ export async function editVenteFull(input: {
       }).catch(() => {});
     }
     throw error;
+  }
+
+  if (consommation) {
+    await transfererConsommationVente({
+      consommation,
+      ancienId: input.id,
+      nouvelId: insert.insertedId.toHexString(),
+      site: doc.site,
+      date: input.newDate,
+      at,
+      facteur: doc.qty ? signedQty / doc.qty : 1,
+    });
+  } else if (productChanged) {
+    await enregistrerConsommationVente({
+      venteId: insert.insertedId.toHexString(),
+      site: doc.site,
+      date: input.newDate,
+      at,
+      kind: doc.kind,
+      productId,
+      qty: signedQty,
+      actor: input.actor,
+    });
   }
 
   const board = await getVenteBoard(input.newDate, doc.site);
@@ -2533,6 +2561,12 @@ export async function deleteVentePermanently(input: {
       "Journal stock · suppression vente",
     );
   }
+  // Y compris une vente direction, et sans effet si elle était déjà annulée.
+  await annulerConsommationVente({
+    venteId: doc._id.toHexString(),
+    site: doc.site,
+    date: doc.date,
+  });
 
   if (!input.skipPosUpdate) {
     await syncPosTicketAfterVenteDelete({

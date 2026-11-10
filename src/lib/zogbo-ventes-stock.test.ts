@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { accompanimentAvailability } from "@/lib/vente-repo";
+import { accompanimentAvailability, accompanimentBoardProduct } from "@/lib/vente-repo";
 import { syncZogboAccompanimentLines } from "@/lib/zogbo-repo";
 
 describe("Zogbo — ventes et stock des accompagnements", () => {
@@ -61,5 +61,18 @@ describe("Zogbo — ventes et stock des accompagnements", () => {
     expect(lignes.map((l) => l.name)).toEqual(["ATCHIEKE", "Nouvel accompagnement"]);
     // Le stock du produit renommé est conservé.
     expect(lignes[0]!.initialStock).toBe(3);
+  });
+});
+
+describe("Gbégamey — accompagnements hors stock", () => {
+  it("un accompagnement à stock nul reste vendable", () => {
+    const produit = accompanimentBoardProduct({
+      dish: { id: "local-riz", name: "RIZ", unitPrice: 500 },
+      line: { sold: 15 },
+      qrRequired: false,
+    });
+    expect(produit.stockLeft).toBeNull();
+    expect(produit.blockReason).toBeNull();
+    expect(produit.soldToday).toBe(15);
   });
 });

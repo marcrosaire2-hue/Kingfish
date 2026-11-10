@@ -13,6 +13,7 @@ import {
   sitesForRole,
   userVisibleToAdmin,
 } from "@/lib/auth-types";
+import type { NavKey } from "@/lib/auth-types";
 
 describe("rôle Comptable", () => {
   it("ouvre la finance et la consultation stock, sans vente, analyse ni registre", () => {
@@ -125,6 +126,38 @@ describe("étanchéité des zones", () => {
     expect(canAccessPath("gerant", "/gbegamey", "gbegamey")).toBe(true);
     expect(canAccessPath("gerant", "/stock-gbegamey", "zogbo")).toBe(false);
     expect(navForUser("gerant", "gbegamey")).toContain("gbegamey");
+  });
+
+  it("réserve Composition plat aux administrateurs, même avec une session qui l'indique", () => {
+    const session: NavKey[] = ["gbegamey", "composition-plat"];
+    expect(canAccessPath("admin", "/composition-plat", "tous")).toBe(true);
+    expect(canAccessPath("gerant", "/composition-plat", "gbegamey", "g1", session)).toBe(false);
+    expect(canAccessPath("comptable", "/composition-plat", "tous", "c1", session)).toBe(false);
+    expect(canAccessPath("daf", "/composition-plat", "tous", "d1", session)).toBe(false);
+    expect(
+      navForSession({ role: "gerant", site: "gbegamey", username: "g1", nav: session }),
+    ).not.toContain("composition-plat");
+    expect(navForUser("gerant", "gbegamey")).not.toContain("composition-plat");
+    expect(navForUser("admin", "tous")).toContain("composition-plat");
+  });
+
+  it("ouvre Plats préparés à un gérant connecté avant sa création", () => {
+    const sessionAncienne: NavKey[] = ["synthese", "vente", "gbegamey"];
+    expect(
+      canAccessPath("gerant", "/plats-prepares", "gbegamey", "g1", sessionAncienne),
+    ).toBe(true);
+    expect(
+      navForSession({ role: "gerant", site: "gbegamey", username: "g1", nav: sessionAncienne }),
+    ).toContain("plats-prepares");
+  });
+
+  it("garde les pages de cuisine fermées hors Gbégamey et hors gérant", () => {
+    expect(canAccessPath("gerant", "/plats-prepares", "zogbo")).toBe(false);
+    expect(canAccessPath("comptable", "/plats-prepares", "tous")).toBe(false);
+    expect(canAccessPath("daf", "/composition-plat", "tous")).toBe(false);
+    expect(
+      canAccessPath("gerant", "/plats-prepares", "gbegamey", "g1", ["vente"]),
+    ).toBe(false);
   });
 
   it("l’ancienne URL /combos suit le droit zogbo (redirection)", () => {

@@ -1,0 +1,72 @@
+.grise-panel {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+}
+
+.grise-panel summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.grise-count {
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--paper);
+  color: #b42318;
+  font-size: 0.8rem;
+}
+
+.grise-hint {
+  margin: 8px 0;
+  font-size: 0.86rem;
+}
+
+.grise-search {
+  width: 100%;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.grise-title {
+  margin: 10px 0 4px;
+  font-size: 0.9rem;
+}
+
+.grise-list {
+  display: grid;
+  gap: 4px;
+  max-height: 300px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.grise-list li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.grise-list li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.grise-list li.is-grise > span {
+  color: var(--ink-soft);
+  text-decoration: line-through;
+}
