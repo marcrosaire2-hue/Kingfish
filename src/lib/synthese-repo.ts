@@ -2,6 +2,8 @@ import { getDb } from "@/lib/mongodb";
 import { shiftIsoDate } from "@/lib/zogbo-calc";
 import { sumAmortissementsByDate } from "@/lib/immobilisations-repo";
 import { getParametres } from "@/lib/parametres-repo";
+import { lireJoursBoissonsConsolides } from "@/lib/boissons-repo";
+import { lireJoursMatieresConsolides } from "@/lib/matieres-repo";
 import { sumPertesCost } from "@/lib/pertes-repo";
 import {
   allocatedReductionsByProduct,
@@ -152,11 +154,9 @@ async function withAchatsStock(
   scopeSite?: VenteSite | null,
 ): Promise<Map<string, DayCharges>> {
   if (scopeSite) return charges;
-  const db = await getDb();
-  const docs = await db
-    .collection<{ _id: string; movements?: MatieresMovement[] }>("matieres_jours")
-    .find({ _id: { $gte: start, $lte: end } })
-    .toArray();
+  const docs = await lireJoursMatieresConsolides({
+    _id: { $gte: start, $lte: end },
+  });
   for (const doc of docs) {
     const total = (doc.movements ?? [])
       .filter((m) => !m.cancelledAt)
@@ -182,15 +182,9 @@ async function withMatieresConsommees(
   const priceById = new Map(
     (parametres.rawMaterials ?? []).map((m) => [m.id, m.purchasePrice]),
   );
-  const db = await getDb();
-  const docs = await db
-    .collection<{
-      _id: string;
-      lines?: MatieresLine[];
-      movements?: MatieresMovement[];
-    }>("matieres_jours")
-    .find({ _id: { $gte: start, $lte: end } })
-    .toArray();
+  const docs = await lireJoursMatieresConsolides({
+    _id: { $gte: start, $lte: end },
+  });
   for (const doc of docs) {
     const total = valueMatieresConsumed(
       doc.lines,
@@ -798,7 +792,7 @@ async function loadMaps(
     scopeSite === "zogbo"
       ? Promise.resolve([])
       : db.collection<GbegameyDoc>("gbegamey_jours").find(filter).toArray(),
-    db.collection<BoissonsDoc>("boissons_jours").find(filter).toArray(),
+    lireJoursBoissonsConsolides(filter),
     db.collection<ChargesDoc>("charges_jours").find(filter).toArray(),
     loadVenteTotals(venteMatch),
     loadPosReductions(redMatch),
@@ -863,7 +857,7 @@ async function loadRange(
     scopeSite === "zogbo"
       ? Promise.resolve([])
       : db.collection<GbegameyDoc>("gbegamey_jours").find(filter).toArray(),
-    db.collection<BoissonsDoc>("boissons_jours").find(filter).toArray(),
+    lireJoursBoissonsConsolides(filter),
     db.collection<ChargesDoc>("charges_jours").find(filter).toArray(),
     loadVenteTotals(venteMatch),
     loadPosReductions(redMatch),
@@ -908,6 +902,7 @@ function pointsFromDates(
       baseDishes: parametres.baseDishes,
       localDishes: parametres.localDishes,
       drinksCatalog: parametres.drinks,
+      drinksCatalogGbegamey: parametres.drinksGbegamey,
       zogbo: maps.zogbo.get(date) ?? null,
       gbegamey: maps.gbegamey.get(date) ?? null,
       boissons: maps.boissons.get(date) ?? null,

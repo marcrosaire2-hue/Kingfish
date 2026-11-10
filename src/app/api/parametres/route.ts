@@ -6,6 +6,8 @@ import {
   resetParametresToSeed,
   saveParametresToDb,
 } from "@/lib/parametres-repo";
+import { effectiveSite } from "@/lib/auth-types";
+import { resolveCatalogueSite } from "@/lib/catalogue-sites";
 import type { Parametres } from "@/lib/types";
 import { logActivity } from "@/lib/log-activity";
 
@@ -21,10 +23,24 @@ function isParametres(body: unknown): body is Parametres {
   );
 }
 
-export async function GET() {
+function siteDemande(request: Request): string | null {
+  return new URL(request.url).searchParams.get("site");
+}
+
+export async function GET(request: Request) {
   try {
-    await requireUser();
-    const data = await getParametres();
+    const user = await requireUser();
+    const decision = resolveCatalogueSite(
+      siteDemande(request),
+      effectiveSite(user.role, user.site),
+    );
+    if (!decision.ok) {
+      return NextResponse.json(
+        { error: decision.error },
+        { status: decision.status },
+      );
+    }
+    const data = await getParametres(decision.site);
     return NextResponse.json(data);
   } catch (error) {
     return authErrorResponse(error);
@@ -41,13 +57,31 @@ export const PUT = withLiveBump(async function PUT(request: Request) {
         { status: 400 },
       );
     }
-    const saved = await saveParametresToDb(body);
+    const decision = resolveCatalogueSite(
+      siteDemande(request),
+      effectiveSite(user.role, user.site),
+    );
+    if (!decision.ok) {
+      return NextResponse.json(
+        { error: decision.error },
+        { status: decision.status },
+      );
+    }
+    // Un écran resté ouvert sur l'ancienne version enverrait un catalogue sans
+    // site : il ne doit surtout pas écraser l'un des deux.
+    if (!decision.site) {
+      return NextResponse.json(
+        { error: "Rechargez la page, puis choisissez le site à modifier." },
+        { status: 400 },
+      );
+    }
+    const saved = await saveParametresToDb(body, decision.site);
     await logActivity({
       user,
       kind: "parametres",
       title: "Catalogue paramètres enregistré",
       detail: `plats ${body.baseDishes.length} · boissons ${body.drinks.length} · locaux ${body.localDishes.length}`,
-      site: "tous",
+      site: decision.site,
     });
     return NextResponse.json(saved);
   } catch (error) {
@@ -62,13 +96,29 @@ export const POST = withLiveBump(async function POST(request: Request) {
       action?: string;
     };
     if (body.action === "reset") {
-      const saved = await resetParametresToSeed();
+      const decision = resolveCatalogueSite(
+        siteDemande(request),
+        effectiveSite(user.role, user.site),
+      );
+      if (!decision.ok) {
+        return NextResponse.json(
+          { error: decision.error },
+          { status: decision.status },
+        );
+      }
+      if (!decision.site) {
+        return NextResponse.json(
+          { error: "Rechargez la page, puis choisissez le site à réinitialiser." },
+          { status: 400 },
+        );
+      }
+      const saved = await resetParametresToSeed(decision.site);
       await logActivity({
         user,
         kind: "parametres",
         title: "Paramètres réinitialisés",
         detail: "Retour aux valeurs d’origine",
-        site: "tous",
+        site: decision.site,
       });
       return NextResponse.json(saved);
     }

@@ -104,6 +104,7 @@ export function computeDayRevenue(input: {
   baseDishes: BaseDish[];
   localDishes: LocalDish[];
   drinksCatalog: Drink[];
+  drinksCatalogGbegamey?: Drink[];
   zogbo: ZogboDay | null;
   gbegamey: GbegameyDay | null;
   boissons: BoissonsDay | null;
@@ -121,6 +122,7 @@ export function computeDayRevenue(input: {
     baseDishes,
     localDishes,
     drinksCatalog,
+    drinksCatalogGbegamey,
     zogbo,
     gbegamey,
     boissons,
@@ -135,11 +137,8 @@ export function computeDayRevenue(input: {
   const varianceZogbo = zogboTotals?.varianceCount ?? 0;
   const hasZogboData = !!zogbo?.updatedAt;
 
-  const sent = new Map(
-    (zogbo?.lines ?? []).map((l) => [l.productId, l.sentToGbegamey]),
-  );
   const gbegameyTotals = gbegamey
-    ? computeGbegameyDay(gbegamey, baseDishes, localDishes, sent).totals
+    ? computeGbegameyDay(gbegamey, baseDishes, localDishes).totals
     : null;
   const caGbegameyPlats = ventes.platsGbegamey;
   const caAccompagnementsZogbo = ventes.localZogbo;
@@ -148,7 +147,7 @@ export function computeDayRevenue(input: {
   const hasGbegameyData = !!gbegamey?.updatedAt;
 
   const boissonsTotals = boissons
-    ? computeBoissonsDay(boissons, drinksCatalog).totals
+    ? computeBoissonsDay(boissons, drinksCatalog, drinksCatalogGbegamey).totals
     : null;
   const caBoissonsZogbo = ventes.boissonsZogbo;
   const caBoissonsGbegamey = ventes.boissonsGbegamey;

@@ -68,11 +68,11 @@ describe("scanStockUnit vente", () => {
     expect(result.allowedActions).toContain("sell");
   });
 
-  it("allows receive scan at gbegamey for prepare unit still at zogbo", () => {
+  it("refuses receive scan: sites are independent", () => {
     const result = scanStockUnit(unit({ qrId: "KF-6" }), {
       date: "2026-08-29",
       workflow: "gbegamey-receive",
     });
-    expect(result.allowedActions).toContain("send");
+    expect(result.allowedActions).toEqual([]);
   });
 });

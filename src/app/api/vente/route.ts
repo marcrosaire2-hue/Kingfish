@@ -211,7 +211,7 @@ export const POST = withLiveBump(async function POST(request: Request) {
         site,
         workflow: "vente",
       });
-      const parametres = await getParametres();
+      const parametres = await getParametres(site);
       const dish = parametres.baseDishes.find((d) => d.id === unit.productId);
       const acc = parametres.localDishes.find((d) => d.id === unit.productId);
       const drink = parametres.drinks.find((d) => d.id === unit.productId);

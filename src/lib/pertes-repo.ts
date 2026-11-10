@@ -7,7 +7,8 @@ import {
   getBoissonsDayPayload,
   saveBoissonsDay,
 } from "@/lib/boissons-repo";
-import { withStockCarry } from "@/lib/stock-carry";
+import { boissonsScope, withStockCarry } from "@/lib/stock-carry";
+import { COLLECTION_BOISSONS, COLLECTION_MATIERES } from "@/lib/site-collections";
 import { getGbegameyDayPayload, saveGbegameyDay } from "@/lib/gbegamey-repo";
 import { adjustImmobilisationQty } from "@/lib/immobilisations-repo";
 import {
@@ -16,6 +17,8 @@ import {
   saveMatieresDay,
 } from "@/lib/matieres-repo";
 import { getZogboDayPayload, saveZogboDay } from "@/lib/zogbo-repo";
+import { mapPerteToStockEvents } from "@/lib/stock-ledger-map";
+import { recordStockEvents } from "@/lib/stock-ledger-write";
 import type {
   PerteEntry,
   PerteKind,
@@ -59,7 +62,7 @@ async function resolveTarget(input: {
   bypassClosedDay?: boolean;
 }): Promise<PerteTarget> {
   const { date, site, kind, productId } = input;
-  const parametres = await getParametres();
+  const parametres = await getParametres(site);
 
   // Le statut de la journée conditionne toute déclaration ou annulation de
   // perte, qu'elle crée ou non la ligne : on le lit une seule fois ici et on
@@ -152,10 +155,10 @@ async function resolveTarget(input: {
   if (kind === "boisson") {
     const drink = parametres.drinks.find((d) => d.id === productId);
     if (!drink) throw new Error("Boisson introuvable");
-    const { day } = await getBoissonsDayPayload(date);
+    const { day } = await getBoissonsDayPayload(date, site);
     assertDayOpen(day.status, closedMessage, openOpts);
     return {
-      collection: "boissons_jours",
+      collection: COLLECTION_BOISSONS[site],
       arrayField: "lines",
       // Stock désormais séparé par site : la perte débite le point de vente
       // où elle a réellement eu lieu, jamais l'autre.
@@ -186,16 +189,16 @@ async function resolveTarget(input: {
     (m) => m.id === productId,
   );
   if (!matiere) throw new Error("Matière introuvable");
-  const { day } = await getMatieresDayPayload(date);
+  const { day } = await getMatieresDayPayload(date, site);
   assertDayOpen(day.status, closedMessage, openOpts);
   return {
-    collection: "matieres_jours",
+    collection: COLLECTION_MATIERES[site],
     arrayField: "lines",
     perteField: "pertes",
     name: matiere.name,
     unitCost: matiere.purchasePrice ?? 0,
     ensure: async () => {
-      await saveMatieresDay({ date, status: day.status, lines: day.lines });
+      await saveMatieresDay({ date, site, status: day.status, lines: day.lines });
     },
   };
 }
@@ -212,7 +215,9 @@ async function applyPerteDelta(
   input: Parameters<typeof applyPerteDeltaRaw>[0],
 ): ReturnType<typeof applyPerteDeltaRaw> {
   return input.kind === "boisson"
-    ? withStockCarry("boissons", input.date, () => applyPerteDeltaRaw(input))
+    ? withStockCarry(boissonsScope(input.site), input.date, () =>
+        applyPerteDeltaRaw(input),
+      )
     : input.kind === "plat" || input.kind === "local"
       ? withStockCarry(input.site, input.date, () => applyPerteDeltaRaw(input))
       : applyPerteDeltaRaw(input);
@@ -336,6 +341,7 @@ export async function recordPerte(input: {
       throw new Error("Achat source introuvable.");
     }
     const res = await applyMatieresMovementPerte({
+      site: input.site,
       date: input.sourceDate,
       movementId: input.productId,
       delta: qty,
@@ -377,6 +383,20 @@ export async function recordPerte(input: {
 
   const db = await getDb();
   await db.collection<PerteDoc>("pertes").insertOne(doc);
+  await recordStockEvents(
+    mapPerteToStockEvents({
+      id: doc._id.toHexString(),
+      date: doc.date,
+      site: doc.site,
+      kind: doc.kind,
+      productId: doc.productId,
+      name: doc.name,
+      qty: doc.qty,
+      at: doc.at,
+      cancelledAt: null,
+    }),
+    "Journal stock · perte",
+  );
   return toEntry(doc);
 }
 
@@ -404,6 +424,7 @@ export async function cancelPerte(input: {
   } else if (doc.kind === "libre") {
     if (!doc.sourceRef) throw new Error("Achat source introuvable.");
     await applyMatieresMovementPerte({
+      site: doc.site,
       date: doc.sourceRef,
       movementId: doc.productId,
       delta: -doc.qty,
@@ -428,6 +449,21 @@ export async function cancelPerte(input: {
         cancelledByName: input.actor?.name ?? null,
       },
     },
+  );
+
+  await recordStockEvents(
+    mapPerteToStockEvents({
+      id: doc._id.toHexString(),
+      date: doc.date,
+      site: doc.site,
+      kind: doc.kind,
+      productId: doc.productId,
+      name: doc.name,
+      qty: doc.qty,
+      at: doc.at,
+      cancelledAt,
+    }),
+    "Journal stock · annulation perte",
   );
 
   return toEntry({

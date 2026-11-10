@@ -1,19 +1,28 @@
 import { cloneSeed } from "@/lib/storage";
 import { normalizeDrink } from "@/lib/boissons-calc";
 import { normalizeCombos } from "@/lib/combos-model";
+import {
+  listesCommunes,
+  parametresConsolides,
+  parametresPourSite,
+  type CataloguesParSite,
+  type ParametresStockes,
+} from "@/lib/catalogue-sites";
 import type {
   CategoryProduct,
   Parametres,
   ProductCategory,
   RawMaterial,
   Recipe,
+  SiteCatalogue,
+  VenteSite,
 } from "@/lib/types";
 import { cached, invalidateCache } from "@/lib/ttl-cache";
 import { getDb } from "@/lib/mongodb";
 
 const DOC_ID = "parametres";
 
-type ParametresDoc = Parametres & { _id: string };
+type ParametresDoc = ParametresStockes & { _id: string };
 
 type AquaAlimentDoc = {
   _id: string;
@@ -103,7 +112,7 @@ export function normalizeCategoryProducts(
   return out;
 }
 
-function stripId(doc: ParametresDoc): Parametres {
+function normalizeSiteCatalogue(doc: SiteCatalogue): SiteCatalogue {
   const categories = normalizeCategories(doc.categories);
   return {
     baseDishes: (doc.baseDishes ?? []).map((d) => ({
@@ -121,9 +130,7 @@ function stripId(doc: ParametresDoc): Parametres {
           ? undefined
           : Math.max(0, Number(d.costPrice) || 0),
     })),
-    combos: normalizeCombos(
-      (doc as ParametresDoc & { combos?: Parametres["combos"] }).combos,
-    ),
+    combos: normalizeCombos(doc.combos),
     categories,
     categoryProducts: normalizeCategoryProducts(
       doc.categoryProducts,
@@ -132,6 +139,18 @@ function stripId(doc: ParametresDoc): Parametres {
     rawMaterials: normalizeRawMaterials(doc.rawMaterials),
     recipes: normalizeRecipes(doc.recipes),
     updatedAt: doc.updatedAt ?? null,
+  };
+}
+
+function stripId(doc: ParametresDoc): ParametresStockes {
+  const catalogues: CataloguesParSite = {};
+  for (const site of ["zogbo", "gbegamey"] as const) {
+    const liste = doc.catalogues?.[site];
+    if (liste) catalogues[site] = normalizeSiteCatalogue(liste);
+  }
+  return {
+    ...normalizeSiteCatalogue(doc),
+    ...(Object.keys(catalogues).length > 0 ? { catalogues } : {}),
   };
 }
 
@@ -159,13 +178,22 @@ async function seedRawMaterialsFromAqua(): Promise<RawMaterial[]> {
   }
 }
 
-/** Catalogue : lu par presque tous les écrans, donc gardé quelques secondes. */
-export async function getParametres(): Promise<Parametres> {
+/**
+ * Catalogue du site demandé ; sans site, vue consolidée réservée aux écrans
+ * multi-sites et aux données communes (matières, recettes). Lu par presque
+ * tous les écrans, donc gardé quelques secondes.
+ */
+export async function getParametres(site?: VenteSite | null): Promise<Parametres> {
   const db = await getDb();
-  return cached(`${db.databaseName}:parametres`, 15_000, loadParametres);
+  const stock = await cached(
+    `${db.databaseName}:parametres`,
+    15_000,
+    loadParametres,
+  );
+  return site ? parametresPourSite(stock, site) : parametresConsolides(stock);
 }
 
-async function loadParametres(): Promise<Parametres> {
+async function loadParametres(): Promise<ParametresStockes> {
   const db = await getDb();
   const col = db.collection<ParametresDoc>("parametres");
   const existing = await col.findOne({ _id: DOC_ID });
@@ -205,15 +233,18 @@ async function loadParametres(): Promise<Parametres> {
   return stripId(doc);
 }
 
+/** Enregistre le catalogue d'un seul site ; l'autre site n'est jamais réécrit. */
 export async function saveParametresToDb(
   data: Parametres,
+  site: VenteSite,
 ): Promise<Parametres> {
   const db = await getDb();
   const col = db.collection<ParametresDoc>("parametres");
+  const stock = await loadParametres();
   const updatedAt = new Date().toISOString();
   // Sauvegarde explicite : une liste absente = aucune catégorie (pas de défaut).
   const categories = normalizeCategories(data.categories ?? []);
-  const payload: Parametres = {
+  const catalogue: SiteCatalogue = {
     baseDishes: data.baseDishes,
     drinks: data.drinks.map((d) => normalizeDrink(d)),
     localDishes: data.localDishes,
@@ -228,29 +259,43 @@ export async function saveParametresToDb(
     updatedAt,
   };
 
-  await col.updateOne(
-    { _id: DOC_ID },
-    { $set: payload },
-    { upsert: true },
-  );
+  const set: Record<string, unknown> = { updatedAt };
+  if (stock.catalogues?.zogbo && stock.catalogues?.gbegamey) {
+    set[`catalogues.${site}`] = catalogue;
+  } else {
+    // Première écriture séparée : chaque site part de sa copie des listes
+    // existantes, puis seul le site enregistré reçoit ses changements.
+    const autre: VenteSite = site === "zogbo" ? "gbegamey" : "zogbo";
+    set.catalogues = {
+      [site]: catalogue,
+      [autre]: stock.catalogues?.[autre] ?? listesCommunes(stock),
+    };
+  }
+
+  await col.updateOne({ _id: DOC_ID }, { $set: set }, { upsert: true });
   invalidateCache(`${db.databaseName}:parametres`);
 
-  return payload;
+  return catalogue;
 }
 
-export async function resetParametresToSeed(): Promise<Parametres> {
+/** Remet le catalogue d'un site aux valeurs d'origine, sans toucher l'autre. */
+export async function resetParametresToSeed(
+  site: VenteSite,
+): Promise<Parametres> {
   const seed = cloneSeed();
-  const aquaMats = await seedRawMaterialsFromAqua();
   // Les catégories créées par l'admin ne font pas partie du fichier d'origine :
-  // la réinitialisation les conserve.
-  const current = await getParametres();
-  return saveParametresToDb({
-    ...seed,
-    categories: current.categories,
-    categoryProducts: current.categoryProducts,
-    rawMaterials: aquaMats,
-    recipes: [],
-    combos: [],
-    updatedAt: null,
-  });
+  // la réinitialisation les conserve, comme les matières et recettes du site.
+  const current = await getParametres(site);
+  return saveParametresToDb(
+    {
+      ...seed,
+      categories: current.categories,
+      categoryProducts: current.categoryProducts,
+      rawMaterials: current.rawMaterials,
+      recipes: current.recipes,
+      combos: [],
+      updatedAt: null,
+    },
+    site,
+  );
 }

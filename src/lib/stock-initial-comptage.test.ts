@@ -36,17 +36,17 @@ describe("Stock initial : du début, puis du dernier comptage", () => {
     expect(c.pertes).toBe(0);
   });
 
-  it("le comptage du jour consulté reste le stock physique (pas encore le SI)", () => {
+  it("un comptage devient le SI dès sa saisie ; seules les ventes suivantes comptent", () => {
     const c = stockInitialDepuisComptages({
       si: 20,
       siDate: "2026-11-02",
       date: "2026-11-05",
       jours: [
         { date: "2026-11-02", vendus: 5, pertes: 0, compte: null },
-        { date: "2026-11-05", vendus: 2, pertes: 0, compte: 12 },
+        { date: "2026-11-05", vendus: 5, pertes: 0, compte: 12, vendusAuComptage: 2, pertesAuComptage: 0 },
       ],
     });
-    expect(c.stockInitial).toBe(20);
-    expect(c.vendus).toBe(7);
+    expect(c.stockInitial).toBe(12);
+    expect(c.vendus).toBe(3);
   });
 });

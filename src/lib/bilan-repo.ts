@@ -1,5 +1,5 @@
 import {
-  physicalBoissonsStockCombined,
+  physicalBoissonsStockForSite,
   unitsPerCasierOf,
 } from "@/lib/boissons-calc";
 import { getBoissonsDayPayload } from "@/lib/boissons-repo";
@@ -59,29 +59,37 @@ export type Bilan = {
  * des fiches Immobilisations, pas des lignes matières/boissons.
  */
 async function valeurStockMatieresBoissons(asOf: string): Promise<number> {
-  const [matieres, boissons] = await Promise.all([
-    getMatieresDayPayload(asOf),
+  const [matieresZogbo, matieresGbegamey, boissons] = await Promise.all([
+    getMatieresDayPayload(asOf, "zogbo"),
+    getMatieresDayPayload(asOf, "gbegamey"),
     getBoissonsDayPayload(asOf),
   ]);
 
-  const materialById = new Map(matieres.materials.map((m) => [m.id, m]));
-  const valeurMatieres = matieres.day.lines.reduce((s, line) => {
-    const materiau = materialById.get(line.productId);
-    if (!materiau) return s;
-    return s + stockOf(line) * materiau.purchasePrice;
-  }, 0);
+  const valeurMatieres = [matieresZogbo, matieresGbegamey].reduce(
+    (total, matieres) => {
+      const materialById = new Map(matieres.materials.map((m) => [m.id, m]));
+      return matieres.day.lines.reduce((s, line) => {
+        const materiau = materialById.get(line.productId);
+        if (!materiau) return s;
+        return s + stockOf(line) * materiau.purchasePrice;
+      }, total);
+    },
+    0,
+  );
 
-  const drinkById = new Map(boissons.drinks.map((d) => [d.id, d]));
   const valeurBoissons = boissons.day.lines.reduce((s, line) => {
-    const boisson = drinkById.get(line.productId);
-    if (!boisson) return s;
     // Bilan = patrimoine de l'entreprise entière : les deux sites cumulés,
-    // même si chaque caisse ne voit plus que son propre stock.
-    const stockBouteilles = physicalBoissonsStockCombined(
-      line,
-      unitsPerCasierOf(boisson),
-    );
-    return s + stockBouteilles * boisson.purchasePrice;
+    // chacun avec son conditionnement et son prix d'achat.
+    for (const site of ["zogbo", "gbegamey"] as const) {
+      const boisson = boissons.drinksBySite[site].find(
+        (d) => d.id === line.productId,
+      );
+      if (!boisson) continue;
+      s +=
+        physicalBoissonsStockForSite(line, site, unitsPerCasierOf(boisson)) *
+        boisson.purchasePrice;
+    }
+    return s;
   }, 0);
 
   return valeurMatieres + valeurBoissons;

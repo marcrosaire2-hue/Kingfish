@@ -304,7 +304,7 @@
   padding: 0.5rem 0.75rem;
   border-radius: 12px;
   border: 1.5px solid var(--line);
-  background: #fff;
+  background: var(--surface);
   font: inherit;
   color: var(--ink);
   transition:
@@ -346,13 +346,13 @@
 }
 
 .mcaisse-kind-btn.is-active.is-in {
-  background: #fff;
+  background: var(--surface);
   color: var(--success);
   box-shadow: var(--shadow-sm);
 }
 
 .mcaisse-kind-btn.is-active.is-out {
-  background: #fff;
+  background: var(--surface);
   color: var(--sidebar);
   box-shadow: var(--shadow-sm);
 }
@@ -377,7 +377,7 @@
   overflow-x: auto;
   border-radius: 14px;
   border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
-  background: #fff;
+  background: var(--surface);
 }
 
 .mcaisse-table {
@@ -471,13 +471,13 @@
   padding: 1.05rem 1.2rem;
   border: 1px solid var(--vs-line);
   border-radius: 16px;
-  background: linear-gradient(135deg, #fff 45%, #eaf3fb);
+  background: linear-gradient(135deg, var(--surface) 45%, #eaf3fb);
   box-shadow: var(--vs-shadow);
   animation: none;
 }
 
 .main-mcaisse .mcaisse-kpi[data-site="gbegamey"] {
-  background: linear-gradient(135deg, #fff 45%, #fff5e1);
+  background: linear-gradient(135deg, var(--surface) 45%, #fff5e1);
 }
 
 .main-mcaisse .mcaisse-kpi-global {
@@ -530,7 +530,7 @@
   padding: 1.1rem 1.25rem 1.25rem;
   border: 1px solid var(--vs-line);
   border-radius: 16px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--vs-shadow);
   animation: none;
 }

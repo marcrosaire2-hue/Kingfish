@@ -12,7 +12,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface);
   opacity: 1;
   visibility: visible;
   transition:

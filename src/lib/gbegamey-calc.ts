@@ -19,7 +19,7 @@ export function emptyTransferLine(
   return {
     productId: dish.id,
     name: dish.name,
-    initialStock: Math.max(0, initialStock),
+    initialStock: Number.isFinite(Number(initialStock)) ? Number(initialStock) : 0,
     received: null,
     sold: 0,
     pertes: 0,
@@ -35,7 +35,7 @@ export function emptyLocalLine(
   return {
     productId: dish.id,
     name: dish.name,
-    initialStock: Math.max(0, initialStock),
+    initialStock: Number.isFinite(Number(initialStock)) ? Number(initialStock) : 0,
     prepared: 0,
     sold: 0,
     pertes: 0,
@@ -50,7 +50,7 @@ export function normalizeTransferLine(
   return {
     productId: line.productId,
     name: line.name,
-    initialStock: Math.max(0, Number(line.initialStock) || 0),
+    initialStock: Number.isFinite(Number(line.initialStock)) ? Number(line.initialStock) : 0,
     received:
       line.received === null || line.received === undefined
         ? null
@@ -62,6 +62,7 @@ export function normalizeTransferLine(
         ? null
         : Math.max(0, Number(line.counted) || 0),
     observations: String(line.observations ?? ""),
+    ...(line.comptage ? { comptage: line.comptage } : {}),
     ...(line.stockTracked === true ? { stockTracked: true } : {}),
   };
 }
@@ -70,7 +71,7 @@ export function normalizeLocalLine(line: LegacyLocal): GbegameyLocalLine {
   return {
     productId: line.productId,
     name: line.name,
-    initialStock: Math.max(0, Number(line.initialStock) || 0),
+    initialStock: Number.isFinite(Number(line.initialStock)) ? Number(line.initialStock) : 0,
     prepared: Math.max(0, Number(line.prepared) || 0),
     sold: Math.max(0, Number(line.sold) || 0),
     pertes: Math.max(0, Number(line.pertes) || 0),
@@ -79,6 +80,7 @@ export function normalizeLocalLine(line: LegacyLocal): GbegameyLocalLine {
         ? null
         : Math.max(0, Number(line.counted) || 0),
     observations: String(line.observations ?? ""),
+    ...(line.comptage ? { comptage: line.comptage } : {}),
     ...(line.stockTracked === true ? { stockTracked: true } : {}),
   };
 }
@@ -140,7 +142,6 @@ export function createEmptyGbegameyDay(
 
 export function computeTransferLine(
   line: GbegameyTransferLine,
-  sentFromZogbo: number,
   unitPrice: number,
 ): GbegameyTransferComputed {
   const normalized = normalizeTransferLine(line);
@@ -150,33 +151,33 @@ export function computeTransferLine(
   // Les entrées du jour sont saisies dans « received ». Le comptage ne
   // remplace jamais le stock : il mesure l’écart et sert d’ouverture au
   // lendemain.
-  // Ancien circuit Zogbo → Gbégamey (données historiques) : l’envoi déclaré
-  // est l’entrée et « received » n’en est que le constat.
-  const receivedFromZogbo = sentFromZogbo;
-  const transportVariance =
-    sentFromZogbo > 0 && normalized.received !== null
-      ? sentFromZogbo - normalized.received
-      : null;
+  // Gbégamey est indépendant : aucune quantité n’est lue côté Zogbo.
+  const received = normalized.received ?? 0;
   const calc = calculStock({
     ouverture: normalized.initialStock,
-    entrees: sentFromZogbo > 0 ? sentFromZogbo : (normalized.received ?? 0),
+    entrees: received,
     vendus: normalized.sold,
     pertes: normalized.pertes,
     compte: normalized.counted,
+    comptage: normalized.comptage,
   });
   const available = calc.disponible;
   const theoreticalRemaining = calc.theorique;
-  const prevalentMaxSold = Math.max(0, available - normalized.pertes);
+  const prevalentMaxSold = Math.max(
+    0,
+    available - normalized.pertes + calc.correction,
+  );
   const variance = calc.ecart;
 
   return {
     ...normalized,
-    sentFromZogbo,
-    receivedFromZogbo,
-    transportVariance,
+    // Champs historiques conservés à zéro : les sites sont indépendants.
+    sentFromZogbo: 0,
+    receivedFromZogbo: received,
+    transportVariance: null,
     unitPrice,
     available,
-    receivedAmount: receivedFromZogbo * unitPrice,
+    receivedAmount: received * unitPrice,
     soldAmount: normalized.sold * unitPrice,
     theoreticalRemaining,
     prevalentRemaining: Math.max(0, prevalentMaxSold - normalized.sold),
@@ -197,10 +198,14 @@ export function computeLocalLine(
     vendus: normalized.sold,
     pertes: normalized.pertes,
     compte: normalized.counted,
+    comptage: normalized.comptage,
   });
   const available = calc.disponible;
   const theoreticalRemaining = calc.theorique;
-  const prevalentMaxSold = Math.max(0, available - normalized.pertes);
+  const prevalentMaxSold = Math.max(
+    0,
+    available - normalized.pertes + calc.correction,
+  );
   const variance = calc.ecart;
 
   return {
@@ -217,22 +222,16 @@ export function computeLocalLine(
 
 export function leftoverFromTransferLines(
   lines: GbegameyTransferLine[],
-  receivedById: Map<string, number>,
   unitPriceById?: Map<string, number>,
 ): Map<string, number> {
   const out = new Map<string, number>();
   for (const line of lines) {
     const computed = computeTransferLine(
       line,
-      receivedById.get(line.productId) ?? 0,
       unitPriceById?.get(line.productId) ?? 0,
     );
-    // Le comptage étant le stock initial, le reste du jour l'est aussi :
-    // compté − vendu − pertes, même si la journée n'est pas clôturée.
-    out.set(
-      line.productId,
-      computed.counted !== null ? Math.max(0, computed.counted) : computed.theoreticalRemaining,
-    );
+    // Le stock restant part du comptage et tient compte des ventes suivantes.
+    out.set(line.productId, computed.theoreticalRemaining);
   }
   return out;
 }
@@ -247,10 +246,7 @@ export function leftoverFromLocalLines(
       line,
       unitPriceById?.get(line.productId) ?? 0,
     );
-    out.set(
-      line.productId,
-      computed.counted !== null ? Math.max(0, computed.counted) : computed.theoreticalRemaining,
-    );
+    out.set(line.productId, computed.theoreticalRemaining);
   }
   return out;
 }
@@ -259,7 +255,6 @@ export function computeGbegameyDay(
   day: GbegameyDay,
   baseDishes: BaseDish[],
   localDishes: LocalDish[],
-  sentByProductId: Map<string, number>,
 ): {
   transfers: GbegameyTransferComputed[];
   locals: GbegameyLocalComputed[];
@@ -287,11 +282,7 @@ export function computeGbegameyDay(
   const localPrice = new Map(localDishes.map((d) => [d.id, d.unitPrice]));
 
   const transfers = day.transferLines.map((line) =>
-    computeTransferLine(
-      line,
-      sentByProductId.get(line.productId) ?? 0,
-      basePrice.get(line.productId) ?? 0,
-    ),
+    computeTransferLine(line, basePrice.get(line.productId) ?? 0),
   );
 
   const locals = day.localLines.map((line) =>

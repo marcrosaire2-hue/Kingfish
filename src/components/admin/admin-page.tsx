@@ -25,6 +25,7 @@ import {
 } from "@/lib/auth-types";
 import { exportAdminUsersExcel } from "@/lib/page-exports";
 import { BrandLoader } from "@/components/brand-loader";
+import { VenteStockPanel } from "@/components/admin/vente-stock-panel";
 
 const ALL_ROLES: UserRole[] = ["gerant", "comptable", "daf", "admin"];
 const SITE_ORDER: UserSite[] = ["gbegamey", "zogbo", "tous"];
@@ -409,6 +410,8 @@ export function AdminPage() {
             {error}
           </p>
         ) : null}
+
+          <VenteStockPanel />
 
           {(
             <div className="equipe-section">

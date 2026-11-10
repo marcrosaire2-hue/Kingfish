@@ -188,7 +188,7 @@ export async function getCompteResultatDay(
         dateTo: date,
         scopeSite,
       }),
-      sumMatieresPurchasesForDate(date),
+      sumMatieresPurchasesForDate(date, scopeSite),
       listDetailProduits({ dateFrom: date, dateTo: date, scopeSite }),
     ]);
   return {

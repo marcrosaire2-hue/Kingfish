@@ -62,7 +62,7 @@ describe("plats Gbégamey", () => {
       counted: null,
       observations: "",
     };
-    expect(computeTransferLine(ligne, 10, 1000).theoreticalRemaining).toBe(5);
+    expect(computeTransferLine(ligne, 1000).theoreticalRemaining).toBe(5);
   });
 
   it("plats sur place : la perte sort du disponible", () => {
@@ -138,10 +138,10 @@ describe("boissons", () => {
     expect(physicalBoissonsStockForSite(l, "gbegamey", 12)).toBe(24);
   });
 
-  it("ne descend jamais sous zéro", () => {
+  it("conserve le négatif comme signal de survente", () => {
     expect(
       physicalBoissonsStockForSite({ ...base, pertesZogbo: 999 }, "zogbo", 12),
-    ).toBe(0);
+    ).toBe(-975);
   });
 });
 

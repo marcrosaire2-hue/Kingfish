@@ -88,6 +88,7 @@ async function attachDepense(input: {
       allowClosed,
     });
     await linkMatieresMovementDepense({
+      site: input.site,
       date: input.date,
       movementId: input.movementId,
       depenseId: res.mouvement.id,
@@ -121,16 +122,11 @@ export async function GET(request: Request) {
     if (!date) {
       return NextResponse.json({ error: "Date requise." }, { status: 400 });
     }
-    const full = await getMatieresDayPayload(date);
-    // Chaque point de vente ne voit que ses propres achats.
-    const mine = readSite(user, searchParams.get("site"));
-    const payload = {
-      ...full,
-      day: {
-        ...full.day,
-        movements: full.day.movements.filter((m) => m.site === mine),
-      },
-    };
+    // Chaque point de vente ne voit que ses propres journées.
+    const payload = await getMatieresDayPayload(
+      date,
+      readSite(user, searchParams.get("site")),
+    );
     return NextResponse.json({
       ...payload,
       canManagePast,
@@ -148,11 +144,17 @@ export const PUT = withLiveBump(async function PUT(request: Request) {
       date?: string;
       status?: "ouverte" | "cloturee";
       lines?: MatieresLine[];
+      site?: string;
     };
     if (!body.date || !Array.isArray(body.lines)) {
       return NextResponse.json({ error: "Payload invalide." }, { status: 400 });
     }
+    const siteChoice = resolveAchatSite(user, body.site);
+    if ("error" in siteChoice) {
+      return NextResponse.json({ error: siteChoice.error }, { status: 400 });
+    }
     const payload = await saveMatieresDay({
+      site: siteChoice.site,
       date: body.date,
       status: body.status,
       lines: body.lines,
@@ -163,7 +165,7 @@ export const PUT = withLiveBump(async function PUT(request: Request) {
       title: `Matières · ${body.date}`,
       detail: `${body.lines.length} ligne(s) · ${body.status ?? "ouverte"}`,
       date: body.date,
-      site: "zogbo",
+      site: siteChoice.site,
     });
     return NextResponse.json(payload);
   } catch (error) {

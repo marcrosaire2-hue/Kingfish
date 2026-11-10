@@ -1,3 +1,4 @@
+import { calculStock } from "@/lib/stock-formule";
 import { normalizeLocalLine } from "@/lib/gbegamey-calc";
 import type {
   BaseDish,
@@ -21,7 +22,7 @@ export function emptyZogboLine(
   dish: Pick<BaseDish, "id" | "name">,
   openingStock = 0,
 ): ZogboLine {
-  const stock = Math.max(0, openingStock);
+  const stock = Number.isFinite(Number(openingStock)) ? Number(openingStock) : 0;
   return {
     productId: dish.id,
     name: dish.name,
@@ -43,10 +44,10 @@ export function normalizeZogboLine(line: LegacyZogboLine): ZogboLine {
 
   let stock: number;
   if (line.stock !== undefined && line.stock !== null) {
-    stock = Math.max(0, Number(line.stock) || 0);
+    stock = Number.isFinite(Number(line.stock)) ? Number(line.stock) : 0;
   } else {
     // Migration ancien modèle : stock = init + préparé − envoyé
-    stock = Math.max(0, legacyInitial + prepared - sentToGbegamey);
+    stock = legacyInitial + prepared - sentToGbegamey;
   }
 
   return {
@@ -62,6 +63,7 @@ export function normalizeZogboLine(line: LegacyZogboLine): ZogboLine {
         ? null
         : Math.max(0, Number(line.counted) || 0),
     observations: String(line.observations ?? ""),
+    ...(line.comptage ? { comptage: line.comptage } : {}),
     ...(line.stockTracked === true ? { stockTracked: true } : {}),
   };
 }
@@ -135,18 +137,22 @@ export function computeZogboLine(
   unitPrice: number,
 ): ZogboLineComputed {
   const normalized = normalizeZogboLine(line);
-  const counted = normalized.counted;
-  // Le stock suit les mouvements : un stock initial ajouté après un comptage
-  // entre tout de suite dans le restant. Le comptage, saisi à la main, ne
-  // remplace plus le stock : il sert à mesurer l'écart.
+  // Le stock suit les mouvements et repart du dernier comptage.
   const available = normalized.stock;
-  const theoreticalRemaining = Math.max(
+  const calc = calculStock({
+    ouverture: available,
+    entrees: 0,
+    vendus: normalized.sold,
+    pertes: normalized.pertes,
+    compte: normalized.counted,
+    comptage: normalized.comptage,
+  });
+  const theoreticalRemaining = calc.theorique;
+  const prevalentMaxSold = Math.max(
     0,
-    available - normalized.sold - normalized.pertes,
+    available - normalized.pertes + calc.correction,
   );
-  const prevalentMaxSold = Math.max(0, available - normalized.pertes);
-  // Écart = Comptage − Théorique (règle de stock commune).
-  const variance = counted === null ? null : Math.round(counted - theoreticalRemaining);
+  const variance = calc.ecart === null ? null : Math.round(calc.ecart);
 
   return {
     ...normalized,
@@ -172,27 +178,28 @@ export function computeZogboAccompanimentLine(
   unitPrice: number,
 ): GbegameyLocalComputed {
   const normalized = normalizeLocalLine(line);
-  const counted = normalized.counted;
   const available = normalized.initialStock + normalized.prepared;
-  const prevalentMaxSold = Math.max(0, available - normalized.pertes);
+  const calc = calculStock({
+    ouverture: normalized.initialStock,
+    entrees: normalized.prepared,
+    vendus: normalized.sold,
+    pertes: normalized.pertes,
+    compte: normalized.counted,
+    comptage: normalized.comptage,
+  });
+  const prevalentMaxSold = Math.max(
+    0,
+    available - normalized.pertes + calc.correction,
+  );
   return {
     ...normalized,
     unitPrice,
     available,
     soldAmount: normalized.sold * unitPrice,
-    theoreticalRemaining: Math.max(
-      0,
-      available - normalized.sold - normalized.pertes,
-    ),
+    theoreticalRemaining: calc.theorique,
     prevalentRemaining: Math.max(0, prevalentMaxSold - normalized.sold),
     prevalentMaxSold,
-    // Écart = Comptage − Théorique (règle de stock commune).
-    variance:
-      counted === null
-        ? null
-        : Math.round(
-            counted - Math.max(0, available - normalized.sold - normalized.pertes),
-          ),
+    variance: calc.ecart === null ? null : Math.round(calc.ecart),
   };
 }
 
@@ -383,12 +390,17 @@ export function leftoverFromZogboLines(
   const out = new Map<string, number>();
   for (const line of lines) {
     const n = normalizeZogboLine(line);
-    // Ouverture du lendemain : comptage de la veille, sinon théorique.
+    // Ouverture du lendemain : stock restant, parti du dernier comptage.
     out.set(
       line.productId,
-      n.counted !== null
-        ? Math.max(0, n.counted)
-        : Math.max(0, n.stock - n.sold - n.pertes),
+      calculStock({
+        ouverture: n.stock,
+        entrees: 0,
+        vendus: n.sold,
+        pertes: n.pertes,
+        compte: n.counted,
+        comptage: n.comptage,
+      }).report,
     );
   }
   return out;

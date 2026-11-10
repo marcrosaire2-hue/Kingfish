@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/mongodb";
 import { getParametres } from "@/lib/parametres-repo";
+import { collectionBoissons } from "@/lib/site-collections";
 import { lireStocksInitiauxBruts } from "@/lib/stock-si-repo";
 import { computeBoissonsLine, normalizeBoissonsLine } from "@/lib/boissons-calc";
 import { computeLocalLine, computeTransferLine } from "@/lib/gbegamey-calc";
@@ -50,7 +51,7 @@ export async function getJournalStockJours(input: {
   const famille = input.famille ?? "toutes";
   const veut = (f: JournalFamille) => famille === "toutes" || famille === f;
   const db = await getDb();
-  const { drinks } = await getParametres();
+  const { drinks } = await getParametres(input.site);
   const drinkById = new Map(drinks.map((d) => [d.id, d]));
   const range = { _id: { $gte: input.from, $lte: input.to } };
   const out: JournalStockJour[] = [];
@@ -63,7 +64,7 @@ export async function getJournalStockJours(input: {
     for (const j of jours) {
       if (veut("plat")) {
         for (const line of j.transferLines ?? []) {
-          const c = computeTransferLine(line, 0, 0);
+          const c = computeTransferLine(line, 0);
           out.push({
             date: j._id,
             famille: "plat",
@@ -151,7 +152,9 @@ export async function getJournalStockJours(input: {
 
   if (veut("boisson")) {
     const jours = await db
-      .collection<{ _id: string; lines?: never[] }>("boissons_jours")
+      .collection<{ _id: string; lines?: never[] }>(
+        await collectionBoissons(input.site),
+      )
       .find(range)
       .toArray();
     const z = input.site === "zogbo";
@@ -165,12 +168,16 @@ export async function getJournalStockJours(input: {
         const vendus = z ? c.soldZogbo : c.soldGbegamey;
         const pertes = z ? c.pertesZogbo : c.pertesGbegamey;
         const physique = z ? c.countedZogbo : c.countedGbegamey;
-        const theorique = Math.max(0, ouverture + entrees - vendus - pertes);
+        const theorique = Math.max(
+          0,
+          (z ? c.theoreticalRemainingZogbo : c.theoreticalRemainingGbegamey) * upc,
+        );
+        const variance = z ? c.varianceZogbo : c.varianceGbegamey;
         out.push({
           date: j._id,
           famille: "boisson",
           productId: line.productId,
-          name: line.name,
+          name: drinkById.get(line.productId)?.name ?? line.name,
           ouverture: Math.round(ouverture),
           entrees: Math.round(entrees),
           disponible: Math.round(ouverture + entrees),
@@ -178,7 +185,7 @@ export async function getJournalStockJours(input: {
           pertes,
           theorique: Math.round(theorique),
           physique,
-          ecart: physique === null ? null : Math.round(physique - theorique),
+          ecart: variance === null ? null : Math.round(variance * upc),
         });
       }
     }

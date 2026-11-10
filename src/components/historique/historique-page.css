@@ -850,7 +850,7 @@
   padding: 0.35rem 0.8rem;
   border: 1px solid var(--rg-line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface);
   font-size: 0.82rem;
   font-weight: 700;
   color: var(--rg-blue);
@@ -916,7 +916,7 @@
   padding: 0.4rem 1.1rem;
   border: 1px solid var(--rg-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   font-weight: 700;
   color: var(--rg-deep);
 }
@@ -937,7 +937,7 @@
   padding: 0 0.8rem;
   border: 1px solid var(--rg-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .main-historique .rg-toolbar .date-field input {
@@ -994,7 +994,7 @@
   padding: 0.4rem 1rem;
   border: 1px solid var(--rg-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   font-weight: 700;
   color: var(--rg-blue);
   box-shadow: 0 2px 8px rgb(6 59 104 / 0.05);
@@ -1032,7 +1032,7 @@
   padding: 1.15rem 1.4rem 1.1rem;
   border: 1px solid var(--rg-line);
   border-radius: 16px;
-  background: linear-gradient(135deg, #fff 40%, #e8f1fb);
+  background: linear-gradient(135deg, var(--surface) 40%, #e8f1fb);
   box-shadow: var(--rg-shadow);
 }
 
@@ -1122,7 +1122,7 @@
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--rg-line);
   border-radius: 16px;
-  background: linear-gradient(135deg, #fff 40%, var(--tint));
+  background: linear-gradient(135deg, var(--surface) 40%, var(--tint));
   box-shadow: var(--rg-shadow);
   min-width: 0;
 }
@@ -1178,7 +1178,7 @@
   overflow: hidden;
   border: 1px solid var(--rg-line);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--rg-shadow);
 }
 
@@ -1220,7 +1220,7 @@
 /* Journal par jour */
 .main-historique .rg-day-summary {
   grid-template-columns: auto minmax(0, 1fr) auto auto;
-  background: #fff;
+  background: var(--surface);
 }
 
 .main-historique .rg-day-summary::before {

@@ -294,6 +294,7 @@ async function appliquerCumulDepuisDebut(
           sold?: number;
           pertes?: number;
           counted?: number | null;
+          comptage?: { vendu?: number; pertes?: number };
         }>;
         const l = lignes.find((x) => x.productId === r.productId);
         return {
@@ -304,6 +305,8 @@ async function appliquerCumulDepuisDebut(
             l?.counted === null || l?.counted === undefined
               ? null
               : Math.max(0, Number(l.counted) || 0),
+          vendusAuComptage: l?.comptage?.vendu,
+          pertesAuComptage: l?.comptage?.pertes,
         };
       });
       const c = stockInitialDepuisComptages({ si: base.si, siDate: base.date, date, jours: parJour });
@@ -327,7 +330,7 @@ export async function getStockSitePayload(
   if (!isValidDate(date)) throw new Error("Date invalide (attendu YYYY-MM-DD)");
 
   const [parametres, unitCounts] = await Promise.all([
-    getParametres(),
+    getParametres(site),
     countUnitsByProduct(date, site),
   ]);
 
@@ -367,8 +370,7 @@ export async function getStockSitePayload(
         (counts?.vendu ?? 0) +
         (counts?.perdu ?? 0);
       const remaining = (counts?.prepare ?? 0) + (counts?.envoye ?? 0);
-      const sent = gbegamey.sentByProductId[dish.id] ?? 0;
-      const calc = line ? computeTransferLine(line, sent, dish.unitPrice) : null;
+      const calc = line ? computeTransferLine(line, dish.unitPrice) : null;
       const stockRemaining = calc?.prevalentRemaining ?? 0;
       const ouverture = calc?.initialStock ?? 0;
       const entrees = calc ? calc.available - calc.initialStock : 0;
@@ -576,7 +578,7 @@ export async function generatePlatQrUnits(input: {
   if (!isValidDate(input.date)) throw new Error("Date invalide.");
 
   await ensureStockUnitIndexes();
-  const parametres = await getParametres();
+  const parametres = await getParametres(site);
   let productName: string;
 
   if (kind === "local") {
@@ -905,172 +907,14 @@ export function scanStockUnit(
   }
 
   if (context.workflow === "zogbo-send" || context.workflow === "gbegamey-receive") {
-    if (unit.kind !== "plat") {
-      return {
-        unit,
-        allowedActions: [],
-        message: "Seuls les plats s’envoient vers Gbégamey.",
-      };
-    }
-    if (unit.date !== context.date) {
-      return {
-        unit,
-        allowedActions: [],
-        message: `Ce QR appartient au ${unit.date}, pas au jour sélectionné (${context.date}).`,
-      };
-    }
-    if (unit.site !== "zogbo" || unit.status !== "prepare") {
-      if (unit.status === "envoye" || unit.status === "vendu") {
-        return {
-          unit,
-          allowedActions: [],
-          message: "Ce QR a déjà été transféré ou vendu.",
-        };
-      }
-      if (unit.site === "gbegamey") {
-        return {
-          unit,
-          allowedActions: [],
-          message: "Ce QR est déjà à Gbégamey — transfert refusé depuis Zogbo.",
-        };
-      }
-      return {
-        unit,
-        allowedActions: [],
-        message: `Statut incompatible : ${unit.status}.`,
-      };
-    }
-    allowedActions.push("send");
-    return { unit, allowedActions, message: null };
-  }
-
-  return { unit, allowedActions, message: "Workflow inconnu." };
-}
-
-/**
- * Transfère des unités QR vers Gbégamey. Chaque unité est mise à jour
- * atomiquement ; le mouvement agrégé `send` n'est écrit qu'après succès unitaire.
- */
-export async function sendPlatQrUnits(input: {
-  date: string;
-  qrIds: string[];
-  payloadSite?: VenteSite;
-}): Promise<{
-  sent: StockUnit[];
-  skipped: Array<{ qrId: string; reason: string }>;
-  payload: StockZogboPayload;
-}> {
-  if (!isValidDate(input.date)) throw new Error("Date invalide.");
-  const ids = [...new Set(input.qrIds.map((id) => String(id).trim()).filter(Boolean))];
-  if (!ids.length) throw new Error("Aucun QR à envoyer.");
-
-  await ensureStockUnitIndexes();
-  const db = await getDb();
-  const col = db.collection<StockUnitDoc>("stock_units");
-  const now = new Date().toISOString();
-
-  const sent: StockUnit[] = [];
-  const skipped: Array<{ qrId: string; reason: string }> = [];
-  const byProduct = new Map<string, string[]>();
-
-  for (const qrId of ids) {
-    const resolved = await lookupStockUnit(qrId);
-    const canonical = resolved?.qrId ?? qrId;
-    if (resolved && resolved.kind !== "plat") {
-      skipped.push({ qrId, reason: "Seuls les plats s’envoient vers Gbégamey." });
-      continue;
-    }
-    const doc = await col.findOneAndUpdate(
-      {
-        qrId: canonical,
-        date: input.date,
-        site: "zogbo",
-        status: "prepare",
-      },
-      {
-        $set: {
-          status: "envoye",
-          site: "gbegamey",
-          sentAt: now,
-          updatedAt: now,
-        },
-      },
-      { returnDocument: "after" },
-    );
-
-    if (!doc) {
-      const existing = await col.findOne({ qrId: canonical });
-      if (!existing) {
-        skipped.push({ qrId, reason: "QR introuvable." });
-      } else if (existing.status === "envoye" || existing.status === "vendu") {
-        skipped.push({ qrId, reason: "Déjà transféré." });
-      } else if (existing.site === "gbegamey") {
-        skipped.push({ qrId, reason: "Déjà à Gbégamey." });
-      } else if (existing.date !== input.date) {
-        skipped.push({ qrId, reason: `Jour ${existing.date}, pas ${input.date}.` });
-      } else {
-        skipped.push({ qrId, reason: "Transfert impossible (statut ou site)." });
-      }
-      continue;
-    }
-
-    const unit = toUnit(doc);
-    sent.push(unit);
-    const list = byProduct.get(unit.productId) ?? [];
-    list.push(unit.qrId);
-    byProduct.set(unit.productId, list);
-  }
-
-  const payloadSite: VenteSite =
-    input.payloadSite === "gbegamey" ? "gbegamey" : "zogbo";
-
-  if (!sent.length) {
     return {
-      sent: [],
-      skipped,
-      payload: await getStockSitePayload(input.date, payloadSite),
+      unit,
+      allowedActions: [],
+      message: "Les transferts entre sites n'existent plus : les sites sont indépendants.",
     };
   }
 
-  const rollback: StockUnit[] = [];
-
-  try {
-    for (const [productId, qrList] of byProduct) {
-      const movementResult = await applyZogboMovement({
-        date: input.date,
-        productId,
-        type: "send",
-        qty: qrList.length,
-      });
-
-      await col.updateMany(
-        { qrId: { $in: qrList } },
-        { $set: { movementId: movementResult.movement.id, updatedAt: now } },
-      );
-    }
-  } catch (error) {
-    for (const unit of sent) {
-      await col.updateOne(
-        { qrId: unit.qrId, status: "envoye" },
-        {
-          $set: {
-            status: "prepare",
-            site: "zogbo",
-            sentAt: null,
-            movementId: null,
-            updatedAt: now,
-          },
-        },
-      );
-      rollback.push(unit);
-    }
-    throw error instanceof Error
-      ? error
-      : new Error("Échec du mouvement d'envoi — unités QR restaurées.");
-  }
-
-  const payload = await getStockSitePayload(input.date, payloadSite);
-  return { sent, skipped, payload };
+  return { unit, allowedActions, message: "Workflow inconnu." };
 }
 
 export async function listPlatUnits(input: {
@@ -1174,7 +1018,7 @@ export async function registerProductStock(input: {
     throw new Error("Les boissons s’enregistrent via l’achat (+).");
   }
 
-  const parametres = await getParametres();
+  const parametres = await getParametres(site);
 
   if (kind === "local") {
     const dish = parametres.localDishes.find((d) => d.id === input.productId);

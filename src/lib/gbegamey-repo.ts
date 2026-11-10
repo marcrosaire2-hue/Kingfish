@@ -1,8 +1,11 @@
+import { avecComptage } from "@/lib/stock-comptage";
 import { ObjectId } from "mongodb";
 import { assertDayOpen, isValidDate, updateDayDocument } from "@/lib/day-doc";
 import { mergeVentesSansStockOnSave, dayVentesSansStock } from "@/lib/ventes-sans-stock";
 import { getDb } from "@/lib/mongodb";
 import { withStockCarry } from "@/lib/stock-carry";
+import { comptageEventsFromLines } from "@/lib/stock-ledger-sync";
+import { recordStockEvents } from "@/lib/stock-ledger-write";
 
 type Tail<T extends unknown[]> = T extends [unknown, ...infer R] ? R : never;
 import { getParametres } from "@/lib/parametres-repo";
@@ -54,8 +57,6 @@ export type GbegameyDayPayload = {
   day: GbegameyDay;
   baseDishes: BaseDish[];
   localDishes: LocalDish[];
-  /** Qté envoyée par Zogbo le même jour, par productId */
-  sentByProductId: Record<string, number>;
   /**
    * Première mise en service : aucune journée antérieure en base, il n’y a donc
    * rien à reporter. Gbégamey saisit lui-même son stock de départ. Dès qu’une
@@ -71,15 +72,6 @@ async function isOpeningDay(date: string): Promise<boolean> {
     .collection<GbegameyDoc>("gbegamey_jours")
     .findOne({ _id: { $lt: date } }, { projection: { _id: 1 } });
   return !previous;
-}
-
-/**
- * Gbégamey est indépendant de Zogbo : plus aucun envoi n'est lu côté Zogbo,
- * le stock du site ne dépend que de sa propre saisie.
- */
-async function loadSentMap(_date: string): Promise<Record<string, number>> {
-  void _date;
-  return {};
 }
 
 /**
@@ -108,12 +100,8 @@ async function leftoversForDate(
       .toArray();
 
     for (const prevDoc of docs) {
-      const prevSent = await loadSentMap(prevDoc._id);
-      const receivedMap = new Map(Object.entries(prevSent));
       const transfer = leftoverFromTransferLines(
         (prevDoc.transferLines ?? []).map((l) => normalizeTransferLine(l)),
-        receivedMap,
-        undefined,
       );
       const local = leftoverFromLocalLines(
         (prevDoc.localLines ?? []).map((l) => normalizeLocalLine(l)),
@@ -273,8 +261,7 @@ async function buildGbegameyDayPayload(
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
   }
 
-  const { baseDishes, localDishes } = await getParametres();
-  const sentByProductId = await loadSentMap(date);
+  const { baseDishes, localDishes } = await getParametres("gbegamey");
   const openingEditable = await isOpeningDay(date);
   const db = await getDb();
   const col = db.collection<GbegameyDoc>("gbegamey_jours");
@@ -365,7 +352,6 @@ async function buildGbegameyDayPayload(
       },
       baseDishes,
       localDishes,
-      sentByProductId,
       openingEditable,
     };
   };
@@ -377,7 +363,6 @@ async function buildGbegameyDayPayload(
       day: createEmptyGbegameyDay(date, baseDishes, localDishes),
       baseDishes,
       localDishes,
-      sentByProductId,
       openingEditable,
     };
   }
@@ -396,7 +381,6 @@ async function buildGbegameyDayPayload(
     },
     baseDishes,
     localDishes,
-    sentByProductId,
     openingEditable,
   };
 }
@@ -405,7 +389,30 @@ export async function saveGbegameyDay(
   input: Parameters<typeof saveGbegameyDayRaw>[0],
   ...rest: Tail<Parameters<typeof saveGbegameyDayRaw>>
 ): ReturnType<typeof saveGbegameyDayRaw> {
-  return withStockCarry("gbegamey", input.date, () => saveGbegameyDayRaw(input, ...rest));
+  const saved = await withStockCarry("gbegamey", input.date, () =>
+    saveGbegameyDayRaw(input, ...rest),
+  );
+  await recordStockEvents(
+    comptageEventsFromLines({
+      site: "gbegamey",
+      date: input.date,
+      family: "plat",
+      unit: "portion",
+      lines: saved.day.transferLines,
+    }),
+    "Journal stock · comptage Gbégamey plats",
+  );
+  await recordStockEvents(
+    comptageEventsFromLines({
+      site: "gbegamey",
+      date: input.date,
+      family: "local",
+      unit: "portion",
+      lines: saved.day.localLines,
+    }),
+    "Journal stock · comptage Gbégamey accompagnements",
+  );
+  return saved;
 }
 
 async function saveGbegameyDayRaw(
@@ -424,7 +431,7 @@ async function saveGbegameyDayRaw(
 
   const lockSold = options?.lockSold !== false;
   const directWrite = options?.directWrite === true;
-  const { baseDishes, localDishes } = await getParametres();
+  const { baseDishes, localDishes } = await getParametres("gbegamey");
   const openingEditable = await isOpeningDay(input.date);
 
   return updateDayDocument<GbegameyDoc, GbegameyDayPayload>(
@@ -466,7 +473,11 @@ async function saveGbegameyDayRaw(
             : (leftovers.transfer.get(l.productId) ?? 0);
         const sold = lockSold ? (held?.sold ?? 0) : normalized.sold;
         const pertes = held?.pertes ?? 0;
-        return { ...normalized, initialStock, sold, pertes };
+        return avecComptage(
+          { ...normalized, initialStock, sold, pertes },
+          held,
+          initialStock + (normalized.received ?? 0) - sold - pertes,
+        );
       });
 
       const localLines = syncLocalLines(input.localLines, localDishes).map(
@@ -483,27 +494,27 @@ async function saveGbegameyDayRaw(
               : (leftovers.local.get(l.productId) ?? 0);
           const sold = lockSold ? (held?.sold ?? 0) : normalized.sold;
           const pertes = held?.pertes ?? 0;
-          return { ...normalized, initialStock, sold, pertes };
+          return avecComptage(
+            { ...normalized, initialStock, sold, pertes },
+            held,
+            initialStock + normalized.prepared - sold - pertes,
+          );
         },
       );
 
       const updatedAt = new Date().toISOString();
       const status = input.status ?? "ouverte";
-      const sentByProductId = await loadSentMap(input.date);
       const receipts = existing?.receipts ?? [];
-      // Saisie de stock → vente selon le stock, sauf choix explicite de
-      // l'admin pour ce jour. Sans saisie, le réglage hérité de la veille
-      // n'est pas figé dans le document : une saisie plus tard dans la
-      // journée peut encore activer la vente selon le stock.
+      // Seul l'admin lance la vente selon le stock : une saisie de stock ne
+      // change pas le mode, et le réglage hérité n'est pas figé dans le
+      // document.
       const explicit = typeof existing?.ventesSansStock === "boolean";
       const ventesSansStock = mergeVentesSansStockOnSave({
         stockSaisie: input.stockSaisie,
         existing,
-        fallback: input.stockSaisie
-          ? false
-          : await inheritedFreeSale(input.date),
+        fallback: await inheritedFreeSale(input.date),
       });
-      const persistPolicy = explicit || input.stockSaisie === true;
+      const persistPolicy = explicit;
 
       return {
         set: {
@@ -526,7 +537,6 @@ async function saveGbegameyDayRaw(
           },
           baseDishes,
           localDishes,
-          sentByProductId,
           openingEditable,
         },
       };
@@ -563,7 +573,7 @@ async function confirmGbegameyReceiptRaw(input: {
     throw new Error("Quantité reçue invalide.");
   }
 
-  const { baseDishes, localDishes } = await getParametres();
+  const { baseDishes, localDishes } = await getParametres("gbegamey");
   const openingEditable = await isOpeningDay(input.date);
 
   return updateDayDocument<GbegameyDoc, GbegameyDayPayload>(
@@ -579,10 +589,8 @@ async function confirmGbegameyReceiptRaw(input: {
         { bypass: input.bypassClosedDay },
       );
 
-      const sentByProductId = await loadSentMap(input.date);
-      const sent = sentByProductId[input.productId] ?? 0;
-      if (sent <= 0 && qty <= 0) {
-        throw new Error("Aucun envoi Zogbo à confirmer pour ce plat.");
+      if (qty <= 0) {
+        throw new Error("Quantité reçue invalide.");
       }
 
       const transferLines = syncTransferLines(
@@ -592,13 +600,10 @@ async function confirmGbegameyReceiptRaw(input: {
       const line = transferLines.find((l) => l.productId === input.productId);
       if (!line) throw new Error("Plat introuvable dans le transfert.");
 
-      const variance = sent - qty;
+      // Plus de transfert Zogbo → Gbégamey : la quantité confirmée est une
+      // entrée locale, sans écart de transport à mesurer.
+      const variance = 0;
       const note = String(input.note ?? "").trim().slice(0, 300);
-      if (variance !== 0 && note.length < 3) {
-        throw new Error(
-          "Écart de transport : précisez la cause (casse, oubli, erreur de compte…).",
-        );
-      }
 
       const receipt: GbegameyReceiptMovement = {
         id: new ObjectId().toHexString(),
@@ -606,7 +611,7 @@ async function confirmGbegameyReceiptRaw(input: {
         productId: input.productId,
         name: line.name,
         qty,
-        sentFromZogbo: sent,
+        sentFromZogbo: 0,
         variance,
         note,
         actorName: input.actor?.name ?? null,
@@ -643,7 +648,6 @@ async function confirmGbegameyReceiptRaw(input: {
           },
           baseDishes,
           localDishes,
-          sentByProductId,
           openingEditable,
         },
       };
@@ -668,7 +672,7 @@ async function cancelGbegameyReceiptRaw(input: {
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
   }
 
-  const { baseDishes, localDishes } = await getParametres();
+  const { baseDishes, localDishes } = await getParametres("gbegamey");
   const openingEditable = await isOpeningDay(input.date);
 
   return updateDayDocument<GbegameyDoc, GbegameyDayPayload>(
@@ -710,7 +714,6 @@ async function cancelGbegameyReceiptRaw(input: {
         (existing.localLines ?? []).map((l) => normalizeLocalLine(l)),
         localDishes,
       );
-      const sentByProductId = await loadSentMap(input.date);
       const updatedAt = new Date().toISOString();
       const status = existing.status ?? "ouverte";
 
@@ -733,7 +736,6 @@ async function cancelGbegameyReceiptRaw(input: {
           },
           baseDishes,
           localDishes,
-          sentByProductId,
           openingEditable,
         },
       };

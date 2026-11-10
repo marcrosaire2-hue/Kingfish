@@ -1,3 +1,5 @@
+import { lireJoursMatieresConsolides } from "@/lib/matieres-repo";
+import type { VenteSite } from "@/lib/types";
 import { getDb } from "@/lib/mongodb";
 import { PERTE_MOTIF_LABELS } from "@/lib/types";
 
@@ -275,23 +277,19 @@ export async function listJournalRows(
   }
 
   if (matchesType(type, "achat")) {
-    const jours = await db
-      .collection<{ _id: string; movements?: RawMovement[] }>(
-        "matieres_jours",
-      )
-      .find(
-        dateRange ? { _id: dateRange } : {},
-        { projection: { movements: 1 } },
-      )
-      .toArray();
+    const jours = await lireJoursMatieresConsolides(
+      dateRange ? { _id: dateRange } : {},
+    );
     for (const jour of jours) {
-      for (const m of jour.movements ?? []) {
+      for (const m of (jour.movements ?? []) as (RawMovement & {
+        site?: VenteSite;
+      })[]) {
         const annule = !!m.cancelledAt;
         rows.push({
           id: `a${jour._id}|${m.id}`,
           at: m.at,
           date: jour._id,
-          site: "zogbo",
+          site: m.site ?? "zogbo",
           type: "achat",
           kind: "matiere",
           productId: m.productId,

@@ -1,5 +1,8 @@
+import { avecComptage } from "@/lib/stock-comptage";
 import { getDb } from "@/lib/mongodb";
 import { withStockCarry } from "@/lib/stock-carry";
+import { comptageEventsFromLines } from "@/lib/stock-ledger-sync";
+import { recordStockEvents } from "@/lib/stock-ledger-write";
 
 type Tail<T extends unknown[]> = T extends [unknown, ...infer R] ? R : never;
 import { isValidDate, updateDayDocument } from "@/lib/day-doc";
@@ -223,7 +226,7 @@ export async function getZogboDayPayload(
     throw new Error("Date invalide (attendu YYYY-MM-DD)");
   }
 
-  const { baseDishes, localDishes } = await getParametres();
+  const { baseDishes, localDishes } = await getParametres("zogbo");
   const db = await getDb();
   const col = db.collection<ZogboDoc>("zogbo_jours");
   const existing = await col.findOne({ _id: date });
@@ -311,7 +314,30 @@ export async function saveZogboDay(
   input: Parameters<typeof saveZogboDayRaw>[0],
   ...rest: Tail<Parameters<typeof saveZogboDayRaw>>
 ): ReturnType<typeof saveZogboDayRaw> {
-  return withStockCarry("zogbo", input.date, () => saveZogboDayRaw(input, ...rest));
+  const saved = await withStockCarry("zogbo", input.date, () =>
+    saveZogboDayRaw(input, ...rest),
+  );
+  await recordStockEvents(
+    comptageEventsFromLines({
+      site: "zogbo",
+      date: input.date,
+      family: "plat",
+      unit: "portion",
+      lines: saved.day.lines,
+    }),
+    "Journal stock · comptage Zogbo plats",
+  );
+  await recordStockEvents(
+    comptageEventsFromLines({
+      site: "zogbo",
+      date: input.date,
+      family: "local",
+      unit: "portion",
+      lines: saved.day.accompanimentLines ?? [],
+    }),
+    "Journal stock · comptage Zogbo accompagnements",
+  );
+  return saved;
 }
 
 async function saveZogboDayRaw(
@@ -332,7 +358,7 @@ async function saveZogboDayRaw(
 
   const lockSold = options?.lockSold !== false;
   const directWrite = options?.directWrite === true;
-  const { baseDishes, localDishes } = await getParametres();
+  const { baseDishes, localDishes } = await getParametres("zogbo");
 
   return updateDayDocument<ZogboDoc, ZogboDayPayload>(
     "zogbo_jours",
@@ -360,26 +386,30 @@ async function saveZogboDayRaw(
               pertes: 0,
             };
           }
-          if (!existing) {
-            return {
-              ...normalized,
-              stock: leftovers?.lines.get(line.productId) ?? 0,
-              prepared: 0,
-              sentToGbegamey: 0,
-              sold: lockSold ? 0 : normalized.sold,
-              pertes: 0,
-            };
-          }
           const held = current.get(line.productId);
-          return {
-            ...normalized,
-            stock: held?.stock ?? normalized.stock,
-            prepared: held?.prepared ?? normalized.prepared,
-            sentToGbegamey:
-              held?.sentToGbegamey ?? normalized.sentToGbegamey,
-            sold: lockSold ? (held?.sold ?? 0) : normalized.sold,
-            pertes: held?.pertes ?? 0,
-          };
+          const fusionnee = !existing
+            ? {
+                ...normalized,
+                stock: leftovers?.lines.get(line.productId) ?? 0,
+                prepared: 0,
+                sentToGbegamey: 0,
+                sold: lockSold ? 0 : normalized.sold,
+                pertes: 0,
+              }
+            : {
+                ...normalized,
+                stock: held?.stock ?? normalized.stock,
+                prepared: held?.prepared ?? normalized.prepared,
+                sentToGbegamey:
+                  held?.sentToGbegamey ?? normalized.sentToGbegamey,
+                sold: lockSold ? (held?.sold ?? 0) : normalized.sold,
+                pertes: held?.pertes ?? 0,
+              };
+          return avecComptage(
+            fusionnee,
+            held,
+            fusionnee.stock - fusionnee.sold - fusionnee.pertes,
+          );
         },
       );
 
@@ -405,12 +435,20 @@ async function saveZogboDayRaw(
         const normalized = normalizeAccompanimentLine(l);
         if (directWrite) return { ...normalized, pertes: 0 };
         const held = heldAcc.get(l.productId);
-        return {
+        const fusionnee = {
           ...normalized,
           initialStock: held?.initialStock ?? normalized.initialStock,
           sold: lockSold ? (held?.sold ?? 0) : normalized.sold,
           pertes: held?.pertes ?? 0,
         };
+        return avecComptage(
+          fusionnee,
+          held,
+          fusionnee.initialStock +
+            fusionnee.prepared -
+            fusionnee.sold -
+            fusionnee.pertes,
+        );
       });
 
       const updatedAt = new Date().toISOString();

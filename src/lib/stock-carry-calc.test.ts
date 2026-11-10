@@ -76,14 +76,14 @@ describe("report des plats sur les jours suivants", () => {
     expect(next.has("base-tilapia")).toBe(false);
   });
 
-  it("ne descend jamais sous zéro et ignore les autres produits", () => {
+  it("conserve le négatif et ignore les autres produits", () => {
     const delta = new Map([["base-tilapia", -20]]);
     const { lines } = applyOpeningCarry(
       [plat({ stock: 5 }), plat({ productId: "base-autre", stock: 4 })],
       delta,
       "stock",
     );
-    expect(lines[0]!.stock).toBe(0);
+    expect(lines[0]!.stock).toBe(-15);
     expect(lines[1]!.stock).toBe(4);
   });
 

@@ -8,6 +8,7 @@ import type {
   VenteSite,
 } from "@/lib/types";
 import { newId } from "@/lib/format";
+import { correctionComptage } from "@/lib/stock-comptage";
 
 type LegacyBoissonsLine = Partial<BoissonsLine> & {
   productId: string;
@@ -81,12 +82,12 @@ export function emptyBoissonsLine(
   return {
     productId: drink.id,
     name: drink.name,
-    initialStockZogbo: Math.max(0, opening?.zogbo ?? 0),
+    initialStockZogbo: Number.isFinite(Number(opening?.zogbo)) ? Number(opening?.zogbo) : 0,
     purchasesZogbo: 0,
     soldZogbo: 0,
     pertesZogbo: 0,
     countedZogbo: null,
-    initialStockGbegamey: Math.max(0, opening?.gbegamey ?? 0),
+    initialStockGbegamey: Number.isFinite(Number(opening?.gbegamey)) ? Number(opening?.gbegamey) : 0,
     purchasesGbegamey: 0,
     soldGbegamey: 0,
     pertesGbegamey: 0,
@@ -118,7 +119,7 @@ export function normalizeBoissonsLine(line: LegacyBoissonsLine): BoissonsLine {
 
   const initialStockZogbo =
     line.initialStockZogbo !== undefined
-      ? Math.max(0, Number(line.initialStockZogbo) || 0)
+      ? (Number.isFinite(Number(line.initialStockZogbo)) ? Number(line.initialStockZogbo) : 0)
       : isLegacy
         ? legacyInitial
         : 0;
@@ -145,7 +146,7 @@ export function normalizeBoissonsLine(line: LegacyBoissonsLine): BoissonsLine {
 
   const initialStockGbegamey =
     line.initialStockGbegamey !== undefined
-      ? Math.max(0, Number(line.initialStockGbegamey) || 0)
+      ? (Number.isFinite(Number(line.initialStockGbegamey)) ? Number(line.initialStockGbegamey) : 0)
       : isLegacy
         ? legacyInitial
         : 0;
@@ -187,6 +188,8 @@ export function normalizeBoissonsLine(line: LegacyBoissonsLine): BoissonsLine {
     pertesGbegamey,
     countedGbegamey,
     observations: String(line.observations ?? ""),
+    ...(line.comptageZogbo ? { comptageZogbo: line.comptageZogbo } : {}),
+    ...(line.comptageGbegamey ? { comptageGbegamey: line.comptageGbegamey } : {}),
     // Tri-état préservé (true/false explicites) — seul un champ jamais
     // renseigné (undefined) retombe sur l'inférence historique par
     // comptage. Un `false` explicite ne doit pas disparaître : c'est la
@@ -273,16 +276,45 @@ export function createEmptyBoissonsDay(
   };
 }
 
+type BoissonsStockFields = Pick<
+  BoissonsLine,
+  | "initialStockZogbo"
+  | "purchasesZogbo"
+  | "soldZogbo"
+  | "pertesZogbo"
+  | "countedZogbo"
+  | "comptageZogbo"
+  | "initialStockGbegamey"
+  | "purchasesGbegamey"
+  | "soldGbegamey"
+  | "pertesGbegamey"
+  | "countedGbegamey"
+  | "comptageGbegamey"
+>;
+
+/** Ajustement (en casiers) apporté par le comptage du site, 0 sans comptage. */
+export function correctionBoissonCasiers(
+  line: BoissonsStockFields,
+  site: VenteSite,
+  upc: number,
+): number {
+  const z = site === "zogbo";
+  const compte = z ? line.countedZogbo : line.countedGbegamey;
+  const brut =
+    (z ? line.initialStockZogbo : line.initialStockGbegamey) +
+    (z ? line.purchasesZogbo : line.purchasesGbegamey) -
+    ((z ? line.soldZogbo : line.soldGbegamey) +
+      Math.max(0, Number(z ? line.pertesZogbo : line.pertesGbegamey) || 0)) /
+      Math.max(1, upc);
+  return correctionComptage(
+    compte === null || compte === undefined ? null : compte / Math.max(1, upc),
+    z ? line.comptageZogbo : line.comptageGbegamey,
+    brut,
+  );
+}
+
 function remainingCasiersForSite(
-  line: Pick<
-    BoissonsLine,
-    | "initialStockZogbo"
-    | "purchasesZogbo"
-    | "soldZogbo"
-    | "initialStockGbegamey"
-    | "purchasesGbegamey"
-    | "soldGbegamey"
-  >,
+  line: BoissonsStockFields,
   site: VenteSite,
   upc: number,
 ): number {
@@ -293,32 +325,33 @@ function remainingCasiersForSite(
   const sold = site === "zogbo" ? line.soldZogbo : line.soldGbegamey;
   const available = initialStock + purchases;
   const soldCasiers = sold / Math.max(1, upc);
-  return available - soldCasiers;
+  return available - soldCasiers + correctionBoissonCasiers(line, site, upc);
 }
 
 export function leftoverFromBoissonsLines(
   lines: BoissonsLine[],
   drinks?: Drink[],
+  /** Fiches Gbégamey, si elles diffèrent de `drinks` (catalogue par site). */
+  drinksGbegamey: Drink[] | undefined = drinks,
 ): { zogbo: Map<string, number>; gbegamey: Map<string, number> } {
   const drinkById = new Map((drinks ?? []).map((d) => [d.id, d]));
+  const gbegameyById = new Map((drinksGbegamey ?? []).map((d) => [d.id, d]));
   const zogbo = new Map<string, number>();
   const gbegamey = new Map<string, number>();
   for (const line of lines) {
-    const computed = computeBoissonsLine(line, drinkById.get(line.productId));
+    const drinkG = gbegameyById.get(line.productId);
+    const computed = computeBoissonsLine(
+      line,
+      drinkById.get(line.productId),
+      drinkG,
+    );
     zogbo.set(
       line.productId,
-      computed.countedZogbo !== null
-        ? Math.round((computed.countedZogbo / computed.unitsPerCasier) * 100) /
-          100
-        : Math.max(0, computed.theoreticalRemainingZogbo),
+      Math.max(0, computed.theoreticalRemainingZogbo),
     );
     gbegamey.set(
       line.productId,
-      computed.countedGbegamey !== null
-        ? Math.round(
-            (computed.countedGbegamey / computed.unitsPerCasier) * 100,
-          ) / 100
-        : Math.max(0, computed.theoreticalRemainingGbegamey),
+      Math.max(0, computed.theoreticalRemainingGbegamey),
     );
   }
   return { zogbo, gbegamey };
@@ -327,11 +360,16 @@ export function leftoverFromBoissonsLines(
 export function computeBoissonsLine(
   line: BoissonsLine,
   drink: Drink | undefined,
+  /** Fiche Gbégamey ; par défaut la même que `drink` (écran d'un seul site). */
+  drinkGbegamey: Drink | undefined = drink,
 ): BoissonsLineComputed {
   const normalized = normalizeBoissonsLine(line);
   const upc = unitsPerCasierOf(drink);
+  const upcGbegamey = unitsPerCasierOf(drinkGbegamey);
   const purchasePrice = drink?.purchasePrice ?? 0;
   const salePrice = drink?.salePrice ?? null;
+  const purchasePriceGbegamey = drinkGbegamey?.purchasePrice ?? 0;
+  const salePriceGbegamey = drinkGbegamey?.salePrice ?? null;
 
   const availableZogbo =
     normalized.initialStockZogbo + normalized.purchasesZogbo;
@@ -339,14 +377,22 @@ export function computeBoissonsLine(
     normalized.initialStockGbegamey + normalized.purchasesGbegamey;
   const soldTotal = normalized.soldZogbo + normalized.soldGbegamey;
 
+  const correctionZogbo = correctionBoissonCasiers(normalized, "zogbo", upc);
+  const correctionGbegamey = correctionBoissonCasiers(
+    normalized,
+    "gbegamey",
+    upcGbegamey,
+  );
   const theoreticalRemainingZogbo =
     availableZogbo -
     normalized.soldZogbo / upc -
-    normalized.pertesZogbo / upc;
+    normalized.pertesZogbo / upc +
+    correctionZogbo;
   const theoreticalRemainingGbegamey =
     availableGbegamey -
-    normalized.soldGbegamey / upc -
-    normalized.pertesGbegamey / upc;
+    normalized.soldGbegamey / upcGbegamey -
+    normalized.pertesGbegamey / upcGbegamey +
+    correctionGbegamey;
 
   const stockBottlesZogbo = physicalBoissonsStockForSite(
     normalized,
@@ -356,25 +402,30 @@ export function computeBoissonsLine(
   const stockBottlesGbegamey = physicalBoissonsStockForSite(
     normalized,
     "gbegamey",
-    upc,
+    upcGbegamey,
   );
 
   const soldAmountZogbo =
     salePrice === null ? 0 : normalized.soldZogbo * salePrice;
   const soldAmountGbegamey =
-    salePrice === null ? 0 : normalized.soldGbegamey * salePrice;
+    salePriceGbegamey === null ? 0 : normalized.soldGbegamey * salePriceGbegamey;
   const soldAmount = soldAmountZogbo + soldAmountGbegamey;
+  const marginZogbo =
+    salePrice === null ? null : normalized.soldZogbo * (salePrice - purchasePrice);
+  const marginGbegamey =
+    salePriceGbegamey === null
+      ? null
+      : normalized.soldGbegamey * (salePriceGbegamey - purchasePriceGbegamey);
   const margin =
-    salePrice === null ? null : soldTotal * (salePrice - purchasePrice);
+    marginZogbo === null && marginGbegamey === null
+      ? null
+      : (marginZogbo ?? 0) + (marginGbegamey ?? 0);
 
+  // Écart figé au moment du comptage : les ventes suivantes ne le changent pas.
   const varianceZogbo =
-    normalized.countedZogbo === null
-      ? null
-      : normalized.countedZogbo / upc - theoreticalRemainingZogbo;
+    normalized.countedZogbo === null ? null : correctionZogbo;
   const varianceGbegamey =
-    normalized.countedGbegamey === null
-      ? null
-      : normalized.countedGbegamey / upc - theoreticalRemainingGbegamey;
+    normalized.countedGbegamey === null ? null : correctionGbegamey;
 
   return {
     ...normalized,
@@ -399,19 +450,7 @@ export function computeBoissonsLine(
 
 /** Stock restant vendable en bouteilles, pour un seul point de vente. */
 export function physicalBoissonsStockForSite(
-  line: Pick<
-    BoissonsLine,
-    | "initialStockZogbo"
-    | "purchasesZogbo"
-    | "soldZogbo"
-    | "pertesZogbo"
-    | "countedZogbo"
-    | "initialStockGbegamey"
-    | "purchasesGbegamey"
-    | "soldGbegamey"
-    | "pertesGbegamey"
-    | "countedGbegamey"
-  >,
+  line: BoissonsStockFields,
   site: VenteSite,
   unitsPerCasier: number = DEFAULT_UNITS_PER_CASIER,
 ): number {
@@ -425,13 +464,14 @@ export function physicalBoissonsStockForSite(
     site === "zogbo" ? line.purchasesZogbo : line.purchasesGbegamey;
   const sold = site === "zogbo" ? line.soldZogbo : line.soldGbegamey;
   const pertes = site === "zogbo" ? line.pertesZogbo : line.pertesGbegamey;
-  const counted = site === "zogbo" ? line.countedZogbo : line.countedGbegamey;
-  // Le comptage ne remplace plus le stock : il mesure l’écart (règle de
-  // stock commune). Le stock vendable suit Ouverture + Entrées − Vendus.
-  void counted;
+  // Le stock vendable part du dernier comptage, puis suit les mouvements.
   const stockBottles = (initialStock + purchases) * upc;
-  const bottles = stockBottles - sold - Math.max(0, Number(pertes) || 0);
-  return Math.max(0, Math.round(bottles));
+  const bottles =
+    stockBottles -
+    sold -
+    Math.max(0, Number(pertes) || 0) +
+    correctionBoissonCasiers(line, site, upc) * upc;
+  return Math.round(bottles);
 }
 
 /**
@@ -443,10 +483,11 @@ export function physicalBoissonsStockForSite(
 export function physicalBoissonsStockCombined(
   line: Parameters<typeof physicalBoissonsStockForSite>[0],
   unitsPerCasier: number = DEFAULT_UNITS_PER_CASIER,
+  unitsPerCasierGbegamey: number = unitsPerCasier,
 ): number {
   return (
     physicalBoissonsStockForSite(line, "zogbo", unitsPerCasier) +
-    physicalBoissonsStockForSite(line, "gbegamey", unitsPerCasier)
+    physicalBoissonsStockForSite(line, "gbegamey", unitsPerCasierGbegamey)
   );
 }
 
@@ -480,20 +521,27 @@ export function applyBoissonsPurchaseToState(
   const isZogbo = input.site === "zogbo";
   const purchases =
     (isZogbo ? line.purchasesZogbo : line.purchasesGbegamey) + qty;
-  // Zogbo : un comptage déjà saisi prévaut sur initial + achats ; sans le
-  // relever, les bouteilles achetées après le comptage disparaîtraient du
-  // stock réel.
+  // Comptage ancien (sans repère) : il vaut stock restant, on le relève pour
+  // ne pas perdre l'achat. Avec repère, l'achat s'ajoute tout seul au stock.
   const nextLine: BoissonsLine = isZogbo
     ? {
         ...line,
         purchasesZogbo: purchases,
         countedZogbo:
-          line.countedZogbo === null
-            ? null
+          line.countedZogbo === null || line.comptageZogbo
+            ? line.countedZogbo
             : line.countedZogbo + Math.round(qty * upc),
         stockTrackedZogbo: true,
       }
-    : { ...line, purchasesGbegamey: purchases, stockTrackedGbegamey: true };
+    : {
+        ...line,
+        purchasesGbegamey: purchases,
+        countedGbegamey:
+          line.countedGbegamey === null || line.comptageGbegamey
+            ? line.countedGbegamey
+            : line.countedGbegamey + Math.round(qty * upc),
+        stockTrackedGbegamey: true,
+      };
   const stockAfter = remainingCasiersForSite(nextLine, input.site, upc);
 
   const movement: BoissonsMovement = {
@@ -543,17 +591,24 @@ export function cancelBoissonsMovementInState(
     0,
     (isZogbo ? line.purchasesZogbo : line.purchasesGbegamey) - target.qty,
   );
-  // Symétrique de l'achat à Zogbo : on retire les bouteilles du comptage.
+  // Symétrique de l'achat : seul un comptage sans repère doit être ajusté.
   const nextLine: BoissonsLine = isZogbo
     ? {
         ...line,
         purchasesZogbo: purchases,
         countedZogbo:
-          line.countedZogbo === null
-            ? null
+          line.countedZogbo === null || line.comptageZogbo
+            ? line.countedZogbo
             : Math.max(0, line.countedZogbo - Math.round(target.qty * upc)),
       }
-    : { ...line, purchasesGbegamey: purchases };
+    : {
+        ...line,
+        purchasesGbegamey: purchases,
+        countedGbegamey:
+          line.countedGbegamey === null || line.comptageGbegamey
+            ? line.countedGbegamey
+            : Math.max(0, line.countedGbegamey - Math.round(target.qty * upc)),
+      };
   const onHandAfter = remainingCasiersForSite(nextLine, target.site, upc);
   if (onHandAfter < -1e-9) {
     throw new Error(
@@ -579,6 +634,7 @@ export function cancelBoissonsMovementInState(
 export function computeBoissonsDay(
   day: BoissonsDay,
   drinks: Drink[],
+  drinksGbegamey: Drink[] = drinks,
 ): {
   lines: BoissonsLineComputed[];
   movements: BoissonsMovement[];
@@ -600,8 +656,13 @@ export function computeBoissonsDay(
   };
 } {
   const byId = new Map(drinks.map((d) => [d.id, d]));
+  const gbegameyById = new Map(drinksGbegamey.map((d) => [d.id, d]));
   const lines = day.lines.map((line) =>
-    computeBoissonsLine(line, byId.get(line.productId)),
+    computeBoissonsLine(
+      line,
+      byId.get(line.productId),
+      gbegameyById.get(line.productId),
+    ),
   );
   const movements = (day.movements ?? [])
     .map((m) => normalizeBoissonsMovement(m))
@@ -713,16 +774,28 @@ export function applyBoissonsCarryToDay(
     if (dz === 0 && dg === 0) return raw;
     const patched: BoissonsLine = { ...raw };
     if (dz !== 0) {
-      patched.initialStockZogbo = roundCasiers(
-        Math.max(0, line.initialStockZogbo + dz),
-      );
-      if (line.countedZogbo !== null) next.zogbo.delete(line.productId);
+      patched.initialStockZogbo = roundCasiers(line.initialStockZogbo + dz);
+      if (line.countedZogbo !== null) {
+        next.zogbo.delete(line.productId);
+        if (line.comptageZogbo) {
+          patched.comptageZogbo = {
+            ...line.comptageZogbo,
+            theorique: roundCasiers(line.comptageZogbo.theorique + dz),
+          };
+        }
+      }
     }
     if (dg !== 0) {
-      patched.initialStockGbegamey = roundCasiers(
-        Math.max(0, line.initialStockGbegamey + dg),
-      );
-      if (line.countedGbegamey !== null) next.gbegamey.delete(line.productId);
+      patched.initialStockGbegamey = roundCasiers(line.initialStockGbegamey + dg);
+      if (line.countedGbegamey !== null) {
+        next.gbegamey.delete(line.productId);
+        if (line.comptageGbegamey) {
+          patched.comptageGbegamey = {
+            ...line.comptageGbegamey,
+            theorique: roundCasiers(line.comptageGbegamey.theorique + dg),
+          };
+        }
+      }
     }
     if (
       patched.initialStockZogbo !== raw.initialStockZogbo ||

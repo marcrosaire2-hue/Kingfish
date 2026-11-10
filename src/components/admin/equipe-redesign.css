@@ -96,7 +96,7 @@
 .eq-banner-side .btn {
   border: 1px solid var(--eq-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   color: var(--eq-blue);
   font-weight: 700;
   box-shadow: 0 2px 8px rgb(6 59 104 / 0.06);
@@ -125,7 +125,7 @@
   padding: 0.4rem 1.1rem;
   border: 1px solid var(--eq-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   font-weight: 700;
   color: var(--eq-deep);
   box-shadow: none;
@@ -182,7 +182,7 @@
   column-gap: 0.8rem;
   row-gap: 0;
   padding: 0.9rem 1rem;
-  background: linear-gradient(135deg, #fff 40%, #eaf3fb);
+  background: linear-gradient(135deg, var(--surface) 40%, #eaf3fb);
 }
 
 .equipe-page .equipe-kpi .eq-ico {
@@ -204,7 +204,7 @@
 }
 
 .equipe-page .equipe-kpi.is-ok {
-  background: linear-gradient(135deg, #fff 40%, #e5f7ec);
+  background: linear-gradient(135deg, var(--surface) 40%, #e5f7ec);
 }
 
 .equipe-page .equipe-kpi.is-ok .eq-ico {
@@ -213,7 +213,7 @@
 }
 
 .equipe-page .equipe-kpi.is-accent {
-  background: linear-gradient(135deg, #fff 40%, #fff4d6);
+  background: linear-gradient(135deg, var(--surface) 40%, #fff4d6);
 }
 
 .equipe-page .equipe-kpi.is-accent .eq-ico {
@@ -226,7 +226,7 @@
   padding: 0.9rem 1.1rem;
   border: 1px solid var(--eq-line);
   border-radius: 16px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--eq-shadow);
 }
 
@@ -284,7 +284,7 @@
 }
 
 .equipe-page .equipe-card {
-  background: #fff;
+  background: var(--surface);
 }
 
 .equipe-page .equipe-card-id strong,
@@ -313,7 +313,7 @@
 
 .equipe-page .equipe-policy-panel,
 .equipe-page .equipe-presence-card {
-  background: #fff;
+  background: var(--surface);
 }
 
 .equipe-page .equipe-policy-head h2,
@@ -332,7 +332,7 @@
 .equipe-page .btn-ghost {
   border: 1px solid var(--eq-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   color: var(--eq-blue);
   font-weight: 700;
 }
@@ -432,7 +432,7 @@
   padding: 1.1rem 1.25rem 1.2rem;
   border: 1px solid var(--eq-line);
   border-radius: 16px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--eq-shadow);
 }
 
@@ -480,11 +480,11 @@
   padding: 1rem 1.1rem;
   border: 1px solid var(--eq-line);
   border-radius: 14px;
-  background: linear-gradient(135deg, #fff 45%, #e5f7ec);
+  background: linear-gradient(135deg, var(--surface) 45%, #e5f7ec);
 }
 
 .equipe-page .equipe-policy-site.is-strict {
-  background: linear-gradient(135deg, #fff 45%, #fff4d6);
+  background: linear-gradient(135deg, var(--surface) 45%, #fff4d6);
   border-color: #f3d98a;
 }
 
@@ -529,7 +529,7 @@
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--eq-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .equipe-page .vente-log li > div {
@@ -568,7 +568,7 @@
   padding: 0.35rem 1.1rem;
   border: 1px solid var(--eq-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   font-weight: 700;
   color: var(--eq-deep);
   cursor: pointer;
@@ -637,7 +637,7 @@
   padding: 0.65rem 0.85rem;
   border: 1px solid var(--eq-line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
 }
 
 .equipe-page .authz-switch-copy {
@@ -666,7 +666,7 @@
   padding: 0.9rem 1.2rem;
   border: 1px solid var(--eq-line);
   border-radius: 16px;
-  background: #fff;
+  background: var(--surface);
   box-shadow: var(--eq-shadow);
 }
 

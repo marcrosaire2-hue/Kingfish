@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import {
   CatalogueView,
@@ -8,6 +8,8 @@ import {
 } from "@/components/parametres/catalogue-view";
 import { PriceInput } from "@/components/parametres/price-input";
 import { QtyInput } from "@/components/qty-input";
+import { useSession } from "@/components/session-provider";
+import { effectiveSite } from "@/lib/auth-types";
 import { formatFcfa, formatUpdatedAt, newId } from "@/lib/format";
 import { exportParametresExcel } from "@/lib/page-exports";
 import { cloneSeed } from "@/lib/storage";
@@ -20,11 +22,17 @@ import type {
   ProductCategory,
   RawMaterial,
   Recipe,
+  VenteSite,
 } from "@/lib/types";
+
+const SITE_LABEL: Record<VenteSite, string> = {
+  zogbo: "Zogbo",
+  gbegamey: "Gbégamey",
+};
 
 type ZoneKey = "zogbo" | "gbegamey" | "cuisine" | "categories";
 type ZogboSection = "base" | "accompagnements" | "drinks";
-type GbegameySection = "accompagnements" | "drinks";
+type GbegameySection = "base" | "accompagnements" | "drinks";
 type CuisineSection = "matieres" | "composition";
 
 export type ParametresEditorMode = "zones" | "catalogue";
@@ -44,17 +52,17 @@ const ZOGBO_SECTIONS: {
   {
     key: "base",
     label: "Plats de base",
-    hint: "Production Zogbo — prix aussi utilisés pour les ventes à Gbégamey (transferts).",
+    hint: "Catalogue de Zogbo uniquement — les changements ne touchent pas Gbégamey.",
   },
   {
     key: "accompagnements",
     label: "Accompagnements",
-    hint: "Riz, telibo, piron… — catalogue partagé, vendus seuls ou avec un plat (Zogbo et Gbégamey).",
+    hint: "Riz, telibo, piron… — vendus seuls ou avec un plat, à Zogbo uniquement.",
   },
   {
     key: "drinks",
     label: "Boissons",
-    hint: "Catalogue boissons (partagé) — stock et ventes en bouteilles.",
+    hint: "Boissons de Zogbo — noms, prix et bouteilles par casier propres à ce site.",
   },
 ];
 
@@ -64,14 +72,19 @@ const GBEGAMEY_SECTIONS: {
   hint: string;
 }[] = [
   {
+    key: "base",
+    label: "Plats",
+    hint: "Catalogue de Gbégamey uniquement — les changements ne touchent pas Zogbo.",
+  },
+  {
     key: "accompagnements",
     label: "Accompagnements",
-    hint: "Même catalogue que Zogbo — vente à l’unité ou en complément d’un plat.",
+    hint: "Vente à l’unité ou en complément d’un plat, à Gbégamey uniquement.",
   },
   {
     key: "drinks",
     label: "Boissons",
-    hint: "Même catalogue — stock et ventes en bouteilles.",
+    hint: "Boissons de Gbégamey — noms, prix et bouteilles par casier propres à ce site.",
   },
 ];
 
@@ -92,8 +105,8 @@ const CUISINE_SECTIONS: {
   },
 ];
 
-async function fetchParametres(): Promise<Parametres> {
-  const res = await fetch("/api/parametres", { cache: "no-store" });
+async function fetchParametres(site: VenteSite): Promise<Parametres> {
+  const res = await fetch(`/api/parametres?site=${site}`, { cache: "no-store" });
   if (!res.ok) {
     const body = (await res.json().catch(() => null)) as {
       error?: string;
@@ -103,8 +116,11 @@ async function fetchParametres(): Promise<Parametres> {
   return res.json() as Promise<Parametres>;
 }
 
-async function putParametres(data: Parametres): Promise<Parametres> {
-  const res = await fetch("/api/parametres", {
+async function putParametres(
+  data: Parametres,
+  site: VenteSite,
+): Promise<Parametres> {
+  const res = await fetch(`/api/parametres?site=${site}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
@@ -118,8 +134,8 @@ async function putParametres(data: Parametres): Promise<Parametres> {
   return res.json() as Promise<Parametres>;
 }
 
-async function resetParametresApi(): Promise<Parametres> {
-  const res = await fetch("/api/parametres", {
+async function resetParametresApi(site: VenteSite): Promise<Parametres> {
+  const res = await fetch(`/api/parametres?site=${site}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "reset" }),
@@ -140,7 +156,17 @@ export function ParametresEditor({
   mode?: ParametresEditorMode;
 }) {
   const [data, setData] = useState<Parametres>(() => cloneSeed());
-  const [zone, setZone] = useState<ZoneKey>("zogbo");
+  const { user } = useSession();
+  const perimetre = user ? effectiveSite(user.role, user.site) : null;
+  // Compte lié à un site : il ne voit et ne modifie que le catalogue du sien.
+  const lockedSite: VenteSite | null =
+    perimetre === "zogbo" || perimetre === "gbegamey" ? perimetre : null;
+  const [chosenSite, setChosenSite] = useState<VenteSite>("zogbo");
+  const site = lockedSite ?? chosenSite;
+  const [rawZone, setRawZone] = useState<ZoneKey>("zogbo");
+  const zone: ZoneKey =
+    rawZone === "categories" || rawZone === "cuisine" ? rawZone : site;
+  const chargement = useRef(0);
   const [zogboSection, setZogboSection] = useState<ZogboSection>("base");
   const [gbegameySection, setGbegameySection] =
     useState<GbegameySection>("accompagnements");
@@ -155,12 +181,14 @@ export function ParametresEditor({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!user) return;
     let cancelled = false;
     (async () => {
       try {
-        const remote = await fetchParametres();
+        const remote = await fetchParametres(site);
         if (!cancelled) {
           setData(remote);
+          setDirty(false);
           setError(null);
           setReady(true);
         }
@@ -174,7 +202,33 @@ export function ParametresEditor({
     return () => {
       cancelled = true;
     };
-  }, []);
+    // `user` change de référence à chaque rafraîchissement de session : seul
+    // son identifiant doit relancer le chargement.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [site, user?.id]);
+
+  /** Changer de site abandonne les modifications non enregistrées. */
+  function selectSite(next: VenteSite): boolean {
+    if (next === site) return true;
+    if (
+      dirty &&
+      !window.confirm(
+        `Abandonner les modifications non enregistrées du catalogue ${SITE_LABEL[site]} ?`,
+      )
+    ) {
+      return false;
+    }
+    setReady(false);
+    setChosenSite(next);
+    return true;
+  }
+
+  function selectZone(next: ZoneKey) {
+    if (next === "zogbo" || next === "gbegamey") {
+      if (!selectSite(next)) return;
+    }
+    setRawZone(next);
+  }
 
   /**
    * Une boisson sans prix de vente est refusée à la caisse : sa carte reste
@@ -195,7 +249,7 @@ export function ParametresEditor({
     setSaving(true);
     setError(null);
     try {
-      const saved = await putParametres(data);
+      const saved = await putParametres(data, site);
       setData(saved);
       setDirty(false);
       setSavedFlash(true);
@@ -210,7 +264,7 @@ export function ParametresEditor({
   async function handleReset() {
     if (
       !window.confirm(
-        "Réinitialiser tous les paramètres aux valeurs du fichier Excel d’origine ?",
+        `Réinitialiser le catalogue ${SITE_LABEL[site]} aux valeurs du fichier Excel d’origine ? L’autre site ne change pas.`,
       )
     ) {
       return;
@@ -218,7 +272,7 @@ export function ParametresEditor({
     setSaving(true);
     setError(null);
     try {
-      const saved = await resetParametresApi();
+      const saved = await resetParametresApi(site);
       setData(saved);
       setDirty(false);
       setSavedFlash(true);
@@ -243,10 +297,12 @@ export function ParametresEditor({
   const recipes = data.recipes ?? [];
 
   async function reload() {
+    const demande = ++chargement.current;
     setSaving(true);
     setError(null);
     try {
-      const remote = await fetchParametres();
+      const remote = await fetchParametres(site);
+      if (demande !== chargement.current) return;
       setData(remote);
       setDirty(false);
       setReady(true);
@@ -257,8 +313,27 @@ export function ParametresEditor({
     }
   }
 
+  const siteSwitch = lockedSite ? null : (
+    <div className="section-tabs" role="tablist" aria-label="Catalogue du site">
+      {(["zogbo", "gbegamey"] as const).map((s) => (
+        <button
+          key={s}
+          type="button"
+          role="tab"
+          aria-selected={site === s}
+          className={`section-tab${site === s ? " is-active" : ""}`}
+          onClick={() => selectSite(s)}
+        >
+          {SITE_LABEL[s]}
+        </button>
+      ))}
+    </div>
+  );
+
   if (mode === "catalogue") {
     return (
+      <>
+      {siteSwitch}
       <CatalogueView
         data={data}
         ready={ready}
@@ -283,6 +358,7 @@ export function ParametresEditor({
           />
         }
       />
+      </>
     );
   }
 
@@ -350,14 +426,20 @@ export function ParametresEditor({
 
       <>
           <div className="section-tabs" role="tablist" aria-label="Point">
-            {ZONE_TABS.map((z) => (
+            {ZONE_TABS.filter(
+              (z) =>
+                !lockedSite ||
+                z.key === lockedSite ||
+                z.key === "cuisine" ||
+                z.key === "categories",
+            ).map((z) => (
               <button
                 key={z.key}
                 type="button"
                 role="tab"
                 aria-selected={zone === z.key}
                 className={`section-tab${zone === z.key ? " is-active" : ""}`}
-                onClick={() => setZone(z.key)}
+                onClick={() => selectZone(z.key)}
               >
                 {z.label}
               </button>
@@ -407,14 +489,20 @@ export function ParametresEditor({
                 >
                   {s.label}
                   <span className="section-count">
-                    {s.key === "accompagnements"
-                      ? data.localDishes.length
-                      : data.drinks.length}
+                    {s.key === "base"
+                      ? data.baseDishes.length
+                      : s.key === "accompagnements"
+                        ? data.localDishes.length
+                        : data.drinks.length}
                   </span>
                 </button>
               ))}
             </div>
-          ) : zone === "categories" ? null : (
+          ) : zone === "categories" ? (
+            siteSwitch
+          ) : (
+            <>
+            {siteSwitch}
             <div
               className="section-tabs"
               role="tablist"
@@ -438,6 +526,7 @@ export function ParametresEditor({
                 </button>
               ))}
             </div>
+            </>
           )}
       </>
 
@@ -468,6 +557,13 @@ export function ParametresEditor({
         <DrinksTable
           rows={data.drinks}
           onChange={(drinks) => update({ ...data, drinks })}
+        />
+      ) : null}
+
+      {zone === "gbegamey" && gbegameySection === "base" ? (
+        <BaseDishesTable
+          rows={data.baseDishes}
+          onChange={(baseDishes) => update({ ...data, baseDishes })}
         />
       ) : null}
 
@@ -513,14 +609,6 @@ export function ParametresEditor({
           ]}
           onChange={(next) => update({ ...data, recipes: next })}
         />
-      ) : null}
-
-      {zone === "gbegamey" &&
-      gbegameySection === "accompagnements" ? (
-        <p className="section-hint">
-          Les plats reçus de Zogbo utilisent les prix de{" "}
-          <strong>Zogbo → Plats de base</strong>.
-        </p>
       ) : null}
   </div>
   );

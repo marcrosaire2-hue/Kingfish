@@ -1,3 +1,4 @@
+import type { ComptageRef } from "@/lib/stock-comptage";
 /**
  * Report d'une correction de reste vers les journées suivantes (plats et
  * accompagnements, Zogbo et Gbégamey). Voir `stock-carry.ts`.
@@ -31,7 +32,11 @@ export function leftoverDelta(
  * jour (le report repart du comptage) : l'écart s'arrête là pour ce produit.
  */
 export function applyOpeningCarry<
-  L extends { productId: string; counted?: number | null },
+  L extends {
+    productId: string;
+    counted?: number | null;
+    comptage?: ComptageRef;
+  },
 >(
   lines: L[],
   delta: Map<string, number>,
@@ -46,11 +51,17 @@ export function applyOpeningCarry<
       next.delete(line.productId);
     }
     const raw = (line as Record<string, unknown>)[openingField];
-    const current = Math.max(0, Number(raw) || 0);
-    const value = roundQty(Math.max(0, current + d));
+    // Une ouverture négative est conservée : c'est le signal d'une survente.
+    const current = Number.isFinite(Number(raw)) ? Number(raw) : 0;
+    const value = roundQty(current + d);
     if (value === raw) return line;
     changed = true;
-    return { ...line, [openingField]: value };
+    // Le stock compté ne bouge pas : seul le repère du comptage suit l'ouverture.
+    const comptage =
+      line.counted !== null && line.counted !== undefined && line.comptage
+        ? { comptage: { ...line.comptage, theorique: roundQty(line.comptage.theorique + d) } }
+        : {};
+    return { ...line, [openingField]: value, ...comptage };
   });
   return { lines: out, next, changed };
 }
