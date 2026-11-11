@@ -591,9 +591,10 @@ async function cancelBoissonsMovementRaw(input: {
 }
 
 /**
- * Bouteilles achetées après `date` (exclu) et jusqu'à aujourd'hui (inclus),
- * par boisson, pour un site. Quand la caisse est restée ouverte sur un jour
- * passé, ces achats déjà saisis au stock sont vendables immédiatement.
+ * Mouvement net (achats − ventes − pertes, en bouteilles) après `date`
+ * (exclu) et jusqu'à aujourd'hui (inclus), par boisson, pour un site. Quand
+ * la caisse est restée ouverte sur un jour passé, les achats déjà saisis au
+ * stock sur ces jours sont vendables immédiatement.
  */
 export async function achatsBoissonsPosterieurs(
   site: VenteSite,
