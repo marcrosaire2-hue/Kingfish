@@ -15,13 +15,17 @@ import { ProductIcon } from "@/components/product-icon";
 import { QtyInput } from "@/components/qty-input";
 import { EcartBadge, formatEcart } from "@/components/stock-ecart";
 import { ZoneBoissonsPanel } from "@/components/zone/zone-boissons-panel";
-import { CondimentsPanel } from "@/components/condiments/condiments-panel";
+import {
+  CondimentsPanel,
+  type VueCondiments,
+} from "@/components/condiments/condiments-panel";
 import {
   CataloguePaginationBar,
   CatalogueSkeleton,
 } from "@/components/parametres/catalogue-view";
 import { useSession } from "@/components/session-provider";
 import "@/components/parametres/parametres-catalogue.css";
+import "@/components/stock-zogbo/stock-gbegamey.css";
 import { canWriteStock } from "@/lib/auth-types";
 import type { GbegameyLocalLine, LocalDish, VenteSite } from "@/lib/types";
 import type {
@@ -213,6 +217,8 @@ export function StockZogboPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [condVue, setCondVue] = useState<VueCondiments>("stock");
+  const [condAlertes, setCondAlertes] = useState(0);
   const [draftQr, setDraftQr] = useState<Record<string, string>>({});
   const [accLines, setAccLines] = useState<GbegameyLocalLine[]>([]);
   const [accDirty, setAccDirty] = useState(false);
@@ -435,7 +441,7 @@ export function StockZogboPage({
             ? "Saisie du stock — condiments et boissons."
             : "Saisie du stock — plats, accompagnements et boissons."
       }
-      mainClassName="main-stock-zogbo"
+      mainClassName={isGbegamey ? "main-stock-gbegamey main-stock-zogbo" : "main-stock-zogbo"}
       actions={
         tab === "boissons" || tab === "condiments" ? undefined : (
           <ExportExcelButton
@@ -479,61 +485,145 @@ export function StockZogboPage({
       }
     >
       <div className="stock-zogbo-page catalogue-view">
-        <ContextBar
-          date={date}
-          onDateChange={setDate}
-          siteLabel={isGbegamey ? "Gbégamey" : "Zogbo"}
-        />
+        {isGbegamey ? (
+          <>
+            {/* ── Hero Banner ── */}
+            <header className="stock-gbegamey-hero">
+              <div className="stock-gbegamey-hero-content">
+                <div className="stock-gbegamey-hero-icon" aria-hidden>
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                    <polyline points="9 22 9 12 15 12 15 22" />
+                  </svg>
+                </div>
+                <div className="stock-gbegamey-hero-text">
+                  <h1 className="stock-gbegamey-hero-title">Stock Gbégamey</h1>
+                  <p className="stock-gbegamey-hero-sub">Saisir du stock — condiments et boissons.</p>
+                </div>
+              </div>
+              <div className="stock-gbegamey-hero-deco" aria-hidden>
+                <div className="stock-gbegamey-dish-wrap">
+                  <svg viewBox="0 0 200 120" className="stock-gbegamey-dish-img">
+                    <ellipse cx="100" cy="62" rx="95" ry="52" fill="#ffffff" stroke="#f1f5f9" strokeWidth="3" />
+                    <ellipse cx="100" cy="62" rx="85" ry="44" fill="#f8fafc" />
+                    <path d="M40 50 Q 55 35 70 45 Q 85 30 100 42 Q 120 32 140 45 Q 160 38 170 55 Q 155 75 140 68 Q 120 80 100 70 Q 75 82 55 70 Z" fill="#4ade80" opacity="0.9" />
+                    <path d="M45 54 Q 60 40 75 48 Q 95 36 115 46 Q 135 38 155 50 Q 165 60 150 70 Q 130 78 110 72 Q 85 80 60 70 Z" fill="#22c55e" opacity="0.8" />
+                    <path d="M55 55 C 65 48, 100 42, 140 55 C 155 62, 130 78, 100 75 C 70 72, 50 65, 55 55 Z" fill="#0284c7" />
+                    <path d="M60 58 C 68 52, 95 48, 130 58 C 140 62, 125 72, 100 70 C 75 68, 55 64, 60 58 Z" fill="#0ea5e9" />
+                    <circle cx="118" cy="56" r="2" fill="#ffffff" />
+                    <path d="M80 62 Q 90 56, 110 62 Q 120 56, 135 62" fill="none" stroke="#0369a1" strokeWidth="1.5" opacity="0.6" />
+                    <circle cx="60" cy="48" r="5" fill="#ef4444" opacity="0.8" />
+                    <circle cx="72" cy="42" r="4" fill="#f97316" opacity="0.8" />
+                    <circle cx="145" cy="50" r="6" fill="#eab308" opacity="0.7" />
+                    <circle cx="80" cy="44" r="3.5" fill="#fbbf24" opacity="0.7" />
+                  </svg>
+                </div>
+                <svg className="stock-gbegamey-curve" viewBox="0 0 200 48" fill="none">
+                  <path d="M0 48 Q 80 -10 200 38" stroke="#f0b018" strokeWidth="4" strokeLinecap="round" fill="none" opacity="0.7" />
+                  <path d="M20 48 Q 100 0 200 42" stroke="#f0b018" strokeWidth="2" strokeLinecap="round" fill="none" opacity="0.35" />
+                </svg>
+              </div>
+            </header>
 
-        <div
-          className="section-tabs catalogue-stock-tabs"
-          role="tablist"
-          aria-label={`Sections ${siteTitle}`}
-        >
-          {isGbegamey ? (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "condiments"}
-              className={`section-tab${tab === "condiments" ? " is-active" : ""}`}
-              onClick={() => setTab("condiments")}
+            {/* ── Context Bar ── */}
+            <ContextBar
+              date={date}
+              onDateChange={setDate}
+              siteLabel="Gbégamey"
+            />
+
+            {/* ── Pill Tabs ── */}
+            <div className="stock-gbegamey-tabs" role="tablist" aria-label="Sections Stock Gbégamey">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "condiments"}
+                className={`stock-gbegamey-tab${tab === "condiments" ? " is-active" : ""}`}
+                onClick={() => setTab("condiments")}
+              >
+                🍲 Condiments
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "boissons"}
+                className={`stock-gbegamey-tab${tab === "boissons" ? " is-active" : ""}`}
+                onClick={() => setTab("boissons")}
+              >
+                🥤 Boissons
+              </button>
+              {tab === "condiments" ? (
+                <div
+                  className="stock-gbegamey-subtabs"
+                  role="tablist"
+                  aria-label="Vue des condiments"
+                >
+                  {(
+                    [
+                      ["stock", "Stock et achats"],
+                      ["manquants", condAlertes ? `Manquants (${condAlertes})` : "Manquants"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      role="tab"
+                      aria-selected={condVue === key}
+                      className={`stock-gbegamey-subtab${condVue === key ? " is-active" : ""}${key === "manquants" && condAlertes ? " has-alerte" : ""}`}
+                      onClick={() => setCondVue(key)}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : (
+          <>
+            <ContextBar
+              date={date}
+              onDateChange={setDate}
+              siteLabel="Zogbo"
+            />
+
+            <div
+              className="section-tabs catalogue-stock-tabs"
+              role="tablist"
+              aria-label={`Sections ${siteTitle}`}
             >
-              Condiments
-            </button>
-          ) : (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "plats"}
-              className={`section-tab${tab === "plats" ? " is-active" : ""}`}
-              onClick={() => setTab("plats")}
-            >
-              Plats
-              <span className="section-count">{plats.length}</span>
-            </button>
-          )}
-          {!isGbegamey ? (
-            <button
-              type="button"
-              role="tab"
-              aria-selected={tab === "acc"}
-              className={`section-tab${tab === "acc" ? " is-active" : ""}`}
-              onClick={() => setTab("acc")}
-            >
-              Accompagnements
-              <span className="section-count">{accLines.length}</span>
-            </button>
-          ) : null}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={tab === "boissons"}
-            className={`section-tab${tab === "boissons" ? " is-active" : ""}`}
-            onClick={() => setTab("boissons")}
-          >
-            Boissons
-          </button>
-        </div>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "plats"}
+                className={`section-tab${tab === "plats" ? " is-active" : ""}`}
+                onClick={() => setTab("plats")}
+              >
+                Plats
+                <span className="section-count">{plats.length}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "acc"}
+                className={`section-tab${tab === "acc" ? " is-active" : ""}`}
+                onClick={() => setTab("acc")}
+              >
+                Accompagnements
+                <span className="section-count">{accLines.length}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={tab === "boissons"}
+                className={`section-tab${tab === "boissons" ? " is-active" : ""}`}
+                onClick={() => setTab("boissons")}
+              >
+                Boissons
+              </button>
+            </div>
+          </>
+        )}
 
         {error ? (
           <StockErrorBanner message={error} onRetry={() => void load(date)} />
@@ -549,7 +639,11 @@ export function StockZogboPage({
         ) : null}
 
         {tab === "condiments" ? (
-          <CondimentsPanel readOnly={readOnly} />
+          <CondimentsPanel
+            readOnly={readOnly}
+            vue={condVue}
+            onAlertesChange={setCondAlertes}
+          />
         ) : loading ? (
           <CatalogueSkeleton />
         ) : tab === "plats" ? (

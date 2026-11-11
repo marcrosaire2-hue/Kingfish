@@ -45,6 +45,58 @@ export async function getVentesSansStockStatus(date: string): Promise<{
   };
 }
 
+/**
+ * Boissons vendues selon le stock même quand le reste du site est en vente
+ * libre (Gbégamey). Le réglage du dernier jour qui en porte un s'applique
+ * jusqu'à décision inverse.
+ */
+export function boissonsLibres(
+  ventesSansStock: boolean,
+  boissonsSelonStock: boolean,
+): boolean {
+  return ventesSansStock && !boissonsSelonStock;
+}
+
+export async function isBoissonsSelonStock(
+  date: string,
+  site: VenteSite,
+): Promise<boolean> {
+  if (site !== "gbegamey") return false;
+  const db = await getDb();
+  const doc = await db
+    .collection<{ _id: string; boissonsSelonStock?: boolean }>("gbegamey_jours")
+    .find(
+      { _id: { $lte: date }, boissonsSelonStock: { $type: "bool" } },
+      { projection: { boissonsSelonStock: 1 } },
+    )
+    .sort({ _id: -1 })
+    .limit(1)
+    .next();
+  return doc?.boissonsSelonStock === true;
+}
+
+export async function setBoissonsSelonStock(
+  date: string,
+  site: VenteSite,
+  actif: boolean,
+): Promise<void> {
+  if (site !== "gbegamey") {
+    throw new Error("Réglage des boissons disponible à Gbégamey uniquement.");
+  }
+  const db = await getDb();
+  await db.collection("gbegamey_jours").updateOne(
+    { _id: date as never },
+    {
+      $set: {
+        boissonsSelonStock: actif,
+        updatedAt: new Date().toISOString(),
+      },
+      $setOnInsert: { status: "ouverte" },
+    },
+    { upsert: true },
+  );
+}
+
 /** Active ou désactive la vente libre (hors stock) pour un site et une date. */
 export async function setVentesSansStock(
   date: string,

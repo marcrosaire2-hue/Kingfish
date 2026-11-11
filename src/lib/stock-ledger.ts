@@ -22,7 +22,7 @@ export type StockLedgerFamily =
   /** Portions d'une fiche préparée en lot (sauce, pâte, riz). */
   | "portion";
 
-export type StockLedgerUnit = "portion" | "bt" | "u" | "kg" | "L";
+export type StockLedgerUnit = "portion" | "bt" | "u" | "kg" | "g" | "L";
 
 export type StockEventType =
   /** Stock initial (première entrée d'un produit). */

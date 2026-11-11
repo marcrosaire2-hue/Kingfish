@@ -53,6 +53,7 @@ type Board = {
   recent: VenteLogEntry[];
   caToday: number;
   ventesSansStock?: boolean;
+  boissonsSelonStock?: boolean;
   /** Catégories personnalisées créées dans Paramètres (ex. Dessert). */
   categories?: ProductCategory[];
 };
@@ -1074,6 +1075,11 @@ export function VentePage({
   // Administrateur : articles jamais grisés (ni caisse fermée, ni stock épuisé).
   const canSell = Boolean(caisse) || backdateMode || isAdmin;
   const ignoreStock = isAdmin || backdateMode || board?.ventesSansStock === true;
+  // Les boissons peuvent rester plafonnées au stock pendant une vente libre.
+  const ignoreStockBoissons =
+    isAdmin ||
+    backdateMode ||
+    (board?.ventesSansStock === true && board?.boissonsSelonStock !== true);
 
   const plats = useMemo(
     () => board?.products.filter((p) => p.kind === "plat") ?? [],
@@ -1259,7 +1265,7 @@ export function VentePage({
         return;
       }
       if (
-        !ignoreStock &&
+        !(product.kind === "boisson" ? ignoreStockBoissons : ignoreStock) &&
         product.kind !== "local" &&
         product.stockLeft !== null &&
         product.stockLeft !== undefined &&
@@ -1289,7 +1295,7 @@ export function VentePage({
         ];
       });
     },
-    [ignoreStock],
+    [ignoreStock, ignoreStockBoissons],
   );
 
   const changeCartQty = useCallback((key: string, delta: number) => {
@@ -2006,7 +2012,9 @@ export function VentePage({
 
         {!loading && board?.ventesSansStock && !backdateMode ? (
           <p className="ui-info" role="status">
-            Vente libre (défaut) — les articles ne sont pas grisés par le stock.
+            {board.boissonsSelonStock
+              ? "Vente libre, sauf les boissons : une boisson épuisée est grisée."
+              : "Vente libre (défaut) — les articles ne sont pas grisés par le stock."}
             {canManageStock ? (
               <>
                 {" "}
@@ -2150,7 +2158,7 @@ export function VentePage({
               <ProductGrid
                 products={products}
                 canSell={canSell}
-                ignoreStock={ignoreStock}
+                ignoreStock={cat === "boisson" ? ignoreStockBoissons : ignoreStock}
                 onAdd={(p) => addToCart(p)}
               />
             )}

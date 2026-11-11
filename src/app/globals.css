@@ -25,6 +25,14 @@
   --sidebar: #005098;
   --sidebar-mid: #0060b0;
   --sidebar-text: #eaf3fb;
+  /* Marine du menu (app-shell-frame.css) — à réutiliser pour les bandeaux */
+  --menu-navy: #0a3a78;
+  --menu-navy-deep: #062b55;
+  --menu-navy-darkest: #05224a;
+  /* Vertical comme le menu, et limité au haut de son dégradé : un bandeau
+     posé à côté du menu a ainsi la même teinte que le menu à cette hauteur. */
+  --menu-gradient: linear-gradient(180deg, #0a3a78 0%, #083470 100%);
+  --menu-gradient-band: linear-gradient(180deg, #0a3a78 0%, #083470 100%);
   --edit: #fff8e6;
   --radius: 14px;
   --shadow-sm: 0 2px 8px color-mix(in srgb, #005098 7%, transparent);

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { BrandLoader } from "@/components/brand-loader";
 import "./condiments.css";
+import "@/components/stock-zogbo/stock-gbegamey.css";
 import {
   recetteVersBase,
   uniteRecette,
@@ -14,7 +15,8 @@ import { useLiveRefresh } from "@/lib/use-live-refresh";
 
 const API = "/api/magasin?site=gbegamey";
 
-type Vue = "stock" | "manquants";
+export type VueCondiments = "stock" | "manquants";
+type Vue = VueCondiments;
 type Action = Record<string, unknown> & { action: string };
 
 const nombre = (n: number) =>
@@ -24,6 +26,52 @@ const dateCourte = (iso: string | null) =>
   iso
     ? new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })
     : "—";
+
+/** Vignette ronde SVG pour un condiment, en fonction de son nom. */
+function CondimentThumb({ name }: { name: string }) {
+  const n = name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  let bg = "#fef3c7";
+  let fill = "#d97706";
+  if (n.includes("ail") || n.includes("oignon") || n.includes("echalote")) { bg = "#fef9c3"; fill = "#ca8a04"; }
+  else if (n.includes("carotte") || n.includes("tomate")) { bg = "#fee2e2"; fill = "#dc2626"; }
+  else if (n.includes("farine") || n.includes("chapelure") || n.includes("semoule")) { bg = "#fef3c7"; fill = "#b45309"; }
+  else if (n.includes("huile") || n.includes("beurre")) { bg = "#fef9c3"; fill = "#eab308"; }
+  else if (n.includes("sel") || n.includes("poivre") || n.includes("piment")) { bg = "#fce7f3"; fill = "#be185d"; }
+  else if (n.includes("sucre")) { bg = "#f0fdf4"; fill = "#16a34a"; }
+  return (
+    <div className="sg-condiment-thumb" aria-hidden>
+      <svg viewBox="0 0 44 44" width="44" height="44">
+        <rect width="44" height="44" rx="22" fill={bg} />
+        <circle cx="22" cy="18" r="8" fill={fill} opacity="0.85" />
+        <circle cx="22" cy="18" r="4" fill={fill} opacity="0.55" />
+        <ellipse cx="22" cy="30" rx="10" ry="5" fill={fill} opacity="0.25" />
+      </svg>
+    </div>
+  );
+}
+
+/**
+ * Enregistre un achat : demande le prix si l'article n'en a pas, fait
+ * confirmer la sortie de caisse, puis envoie l'entrée au magasin.
+ */
+async function acheter(
+  ligne: LigneStockMagasin,
+  qty: number,
+  onAction: (action: Action) => Promise<boolean>,
+): Promise<boolean> {
+  const saisi = prompt(`Prix par ${ligne.unit} de ${ligne.name} :`, String(ligne.unitPrice || ""));
+  if (saisi === null) return false;
+  const unitPrice = Number(saisi);
+  if (!(unitPrice > 0)) {
+    window.alert("Prix invalide.");
+    return false;
+  }
+  const montant = Math.round(qty * unitPrice).toLocaleString("fr-FR");
+  if (!window.confirm(`Enregistrer cet achat de ${ligne.name} ? ${montant} F sortiront de la caisse.`)) {
+    return false;
+  }
+  return onAction({ action: "entree", articleId: ligne.id, qty, unitPrice });
+}
 
 function LigneStock({
   ligne,
@@ -36,28 +84,8 @@ function LigneStock({
   busy: boolean;
   onAction: (action: Action) => Promise<boolean>;
 }) {
-  const [entree, setEntree] = useState("");
-  const [prix, setPrix] = useState("");
   const [comptage, setComptage] = useState("");
   const ecart = ligne.lastEcart;
-  const prixRetenu = Number(prix) || ligne.unitPrice;
-
-  async function ajouter() {
-    const montant = Math.round(Number(entree) * prixRetenu).toLocaleString("fr-FR");
-    if (!window.confirm(`Enregistrer cet achat de ${ligne.name} ? ${montant} F sortiront de la caisse.`)) {
-      return;
-    }
-    const ok = await onAction({
-      action: "entree",
-      articleId: ligne.id,
-      qty: Number(entree),
-      unitPrice: prixRetenu,
-    });
-    if (ok) {
-      setEntree("");
-      setPrix("");
-    }
-  }
   async function compter() {
     const ok = await onAction({
       action: "comptage",
@@ -70,61 +98,50 @@ function LigneStock({
 
   return (
     <tr>
-      <td>
-        {ligne.name}
-        {ligne.supplement ? <span className="muted"> · supplément</span> : null}
+      <td className="cell-titre">
+        <div className="sg-condiment-cell">
+          <CondimentThumb name={ligne.name} />
+          <span className="sg-condiment-name">
+            {ligne.name}
+            {ligne.supplement ? <span style={{ color: "#94a3b8", fontWeight: 500, fontSize: "0.82rem" }}> · supplément</span> : null}
+          </span>
+        </div>
       </td>
-      <td className={`mono${ligne.alerte ? " mag-alert" : ""}`}>
-        {nombre(ligne.stock)} {ligne.unit}
+      <td data-label="Stock théorique">
+        <span className={`sg-stock-theorique${ligne.alerte ? " is-alerte" : ""}`}>{nombre(ligne.stock)} {ligne.unit}</span>
       </td>
-      <td className="mono">
+      <td className="col-center" data-label="Dernier comptage">
         {ligne.lastCounted === null
           ? "—"
           : `${nombre(ligne.lastCounted)} (${dateCourte(ligne.lastCountAt)})`}
       </td>
-      <td className={`mono${ecart ? " mag-alert" : ""}`}>
-        {ecart === null ? "—" : `${ecart > 0 ? "+" : ""}${nombre(ecart)}`}
+      <td className="col-center" data-label="Écart">
+        <span className="sg-ecart-pill">
+          {ecart === null ? "—" : `${ecart > 0 ? "+" : ""}${nombre(ecart)} ${ligne.unit}`}
+        </span>
       </td>
       {readOnly ? null : (
         <>
-          <td>
+          <td className="cell-action">
             {ligne.family === "magasin" ? (
-              <div className="mag-row-action">
-                <input
-                  className="mag-input"
-                  type="number"
-                  min="0"
-                  step="any"
-                  aria-label={`Quantité achetée de ${ligne.name}`}
-                  placeholder="Qté"
-                  value={entree}
-                  onChange={(e) => setEntree(e.target.value)}
-                />
-                <input
-                  className="mag-input"
-                  type="number"
-                  min="0"
-                  step="any"
-                  aria-label={`Prix d'achat par ${ligne.unit} de ${ligne.name}`}
-                  placeholder={ligne.unitPrice ? String(ligne.unitPrice) : "Prix"}
-                  value={prix}
-                  onChange={(e) => setPrix(e.target.value)}
-                />
-                <button
-                  type="button"
-                  className="btn btn-ghost"
-                  disabled={busy || !(Number(entree) > 0) || !(prixRetenu > 0)}
-                  onClick={() => void ajouter()}
-                >
-                  Acheter
-                </button>
-              </div>
+              <button
+                type="button"
+                className="sg-btn-achat"
+                disabled={busy}
+                onClick={() => {
+                  const q = prompt(`Quantité achetée de ${ligne.name} (${ligne.unit}) :`);
+                  if (!q || !(Number(q) > 0)) return;
+                  void acheter(ligne, Number(q), onAction);
+                }}
+              >
+                🛒 Acheter
+              </button>
             ) : null}
           </td>
-          <td>
-            <div className="mag-row-action">
+          <td className="cell-action">
+            <div className="sg-comptage-cell">
               <input
-                className="mag-input"
+                className="sg-comptage-input"
                 type="number"
                 min="0"
                 step="any"
@@ -134,11 +151,11 @@ function LigneStock({
               />
               <button
                 type="button"
-                className="btn btn-ghost"
+                className="sg-btn-compter"
                 disabled={busy || comptage === ""}
                 onClick={() => void compter()}
               >
-                Compter
+                ✓ Compter
               </button>
             </div>
           </td>
@@ -160,18 +177,18 @@ function TableStock({
   onAction: (action: Action) => Promise<boolean>;
 }) {
   return (
-    <div className="mag-table-wrap">
-      <table className="data-table">
+    <div className="sg-table-container">
+      <table className="sg-table">
         <thead>
           <tr>
-            <th>{lignes[0]?.family === "portion" ? "Plat" : "Condiment"}</th>
-            <th>Stock théorique</th>
-            <th>Dernier comptage</th>
-            <th>Écart</th>
+            <th>{lignes[0]?.family === "portion" ? "PLAT" : "CONDIMENT"}</th>
+            <th>STOCK THÉORIQUE</th>
+            <th className="col-center">DERNIER COMPTAGE</th>
+            <th className="col-center">ÉCART</th>
             {readOnly ? null : (
               <>
-                <th>{lignes[0]?.family === "portion" ? "" : "Achat"}</th>
-                <th>Comptage</th>
+                <th>{lignes[0]?.family === "portion" ? "" : "ACHAT"}</th>
+                <th className="col-center">COMPTAGE</th>
               </>
             )}
           </tr>
@@ -183,6 +200,196 @@ function TableStock({
         </tbody>
       </table>
     </div>
+  );
+}
+
+/* Icônes trait (style Lucide) utilisées par les cartes Gbégamey. */
+function Icone({ d, size = 16 }: { d: string; size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d={d} />
+    </svg>
+  );
+}
+
+const ICONES = {
+  caisse: "M3 7h18v13H3zM3 7l2-4h14l2 4M9 11h6",
+  bol: "M3 11h18a9 9 0 0 1-18 0zM8 7c0-1 1-2 1-3M12 7c0-1 1-2 1-3M16 7c0-1 1-2 1-3",
+  cube: "M21 16V8l-9-5-9 5v8l9 5zM3.3 7 12 12l8.7-5M12 22V12",
+  calendrier: "M3 5h18v16H3zM16 3v4M8 3v4M3 10h18",
+  echange: "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3",
+  liste: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01",
+  info: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01",
+  plus: "M12 5v14M5 12h14",
+  chevron: "M6 9l6 6 6-6",
+  actualiser: "M21 12a9 9 0 1 1-3-6.7L21 8M21 3v5h-5",
+} as const;
+
+type Motif = "achat" | "comptage";
+
+/** Carte « Ajouter un stock / mouvement » : achat ou comptage d'un condiment. */
+function CarteMouvement({
+  lignes,
+  busy,
+  onAction,
+}: {
+  lignes: LigneStockMagasin[];
+  busy: boolean;
+  onAction: (action: Action) => Promise<boolean>;
+}) {
+  const [itemId, setItemId] = useState("");
+  const [qty, setQty] = useState("");
+  const [motif, setMotif] = useState<Motif | "">("");
+  const ligne = lignes.find((l) => l.id === itemId);
+  const achatPossible = ligne?.family === "magasin";
+  const quantite = Number(qty);
+  const valide =
+    !!ligne &&
+    motif !== "" &&
+    qty !== "" &&
+    (motif === "comptage" ? quantite >= 0 : quantite > 0 && achatPossible);
+
+  async function envoyer(e: FormEvent) {
+    e.preventDefault();
+    if (!ligne || !valide) return;
+    const ok =
+      motif === "achat"
+        ? await acheter(ligne, quantite, onAction)
+        : await onAction({
+            action: "comptage",
+            family: ligne.family,
+            itemId: ligne.id,
+            qty: quantite,
+          });
+    if (ok) {
+      setQty("");
+      setMotif("");
+    }
+  }
+
+  return (
+    <form className="sg-card" onSubmit={(e) => void envoyer(e)}>
+      <div className="sg-card-header-row">
+        <div className="sg-card-title-group">
+          <div className="sg-card-title-wrap">
+            <span className="sg-card-title-icon">
+              <Icone d={ICONES.caisse} size={22} />
+            </span>
+            <h3 className="sg-card-title">Ajouter un stock / mouvement</h3>
+          </div>
+          <p className="sg-card-sub">Enregistrez un nouveau stock ou un mouvement de stock.</p>
+        </div>
+      </div>
+
+      <div className="sg-mouvement-form">
+        <label className="sg-field">
+          <span className="sg-label">
+            <span className="sg-label-icon"><Icone d={ICONES.bol} /></span>
+            Condiment
+          </span>
+          <span className="sg-input-wrap">
+            <select
+              className="sg-select"
+              value={itemId}
+              onChange={(e) => {
+                setItemId(e.target.value);
+                setQty("");
+              }}
+            >
+              <option value="">Choisir un condiment…</option>
+              {lignes.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+            <span className="sg-select-chevron"><Icone d={ICONES.chevron} /></span>
+          </span>
+        </label>
+
+        <label className="sg-field">
+          <span className="sg-label">
+            <span className="sg-label-icon"><Icone d={ICONES.cube} /></span>
+            Stock théorique
+          </span>
+          <input
+            className="sg-input"
+            disabled
+            value={ligne ? `${nombre(ligne.stock)} ${ligne.unit}` : "—"}
+            readOnly
+          />
+        </label>
+
+        <label className="sg-field">
+          <span className="sg-label">
+            <span className="sg-label-icon"><Icone d={ICONES.calendrier} /></span>
+            Dernier comptage
+          </span>
+          <input
+            className="sg-input"
+            disabled
+            readOnly
+            value={
+              ligne?.lastCountAt
+                ? `${nombre(ligne.lastCounted ?? 0)} ${ligne.unit} · ${new Date(ligne.lastCountAt).toLocaleDateString("fr-FR")}`
+                : "—"
+            }
+          />
+        </label>
+
+        <label className="sg-field">
+          <span className="sg-label">
+            <span className="sg-label-icon"><Icone d={ICONES.echange} /></span>
+            {motif === "comptage" ? "Quantité comptée" : "Quantité"}
+          </span>
+          <input
+            className="sg-input"
+            type="number"
+            min="0"
+            step="any"
+            placeholder={ligne ? `Ex : 5 ${ligne.unit}` : "Ex : 5"}
+            value={qty}
+            onChange={(e) => setQty(e.target.value)}
+          />
+        </label>
+
+        <label className="sg-field">
+          <span className="sg-label">
+            <span className="sg-label-icon"><Icone d={ICONES.liste} /></span>
+            Motif
+          </span>
+          <span className="sg-input-wrap">
+            <select
+              className="sg-select"
+              value={motif}
+              onChange={(e) => setMotif(e.target.value as Motif | "")}
+            >
+              <option value="">Sélectionner…</option>
+              <option value="achat" disabled={!!ligne && !achatPossible}>
+                Achat (sortie de caisse)
+              </option>
+              <option value="comptage">Comptage</option>
+            </select>
+            <span className="sg-select-chevron"><Icone d={ICONES.chevron} /></span>
+          </span>
+        </label>
+
+        <button type="submit" className="sg-btn-ajouter" disabled={busy || !valide}>
+          <Icone d={ICONES.plus} size={18} />
+          {busy ? "…" : "Ajouter"}
+        </button>
+      </div>
+    </form>
   );
 }
 
@@ -469,12 +676,22 @@ export function useMagasin() {
     }
   }, []);
 
-  return { etat, busy, error, action };
+  return { etat, busy, error, action, recharger: charger };
 }
 
-export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
-  const { etat, busy, error, action } = useMagasin();
-  const [vue, setVue] = useState<Vue>("stock");
+export function CondimentsPanel({
+  readOnly,
+  vue,
+  onAlertesChange,
+}: {
+  readOnly: boolean;
+  /** Vue choisie par la page (sélecteur à côté des onglets Condiments / Boissons). */
+  vue: Vue;
+  /** Nombre de manquants en alerte, affiché dans le sélecteur de la page. */
+  onAlertesChange?: (n: number) => void;
+}) {
+  const { etat, busy, error, action, recharger } = useMagasin();
+  const [actualisation, setActualisation] = useState(false);
   const [nom, setNom] = useState("");
   const [unite, setUnite] = useState<MagasinUnit>("kg");
   const [prix, setPrix] = useState("");
@@ -507,32 +724,15 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
     return (etat?.aCompter ?? []).map((id) => noms.get(id) ?? id);
   }, [etat]);
 
-  if (!etat && !error) return <BrandLoader label="Chargement des condiments…" />;
-
   const alertes = etat?.manquants.filter((m) => m.alerte).length ?? 0;
+  useEffect(() => {
+    onAlertesChange?.(alertes);
+  }, [alertes, onAlertesChange]);
+
+  if (!etat && !error) return <BrandLoader label="Chargement des condiments…" />;
 
   return (
     <div className="mag-page">
-      <div className="section-tabs" role="tablist" aria-label="Condiments">
-        {(
-          [
-            ["stock", "Stock et achats"],
-            ["manquants", alertes ? `Manquants (${alertes})` : "Manquants"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={vue === key}
-            className={`section-tab${vue === key ? " is-active" : ""}`}
-            onClick={() => setVue(key)}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       {error ? (
         <p className="error-banner" role="alert">
           {error}
@@ -555,6 +755,39 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
           ) : null}
 
           {readOnly ? null : (
+            <CarteMouvement lignes={etat.stock} busy={busy} onAction={action} />
+          )}
+
+          <section className="sg-card">
+            <div className="sg-card-header-row" style={{ marginBottom: 0 }}>
+              <div className="sg-card-title-wrap">
+                <span className="sg-card-title-icon">
+                  <Icone d={ICONES.cube} size={22} />
+                </span>
+                <h3 className="sg-card-title">Stock des condiments</h3>
+              </div>
+              <button
+                type="button"
+                className="sg-btn-actualiser"
+                disabled={actualisation}
+                onClick={async () => {
+                  setActualisation(true);
+                  await recharger();
+                  setActualisation(false);
+                }}
+              >
+                <Icone d={ICONES.actualiser} />
+                {actualisation ? "Actualisation…" : "Actualiser"}
+              </button>
+            </div>
+            {etat.stock.length ? (
+              <TableStock lignes={etat.stock} readOnly={readOnly} busy={busy} onAction={action} />
+            ) : (
+              <p className="mag-hint">Aucun condiment pour l’instant.</p>
+            )}
+          </section>
+
+          {readOnly ? null : (
             <form className="panel mag-card" onSubmit={(e) => void ajouterArticle(e)}>
               <h3>Nouveau condiment</h3>
               <div className="mag-form">
@@ -570,6 +803,7 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
                     onChange={(e) => setUnite(e.target.value as MagasinUnit)}
                   >
                     <option value="kg">Kilo (kg)</option>
+                    <option value="g">Gramme (g)</option>
                     <option value="L">Litre (L)</option>
                     <option value="u">Pièce (u)</option>
                   </select>
@@ -628,14 +862,6 @@ export function CondimentsPanel({ readOnly }: { readOnly: boolean }) {
             </form>
           )}
 
-          <section className="panel mag-card">
-            <h3>Stock des condiments</h3>
-            {etat.stock.length ? (
-              <TableStock lignes={etat.stock} readOnly={readOnly} busy={busy} onAction={action} />
-            ) : (
-              <p className="mag-hint">Aucun condiment pour l’instant.</p>
-            )}
-          </section>
         </>
       ) : null}
 

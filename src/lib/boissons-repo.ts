@@ -13,6 +13,7 @@ import {
   applyBoissonsPurchaseToState,
   cancelBoissonsMovementInState,
   createEmptyBoissonsDay,
+  bouteillesAcheteesParBoisson,
   leftoverFromBoissonsLines,
   normalizeBoissonsLine,
   normalizeBoissonsMovement,
@@ -20,7 +21,7 @@ import {
   unitsPerCasierOf,
 } from "@/lib/boissons-calc";
 import { loadAquaBoissonOpeningCasiers } from "@/lib/aquapro-opening-stock";
-import { previousIsoDate } from "@/lib/zogbo-calc";
+import { previousIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 import { isDrinkStockTracked } from "@/lib/stock-tracked";
 import { markGbegameyStockEntry } from "@/lib/gbegamey-repo";
 import { boissonsScope, withStockCarry } from "@/lib/stock-carry";
@@ -82,9 +83,13 @@ async function leftoversForDate(
 ): Promise<Map<string, number>> {
   const prevDoc = await dernierJourAvant(site, date);
   if (prevDoc?.lines?.length) {
+    // Sans plancher, comme le report (stock-carry) : les deux doivent
+    // mesurer le reste de la même façon pour rester cohérents.
     return leftoverFromBoissonsLines(
       prevDoc.lines.map((l) => normalizeBoissonsLine(l)),
       drinks,
+      drinks,
+      { plancher: false },
     )[site];
   }
   try {
@@ -583,4 +588,28 @@ async function cancelBoissonsMovementRaw(input: {
   );
 
   return result;
+}
+
+/**
+ * Bouteilles achetées après `date` (exclu) et jusqu'à aujourd'hui (inclus),
+ * par boisson, pour un site. Quand la caisse est restée ouverte sur un jour
+ * passé, ces achats déjà saisis au stock sont vendables immédiatement.
+ */
+export async function achatsBoissonsPosterieurs(
+  site: VenteSite,
+  date: string,
+  drinks: Drink[],
+  aujourdhui: string = todayIsoDate(),
+): Promise<Map<string, number>> {
+  if (!(date < aujourdhui)) return new Map();
+  const db = await getDb();
+  const docs = await db
+    .collection<BoissonsDoc>(await collectionBoissons(site))
+    .find({ _id: { $gt: date, $lte: aujourdhui } }, { projection: { lines: 1 } })
+    .toArray();
+  return bouteillesAcheteesParBoisson(
+    docs.map((d) => d.lines ?? []),
+    site,
+    drinks,
+  );
 }

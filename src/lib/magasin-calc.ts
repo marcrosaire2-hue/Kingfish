@@ -17,27 +17,30 @@ export function magasinActif(site: VenteSite): boolean {
   return MAGASIN_SITES.includes(site);
 }
 
-export type MagasinUnit = "kg" | "L" | "u";
+/** `g` : petites quantités (épices), stock et recettes en grammes. */
+export type MagasinUnit = "kg" | "g" | "L" | "u";
 
-export const MAGASIN_UNITS: readonly MagasinUnit[] = ["kg", "L", "u"];
+export const MAGASIN_UNITS: readonly MagasinUnit[] = ["kg", "g", "L", "u"];
 
 export function isMagasinUnit(value: unknown): value is MagasinUnit {
-  return value === "kg" || value === "L" || value === "u";
+  return value === "kg" || value === "g" || value === "L" || value === "u";
 }
 
 /** Unité de saisie des recettes : grammes et millilitres. */
 export function uniteRecette(unit: MagasinUnit): "g" | "mL" | "u" {
-  if (unit === "kg") return "g";
+  if (unit === "kg" || unit === "g") return "g";
   if (unit === "L") return "mL";
   return "u";
 }
 
+const recetteEnMilliemes = (unit: MagasinUnit) => unit === "kg" || unit === "L";
+
 export function recetteVersBase(qty: number, unit: MagasinUnit): number {
-  return unit === "u" ? qty : qty / 1000;
+  return recetteEnMilliemes(unit) ? qty / 1000 : qty;
 }
 
 export function baseVersRecette(qty: number, unit: MagasinUnit): number {
-  return unit === "u" ? qty : round4(qty * 1000);
+  return recetteEnMilliemes(unit) ? round4(qty * 1000) : qty;
 }
 
 export type MagasinArticle = {

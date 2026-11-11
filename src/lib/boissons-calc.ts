@@ -333,7 +333,17 @@ export function leftoverFromBoissonsLines(
   drinks?: Drink[],
   /** Fiches Gbégamey, si elles diffèrent de `drinks` (catalogue par site). */
   drinksGbegamey: Drink[] | undefined = drinks,
+  /**
+   * `false` garde un reste négatif. Le report vers les jours suivants en a
+   * besoin : la caisse peut vendre sur un jour passé des bouteilles achetées
+   * un jour suivant (voir `bouteillesAcheteesParBoisson`). Le jour de la
+   * vente passe alors sous zéro et le lendemain doit perdre ces bouteilles,
+   * sans quoi elles réapparaîtraient en stock.
+   */
+  options: { plancher?: boolean } = {},
 ): { zogbo: Map<string, number>; gbegamey: Map<string, number> } {
+  const plancher = options.plancher ?? true;
+  const borne = (n: number) => (plancher ? Math.max(0, n) : n);
   const drinkById = new Map((drinks ?? []).map((d) => [d.id, d]));
   const gbegameyById = new Map((drinksGbegamey ?? []).map((d) => [d.id, d]));
   const zogbo = new Map<string, number>();
@@ -345,14 +355,8 @@ export function leftoverFromBoissonsLines(
       drinkById.get(line.productId),
       drinkG,
     );
-    zogbo.set(
-      line.productId,
-      Math.max(0, computed.theoreticalRemainingZogbo),
-    );
-    gbegamey.set(
-      line.productId,
-      Math.max(0, computed.theoreticalRemainingGbegamey),
-    );
+    zogbo.set(line.productId, borne(computed.theoreticalRemainingZogbo));
+    gbegamey.set(line.productId, borne(computed.theoreticalRemainingGbegamey));
   }
   return { zogbo, gbegamey };
 }
@@ -806,4 +810,35 @@ export function applyBoissonsCarryToDay(
     return patched;
   });
   return { lines: out, next, changed };
+}
+
+/**
+ * Bouteilles achetées par boisson sur un ensemble de journées, pour un site.
+ * Sert à la caisse restée ouverte sur un jour passé : un achat saisi au
+ * stock sur un jour suivant (souvent aujourd'hui) doit être vendable tout
+ * de suite, sans attendre la bascule de la caisse.
+ */
+export function bouteillesAcheteesParBoisson(
+  jours: BoissonsLine[][],
+  site: VenteSite,
+  drinks: Drink[],
+): Map<string, number> {
+  const upcById = new Map(
+    drinks.map((d) => [
+      d.id,
+      Math.max(1, Math.round(Number(d.unitsPerCasier) || DEFAULT_UNITS_PER_CASIER)),
+    ]),
+  );
+  const total = new Map<string, number>();
+  for (const lignes of jours) {
+    for (const brute of lignes) {
+      const line = normalizeBoissonsLine(brute);
+      const casiers = site === "zogbo" ? line.purchasesZogbo : line.purchasesGbegamey;
+      if (!(casiers > 0)) continue;
+      const upc = upcById.get(line.productId) ?? DEFAULT_UNITS_PER_CASIER;
+      total.set(line.productId, (total.get(line.productId) ?? 0) + casiers * upc);
+    }
+  }
+  for (const [id, n] of total) total.set(id, Math.round(n));
+  return total;
 }

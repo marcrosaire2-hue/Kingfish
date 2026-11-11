@@ -1,0 +1,884 @@
+/* ==========================================================================
+   Page Composition Plat — Design Moderne
+   Harmonisé avec le bleu du menu King Fish (--menu-navy: #0a3a78 → #05224a)
+   ========================================================================== */
+
+:root {
+  --compo-blue: var(--menu-navy);
+  --compo-blue-mid: var(--menu-navy);
+  --compo-blue-dark: var(--menu-navy-darkest);
+  --compo-blue-hover: var(--menu-navy-deep);
+  --compo-blue-light: #eaf3fb;
+  --compo-blue-border: #b8d5f2;
+}
+
+/* Masquer le header standard du shell pour laisser place au hero banner */
+.main-composition .page-header {
+  display: none !important;
+}
+
+.compo-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   Hero Banner (En-tête bleu menu dégradé avec watermark & courbe dorée)
+   -------------------------------------------------------------------------- */
+.compo-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px;
+  background: var(--menu-gradient);
+  border-radius: 20px;
+  color: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(6, 43, 85, 0.28), 0 4px 10px -3px rgba(0, 0, 0, 0.06);
+}
+
+.compo-hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.compo-hero-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(6, 43, 85, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.compo-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.compo-hero-title {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.compo-hero-sub {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.35;
+}
+
+/* Décorations visuelles (toque de chef en filigrane + courbe dorée) */
+.compo-hero-deco {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 220px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.compo-hero-chef-hat {
+  position: absolute;
+  top: 10px;
+  right: 18px;
+  width: 82px;
+  height: 82px;
+  color: rgba(255, 255, 255, 0.22);
+}
+
+.compo-hero-curve {
+  position: absolute;
+  bottom: -4px;
+  right: 0;
+  width: 170px;
+  height: 48px;
+}
+
+/* --------------------------------------------------------------------------
+   Layout à 2 colonnes
+   -------------------------------------------------------------------------- */
+.compo-layout {
+  display: grid;
+  grid-template-columns: 310px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+/* Carte blanche commune */
+.compo-card {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px -2px rgba(6, 43, 85, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+  padding: 24px;
+}
+
+/* --------------------------------------------------------------------------
+   Colonne Gauche : Recherche & Liste des plats
+   -------------------------------------------------------------------------- */
+.compo-card-sidebar {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  /* Reste visible sur toute la hauteur de l'écran pendant qu'on fait défiler
+     la fiche : la liste défile à l'intérieur, sans vide en dessous. */
+  position: sticky;
+  top: 16px;
+  max-height: calc(100dvh - 32px);
+}
+
+.compo-card-sidebar .compo-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
+}
+
+.compo-search-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.compo-search-title-icon {
+  color: var(--compo-blue);
+  flex-shrink: 0;
+}
+
+.compo-search-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.compo-search-field {
+  width: 100%;
+  margin-bottom: 14px;
+}
+
+.compo-search-input {
+  width: 100%;
+  height: 44px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 0.92rem;
+  font-weight: 500;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.compo-search-input:focus {
+  border-color: var(--compo-blue);
+  box-shadow: 0 0 0 3px rgba(10, 58, 120, 0.15);
+}
+
+.compo-search-input::placeholder {
+  color: #94a3b8;
+}
+
+/* Liste des plats */
+.compo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: calc(100vh - 350px);
+  min-height: 380px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 2px 4px 2px 0;
+  list-style: none;
+}
+
+.compo-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.compo-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.compo-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+}
+
+.compo-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.compo-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #eef2f6;
+  background: #ffffff;
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.compo-item:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.compo-item.is-active {
+  background: var(--compo-blue-light);
+  border-color: var(--compo-blue-border);
+  color: var(--compo-blue);
+  box-shadow: 0 2px 8px rgba(10, 58, 120, 0.1);
+}
+
+.compo-item-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compo-item-check {
+  color: var(--compo-blue);
+  flex-shrink: 0;
+}
+
+.compo-empty-list {
+  padding: 20px;
+  text-align: center;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+/* --------------------------------------------------------------------------
+   Colonne Droite : Fiche de composition
+   -------------------------------------------------------------------------- */
+.compo-card-detail {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Placeholder si aucun plat sélectionné */
+.compo-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 24px;
+  text-align: center;
+  color: #64748b;
+}
+
+.compo-placeholder-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--compo-blue-light);
+  color: var(--compo-blue);
+  margin-bottom: 16px;
+}
+
+.compo-placeholder h3 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.compo-placeholder p {
+  margin: 0;
+  font-size: 0.92rem;
+  color: #64748b;
+  max-width: 420px;
+}
+
+/* En-tête du plat sélectionné */
+.compo-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.compo-detail-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--compo-blue);
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(10, 58, 120, 0.28);
+}
+
+.compo-detail-title {
+  margin: 0;
+  font-size: 1.28rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+/* Ligne préparation & portions */
+.compo-prep-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.compo-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compo-field-label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Wrapper pour les selects personnalisés */
+.compo-select-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.compo-select {
+  width: 100%;
+  height: 44px;
+  padding: 8px 36px 8px 14px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.compo-select:focus {
+  border-color: var(--compo-blue);
+  box-shadow: 0 0 0 3px rgba(10, 58, 120, 0.15);
+}
+
+.compo-select:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.compo-select-chevron {
+  position: absolute;
+  right: 14px;
+  pointer-events: none;
+  color: #64748b;
+}
+
+.compo-input {
+  width: 100%;
+  height: 44px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.compo-input:focus {
+  border-color: var(--compo-blue);
+  box-shadow: 0 0 0 3px rgba(10, 58, 120, 0.15);
+}
+
+.compo-input:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Bandeau d'information bleu doux accordé au menu */
+.compo-info-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: var(--compo-blue-light);
+  border: 1px solid var(--compo-blue-border);
+  margin-bottom: 22px;
+}
+
+.compo-info-icon {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  color: var(--compo-blue);
+}
+
+.compo-info-text {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #0c335a;
+  line-height: 1.4;
+}
+
+/* --------------------------------------------------------------------------
+   Lignes de Condiments
+   -------------------------------------------------------------------------- */
+.compo-lines-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.compo-line-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.compo-line-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 1.35rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+
+.compo-line-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Cellule Quantité avec badge d'unité au-dessus */
+.compo-qty-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 96px;
+  flex-shrink: 0;
+}
+
+.compo-qty-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  margin-bottom: 2px;
+  padding-left: 2px;
+  line-height: 1;
+}
+
+.compo-qty-input {
+  width: 100%;
+  height: 42px;
+  padding: 6px 10px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.compo-qty-input:focus {
+  border-color: var(--compo-blue);
+  box-shadow: 0 0 0 3px rgba(10, 58, 120, 0.15);
+}
+
+.compo-qty-input:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+/* Bouton Retirer (Rouge / Trash) */
+.compo-btn-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid #fee2e2;
+  background: #fff5f5;
+  color: #ef4444;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.compo-btn-remove:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+  color: #dc2626;
+}
+
+.compo-no-lines {
+  padding: 24px;
+  text-align: center;
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+  border-radius: 14px;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+/* --------------------------------------------------------------------------
+   Barre d'actions
+   -------------------------------------------------------------------------- */
+.compo-actions-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #f1f5f9;
+  margin-bottom: 20px;
+}
+
+.compo-btn-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  color: #1e293b;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.compo-btn-add:hover:not(:disabled) {
+  background: #eef2f6;
+  border-color: #94a3b8;
+}
+
+.compo-btn-add:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.compo-btn-save {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 26px;
+  border-radius: 12px;
+  border: none;
+  background: var(--compo-blue);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(10, 58, 120, 0.3);
+  transition: all 0.15s ease;
+}
+
+.compo-btn-save:hover:not(:disabled) {
+  background: var(--compo-blue-hover);
+  box-shadow: 0 6px 16px rgba(10, 58, 120, 0.38);
+}
+
+.compo-btn-save:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.compo-btn-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid #fee2e2;
+  background: transparent;
+  color: #ef4444;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+  transition: all 0.15s ease;
+}
+
+.compo-btn-delete:hover:not(:disabled) {
+  background: #fef2f2;
+  color: #dc2626;
+  border-color: #fca5a5;
+}
+
+/* --------------------------------------------------------------------------
+   Accordéon / Formulaire : Condiment absent de la liste
+   -------------------------------------------------------------------------- */
+.compo-create-accordion {
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  overflow: hidden;
+  margin-bottom: 14px;
+  transition: border-color 0.15s ease;
+}
+
+.compo-create-accordion[open] {
+  border-color: var(--compo-blue-border);
+  background: #ffffff;
+}
+
+.compo-create-summary {
+  padding: 12px 16px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--compo-blue);
+  cursor: pointer;
+  user-select: none;
+  outline: none;
+  transition: color 0.15s ease;
+}
+
+.compo-create-summary:hover {
+  color: var(--compo-blue-hover);
+}
+
+.compo-create-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px 16px 16px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.compo-create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 160px;
+}
+
+.compo-btn-create-submit {
+  height: 44px;
+  padding: 0 18px;
+  border-radius: 12px;
+  border: 1px solid var(--compo-blue);
+  background: var(--compo-blue-light);
+  color: var(--compo-blue);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.compo-btn-create-submit:hover:not(:disabled) {
+  background: var(--compo-blue);
+  color: #ffffff;
+}
+
+.compo-btn-create-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+   Messages Flash & Erreurs
+   -------------------------------------------------------------------------- */
+.compo-flash-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  color: #166534;
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin-top: 12px;
+}
+
+.compo-error-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 0.92rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* --------------------------------------------------------------------------
+   Adaptation Mobile & Tablettes
+   -------------------------------------------------------------------------- */
+@media (max-width: 960px) {
+  .compo-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .compo-list,
+  .compo-card-sidebar .compo-list {
+    flex: none;
+    max-height: 250px;
+    min-height: auto;
+  }
+
+  /* Une seule colonne : la liste reste au-dessus de la fiche, sans suivre. */
+  .compo-card-sidebar {
+    position: static;
+    max-height: none;
+  }
+
+  .compo-prep-row {
+    grid-template-columns: 1fr;
+  }
+
+  .compo-hero-deco {
+    width: 140px;
+  }
+
+  .compo-hero-chef-hat {
+    width: 60px;
+    height: 60px;
+    right: 10px;
+  }
+}
+
+@media (max-width: 640px) {
+  .compo-hero {
+    padding: 18px;
+  }
+
+  .compo-hero-title {
+    font-size: 1.35rem;
+  }
+
+  .compo-hero-sub {
+    font-size: 0.85rem;
+  }
+
+  .compo-line-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f5f9;
+  }
+
+  .compo-line-select-wrap {
+    min-width: calc(100% - 52px);
+  }
+
+  /* Quantité sous le condiment, alignée sur la liste, unité à droite du champ */
+  .compo-qty-cell {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    width: auto;
+    margin-left: 48px;
+  }
+
+  .compo-qty-badge {
+    order: 2;
+    margin: 0;
+    padding: 0;
+    font-size: 0.85rem;
+  }
+
+  .compo-qty-input {
+    width: 96px;
+  }
+
+  .compo-btn-remove {
+    margin-left: auto;
+  }
+
+  .compo-actions-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .compo-btn-save,
+  .compo-btn-add,
+  .compo-btn-delete {
+    width: 100%;
+    margin-left: 0;
+  }
+}

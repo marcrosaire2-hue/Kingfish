@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { boissonsLibres } from "@/lib/ventes-sans-stock";
 import {
   baseVersRecette,
   choisirComptages,
@@ -12,6 +13,7 @@ import {
   recetteVersBase,
   statutPlatCaisse,
   syntheseManquants,
+  uniteRecette,
   type Fiche,
   type MagasinArticle,
 } from "@/lib/magasin-calc";
@@ -68,6 +70,12 @@ describe("périmètre et unités", () => {
     expect(recetteVersBase(500, "L")).toBe(0.5);
     expect(recetteVersBase(2, "u")).toBe(2);
     expect(baseVersRecette(0.02, "kg")).toBe(20);
+  });
+
+  it("garde les grammes tels quels pour un article suivi en grammes", () => {
+    expect(uniteRecette("g")).toBe("g");
+    expect(recetteVersBase(1.75, "g")).toBe(1.75);
+    expect(baseVersRecette(2.5, "g")).toBe(2.5);
   });
 });
 
@@ -234,6 +242,15 @@ describe("vente d'une fiche en lot", () => {
       ajustements: { supplements: [{ articleId: "piment", qty: 1 }] },
     });
     expect(lignes).toContainEqual({ family: "magasin", itemId: "piment", qty: 0.01 });
+  });
+});
+
+describe("boissons selon le stock", () => {
+  it("plafonne les boissons dès que leur réglage est actif", () => {
+    expect(boissonsLibres(true, false)).toBe(true);
+    expect(boissonsLibres(true, true)).toBe(false);
+    expect(boissonsLibres(false, false)).toBe(false);
+    expect(boissonsLibres(false, true)).toBe(false);
   });
 });
 
