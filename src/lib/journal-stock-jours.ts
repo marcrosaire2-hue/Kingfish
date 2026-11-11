@@ -149,10 +149,12 @@ export async function getJournalStockJours(input: {
         const vendus = z ? c.soldZogbo : c.soldGbegamey;
         const pertes = z ? c.pertesZogbo : c.pertesGbegamey;
         const physique = z ? c.countedZogbo : c.countedGbegamey;
-        const theorique = Math.max(
-          0,
-          (z ? c.theoreticalRemainingZogbo : c.theoreticalRemainingGbegamey) * upc,
-        );
+        // Sans plancher : la caisse peut vendre sur un jour passé des
+        // bouteilles achetées un jour suivant. Le théorique du jour passe
+        // alors sous zéro, et la ligne reste juste (disponible − vendus −
+        // pertes), comme l'ouverture du lendemain qui reprend ce négatif.
+        const theorique =
+          (z ? c.theoreticalRemainingZogbo : c.theoreticalRemainingGbegamey) * upc;
         const variance = z ? c.varianceZogbo : c.varianceGbegamey;
         out.push({
           date: j._id,

@@ -813,10 +813,11 @@ export function applyBoissonsCarryToDay(
 }
 
 /**
- * Bouteilles achetées par boisson sur un ensemble de journées, pour un site.
- * Sert à la caisse restée ouverte sur un jour passé : un achat saisi au
- * stock sur un jour suivant (souvent aujourd'hui) doit être vendable tout
- * de suite, sans attendre la bascule de la caisse.
+ * Mouvement net en bouteilles, par boisson, sur un ensemble de journées et
+ * pour un site : achats − ventes − pertes. Sert à la caisse restée ouverte
+ * sur un jour passé : un achat saisi au stock sur un jour suivant (souvent
+ * aujourd'hui) doit être vendable tout de suite, sans attendre la bascule,
+ * et une perte ou une vente déjà portée sur ces jours-là doit être retirée.
  */
 export function bouteillesAcheteesParBoisson(
   jours: BoissonsLine[][],
@@ -833,10 +834,14 @@ export function bouteillesAcheteesParBoisson(
   for (const lignes of jours) {
     for (const brute of lignes) {
       const line = normalizeBoissonsLine(brute);
-      const casiers = site === "zogbo" ? line.purchasesZogbo : line.purchasesGbegamey;
-      if (!(casiers > 0)) continue;
+      const z = site === "zogbo";
+      const casiers = z ? line.purchasesZogbo : line.purchasesGbegamey;
+      const vendus = z ? line.soldZogbo : line.soldGbegamey;
+      const pertes = Math.max(0, Number(z ? line.pertesZogbo : line.pertesGbegamey) || 0);
       const upc = upcById.get(line.productId) ?? DEFAULT_UNITS_PER_CASIER;
-      total.set(line.productId, (total.get(line.productId) ?? 0) + casiers * upc);
+      const net = casiers * upc - vendus - pertes;
+      if (net === 0) continue;
+      total.set(line.productId, (total.get(line.productId) ?? 0) + net);
     }
   }
   for (const [id, n] of total) total.set(id, Math.round(n));

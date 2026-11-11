@@ -458,6 +458,16 @@ describe("caisse restée sur un jour passé", () => {
     expect(g.get("drink-beaufort")).toBe(12);
   });
 
+  it("retire les ventes et pertes déjà portées sur les jours suivants", () => {
+    // Lendemain : 3 casiers achetés (36 bt), 5 vendues, 2 cassées → 29 bt.
+    const net = bouteillesAcheteesParBoisson(
+      [[ligne({ purchasesZogbo: 3, soldZogbo: 5, pertesZogbo: 2 })]],
+      "zogbo",
+      drinks,
+    );
+    expect(net.get("drink-beaufort")).toBe(29);
+  });
+
   it("garde un reste négatif pour le report quand on le demande", () => {
     // 1 casier (12 bt) ouvert, 20 vendues grâce à un achat du lendemain.
     const lignes = [ligne({ initialStockZogbo: 1, soldZogbo: 20 })];
@@ -488,5 +498,36 @@ describe("caisse restée sur un jour passé", () => {
     );
     // Lendemain : 8 + 37 − 20 = 25 bouteilles, pas 37 (bouteilles fantômes).
     expect(physicalBoissonsStockForSite(lines[0]!, "zogbo", 12)).toBe(25);
+  });
+});
+
+describe("scénario Béninoise GB : caisse au 10/11, régularisation au 11/11", () => {
+  const drinks = [boisson({ unitsPerCasier: 12 })];
+  const brut = (lignes: BoissonsLine[]) =>
+    leftoverFromBoissonsLines(lignes, drinks, drinks, { plancher: false });
+
+  it("stock vendable, sortie, reste et lendemain restent justes", () => {
+    // 10/11 : 12 bt ouvertes, 4 déjà vendues. 11/11 : ouvert avec 8 bt, 37 achetées.
+    let jour10 = ligne({ initialStockZogbo: 1, soldZogbo: 4 });
+    let jour11 = ligne({ initialStockZogbo: 8 / 12, purchasesZogbo: 37 / 12 });
+
+    // Vente (caisse au 10/11) : 8 du jour + 37 achetées le 11 = 45 vendables.
+    const vendable = () =>
+      physicalBoissonsStockForSite(jour10, "zogbo", 12) +
+      (bouteillesAcheteesParBoisson([[jour11]], "zogbo", drinks).get("drink-beaufort") ?? 0);
+    expect(vendable()).toBe(45);
+
+    // La caisse vend 20 bt le 10/11 : sortie sur le 10, report sur le 11.
+    const avant = brut([jour10]);
+    jour10 = ligne({ ...jour10, soldZogbo: 24 });
+    const delta = boissonsLeftoverDelta(avant, brut([jour10]));
+    jour11 = applyBoissonsCarryToDay([jour11], delta).lines[0]!;
+
+    // Reste vendable après la vente : 45 − 20 = 25.
+    expect(vendable()).toBe(25);
+    // Le 10/11 passe à −12 (8 − 20), couvert par l'achat du 11.
+    expect(physicalBoissonsStockForSite(jour10, "zogbo", 12)).toBe(-12);
+    // Le 11/11 (après bascule de la caisse) : −12 + 37 = 25, pas de bouteille fantôme.
+    expect(physicalBoissonsStockForSite(jour11, "zogbo", 12)).toBe(25);
   });
 });
