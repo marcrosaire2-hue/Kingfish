@@ -11,6 +11,7 @@ import {
   normalizeBoissonsLine,
 } from "@/lib/boissons-calc";
 import {
+  achatsBoissonsPosterieurs,
   getBoissonsDayPayload,
   saveBoissonsDay,
 } from "@/lib/boissons-repo";
@@ -60,7 +61,9 @@ import type {
 import { isValidDate } from "@/lib/day-doc";
 import { restorePlatUnitAfterSaleCancel, listSellableQrProductIds } from "@/lib/stock-unit-repo";
 import {
+  boissonsLibres,
   dayVentesSansStock,
+  isBoissonsSelonStock,
   isVentesSansStockActive,
 } from "@/lib/ventes-sans-stock";
 import {
@@ -340,6 +343,8 @@ export async function getVenteBoard(
   caParEquipe: Record<UserShift, number>;
   /** Ventes sans plafond stock (après reset, jusqu'à saisie stock). */
   ventesSansStock: boolean;
+  /** Boissons plafonnées au stock même en vente libre. */
+  boissonsSelonStock: boolean;
   /** Catégories personnalisées (onglets de la page Vente). */
   categories: ProductCategory[];
 }> {
@@ -370,6 +375,8 @@ export async function getVenteBoard(
     site === "zogbo"
       ? dayVentesSansStock(zogbo!.day)
       : dayVentesSansStock(gbegamey!.day);
+  const boissonsSelonStock = await isBoissonsSelonStock(date, site);
+  const boissonsLibresJour = boissonsLibres(ventesSansStock, boissonsSelonStock);
 
   const products: VenteProduct[] = [];
 
@@ -485,12 +492,20 @@ export async function getVenteBoard(
     ]),
   );
   const drinkById = new Map(parametres.drinks.map((d) => [d.id, d]));
+  // Caisse restée sur un jour passé : les achats déjà saisis au stock sur
+  // les jours suivants sont vendables tout de suite.
+  const achatsPosterieurs = await achatsBoissonsPosterieurs(
+    site,
+    date,
+    parametres.drinks,
+  );
   const drinkStock = new Map(
     boissons.day.lines.map((l) => {
       const drink = drinkById.get(l.productId);
       return [
         l.productId,
-        physicalBoissonsStockForSite(l, site, drink?.unitsPerCasier),
+        physicalBoissonsStockForSite(l, site, drink?.unitsPerCasier) +
+          (achatsPosterieurs.get(l.productId) ?? 0),
       ];
     }),
   );
@@ -500,7 +515,7 @@ export async function getVenteBoard(
     const line = boissons.day.lines.find((l) => l.productId === drink.id);
     const tracked = isDrinkStockTracked(line, site);
     const untracked = !shouldEnforceProductStock({
-      dayFreeSale: ventesSansStock,
+      dayFreeSale: boissonsLibresJour,
       productTracked: tracked,
     });
     products.push({
@@ -568,6 +583,7 @@ export async function getVenteBoard(
     caToday,
     caParEquipe,
     ventesSansStock,
+    boissonsSelonStock,
     categories: parametres.categories ?? [],
   };
 }
@@ -1386,13 +1402,23 @@ export async function recordVente(input: {
       const upc = drink?.unitsPerCasier;
       const tracked = isDrinkStockTracked(line, input.site);
       const untracked = !shouldEnforceProductStock({
-        dayFreeSale,
+        dayFreeSale: boissonsLibres(
+          dayFreeSale,
+          await isBoissonsSelonStock(input.date, input.site),
+        ),
         productTracked: tracked,
       });
       if (untracked || !line) {
         maxSold = null;
       } else {
-        const left = physicalBoissonsStockForSite(line, input.site, upc);
+        // Achats saisis au stock sur un jour suivant (caisse restée sur un
+        // jour passé) : vendables tout de suite, comme dans la liste.
+        const achatsPosterieurs =
+          (await achatsBoissonsPosterieurs(input.site, input.date, drinks)).get(
+            input.productId,
+          ) ?? 0;
+        const left =
+          physicalBoissonsStockForSite(line, input.site, upc) + achatsPosterieurs;
         const upcResolved = Math.max(
           1,
           Math.round(Number(upc) || DEFAULT_UNITS_PER_CASIER),
@@ -1412,7 +1438,8 @@ export async function recordVente(input: {
           Math.round(
             stockBottles -
               Math.max(0, Number(pertes) || 0) +
-              correctionBoissonCasiers(line, input.site, upcResolved) * upcResolved,
+              correctionBoissonCasiers(line, input.site, upcResolved) * upcResolved +
+              achatsPosterieurs,
           ),
         );
         if (left < qty) {

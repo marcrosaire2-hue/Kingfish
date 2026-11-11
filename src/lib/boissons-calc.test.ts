@@ -3,6 +3,7 @@ import {
   applyBoissonsCarryToDay,
   applyBoissonsPurchaseToState,
   boissonsLeftoverDelta,
+  bouteillesAcheteesParBoisson,
   cancelBoissonsMovementInState,
   computeBoissonsLine,
   formatCasiers,
@@ -436,5 +437,56 @@ describe("report d'une correction sur les jours suivants", () => {
     const delta = boissonsLeftoverDelta(l, l);
     const { changed } = applyBoissonsCarryToDay([ligne({ initialStockZogbo: 2 })], delta);
     expect(changed).toBe(false);
+  });
+});
+
+describe("caisse restée sur un jour passé", () => {
+  const drinks = [boisson({ unitsPerCasier: 12 })];
+
+  it("compte les bouteilles achetées sur les jours suivants, par site", () => {
+    const achats = bouteillesAcheteesParBoisson(
+      [
+        [ligne({ purchasesZogbo: 3.08, purchasesGbegamey: 1 })],
+        [ligne({ purchasesZogbo: 0.25 })],
+      ],
+      "zogbo",
+      drinks,
+    );
+    // (3,08 + 0,25) casiers × 12 = 39,96 → 40 bouteilles.
+    expect(achats.get("drink-beaufort")).toBe(40);
+    const g = bouteillesAcheteesParBoisson([[ligne({ purchasesGbegamey: 1 })]], "gbegamey", drinks);
+    expect(g.get("drink-beaufort")).toBe(12);
+  });
+
+  it("garde un reste négatif pour le report quand on le demande", () => {
+    // 1 casier (12 bt) ouvert, 20 vendues grâce à un achat du lendemain.
+    const lignes = [ligne({ initialStockZogbo: 1, soldZogbo: 20 })];
+    expect(leftoverFromBoissonsLines(lignes, drinks).zogbo.get("drink-beaufort")).toBe(0);
+    const brut = leftoverFromBoissonsLines(lignes, drinks, drinks, { plancher: false });
+    expect(brut.zogbo.get("drink-beaufort")).toBeCloseTo(-8 / 12, 5);
+  });
+
+  it("une survente du jour de caisse retire les bouteilles du lendemain", () => {
+    // Jour J : 8 bt (0,67 casier), lendemain ouvert avec ce reste + 37 bt achetées.
+    const avant = leftoverFromBoissonsLines(
+      [ligne({ initialStockZogbo: 8 / 12 })],
+      drinks,
+      drinks,
+      { plancher: false },
+    );
+    // La caisse du jour J vend 20 bt (8 du jour + 12 achetées le lendemain).
+    const apres = leftoverFromBoissonsLines(
+      [ligne({ initialStockZogbo: 8 / 12, soldZogbo: 20 })],
+      drinks,
+      drinks,
+      { plancher: false },
+    );
+    const delta = boissonsLeftoverDelta(avant, apres);
+    const { lines } = applyBoissonsCarryToDay(
+      [ligne({ initialStockZogbo: 8 / 12, purchasesZogbo: 37 / 12 })],
+      delta,
+    );
+    // Lendemain : 8 + 37 − 20 = 25 bouteilles, pas 37 (bouteilles fantômes).
+    expect(physicalBoissonsStockForSite(lines[0]!, "zogbo", 12)).toBe(25);
   });
 });

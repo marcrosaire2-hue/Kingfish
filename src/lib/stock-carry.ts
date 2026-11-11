@@ -78,7 +78,9 @@ async function snapshot(
     const { day, drinks } = await getBoissonsDayPayload(date, site);
     return {
       scope: "boissons",
-      leftover: leftoverFromBoissonsLines(day.lines, drinks),
+      leftover: leftoverFromBoissonsLines(day.lines, drinks, drinks, {
+        plancher: false,
+      }),
     };
   }
   if (scope === "zogbo") {

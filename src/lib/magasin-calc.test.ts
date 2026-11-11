@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { boissonsLibres } from "@/lib/ventes-sans-stock";
 import {
   baseVersRecette,
   choisirComptages,
@@ -241,6 +242,15 @@ describe("vente d'une fiche en lot", () => {
       ajustements: { supplements: [{ articleId: "piment", qty: 1 }] },
     });
     expect(lignes).toContainEqual({ family: "magasin", itemId: "piment", qty: 0.01 });
+  });
+});
+
+describe("boissons selon le stock", () => {
+  it("plafonne les boissons dès que leur réglage est actif", () => {
+    expect(boissonsLibres(true, false)).toBe(true);
+    expect(boissonsLibres(true, true)).toBe(false);
+    expect(boissonsLibres(false, false)).toBe(false);
+    expect(boissonsLibres(false, true)).toBe(false);
   });
 });
 

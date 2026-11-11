@@ -10,6 +10,8 @@ import { logActivity } from "@/lib/log-activity";
 import type { VenteSite } from "@/lib/types";
 import {
   getVentesSansStockStatus,
+  isBoissonsSelonStock,
+  setBoissonsSelonStock,
   setVentesSansStock,
 } from "@/lib/ventes-sans-stock";
 import { todayIsoDate } from "@/lib/zogbo-calc";
@@ -45,12 +47,15 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       date: status.date,
-      sites: allowed.map((site) => ({
-        site,
-        label: SITE_LABELS[site],
-        ventesSansStock: status[site],
-        enforceStock: toEnforceStock(status[site]),
-      })),
+      sites: await Promise.all(
+        allowed.map(async (site) => ({
+          site,
+          label: SITE_LABELS[site],
+          ventesSansStock: status[site],
+          enforceStock: toEnforceStock(status[site]),
+          boissonsSelonStock: await isBoissonsSelonStock(date, site),
+        })),
+      ),
     });
   } catch (error) {
     return authErrorResponse(error);
@@ -64,6 +69,8 @@ export const POST = withLiveBump(async function POST(request: Request) {
       site?: VenteSite;
       enforceStock?: boolean;
       date?: string;
+      /** « boissons » : ne change que le réglage des boissons. */
+      famille?: string;
     };
 
     const date = body.date?.trim() || todayIsoDate();
@@ -83,6 +90,32 @@ export const POST = withLiveBump(async function POST(request: Request) {
     const allowed = sitesForAdmin(effectiveSite(admin.role, admin.site));
     if (!allowed.includes(body.site)) {
       throw new AuthError("Ce site n'est pas dans votre périmètre.", 403);
+    }
+
+    if (body.famille === "boissons") {
+      if (body.site !== "gbegamey") {
+        return NextResponse.json(
+          { error: "Réglage des boissons disponible à Gbégamey uniquement." },
+          { status: 400 },
+        );
+      }
+      await setBoissonsSelonStock(date, body.site, body.enforceStock);
+      await logActivity({
+        user: admin,
+        kind: "parametres",
+        title: body.enforceStock
+          ? "Boissons : vente selon le stock activée"
+          : "Boissons : vente libre",
+        detail: `${SITE_LABELS[body.site]} · ${date} · par ${admin.name}`,
+        date,
+        site: body.site,
+      });
+      return NextResponse.json({
+        ok: true,
+        date,
+        site: body.site,
+        boissonsSelonStock: await isBoissonsSelonStock(date, body.site),
+      });
     }
 
     const ventesSansStock = !body.enforceStock;

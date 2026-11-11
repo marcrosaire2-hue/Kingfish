@@ -7,12 +7,14 @@ type SiteStatus = {
   site: string;
   label: string;
   enforceStock: boolean;
+  boissonsSelonStock?: boolean;
 };
 
 type StatusResponse = {
   date?: string;
   sites?: SiteStatus[];
   enforceStock?: boolean;
+  boissonsSelonStock?: boolean;
   error?: string;
 };
 
@@ -45,7 +47,7 @@ export function VenteStockPanel() {
     };
   }, []);
 
-  async function changeMode(enforceStock: boolean) {
+  async function changeMode(enforceStock: boolean, famille?: "boissons") {
     if (!status || !date || busy) return;
     setBusy(true);
     setError(null);
@@ -53,11 +55,15 @@ export function VenteStockPanel() {
       const res = await fetch("/api/admin/ventes-stock", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ site: status.site, enforceStock, date }),
+        body: JSON.stringify({ site: status.site, enforceStock, date, famille }),
       });
       const body = (await res.json()) as StatusResponse;
       if (!res.ok) throw new Error(body.error || "Changement impossible");
-      setStatus({ ...status, enforceStock: body.enforceStock === true });
+      setStatus(
+        famille === "boissons"
+          ? { ...status, boissonsSelonStock: body.boissonsSelonStock === true }
+          : { ...status, enforceStock: body.enforceStock === true },
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Changement impossible");
     } finally {
@@ -92,6 +98,30 @@ export function VenteStockPanel() {
                 ? "Repasser en vente libre"
                 : "Lancer la vente selon le stock"}
           </button>
+          {status.enforceStock ? null : (
+            <>
+              <div className="vente-stock-copy">
+                <h3>Boissons</h3>
+                <p role="status">
+                  {status.boissonsSelonStock
+                    ? "Boissons selon le stock : une boisson épuisée ne peut plus être vendue, le reste reste en vente libre."
+                    : "Boissons en vente libre."}
+                </p>
+              </div>
+              <button
+                type="button"
+                className={status.boissonsSelonStock ? "btn" : "btn btn-primary"}
+                disabled={busy}
+                onClick={() => void changeMode(!status.boissonsSelonStock, "boissons")}
+              >
+                {busy
+                  ? "…"
+                  : status.boissonsSelonStock
+                    ? "Boissons en vente libre"
+                    : "Boissons selon le stock"}
+              </button>
+            </>
+          )}
         </>
       ) : null}
       {error ? (
