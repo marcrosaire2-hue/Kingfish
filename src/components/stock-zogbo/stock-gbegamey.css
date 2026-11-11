@@ -1,0 +1,752 @@
+/* ==========================================================================
+   Page Stock Gbégamey — Design Moderne
+   Harmonisé avec le menu King Fish (--menu-navy: #0a3a78, --accent: #f0b018)
+   ========================================================================== */
+
+/* Masquer le header standard du shell sur Stock Gbégamey pour afficher le hero banner */
+.main-stock-gbegamey .page-header {
+  display: none !important;
+}
+
+.stock-gbegamey-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   Hero Banner (En-tête bleu dégradé avec icône boutique et plat gourmand)
+   -------------------------------------------------------------------------- */
+.stock-gbegamey-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px;
+  background: var(--menu-gradient);
+  border-radius: 20px;
+  color: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(6, 43, 85, 0.28), 0 4px 10px -3px rgba(0, 0, 0, 0.06);
+}
+
+.stock-gbegamey-hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.stock-gbegamey-hero-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(6, 43, 85, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.stock-gbegamey-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stock-gbegamey-hero-title {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.stock-gbegamey-hero-sub {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.35;
+}
+
+/* Décorations de la bannière (assiette gourmande + courbe dorée) */
+.stock-gbegamey-hero-deco {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  pointer-events: none;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.stock-gbegamey-dish-wrap {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 175px;
+  height: 105px;
+  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  border: 4px solid rgba(255, 255, 255, 0.85);
+  background: #ffffff;
+}
+
+.stock-gbegamey-dish-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.stock-gbegamey-curve {
+  position: absolute;
+  bottom: -4px;
+  right: 0;
+  width: 200px;
+  height: 48px;
+}
+
+/* --------------------------------------------------------------------------
+   Onglets pilules Gbégamey (Condiments / Boissons)
+   -------------------------------------------------------------------------- */
+.main-stock-gbegamey .stock-gbegamey-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+}
+
+.main-stock-gbegamey .stock-gbegamey-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 999px;
+  border: 1px solid #cce1f5;
+  background: #eaf3fb;
+  color: var(--menu-navy);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.main-stock-gbegamey .stock-gbegamey-tab:hover:not(.is-active) {
+  background: #dbeaf8;
+  border-color: #a3c9ee;
+}
+
+/* Sélecteur de vue des condiments, sur la même ligne, aligné à droite */
+.main-stock-gbegamey .stock-gbegamey-subtabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding: 3px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+}
+
+.main-stock-gbegamey .stock-gbegamey-subtab {
+  padding: 7px 14px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: #64748b;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.main-stock-gbegamey .stock-gbegamey-subtab:hover:not(.is-active) {
+  color: var(--menu-navy);
+  background: #f1f5f9;
+}
+
+.main-stock-gbegamey .stock-gbegamey-subtab.is-active {
+  background: #eaf3fb;
+  color: var(--menu-navy);
+}
+
+.main-stock-gbegamey .stock-gbegamey-subtab.has-alerte:not(.is-active) {
+  color: #dc2626;
+}
+
+@media (max-width: 640px) {
+  .main-stock-gbegamey .stock-gbegamey-tabs {
+    flex-wrap: wrap;
+  }
+
+  .main-stock-gbegamey .stock-gbegamey-subtabs {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .main-stock-gbegamey .stock-gbegamey-subtab {
+    flex: 1;
+  }
+}
+
+.main-stock-gbegamey .stock-gbegamey-tab.is-active {
+  background: var(--menu-navy);
+  border-color: var(--menu-navy);
+  color: #ffffff;
+  box-shadow: 0 4px 14px rgba(10, 58, 120, 0.28);
+}
+
+/* --------------------------------------------------------------------------
+   Carte 1 : Ajouter un stock / mouvement
+   -------------------------------------------------------------------------- */
+.sg-card {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px -2px rgba(6, 43, 85, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+  padding: 24px 28px;
+}
+
+.sg-card-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.sg-card-title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sg-card-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sg-card-title-icon {
+  color: var(--menu-navy);
+  flex-shrink: 0;
+}
+
+.sg-card-title {
+  margin: 0;
+  font-size: 1.22rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.sg-card-sub {
+  margin: 0;
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+.sg-obligatoire-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--menu-navy);
+  background: #eaf3fb;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+/* Formulaire d'ajout / mouvement en grille */
+.sg-mouvement-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.4fr) minmax(110px, 1fr) minmax(110px, 1fr) minmax(120px, 1fr) minmax(130px, 1.1fr) auto;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+.sg-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 6px;
+  /* Sans ça, un libellé trop long déborde sur la colonne voisine. */
+  min-width: 0;
+}
+
+.sg-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.25;
+}
+
+.sg-label-icon {
+  color: var(--menu-navy);
+  flex-shrink: 0;
+}
+
+.sg-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.sg-input,
+.sg-select {
+  width: 100%;
+  height: 44px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.sg-select {
+  padding-right: 32px;
+  appearance: none;
+  cursor: pointer;
+}
+
+.sg-select-chevron {
+  position: absolute;
+  right: 12px;
+  pointer-events: none;
+  color: #64748b;
+}
+
+.sg-input:focus,
+.sg-select:focus {
+  border-color: var(--menu-navy);
+  box-shadow: 0 0 0 3px rgba(10, 58, 120, 0.15);
+}
+
+.sg-input:disabled {
+  background: #f8fafc;
+  color: #64748b;
+  border-color: #e2e8f0;
+}
+
+/* Bouton OR / AMBRE "+ Ajouter" */
+.sg-btn-ajouter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 24px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #06274d;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(240, 176, 24, 0.32);
+  transition: all 0.15s ease;
+}
+
+.sg-btn-ajouter:hover:not(:disabled) {
+  background: var(--accent-deep);
+  box-shadow: 0 6px 16px rgba(240, 176, 24, 0.42);
+}
+
+.sg-btn-ajouter:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+   Carte 2 : Stock des condiments (Tableau moderne)
+   -------------------------------------------------------------------------- */
+.sg-btn-actualiser {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid #cce1f5;
+  background: #f0f7ff;
+  color: var(--menu-navy);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sg-btn-actualiser:hover:not(:disabled) {
+  background: #e0edff;
+  border-color: #99c2ea;
+}
+
+.sg-table-container {
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  margin-top: 14px;
+}
+
+.sg-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+  text-align: left;
+}
+
+.sg-table thead {
+  background: var(--menu-gradient-band);
+}
+
+.sg-table th {
+  padding: 14px 18px;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: none;
+}
+
+.sg-table th.col-center {
+  text-align: center;
+}
+
+.sg-table tbody tr {
+  border-bottom: 1px solid #edf2f7;
+  transition: background-color 0.15s ease;
+}
+
+.sg-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.sg-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.sg-table td {
+  padding: 12px 18px;
+  vertical-align: middle;
+  font-size: 0.92rem;
+  color: #1e293b;
+}
+
+.sg-table td.col-center {
+  text-align: center;
+}
+
+/* Vignette condiment ronde */
+.sg-condiment-cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.sg-condiment-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #e2e8f0;
+  background: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.sg-condiment-thumb svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sg-condiment-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+/* Stock théorique en gras */
+.sg-stock-theorique {
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--menu-navy);
+}
+
+/* Badge pilule Écart */
+.sg-ecart-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: #eaf3fb;
+  border: 1px solid #b8d5f2;
+  color: var(--menu-navy);
+  font-weight: 700;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+/* Bouton Achat (Bleu clair) */
+.sg-btn-achat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid #b8d5f2;
+  background: #f0f7ff;
+  color: var(--menu-navy);
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sg-btn-achat:hover:not(:disabled) {
+  background: #e0edff;
+  border-color: #8bbce8;
+}
+
+/* Comptage (stepper + bouton OR) */
+.sg-comptage-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.sg-comptage-input {
+  width: 62px;
+  height: 36px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.15s ease;
+}
+
+.sg-comptage-input:focus {
+  border-color: var(--menu-navy);
+  box-shadow: 0 0 0 2px rgba(10, 58, 120, 0.12);
+}
+
+.sg-btn-compter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #06274d;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(240, 176, 24, 0.24);
+  transition: all 0.15s ease;
+}
+
+.sg-btn-compter:hover:not(:disabled) {
+  background: var(--accent-deep);
+  box-shadow: 0 4px 12px rgba(240, 176, 24, 0.32);
+}
+
+.sg-btn-compter:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 1280px) {
+  .sg-mouvement-form {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .sg-mouvement-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .sg-mouvement-form > .sg-field:first-child,
+  .sg-mouvement-form > .sg-btn-ajouter {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 640px) {
+  .stock-gbegamey-hero {
+    padding: 18px 20px;
+  }
+
+  .stock-gbegamey-hero-title {
+    font-size: 1.25rem;
+  }
+
+  .stock-gbegamey-hero-deco {
+    display: none;
+  }
+
+  .sg-card {
+    padding: 16px;
+    border-radius: 14px;
+  }
+}
+
+/* Stock sous le seuil d'alerte ou négatif */
+.sg-stock-theorique.is-alerte {
+  color: #dc2626;
+}
+
+/* Téléphone : chaque ligne du tableau devient une carte (libellé à gauche,
+   valeur à droite, nom en titre, actions en pleine largeur). */
+@media (max-width: 640px) {
+  .sg-table-container {
+    overflow: visible;
+    border: none;
+    background: transparent;
+  }
+
+  .sg-table {
+    display: block;
+    min-width: 0;
+  }
+
+  .sg-table thead {
+    display: none;
+  }
+
+  .sg-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .sg-table tbody tr,
+  .sg-table tbody tr:last-child {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  }
+
+  .sg-table tbody tr:hover {
+    background: #ffffff;
+  }
+
+  .sg-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0;
+    text-align: right;
+  }
+
+  .sg-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #64748b;
+    text-align: left;
+  }
+
+  .sg-table td.cell-titre {
+    order: -1;
+    justify-content: flex-start;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #edf2f7;
+    text-align: left;
+  }
+
+  .sg-table td.cell-action {
+    justify-content: stretch;
+  }
+
+  .sg-table td.cell-action > * {
+    flex: 1;
+  }
+
+  .sg-table td:empty {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .sg-btn-achat {
+    width: 100%;
+  }
+
+  .sg-comptage-cell {
+    width: 100%;
+  }
+
+  .sg-comptage-input {
+    width: 84px;
+    flex: none;
+  }
+
+  .sg-btn-compter {
+    flex: 1;
+  }
+}

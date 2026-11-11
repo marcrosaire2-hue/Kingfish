@@ -1,0 +1,732 @@
+/* ==========================================================================
+   Page Plats Préparés — Design Moderne
+   Harmonisé avec la charte King Fish et le menu (--menu-navy: #0a3a78, --accent: #f0b018)
+   ========================================================================== */
+
+/* Masquer le header standard du shell pour laisser place au hero banner */
+.main-plats-prepares .page-header {
+  display: none !important;
+}
+
+.plats-page-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   Hero Banner (En-tête bleu dégradé avec toque de chef et plat de poisson)
+   -------------------------------------------------------------------------- */
+.plats-hero {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 22px 28px;
+  background: var(--menu-gradient);
+  border-radius: 20px;
+  color: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 10px 25px -5px rgba(6, 43, 85, 0.28), 0 4px 10px -3px rgba(0, 0, 0, 0.06);
+}
+
+.plats-hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.plats-hero-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: rgba(6, 43, 85, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.plats-hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.plats-hero-title {
+  margin: 0;
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  line-height: 1.2;
+}
+
+.plats-hero-sub {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  line-height: 1.35;
+}
+
+/* Décorations de la bannière (assiette gourmande + courbe dorée) */
+.plats-hero-deco {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 320px;
+  pointer-events: none;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.plats-hero-dish-wrap {
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 175px;
+  height: 105px;
+  border-radius: 50%;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  border: 4px solid rgba(255, 255, 255, 0.85);
+  background: #ffffff;
+}
+
+.plats-hero-dish-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.plats-hero-curve {
+  position: absolute;
+  bottom: -4px;
+  right: 0;
+  width: 200px;
+  height: 48px;
+}
+
+/* --------------------------------------------------------------------------
+   Cartes blanches modernes
+   -------------------------------------------------------------------------- */
+.plats-card {
+  background: #ffffff;
+  border-radius: 20px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 20px -2px rgba(6, 43, 85, 0.05), 0 2px 6px -1px rgba(15, 23, 42, 0.02);
+  padding: 24px 28px;
+}
+
+.plats-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.plats-card-title-icon {
+  color: var(--menu-navy);
+  flex-shrink: 0;
+}
+
+.plats-card-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+}
+
+.plats-card-sub {
+  margin: 0 0 20px;
+  font-size: 0.9rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+/* --------------------------------------------------------------------------
+   Section : Enregistrer les plats préparés
+   -------------------------------------------------------------------------- */
+.plats-form-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: flex-end;
+}
+
+.plats-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.plats-field-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.plats-field-label-icon {
+  color: var(--menu-navy);
+  flex-shrink: 0;
+}
+
+.plats-select-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+.plats-select {
+  width: 100%;
+  height: 44px;
+  padding: 8px 36px 8px 14px;
+  border-radius: 12px;
+  border: 1px solid #cce1f5;
+  background: #edf5fc;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  outline: none;
+  appearance: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.plats-select:focus {
+  background: #ffffff;
+  border-color: var(--menu-navy);
+  box-shadow: 0 0 0 3px rgba(10, 58, 120, 0.15);
+}
+
+.plats-select:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.plats-select-arrow {
+  position: absolute;
+  right: 14px;
+  pointer-events: none;
+  color: var(--menu-navy);
+}
+
+.plats-input {
+  width: 100%;
+  height: 44px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 600;
+  outline: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.plats-input:focus {
+  border-color: var(--menu-navy);
+  box-shadow: 0 0 0 3px rgba(10, 58, 120, 0.15);
+}
+
+.plats-input:disabled {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Condiments utilisés pour la préparation */
+.plats-condiments-preview {
+  margin-top: 18px;
+  padding: 18px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+}
+
+.plats-condiments-title {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.plats-condiments-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.plats-condiment-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 110px 48px;
+  gap: 12px;
+  align-items: center;
+}
+
+.plats-condiment-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1e293b;
+  cursor: pointer;
+  user-select: none;
+}
+
+.plats-condiment-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--menu-navy);
+  cursor: pointer;
+}
+
+.plats-condiment-input {
+  height: 38px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  outline: none;
+}
+
+.plats-condiment-input:focus {
+  border-color: var(--menu-navy);
+  box-shadow: 0 0 0 3px rgba(10, 58, 120, 0.15);
+}
+
+.plats-condiment-unit {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.plats-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.plats-btn-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
+  padding: 0 28px;
+  border-radius: 12px;
+  border: none;
+  background: var(--menu-navy);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(10, 58, 120, 0.28);
+  transition: all 0.15s ease;
+}
+
+.plats-btn-submit:hover:not(:disabled) {
+  background: #003d75;
+  box-shadow: 0 6px 18px rgba(10, 58, 120, 0.38);
+}
+
+.plats-btn-submit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------------------
+   Tableau des Portions Disponibles (En-tête bleu menu, badges & boutons or)
+   -------------------------------------------------------------------------- */
+.plats-table-card {
+  padding: 24px 28px;
+}
+
+.plats-table-container {
+  overflow-x: auto;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  margin-top: 14px;
+}
+
+.plats-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 720px;
+  text-align: left;
+}
+
+.plats-table thead {
+  background: #004888;
+  background: var(--menu-gradient-band);
+}
+
+.plats-table th {
+  padding: 14px 18px;
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: none;
+}
+
+.plats-table th.col-center {
+  text-align: center;
+}
+
+.plats-table tbody tr {
+  border-bottom: 1px solid #edf2f7;
+  transition: background-color 0.15s ease;
+}
+
+.plats-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.plats-table tbody tr:last-child {
+  border-bottom: none;
+}
+
+.plats-table td {
+  padding: 14px 18px;
+  vertical-align: middle;
+  font-size: 0.92rem;
+  color: #1e293b;
+}
+
+.plats-table td.col-center {
+  text-align: center;
+}
+
+/* Colonne Plat avec vignette circulaire */
+.plats-dish-cell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.plats-dish-thumb {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  border: 2px solid #e2e8f0;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.plats-dish-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.plats-dish-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.plats-dish-name {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #0f172a;
+  text-transform: uppercase;
+  letter-spacing: 0.01em;
+}
+
+.plats-dish-note {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* Badge pilule Stock Théorique */
+.plats-stock-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: #eaf3fb;
+  border: 1px solid #b8d5f2;
+  color: var(--menu-navy);
+  font-weight: 700;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.plats-val-muted {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.plats-val-alert {
+  color: #dc2626;
+  font-weight: 700;
+}
+
+/* Cellule de comptage avec bouton OR / AMBRE */
+.plats-comptage-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.plats-comptage-input {
+  width: 66px;
+  height: 38px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #0f172a;
+  font-family: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+  transition: all 0.15s ease;
+}
+
+.plats-comptage-input:focus {
+  border-color: var(--menu-navy);
+  box-shadow: 0 0 0 3px rgba(10, 58, 120, 0.15);
+}
+
+.plats-btn-compter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: none;
+  background: var(--accent);
+  color: #06274d;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 800;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 3px 10px rgba(240, 176, 24, 0.28);
+  transition: all 0.15s ease;
+}
+
+.plats-btn-compter:hover:not(:disabled) {
+  background: var(--accent-deep);
+  box-shadow: 0 4px 14px rgba(240, 176, 24, 0.38);
+}
+
+.plats-btn-compter:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.plats-btn-compter-icon {
+  flex-shrink: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Historique des dernières préparations
+   -------------------------------------------------------------------------- */
+.plats-btn-annuler {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid #fee2e2;
+  background: #fff5f5;
+  color: #dc2626;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.plats-btn-annuler:hover:not(:disabled) {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive
+   -------------------------------------------------------------------------- */
+@media (max-width: 900px) {
+  .plats-hero-deco {
+    width: 140px;
+  }
+
+  .plats-hero-dish-wrap {
+    width: 120px;
+    height: 75px;
+  }
+
+  .plats-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .plats-hero {
+    padding: 18px;
+  }
+
+  .plats-hero-deco {
+    display: none;
+  }
+
+  .plats-hero-title {
+    font-size: 1.35rem;
+  }
+
+  .plats-card {
+    padding: 18px;
+  }
+
+  .plats-comptage-cell {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .plats-comptage-input,
+  .plats-btn-compter {
+    width: 100%;
+  }
+}
+
+
+/* Téléphone : chaque ligne du tableau devient une carte (libellé à gauche,
+   valeur à droite, nom en titre, actions en pleine largeur). */
+@media (max-width: 640px) {
+  .plats-table-container {
+    overflow: visible;
+    border: none;
+    background: transparent;
+  }
+
+  .plats-table {
+    display: block;
+    min-width: 0;
+  }
+
+  .plats-table thead {
+    display: none;
+  }
+
+  .plats-table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .plats-table tbody tr,
+  .plats-table tbody tr:last-child {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(15, 23, 42, 0.04);
+  }
+
+  .plats-table tbody tr:hover {
+    background: #ffffff;
+  }
+
+  .plats-table td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0;
+    text-align: right;
+  }
+
+  .plats-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: #64748b;
+    text-align: left;
+  }
+
+  .plats-table td.cell-titre {
+    order: -1;
+    justify-content: flex-start;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #edf2f7;
+    text-align: left;
+  }
+
+  .plats-table td.cell-action {
+    justify-content: stretch;
+  }
+
+  .plats-table td.cell-action > * {
+    flex: 1;
+  }
+
+  .plats-table td:empty {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .plats-table-card {
+    padding: 16px;
+  }
+
+  .plats-comptage-cell {
+    flex-direction: row;
+    align-items: center;
+    width: 100%;
+  }
+
+  .plats-comptage-input {
+    width: 84px;
+    flex: none;
+  }
+
+  .plats-btn-compter {
+    width: auto;
+    flex: 1;
+  }
+}

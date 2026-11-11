@@ -1,6 +1,13 @@
 .mag-page {
   display: grid;
+  /* minmax(0, 1fr) : un tableau large défile dans sa carte au lieu
+     d'élargir toute la page (sur téléphone, 760 px dans 375 px). */
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
+}
+
+.mag-page > * {
+  min-width: 0;
 }
 
 .mag-card {
