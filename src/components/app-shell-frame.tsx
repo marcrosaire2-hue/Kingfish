@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { roleSiteLabel, type NavKey } from "@/lib/auth-types";
+import { effectiveSite, roleSiteLabel, type NavKey } from "@/lib/auth-types";
 import { APP_LOGO, APP_NAME } from "@/lib/brand";
 import { usePageChrome } from "@/components/page-chrome-context";
 import { clearSessionCache, useSession } from "@/components/session-provider";
@@ -16,6 +16,8 @@ const NAV_ITEMS: {
   key: NavKey;
   group: "home" | "ops" | "cash" | "supply" | "pilot" | "admin";
   groupLabel?: string;
+  /** `multi` : comptes des deux sites (admin) ; `single` : compte d'un site. */
+  scope?: "multi" | "single";
 }[] = [
   {
     href: "/",
@@ -84,6 +86,21 @@ const NAV_ITEMS: {
     label: "Catalogue",
     key: "parametres",
     group: "ops",
+    scope: "single",
+  },
+  {
+    href: "/catalogue/zogbo",
+    label: "Catalogue Zogbo",
+    key: "parametres",
+    group: "ops",
+    scope: "multi",
+  },
+  {
+    href: "/catalogue/gbegamey",
+    label: "Catalogue Gbégamey",
+    key: "parametres",
+    group: "ops",
+    scope: "multi",
   },
   {
     href: "/caisse",
@@ -349,10 +366,16 @@ export function AppShellFrame({ children }: { children: React.ReactNode }) {
     };
   }, [menuOpen]);
 
+  const multiSite = user ? effectiveSite(user.role, user.site) === "tous" : false;
   const links = useMemo(() => {
     if (!nav?.length) return [];
-    return NAV_ITEMS.filter((item) => nav.includes(item.key));
-  }, [nav]);
+    return NAV_ITEMS.filter(
+      (item) =>
+        nav.includes(item.key) &&
+        (item.scope !== "multi" || multiSite) &&
+        (item.scope !== "single" || !multiSite),
+    );
+  }, [nav, multiSite]);
 
   function goSearch(e: React.FormEvent) {
     e.preventDefault();
