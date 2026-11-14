@@ -8,11 +8,31 @@ import { canUseSite, effectiveSite, SITE_LABELS } from "@/lib/auth-types";
 import { withLiveBump } from "@/lib/live-route";
 import { logActivity } from "@/lib/log-activity";
 import { estKindGrisable } from "@/lib/produits-grises-calc";
-import { definirProduitGrise } from "@/lib/produits-grises-repo";
+import {
+  definirProduitGrise,
+  listerProduitsGrises,
+} from "@/lib/produits-grises-repo";
 import { containsMongoOperator } from "@/lib/security-policy";
 import type { VenteSite } from "@/lib/types";
 
 export const runtime = "nodejs";
+
+/** Articles grisés d'un site (clés `site:kind:productId`), pour le Catalogue. */
+export async function GET(request: Request) {
+  try {
+    const admin = await requireUserManagementAdmin();
+    const site = new URL(request.url).searchParams.get("site");
+    if (site !== "zogbo" && site !== "gbegamey") {
+      return NextResponse.json({ error: "Site invalide." }, { status: 400 });
+    }
+    if (!canUseSite(effectiveSite(admin.role, admin.site), site)) {
+      throw new AuthError("Ce site n'est pas dans votre périmètre.", 403);
+    }
+    return NextResponse.json({ cles: await listerProduitsGrises(site) });
+  } catch (error) {
+    return authErrorResponse(error);
+  }
+}
 
 export const POST = withLiveBump(async function POST(request: Request) {
   try {

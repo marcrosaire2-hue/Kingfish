@@ -1719,3 +1719,95 @@
 .stock-modele-table .input-qty {
   margin: 0 auto;
 }
+
+/* --- Site édité, n° d'ordre et blocage de vente ----------------------- */
+.catalogue-site-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  border: 2px solid color-mix(in srgb, #2a7ec8 45%, var(--line));
+  background: color-mix(in srgb, #2a7ec8 9%, var(--surface));
+  color: var(--ink);
+  font-size: 0.95rem;
+}
+
+.catalogue-site-banner.is-gbegamey {
+  border-color: color-mix(in srgb, #c2410c 45%, var(--line));
+  background: color-mix(in srgb, #c2410c 8%, var(--surface));
+}
+
+.catalogue-site-banner strong {
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.catalogue-site-banner-hint {
+  color: var(--ink-soft);
+  font-size: 0.85rem;
+}
+
+.catalogue-site-banner-dirty {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--danger);
+  font-weight: 650;
+  font-size: 0.88rem;
+}
+
+.catalogue-table .col-position {
+  width: 4rem;
+}
+
+.catalogue-position-input {
+  width: 3.2rem;
+  min-height: 2.25rem;
+  padding: 0.3rem 0.4rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+}
+
+.catalogue-position-input:focus {
+  outline: 2px solid #2a7ec8;
+  outline-offset: 1px;
+}
+
+.catalogue-sale-toggle {
+  min-height: 2.25rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.catalogue-sale-toggle.is-on {
+  background: color-mix(in srgb, #16a34a 14%, var(--surface));
+  border-color: color-mix(in srgb, #16a34a 35%, var(--line));
+  color: #15803d;
+}
+
+.catalogue-sale-toggle.is-off {
+  background: color-mix(in srgb, var(--danger-soft) 80%, var(--surface));
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+  color: var(--danger);
+}
+
+.catalogue-sale-toggle:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

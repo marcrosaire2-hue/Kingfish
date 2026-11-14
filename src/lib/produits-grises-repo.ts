@@ -35,6 +35,16 @@ export async function produitsGrisesPourDate(
   return new Set(docs.map((d) => d._id));
 }
 
+/** Clés des articles grisés d'un site, pour l'écran Catalogue. */
+export async function listerProduitsGrises(site: VenteSite): Promise<string[]> {
+  const db = await getDb();
+  const docs = await db
+    .collection<ProduitGriseDoc>(COLLECTION)
+    .find({ site }, { projection: { _id: 1 } })
+    .toArray();
+  return docs.map((d) => d._id);
+}
+
 export async function assertProduitDisponible(input: {
   site: VenteSite;
   date: string;
