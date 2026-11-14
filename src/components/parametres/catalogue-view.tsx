@@ -14,8 +14,16 @@ import { QtyInput } from "@/components/qty-input";
 import { useSession } from "@/components/session-provider";
 import { roleSiteLabel } from "@/lib/auth-types";
 import { formatFcfa, formatUpdatedAt, newId } from "@/lib/format";
+import { deplacerA } from "@/lib/catalogue-ordre";
 import { exportParametresExcel } from "@/lib/page-exports";
-import type { BaseDish, Drink, LocalDish, Parametres } from "@/lib/types";
+import { cleProduitGrise } from "@/lib/produits-grises-calc";
+import type {
+  BaseDish,
+  Drink,
+  LocalDish,
+  Parametres,
+  VenteSite,
+} from "@/lib/types";
 
 import "./parametres-catalogue.css";
 
@@ -24,29 +32,119 @@ const PAGE_SIZE = 6;
 const CATALOGUE_SECTIONS: {
   key: CatalogueSectionKey;
   label: string;
-  hint: string;
+  hint: (site: string, autre: string) => string;
 }[] = [
   {
     key: "base",
     label: "Plats de base",
-    hint: "Production Zogbo — prix aussi utilisés pour les ventes à Gbégamey (transferts).",
+    hint: (site, autre) =>
+      `Plats vendus à ${site} uniquement — un nom ou un prix changé ici ne touche pas ${autre}.`,
   },
   {
     key: "accompagnements",
     label: "Accompagnements",
-    hint: "Riz, telibo, piron… — catalogue partagé, vendus seuls ou avec un plat.",
+    hint: (site, autre) =>
+      `Riz, telibo, piron… vendus seuls ou avec un plat, à ${site} uniquement (pas ${autre}).`,
   },
   {
     key: "drinks",
     label: "Boissons",
-    hint: "Catalogue boissons (partagé) — stock et ventes en bouteilles.",
+    hint: (site, autre) =>
+      `Boissons de ${site} — noms, prix et bouteilles par casier propres à ce site, sans effet sur ${autre}.`,
   },
   {
     key: "categories",
     label: "Dessert & catégories",
-    hint: "",
+    hint: () => "",
   },
 ];
+
+/** Familles qu'un administrateur peut griser (retirer de la vente). */
+export type GriseKind = "plat" | "local" | "boisson";
+
+/** Grisage d'un article sur le site affiché ; `null` = réservé à l'admin. */
+type GriseControl = {
+  site: VenteSite;
+  grises: ReadonlySet<string>;
+  busy: string | null;
+  savedIds: ReadonlySet<string>;
+  onToggle: (kind: GriseKind, id: string, name: string) => void;
+};
+
+function GriseToggle({
+  control,
+  kind,
+  id,
+  name,
+}: {
+  control: GriseControl | null;
+  kind: GriseKind;
+  id: string;
+  name: string;
+}) {
+  if (!control) return null;
+  const cle = cleProduitGrise(control.site, kind, id);
+  const grise = control.grises.has(cle);
+  const nonEnregistre = !control.savedIds.has(id);
+  return (
+    <button
+      type="button"
+      className={`catalogue-sale-toggle${grise ? " is-off" : " is-on"}`}
+      disabled={control.busy !== null || nonEnregistre}
+      aria-pressed={!grise}
+      aria-label={`${grise ? "Remettre en vente" : "Bloquer la vente de"} ${name}`}
+      title={
+        nonEnregistre
+          ? "Enregistrez d’abord le catalogue pour pouvoir bloquer ce produit."
+          : grise
+            ? "Bloqué : visible à la caisse mais invendable. Cliquer pour remettre en vente."
+            : "En vente. Cliquer pour bloquer la vente sur ce site."
+      }
+      onClick={() => control.onToggle(kind, id, name)}
+    >
+      {control.busy === cle ? "…" : grise ? "Bloqué" : "En vente"}
+    </button>
+  );
+}
+
+/** N° d'ordre : 1 = en haut du catalogue et de la grille de vente. */
+function PositionInput({
+  position,
+  total,
+  name,
+  onMove,
+}: {
+  position: number;
+  total: number;
+  name: string;
+  onMove: (position: number) => void;
+}) {
+  // Brouillon pendant la frappe ; hors saisie, le champ suit la position.
+  const [draft, setDraft] = useState<string | null>(null);
+  const valider = () => {
+    const n = Number(draft);
+    setDraft(null);
+    if (draft === null || !draft.trim() || !Number.isFinite(n)) return;
+    if (Math.round(n) !== position) onMove(n);
+  };
+  return (
+    <input
+      className="catalogue-position-input"
+      inputMode="numeric"
+      value={draft ?? String(position)}
+      aria-label={`N° d’ordre de ${name} (1 à ${total})`}
+      title="Numéro d’ordre : 1 = tout en haut. Tapez un numéro puis Entrée."
+      onChange={(e) => setDraft(e.target.value.replace(/[^0-9]/g, ""))}
+      onBlur={valider}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          valider();
+        }
+      }}
+    />
+  );
+}
 
 function useDebouncedValue<T>(value: T, delayMs = 280): T {
   const [debounced, setDebounced] = useState(value);
@@ -231,7 +329,11 @@ function ProductPriceTable<T extends { id: string; name: string }>({
   onEditingId,
   addLabel,
   onAdd,
+  grise,
+  onMove,
 }: {
+  grise: GriseControl | null;
+  onMove: (id: string, position: number) => void;
   rows: T[];
   kind: "base" | "local";
   ready: boolean;
@@ -254,6 +356,11 @@ function ProductPriceTable<T extends { id: string; name: string }>({
     [rows, debouncedSearch],
   );
   const paged = paginate(filtered, page, PAGE_SIZE);
+  const positions = useMemo(
+    () => new Map(rows.map((r, i) => [r.id, i + 1])),
+    [rows],
+  );
+  const griseKind: GriseKind = kind === "base" ? "plat" : "local";
 
   useEffect(() => {
     onPageChange(1);
@@ -290,9 +397,11 @@ function ProductPriceTable<T extends { id: string; name: string }>({
             <table className="catalogue-table">
               <thead>
                 <tr>
+                  <th scope="col" className="col-position">N°</th>
                   <th scope="col">Désignation</th>
                   <th scope="col">Prix unitaire</th>
                   <th scope="col">Prix de revient</th>
+                  {grise ? <th scope="col">Vente</th> : null}
                   <th scope="col" className="col-actions">
                     <span className="sr-only">Actions</span>
                   </th>
@@ -303,6 +412,14 @@ function ProductPriceTable<T extends { id: string; name: string }>({
                   const editing = editingId === row.id;
                   return (
                     <tr key={row.id}>
+                      <td className="col-position">
+                        <PositionInput
+                          position={positions.get(row.id) ?? 1}
+                          total={rows.length}
+                          name={row.name}
+                          onMove={(p) => onMove(row.id, p)}
+                        />
+                      </td>
                       <td>
                         <div className="catalogue-product-cell">
                           <ProductIcon
@@ -328,6 +445,16 @@ function ProductPriceTable<T extends { id: string; name: string }>({
                         </div>
                       </td>
                       {renderPrices(row, editing)}
+                      {grise ? (
+                        <td>
+                          <GriseToggle
+                            control={grise}
+                            kind={griseKind}
+                            id={row.id}
+                            name={row.name}
+                          />
+                        </td>
+                      ) : null}
                       <td className="col-actions">
                         <div className="catalogue-row-actions">
                           <button
@@ -363,6 +490,12 @@ function ProductPriceTable<T extends { id: string; name: string }>({
               return (
                 <article key={row.id} className="catalogue-mobile-card">
                   <div className="catalogue-mobile-card-head">
+                    <PositionInput
+                      position={positions.get(row.id) ?? 1}
+                      total={rows.length}
+                      name={row.name}
+                      onMove={(p) => onMove(row.id, p)}
+                    />
                     <ProductIcon
                       kind={kind === "base" ? "base" : "local"}
                       name={row.name}
@@ -385,6 +518,12 @@ function ProductPriceTable<T extends { id: string; name: string }>({
                     {renderMobilePrices(row, editing)}
                   </div>
                   <div className="catalogue-mobile-card-actions">
+                    <GriseToggle
+                      control={grise}
+                      kind={griseKind}
+                      id={row.id}
+                      name={row.name}
+                    />
                     <button
                       type="button"
                       className={`catalogue-action-btn${editing ? " is-active" : ""}`}
@@ -431,10 +570,12 @@ function BaseDishesCatalogue({
   rows,
   ready,
   onChange,
+  grise,
 }: {
   rows: BaseDish[];
   ready: boolean;
   onChange: (rows: BaseDish[]) => void;
+  grise: GriseControl | null;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -562,6 +703,8 @@ function BaseDishesCatalogue({
         onChange(rows.map((r) => (r.id === row.id ? { ...r, name } : r)))
       }
       onDelete={(id) => onChange(rows.filter((r) => r.id !== id))}
+      grise={grise}
+      onMove={(id, position) => onChange(deplacerA(rows, id, position))}
       editingId={editingId}
       onEditingId={setEditingId}
       addLabel="Ajouter un plat de base"
@@ -581,10 +724,12 @@ function LocalDishesCatalogue({
   rows,
   ready,
   onChange,
+  grise,
 }: {
   rows: LocalDish[];
   ready: boolean;
   onChange: (rows: LocalDish[]) => void;
+  grise: GriseControl | null;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -712,6 +857,8 @@ function LocalDishesCatalogue({
         onChange(rows.map((r) => (r.id === row.id ? { ...r, name } : r)))
       }
       onDelete={(id) => onChange(rows.filter((r) => r.id !== id))}
+      grise={grise}
+      onMove={(id, position) => onChange(deplacerA(rows, id, position))}
       editingId={editingId}
       onEditingId={setEditingId}
       addLabel="Ajouter un accompagnement"
@@ -731,10 +878,12 @@ function DrinksCatalogue({
   rows,
   ready,
   onChange,
+  grise,
 }: {
   rows: Drink[];
   ready: boolean;
   onChange: (rows: Drink[]) => void;
+  grise: GriseControl | null;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -751,6 +900,12 @@ function DrinksCatalogue({
   }, [rows, debouncedSearch, filterNoPrice]);
 
   const paged = paginate(filtered, page, PAGE_SIZE);
+  const positions = useMemo(
+    () => new Map(rows.map((r, i) => [r.id, i + 1])),
+    [rows],
+  );
+  const deplacer = (id: string, position: number) =>
+    onChange(deplacerA(rows, id, position));
 
   useEffect(() => {
     setPage(1);
@@ -801,12 +956,14 @@ function DrinksCatalogue({
             <table className="catalogue-table">
               <thead>
                 <tr>
+                  <th scope="col" className="col-position">N°</th>
                   <th scope="col">Boisson</th>
                   <th scope="col">Contenance (bt)</th>
                   <th scope="col">PA / bouteille</th>
                   <th scope="col">PV / bouteille</th>
                   <th scope="col">Marge / bt</th>
                   <th scope="col">Seuil alerte</th>
+                  {grise ? <th scope="col">Vente</th> : null}
                   <th scope="col" className="col-actions">
                     <span className="sr-only">Actions</span>
                   </th>
@@ -824,6 +981,14 @@ function DrinksCatalogue({
                       key={row.id}
                       className={row.salePrice === null ? "row-warn" : undefined}
                     >
+                      <td className="col-position">
+                        <PositionInput
+                          position={positions.get(row.id) ?? 1}
+                          total={rows.length}
+                          name={row.name}
+                          onMove={(p) => deplacer(row.id, p)}
+                        />
+                      </td>
                       <td>
                         <div className="catalogue-product-cell">
                           <ProductIcon kind="boisson" name={row.name} size="md" />
@@ -958,6 +1123,16 @@ function DrinksCatalogue({
                           (row.alertThreshold ?? "—")
                         )}
                       </td>
+                      {grise ? (
+                        <td>
+                          <GriseToggle
+                            control={grise}
+                            kind="boisson"
+                            id={row.id}
+                            name={row.name}
+                          />
+                        </td>
+                      ) : null}
                       <td className="col-actions">
                         <div className="catalogue-row-actions">
                           <button
@@ -1002,6 +1177,12 @@ function DrinksCatalogue({
                   className={`catalogue-mobile-card${row.salePrice === null ? " is-warn" : ""}`}
                 >
                   <div className="catalogue-mobile-card-head">
+                    <PositionInput
+                      position={positions.get(row.id) ?? 1}
+                      total={rows.length}
+                      name={row.name}
+                      onMove={(p) => deplacer(row.id, p)}
+                    />
                     <ProductIcon kind="boisson" name={row.name} size="lg" />
                     <div className="catalogue-product-name" style={{ flex: 1 }}>
                       {editing ? (
@@ -1090,6 +1271,12 @@ function DrinksCatalogue({
                     </div>
                   </div>
                   <div className="catalogue-mobile-card-actions">
+                    <GriseToggle
+                      control={grise}
+                      kind="boisson"
+                      id={row.id}
+                      name={row.name}
+                    />
                     <button
                       type="button"
                       className={`catalogue-action-btn${editing ? " is-active" : ""}`}
@@ -1162,6 +1349,12 @@ export type CatalogueSectionKey =
   | "categories";
 
 export function CatalogueView({
+  site,
+  siteLabel,
+  grises,
+  griseBusy,
+  savedIds,
+  onToggleGrise,
   data,
   ready,
   saving,
@@ -1177,6 +1370,13 @@ export function CatalogueView({
   onRetry,
   categoriesSlot,
 }: {
+  site: VenteSite;
+  siteLabel: string;
+  /** Articles grisés du site ; `null` = non administrateur ou non chargé. */
+  grises: ReadonlySet<string> | null;
+  griseBusy: string | null;
+  savedIds: ReadonlySet<string>;
+  onToggleGrise: (kind: GriseKind, id: string, name: string) => void;
   data: Parametres;
   ready: boolean;
   saving: boolean;
@@ -1195,8 +1395,21 @@ export function CatalogueView({
 }) {
   const { user } = useSession();
 
+  const autreSite = site === "zogbo" ? "Gbégamey" : "Zogbo";
   const sectionHint =
-    CATALOGUE_SECTIONS.find((s) => s.key === catalogueSection)?.hint ?? "";
+    CATALOGUE_SECTIONS.find((s) => s.key === catalogueSection)?.hint(
+      siteLabel,
+      autreSite,
+    ) ?? "";
+  const grise: GriseControl | null = grises
+    ? {
+        site,
+        grises,
+        busy: griseBusy,
+        savedIds,
+        onToggle: onToggleGrise,
+      }
+    : null;
 
   const initials = user?.name
     ? user.name
@@ -1268,6 +1481,34 @@ export function CatalogueView({
             </button>
           </div>
         </div>
+      </div>
+
+      <div
+        className={`catalogue-site-banner is-${site}`}
+        role="status"
+        aria-live="polite"
+      >
+        <span>
+          Vous modifiez le catalogue de <strong>{siteLabel}</strong>
+        </span>
+        {dirty ? (
+          <span className="catalogue-site-banner-dirty">
+            Modifications non enregistrées — cliquez sur{" "}
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={onSave}
+              disabled={saving}
+            >
+              Enregistrer
+            </button>
+          </span>
+        ) : (
+          <span className="catalogue-site-banner-hint">
+            N° : 1 = en haut de la liste et de la caisse.
+            {grise ? " « En vente / Bloqué » s’applique tout de suite." : ""}
+          </span>
+        )}
       </div>
 
       {drinksWithoutPrice.length > 0 ? (
@@ -1355,6 +1596,7 @@ export function CatalogueView({
           rows={data.baseDishes}
           ready={ready}
           onChange={(baseDishes) => onUpdate({ ...data, baseDishes })}
+          grise={grise}
         />
       ) : null}
 
@@ -1363,6 +1605,7 @@ export function CatalogueView({
           rows={data.localDishes}
           ready={ready}
           onChange={(localDishes) => onUpdate({ ...data, localDishes })}
+          grise={grise}
         />
       ) : null}
 
@@ -1371,6 +1614,7 @@ export function CatalogueView({
           rows={data.drinks}
           ready={ready}
           onChange={(drinks) => onUpdate({ ...data, drinks })}
+          grise={grise}
         />
       ) : null}
 

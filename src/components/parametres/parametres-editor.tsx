@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { ExportExcelButton } from "@/components/export-excel-button";
 import {
   CatalogueView,
   type CatalogueSectionKey,
+  type GriseKind,
 } from "@/components/parametres/catalogue-view";
 import { PriceInput } from "@/components/parametres/price-input";
 import { QtyInput } from "@/components/qty-input";
 import { useSession } from "@/components/session-provider";
-import { effectiveSite } from "@/lib/auth-types";
+import { canManageUsers, effectiveSite } from "@/lib/auth-types";
+import { cleProduitGrise } from "@/lib/produits-grises-calc";
 import { formatFcfa, formatUpdatedAt, newId } from "@/lib/format";
 import { exportParametresExcel } from "@/lib/page-exports";
 import { cloneSeed } from "@/lib/storage";
@@ -105,6 +113,27 @@ const CUISINE_SECTIONS: {
   },
 ];
 
+const SITE_MEMO_KEY = "kf-catalogue-site";
+
+function lireSiteRetenu(): VenteSite | null {
+  try {
+    const v = window.localStorage.getItem(SITE_MEMO_KEY);
+    return v === "zogbo" || v === "gbegamey" ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+const sansAbonnement = () => () => {};
+
+function idsDuCatalogue(p: Parametres): Set<string> {
+  return new Set([
+    ...p.baseDishes.map((d) => d.id),
+    ...p.localDishes.map((d) => d.id),
+    ...p.drinks.map((d) => d.id),
+  ]);
+}
+
 async function fetchParametres(site: VenteSite): Promise<Parametres> {
   const res = await fetch(`/api/parametres?site=${site}`, { cache: "no-store" });
   if (!res.ok) {
@@ -161,8 +190,25 @@ export function ParametresEditor({
   // Compte lié à un site : il ne voit et ne modifie que le catalogue du sien.
   const lockedSite: VenteSite | null =
     perimetre === "zogbo" || perimetre === "gbegamey" ? perimetre : null;
-  const [chosenSite, setChosenSite] = useState<VenteSite>("zogbo");
-  const site = lockedSite ?? chosenSite;
+  // Le site choisi est retenu : la page ne revient plus d'elle-même sur Zogbo
+  // et une saisie prévue pour Gbégamey ne part plus dans le catalogue Zogbo.
+  const siteRetenu = useSyncExternalStore(
+    sansAbonnement,
+    lireSiteRetenu,
+    () => null,
+  );
+  const [chosenSite, setChosenSite] = useState<VenteSite | null>(null);
+  const site = lockedSite ?? chosenSite ?? siteRetenu ?? "zogbo";
+  const estAdmin = user ? canManageUsers(user) : false;
+  /** Articles grisés du site affiché (admin seulement), clés `site:kind:id`. */
+  const [grisesDuSite, setGrisesDuSite] = useState<{
+    site: VenteSite;
+    cles: ReadonlySet<string>;
+  } | null>(null);
+  const grises = grisesDuSite?.site === site ? grisesDuSite.cles : null;
+  const [griseBusy, setGriseBusy] = useState<string | null>(null);
+  /** Produits déjà enregistrés : un produit neuf se grise après enregistrement. */
+  const [savedIds, setSavedIds] = useState<ReadonlySet<string>>(new Set());
   const [rawZone, setRawZone] = useState<ZoneKey>("zogbo");
   const zone: ZoneKey =
     rawZone === "categories" || rawZone === "cuisine" ? rawZone : site;
@@ -181,12 +227,72 @@ export function ParametresEditor({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!dirty) return;
+    const retenir = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", retenir);
+    return () => window.removeEventListener("beforeunload", retenir);
+  }, [dirty]);
+
+  useEffect(() => {
+    if (!estAdmin) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/admin/produits-grises?site=${site}`, {
+          cache: "no-store",
+        });
+        if (!res.ok || cancelled) return;
+        const body = (await res.json()) as { cles?: string[] };
+        if (!cancelled) {
+          setGrisesDuSite({ site, cles: new Set(body.cles ?? []) });
+        }
+      } catch {
+        /* état grisé inconnu : les boutons restent masqués */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [estAdmin, site]);
+
+  async function basculerGrise(kind: GriseKind, productId: string, name: string) {
+    if (!grises) return;
+    const cle = cleProduitGrise(site, kind, productId);
+    const grise = !grises.has(cle);
+    setGriseBusy(cle);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/produits-grises", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ site, kind, productId, name, grise }),
+      });
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (!res.ok) throw new Error(body?.error || "Modification impossible.");
+      setGrisesDuSite((prev) => {
+        const next = new Set(prev?.site === site ? prev.cles : []);
+        if (grise) next.add(cle);
+        else next.delete(cle);
+        return { site, cles: next };
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Modification impossible.");
+    } finally {
+      setGriseBusy(null);
+    }
+  }
+
+  useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
       try {
         const remote = await fetchParametres(site);
         if (!cancelled) {
+          setSavedIds(idsDuCatalogue(remote));
           setData(remote);
           setDirty(false);
           setError(null);
@@ -220,6 +326,11 @@ export function ParametresEditor({
     }
     setReady(false);
     setChosenSite(next);
+    try {
+      window.localStorage.setItem(SITE_MEMO_KEY, next);
+    } catch {
+      /* stockage indisponible : le choix vaut pour cette visite */
+    }
     return true;
   }
 
@@ -250,6 +361,7 @@ export function ParametresEditor({
     setError(null);
     try {
       const saved = await putParametres(data, site);
+      setSavedIds(idsDuCatalogue(saved));
       setData(saved);
       setDirty(false);
       setSavedFlash(true);
@@ -273,6 +385,7 @@ export function ParametresEditor({
     setError(null);
     try {
       const saved = await resetParametresApi(site);
+      setSavedIds(idsDuCatalogue(saved));
       setData(saved);
       setDirty(false);
       setSavedFlash(true);
@@ -303,6 +416,7 @@ export function ParametresEditor({
     try {
       const remote = await fetchParametres(site);
       if (demande !== chargement.current) return;
+      setSavedIds(idsDuCatalogue(remote));
       setData(remote);
       setDirty(false);
       setReady(true);
@@ -335,6 +449,12 @@ export function ParametresEditor({
       <>
       {siteSwitch}
       <CatalogueView
+        site={site}
+        siteLabel={SITE_LABEL[site]}
+        grises={grises}
+        griseBusy={griseBusy}
+        savedIds={savedIds}
+        onToggleGrise={(kind, id, name) => void basculerGrise(kind, id, name)}
         data={data}
         ready={ready}
         saving={saving}
