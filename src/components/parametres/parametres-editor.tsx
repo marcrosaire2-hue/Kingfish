@@ -180,9 +180,12 @@ async function resetParametresApi(site: VenteSite): Promise<Parametres> {
 
 export function ParametresEditor({
   mode = "zones",
+  site: siteImpose,
 }: {
   /** `catalogue` : sections plates sans onglets Zogbo / Gbégamey (page Stock). */
   mode?: ParametresEditorMode;
+  /** Page dédiée à un site (Catalogue Zogbo / Catalogue Gbégamey). */
+  site?: VenteSite;
 }) {
   const [data, setData] = useState<Parametres>(() => cloneSeed());
   const { user } = useSession();
@@ -198,7 +201,9 @@ export function ParametresEditor({
     () => null,
   );
   const [chosenSite, setChosenSite] = useState<VenteSite | null>(null);
-  const site = lockedSite ?? chosenSite ?? siteRetenu ?? "zogbo";
+  const site = lockedSite ?? siteImpose ?? chosenSite ?? siteRetenu ?? "zogbo";
+  /** Un gérant ouvrant le catalogue de l'autre site ne voit que le sien. */
+  const horsPerimetre = !!(lockedSite && siteImpose && lockedSite !== siteImpose);
   const estAdmin = user ? canManageUsers(user) : false;
   /** Articles grisés du site affiché (admin seulement), clés `site:kind:id`. */
   const [grisesDuSite, setGrisesDuSite] = useState<{
@@ -427,7 +432,7 @@ export function ParametresEditor({
     }
   }
 
-  const siteSwitch = lockedSite ? null : (
+  const siteSwitch = lockedSite || siteImpose ? null : (
     <div className="section-tabs" role="tablist" aria-label="Catalogue du site">
       {(["zogbo", "gbegamey"] as const).map((s) => (
         <button
@@ -447,6 +452,17 @@ export function ParametresEditor({
   if (mode === "catalogue") {
     return (
       <>
+      {horsPerimetre ? (
+        <div className="catalogue-alert catalogue-alert-danger" role="alert">
+          <span className="catalogue-alert-icon" aria-hidden>
+            !
+          </span>
+          <span>
+            Ce catalogue n’est pas dans votre périmètre : voici celui de{" "}
+            {SITE_LABEL[site]}.
+          </span>
+        </div>
+      ) : null}
       {siteSwitch}
       <CatalogueView
         site={site}
