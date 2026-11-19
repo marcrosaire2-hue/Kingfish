@@ -11,6 +11,7 @@
  */
 import { jourSlugFromIsoDate, type GbegameyJourSlug } from "@/lib/gbegamey-planning-comptes";
 import { minutesInBusinessTz } from "@/lib/equipe-horaire-marge";
+import { planningRestrictionsActives } from "@/lib/planning-restrictions";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 
 export type GbegameyServicePeriode = "matin" | "soir";
@@ -98,6 +99,7 @@ export function assertGbegameyEmployeeVentePlanning(input: {
   username: string;
   now?: Date;
 }): void {
+  if (!planningRestrictionsActives()) return;
   const uname = input.username.trim().toLowerCase();
   if (!isGbegameyPlanningEmployee(uname)) return;
 

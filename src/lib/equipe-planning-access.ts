@@ -2,6 +2,7 @@
  * Accès global des comptes planning (Zogbo + Gbégamey) :
  * hors jour / créneau → compte inutilisable (pas seulement ventes).
  */
+import { planningRestrictionsActives } from "@/lib/planning-restrictions";
 import { todayIsoDate } from "@/lib/zogbo-calc";
 import {
   findZogboPlanningCompte,
@@ -27,6 +28,7 @@ export function getPlanningAccountBlockReason(
   username: string,
   now = new Date(),
 ): string | null {
+  if (!planningRestrictionsActives()) return null;
   if (!isPlanningEquipeAccount(username)) return null;
   const serviceDate = todayIsoDate(now);
   try {

@@ -9,5 +9,8 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    // Les restrictions de planning sont désactivées par défaut en production ;
+    // les tests existants vérifient leur logique, donc ils les activent.
+    env: { PLANNING_RESTRICTIONS: "on" },
   },
 });
