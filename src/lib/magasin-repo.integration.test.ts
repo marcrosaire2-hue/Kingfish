@@ -1,5 +1,6 @@
 import { ObjectId } from "mongodb";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { shiftIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 
 /** Base en mémoire, juste assez pour les flux du magasin. */
 type Doc = Record<string, unknown> & { _id: unknown };
@@ -123,6 +124,11 @@ import {
   transfererConsommationVente,
 } from "@/lib/magasin-repo";
 
+// Dates relatives à aujourd'hui : le rapport des manquants ne couvre que les
+// 7 derniers jours, des dates fixes finissent donc par en sortir.
+const JOUR = shiftIsoDate(todayIsoDate(), -1) ?? todayIsoDate();
+const LENDEMAIN = todayIsoDate();
+
 const site = "gbegamey" as const;
 const actor = { id: "u1", name: "Gérant" };
 
@@ -134,8 +140,8 @@ async function stock(id: string): Promise<number> {
 const vente = (venteId: string, productId: string, qty: number) => ({
   venteId,
   site,
-  date: "2026-11-10",
-  at: `2026-11-10T12:00:0${venteId.length % 10}.000Z`,
+  date: JOUR,
+  at: `${JOUR}T12:00:0${venteId.length % 10}.000Z`,
   kind: "plat" as const,
   productId,
   qty,
@@ -188,7 +194,7 @@ describe("flux du magasin", () => {
     expect(await stock(huile)).toBe(9.9);
     expect(await stock(piment)).toBe(0.99);
 
-    await annulerConsommationVente({ venteId: "v1", site, date: "2026-11-10" });
+    await annulerConsommationVente({ venteId: "v1", site, date: JOUR });
     expect(await stock(huile)).toBe(10);
     expect(await stock(piment)).toBe(1);
   });
@@ -202,7 +208,7 @@ describe("flux du magasin", () => {
     let etat = await etatMagasin(site);
     expect(etat.manquants[0]).toMatchObject({ name: "Huile", declarations: 1, avecStock: 1 });
 
-    await annulerConsommationVente({ venteId: "v1", site, date: "2026-11-10" });
+    await annulerConsommationVente({ venteId: "v1", site, date: JOUR });
     etat = await etatMagasin(site);
     expect(etat.manquants).toEqual([]);
   });
@@ -212,7 +218,7 @@ describe("flux du magasin", () => {
     await ajusterConsommationVente({
       venteId: "v1",
       site,
-      date: "2026-11-10",
+      date: JOUR,
       ancienneQty: 2,
       nouvelleQty: 4,
     });
@@ -220,7 +226,7 @@ describe("flux du magasin", () => {
     await ajusterConsommationVente({
       venteId: "v1",
       site,
-      date: "2026-11-10",
+      date: JOUR,
       ancienneQty: 4,
       nouvelleQty: 1,
     });
@@ -237,7 +243,7 @@ describe("flux du magasin", () => {
       mode: "commande",
       lines: [{ articleId: huile, qty: 0.5 }],
     });
-    await annulerConsommationVente({ venteId: "v1", site, date: "2026-11-10" });
+    await annulerConsommationVente({ venteId: "v1", site, date: JOUR });
     expect(await stock(huile)).toBe(10);
   });
 
@@ -290,7 +296,7 @@ describe("flux du magasin", () => {
       ajustements: { manquants: [{ articleId: huile, qty: 1 }] },
     });
     const consommation = await lireConsommationVente({ venteId: "v1", site });
-    await annulerConsommationVente({ venteId: "v1", site, date: "2026-11-10" });
+    await annulerConsommationVente({ venteId: "v1", site, date: JOUR });
     expect(await stock(huile)).toBe(10);
 
     await transfererConsommationVente({
@@ -298,14 +304,14 @@ describe("flux du magasin", () => {
       ancienId: "v1",
       nouvelId: "v9",
       site,
-      date: "2026-11-11",
-      at: "2026-11-11T12:00:00.000Z",
+      date: LENDEMAIN,
+      at: `${LENDEMAIN}T12:00:00.000Z`,
       facteur: 1,
     });
     expect(await stock(huile)).toBe(9.9);
     expect((await etatMagasin(site)).manquants[0]).toMatchObject({ name: "Huile", declarations: 1 });
 
-    await annulerConsommationVente({ venteId: "v9", site, date: "2026-11-11" });
+    await annulerConsommationVente({ venteId: "v9", site, date: LENDEMAIN });
     expect(await stock(huile)).toBe(10);
   });
 
@@ -344,7 +350,7 @@ describe("flux du magasin", () => {
     });
     expect(await stock(pili.id)).toBe(0.995);
 
-    await annulerConsommationVente({ venteId: "v2", site, date: "2026-11-10" });
+    await annulerConsommationVente({ venteId: "v2", site, date: JOUR });
     expect(await stock(pili.id)).toBe(1);
   });
 
