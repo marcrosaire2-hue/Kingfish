@@ -5,6 +5,7 @@
  * 1–6  = Matin 08h–16h (mardi → dimanche)
  * 7–12 = Soir  16h–00h (mardi → dimanche)
  */
+import { planningRestrictionsActives } from "@/lib/planning-restrictions";
 import { previousIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 import {
   EQUIPE_GRACE_MINUTES,
@@ -126,6 +127,7 @@ export function assertZogboPlanningSale(input: {
   serviceDate: string;
   now?: Date;
 }): void {
+  if (!planningRestrictionsActives()) return;
   const compte = findZogboPlanningCompte(input.username);
   if (!compte) return;
   if (!isZogboPlanningActive(input.serviceDate)) return;

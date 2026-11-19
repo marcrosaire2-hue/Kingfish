@@ -16,6 +16,7 @@ import {
   isWithinEquipePeriodeWithGrace,
   minutesInBusinessTz,
 } from "@/lib/equipe-horaire-marge";
+import { planningRestrictionsActives } from "@/lib/planning-restrictions";
 import { previousIsoDate, todayIsoDate } from "@/lib/zogbo-calc";
 
 export const GBEGAMEY_PLANNING_START_ISO = "2026-09-01";
@@ -230,6 +231,7 @@ export function assertGbegameyPlanningSale(input: {
   serviceDate: string;
   now?: Date;
 }): void {
+  if (!planningRestrictionsActives()) return;
   const compte = findGbegameyPlanningCompte(input.username);
   if (!compte) return;
   if (!isGbegameyPlanningActive(input.serviceDate)) return;
